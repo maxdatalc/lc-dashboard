@@ -1,8 +1,9 @@
 // Funções de acesso ao banco de dados para as tabelas tenants e lojas
-// Usa o service role key para bypassar RLS — executado apenas no servidor
+// Escritas administrativas usam createAdminClient (bypassa RLS)
+// Leituras do usuário usam createClient (RLS ativo)
 // O terminal MaxData é sempre armazenado criptografado (AES-256-GCM)
 
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { encrypt, decrypt } from "@/lib/crypto";
 import type { Tenant, Loja } from "@/types";
 
@@ -19,14 +20,6 @@ export type CreateLojaInput = {
   erpBaseUrl: string;
   terminal: string; // texto puro — será criptografado antes de salvar
 };
-
-// Cliente com privilégio total — nunca expor para o browser
-function createServiceClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 function rowToTenant(row: Record<string, unknown>): Tenant {
   return {
@@ -53,7 +46,7 @@ function rowToLoja(row: Record<string, unknown>): Loja {
 }
 
 export async function createTenant(input: CreateTenantInput): Promise<Tenant> {
-  const supabase = createServiceClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("tenants")
@@ -71,7 +64,7 @@ export async function createTenant(input: CreateTenantInput): Promise<Tenant> {
 }
 
 export async function getTenantById(id: string): Promise<Tenant | null> {
-  const supabase = createServiceClient();
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("tenants")
@@ -86,7 +79,7 @@ export async function getTenantById(id: string): Promise<Tenant | null> {
 }
 
 export async function createLoja(input: CreateLojaInput): Promise<Loja> {
-  const supabase = createServiceClient();
+  const supabase = createAdminClient();
 
   // Criptografar o terminal antes de persistir — nunca salvar em texto puro
   const terminalEncrypted = encrypt(input.terminal);
@@ -109,7 +102,7 @@ export async function createLoja(input: CreateLojaInput): Promise<Loja> {
 }
 
 export async function getLojasByTenantId(tenantId: string): Promise<Loja[]> {
-  const supabase = createServiceClient();
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("lojas")
@@ -128,7 +121,7 @@ export async function getLojasByTenantId(tenantId: string): Promise<Loja[]> {
 export async function getLojaConfig(
   lojaId: string
 ): Promise<{ baseUrl: string; empId: number; terminal: string }> {
-  const supabase = createServiceClient();
+  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("lojas")
