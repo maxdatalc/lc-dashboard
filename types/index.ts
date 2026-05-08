@@ -21,3 +21,18 @@ export type DashboardKPI = {
   contasAVencer: number;
   clientesAtivos: number;
 };
+
+// Credenciais de acesso à API do ERP MaxManager
+export type MaxDataConfig = {
+  baseUrl: string;
+  empId: number;
+  terminal: string; // equivalente a uma chave de API — nunca logar
+};
+
+// Resposta da rota POST /v2/auth do MaxManager
+export type MaxDataTokenResponse = {
+  token: string;
+  expiration: string;
+  empId: number;
+  terminal: string;
+};
