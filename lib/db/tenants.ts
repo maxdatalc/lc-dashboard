@@ -1,18 +1,23 @@
-// Funções de acesso ao banco de dados para a tabela tenants
+// Funções de acesso ao banco de dados para as tabelas tenants e lojas
 // Usa o service role key para bypassar RLS — executado apenas no servidor
 // O terminal MaxData é sempre armazenado criptografado (AES-256-GCM)
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { encrypt, decrypt } from "@/lib/crypto";
-import type { Tenant } from "@/types";
+import type { Tenant, Loja } from "@/types";
 
 export type CreateTenantInput = {
   name: string;
   slug: string;
-  erpBaseUrl: string;
-  empId: number;
-  terminal: string; // texto puro — será criptografado antes de salvar
   plan?: "free" | "premium";
+};
+
+export type CreateLojaInput = {
+  tenantId: string;
+  name: string;
+  empId: number;
+  erpBaseUrl: string;
+  terminal: string; // texto puro — será criptografado antes de salvar
 };
 
 // Cliente com privilégio total — nunca expor para o browser
@@ -23,31 +28,38 @@ function createServiceClient() {
   );
 }
 
-// Mapeia uma linha do banco para o tipo Tenant da aplicação
 function rowToTenant(row: Record<string, unknown>): Tenant {
   return {
     id: row.id as string,
     name: row.name as string,
-    erpBaseUrl: row.erp_base_url as string,
+    slug: row.slug as string,
+    plan: row.plan as "free" | "premium",
+    isActive: row.is_active as boolean,
+    createdAt: row.created_at as string,
+  };
+}
+
+function rowToLoja(row: Record<string, unknown>): Loja {
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    name: row.name as string,
     empId: row.emp_id as number,
-    createdAt: new Date(row.created_at as string),
+    erpBaseUrl: row.erp_base_url as string,
+    terminalEncrypted: row.terminal_encrypted as string,
+    isActive: row.is_active as boolean,
+    createdAt: row.created_at as string,
   };
 }
 
 export async function createTenant(input: CreateTenantInput): Promise<Tenant> {
   const supabase = createServiceClient();
 
-  // Criptografar o terminal antes de persistir — nunca salvar em texto puro
-  const terminalEncrypted = encrypt(input.terminal);
-
   const { data, error } = await supabase
     .from("tenants")
     .insert({
       name: input.name,
       slug: input.slug,
-      erp_base_url: input.erpBaseUrl,
-      emp_id: input.empId,
-      terminal_encrypted: terminalEncrypted,
       plan: input.plan ?? "free",
     })
     .select()
@@ -73,21 +85,59 @@ export async function getTenantById(id: string): Promise<Tenant | null> {
   return rowToTenant(data as Record<string, unknown>);
 }
 
+export async function createLoja(input: CreateLojaInput): Promise<Loja> {
+  const supabase = createServiceClient();
+
+  // Criptografar o terminal antes de persistir — nunca salvar em texto puro
+  const terminalEncrypted = encrypt(input.terminal);
+
+  const { data, error } = await supabase
+    .from("lojas")
+    .insert({
+      tenant_id: input.tenantId,
+      name: input.name,
+      emp_id: input.empId,
+      erp_base_url: input.erpBaseUrl,
+      terminal_encrypted: terminalEncrypted,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return rowToLoja(data as Record<string, unknown>);
+}
+
+export async function getLojasByTenantId(tenantId: string): Promise<Loja[]> {
+  const supabase = createServiceClient();
+
+  const { data, error } = await supabase
+    .from("lojas")
+    .select()
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  return (data as Record<string, unknown>[]).map(rowToLoja);
+}
+
 // Retorna as credenciais de acesso ao ERP prontas para uso no MaxData client
 // O terminal é descriptografado apenas em memória — nunca exposto em logs
-export async function getTenantConfig(
-  tenantId: string
+export async function getLojaConfig(
+  lojaId: string
 ): Promise<{ baseUrl: string; empId: number; terminal: string }> {
   const supabase = createServiceClient();
 
   const { data, error } = await supabase
-    .from("tenants")
+    .from("lojas")
     .select("erp_base_url, emp_id, terminal_encrypted")
-    .eq("id", tenantId)
+    .eq("id", lojaId)
     .maybeSingle();
 
   if (error) throw new Error(error.message);
-  if (!data) throw new Error("Tenant não encontrado");
+  if (!data) throw new Error("Loja não encontrada");
 
   const row = data as Record<string, unknown>;
 

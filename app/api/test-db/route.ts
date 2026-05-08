@@ -2,7 +2,14 @@
 // Disponível apenas em desenvolvimento — retorna 404 em produção
 
 import { NextResponse } from "next/server";
-import { createTenant, getTenantById, getTenantConfig } from "@/lib/db/tenants";
+import {
+  createTenant,
+  getTenantById,
+  createLoja,
+  getLojasByTenantId,
+  getLojaConfig,
+} from "@/lib/db/tenants";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 export async function GET(): Promise<NextResponse> {
   if (process.env.NODE_ENV !== "development") {
@@ -24,33 +31,65 @@ export async function GET(): Promise<NextResponse> {
     );
   }
 
+  let tenantId: string | undefined;
+
   try {
-    // Criar tenant de teste com slug único para evitar conflito de unicidade
+    // Criar tenant de teste sem campos de ERP
     const tenant = await createTenant({
-      name: "Loja Teste",
-      slug: `loja-teste-${Date.now()}`,
-      erpBaseUrl: baseUrl,
-      empId: Number(empIdRaw),
-      terminal,
+      name: "Tenant Teste",
+      slug: `tenant-teste-${Date.now()}`,
       plan: "free",
     });
+    tenantId = tenant.id;
 
-    // Verificar que o tenant foi persistido corretamente
+    // Verificar que o tenant foi persistido
     await getTenantById(tenant.id);
 
+    // Criar loja vinculada ao tenant com dados de dev
+    const loja = await createLoja({
+      tenantId: tenant.id,
+      name: "Loja Teste",
+      empId: Number(empIdRaw),
+      erpBaseUrl: baseUrl,
+      terminal,
+    });
+
+    // Verificar que a loja aparece na listagem do tenant
+    const lojas = await getLojasByTenantId(tenant.id);
+    if (!lojas.some((l) => l.id === loja.id)) {
+      throw new Error("Loja criada não encontrada em getLojasByTenantId");
+    }
+
     // Descriptografar o terminal e verificar integridade
-    const config = await getTenantConfig(tenant.id);
+    const config = await getLojaConfig(loja.id);
     const terminalMatch = config.terminal === terminal;
+
+    // Limpar dados de teste — lojas são deletadas em cascata pelo banco
+    const supabase = createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    await supabase.from("tenants").delete().eq("id", tenant.id);
 
     return NextResponse.json({
       success: true,
       tenantId: tenant.id,
+      lojaId: loja.id,
       terminalMatch,
       message: "Banco e criptografia funcionando",
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     console.error("[test-db] Falha:", message);
+
+    // Tentar limpar o tenant mesmo em caso de erro parcial
+    if (tenantId) {
+      const supabase = createSupabaseClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+      await supabase.from("tenants").delete().eq("id", tenantId).throwOnError();
+    }
 
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

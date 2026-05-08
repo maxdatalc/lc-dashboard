@@ -3,9 +3,21 @@
 export type Tenant = {
   id: string;
   name: string;
-  erpBaseUrl: string;
+  slug: string;
+  plan: "free" | "premium";
+  isActive: boolean;
+  createdAt: string;
+};
+
+export type Loja = {
+  id: string;
+  tenantId: string;
+  name: string;
   empId: number;
-  createdAt: Date;
+  erpBaseUrl: string;
+  terminalEncrypted: string;
+  isActive: boolean;
+  createdAt: string;
 };
 
 export type User = {
