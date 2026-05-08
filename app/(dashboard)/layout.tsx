@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { Badge } from "@/components/ui/badge";
 import { logout } from "@/app/actions/auth";
+import { LojaSelector } from "@/components/dashboard/loja-selector";
+import { getSelectedLojaId } from "@/app/actions/lojas";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -43,6 +45,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   const lojas = (lojasData ?? []) as { id: string; name: string }[];
 
+  // Determinar loja selecionada — usar a primeira como fallback se nenhuma estiver no cookie
+  let selectedLojaId = await getSelectedLojaId();
+  if (selectedLojaId === null && lojas.length > 0) {
+    selectedLojaId = lojas[0].id;
+  }
+
   // Usar a parte do email antes do @ como nome de exibição até ter profiles completos
   const displayName = user.email?.split("@")[0] ?? "Usuário";
   const initial = displayName.charAt(0).toUpperCase();
@@ -77,16 +85,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
               </Badge>
             </div>
             {lojas.length > 0 ? (
-              <ul className="space-y-0.5">
-                {lojas.map((loja) => (
-                  <li
-                    key={loja.id}
-                    className="px-3 py-1.5 text-sm text-slate-600 truncate rounded-md hover:bg-slate-50"
-                  >
-                    {loja.name}
-                  </li>
-                ))}
-              </ul>
+              <LojaSelector lojas={lojas} selectedLojaId={selectedLojaId} />
             ) : (
               <p className="px-3 text-xs text-slate-400">Nenhuma loja ativa</p>
             )}
