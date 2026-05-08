@@ -23,9 +23,7 @@ export default function DashboardPage() {
     <div className="p-8 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          Visão geral do seu negócio
-        </p>
+        <p className="text-slate-500 text-sm mt-1">Bem-vindo ao LC Dashboard</p>
       </div>
 
       {/* Cards de KPI */}

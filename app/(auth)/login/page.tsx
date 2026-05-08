@@ -1,24 +1,53 @@
-// Página de login — apenas layout visual, sem lógica de autenticação ainda
+"use client";
+
+// Página de login funcional com Server Action e useTransition
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { login } from "@/app/actions/auth";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    const formData = new FormData();
+    formData.set("email", email);
+    formData.set("password", password);
+
+    startTransition(async () => {
+      const result = await login(formData);
+      if (result?.error) {
+        setError(result.error);
+      }
+    });
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <Card className="w-full max-w-md shadow-lg">
+      <Card className="w-[400px] shadow-lg">
         <CardHeader className="space-y-1 text-center">
           <CardTitle className="text-2xl font-bold tracking-tight">
             LC Dashboard
           </CardTitle>
-          <CardDescription>
-            Entre com sua conta para acessar o painel
-          </CardDescription>
+          <CardDescription>Acesse sua conta</CardDescription>
         </CardHeader>
 
         <CardContent>
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-2">
               <Label htmlFor="email">E-mail</Label>
               <Input
@@ -26,6 +55,10 @@ export default function LoginPage() {
                 type="email"
                 placeholder="seu@email.com"
                 autoComplete="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isPending}
+                required
               />
             </div>
 
@@ -36,19 +69,24 @@ export default function LoginPage() {
                 type="password"
                 placeholder="••••••••"
                 autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isPending}
+                required
               />
             </div>
 
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={isPending}>
+              {isPending ? "Entrando..." : "Entrar"}
             </Button>
+
+            {error && (
+              <p className="text-sm text-red-600 text-center">{error}</p>
+            )}
           </form>
 
-          <p className="mt-4 text-center text-sm text-slate-500">
-            Problemas para acessar?{" "}
-            <span className="text-slate-700 font-medium cursor-pointer hover:underline">
-              Fale com o suporte
-            </span>
+          <p className="mt-6 text-center text-xs text-slate-400">
+            Acesso restrito. Contate o suporte para obter acesso.
           </p>
         </CardContent>
       </Card>
