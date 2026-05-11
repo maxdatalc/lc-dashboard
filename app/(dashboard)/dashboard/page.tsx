@@ -14,6 +14,7 @@ import {
   getVendasPorDiaSemana,
 } from "@/lib/db/dashboard";
 import { PeriodoSelector } from "@/components/dashboard/periodo-selector";
+import { SyncButton } from "@/components/dashboard/sync-button";
 import { GraficoFaturamento } from "@/components/dashboard/grafico-faturamento";
 import { GraficoTopClientes } from "@/components/dashboard/grafico-top-clientes";
 import { GraficoTopProdutos } from "@/components/dashboard/grafico-top-produtos";
@@ -47,7 +48,10 @@ export default async function DashboardPage({
             <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
             <p className="text-slate-500 text-sm mt-1">Visão geral do seu negócio</p>
           </div>
-          <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
+          <div className="flex items-center gap-3">
+            <SyncButton />
+            <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
+          </div>
         </div>
         <Card>
           <CardContent className="pt-6">
@@ -105,7 +109,10 @@ export default async function DashboardPage({
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
           <p className="text-slate-500 text-sm mt-1">{label}</p>
         </div>
-        <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
+        <div className="flex items-center gap-3">
+          <SyncButton />
+          <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
+        </div>
       </div>
 
       {/* Grid de KPI cards */}
