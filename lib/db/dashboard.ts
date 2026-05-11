@@ -314,3 +314,104 @@ export async function getVendasAgrupadas(
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, v]) => v);
 }
+
+// ── Top Clientes ───────────────────────────────────────────────────────────
+
+export type ClienteRanking = {
+  nome: string;
+  total: number;
+  quantidade: number;
+  ultimaCompra: string;
+};
+
+export async function getTopClientes(
+  lojaId: string,
+  dataInicio: string,
+  dataFim: string
+): Promise<ClienteRanking[]> {
+  try {
+    const supabase = await createClient();
+
+    // Exclui canceladas e vendas sem cliente identificado
+    const { data, error } = await supabase
+      .from("vendas")
+      .select("cliente_nome, cliente_external_id, valor_total, data_venda")
+      .eq("loja_id", lojaId)
+      .neq("status", "cancelada")
+      .not("cliente_nome", "is", null)
+      .gte("data_venda", dataInicio)
+      .lte("data_venda", dataFim);
+
+    if (error || !data) return [];
+
+    // Agrupar por cliente acumulando total, quantidade e última compra
+    const agrupado: Record<string, ClienteRanking> = {};
+
+    for (const v of data) {
+      const key = `${v.cliente_external_id ?? ""}:${v.cliente_nome as string}`;
+      if (!agrupado[key]) {
+        agrupado[key] = {
+          nome: v.cliente_nome as string,
+          total: 0,
+          quantidade: 0,
+          ultimaCompra: "",
+        };
+      }
+      agrupado[key].total += (v.valor_total as number) ?? 0;
+      agrupado[key].quantidade += 1;
+      if (!agrupado[key].ultimaCompra || (v.data_venda as string) > agrupado[key].ultimaCompra) {
+        agrupado[key].ultimaCompra = v.data_venda as string;
+      }
+    }
+
+    return Object.values(agrupado)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  } catch {
+    return [];
+  }
+}
+
+// ── Vendas por Dia da Semana ───────────────────────────────────────────────
+
+export type DiaSemanaData = {
+  dia: string;
+  total: number;
+  quantidade: number;
+  media: number;
+};
+
+const NOMES_DIAS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+export async function getVendasPorDiaSemana(
+  lojaId: string,
+  dataInicio: string,
+  dataFim: string
+): Promise<DiaSemanaData[]> {
+  const supabase = await createClient();
+
+  // Exclui vendas canceladas — status real vem do ERP via sync
+  const { data } = await supabase
+    .from("vendas")
+    .select("data_venda, valor_total")
+    .eq("loja_id", lojaId)
+    .neq("status", "cancelada")
+    .gte("data_venda", dataInicio)
+    .lte("data_venda", dataFim);
+
+  // Acumuladores para os 7 dias da semana (0=Dom...6=Sáb)
+  const acumulado = Array.from({ length: 7 }, () => ({ total: 0, quantidade: 0 }));
+
+  for (const v of data ?? []) {
+    const dayOfWeek = new Date((v.data_venda as string) + "T12:00:00").getDay();
+    acumulado[dayOfWeek].total += (v.valor_total as number) ?? 0;
+    acumulado[dayOfWeek].quantidade += 1;
+  }
+
+  return acumulado.map((acc, i) => ({
+    dia: NOMES_DIAS[i],
+    total: acc.total,
+    quantidade: acc.quantidade,
+    media: acc.quantidade > 0 ? acc.total / acc.quantidade : 0,
+  }));
+}

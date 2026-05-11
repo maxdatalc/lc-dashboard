@@ -10,9 +10,14 @@ import {
   getVendasPeriodo,
   getTicketMedio,
   getVendasAgrupadas,
+  getTopClientes,
+  getVendasPorDiaSemana,
 } from "@/lib/db/dashboard";
 import { PeriodoSelector } from "@/components/dashboard/periodo-selector";
 import { GraficoFaturamento } from "@/components/dashboard/grafico-faturamento";
+import { GraficoTopClientes } from "@/components/dashboard/grafico-top-clientes";
+import { GraficoTopProdutos } from "@/components/dashboard/grafico-top-produtos";
+import { GraficoDiaSemana } from "@/components/dashboard/grafico-dia-semana";
 
 function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -67,6 +72,8 @@ export default async function DashboardPage({
     ticketMedio,
     vendasAgrupadas,
     vendasPeriodo,
+    topClientes,
+    diasSemana,
   ] = await Promise.all([
     getFaturamento(lojaId, dataInicio, dataFim),
     getFaturamento(lojaId, periodoAnterior.dataInicio, periodoAnterior.dataFim),
@@ -74,6 +81,8 @@ export default async function DashboardPage({
     getTicketMedio(lojaId, dataInicio, dataFim),
     getVendasAgrupadas(lojaId, dataInicio, dataFim, periodo),
     getVendasPeriodo(lojaId, dataInicio, dataFim),
+    getTopClientes(lojaId, dataInicio, dataFim),
+    getVendasPorDiaSemana(lojaId, dataInicio, dataFim),
   ]);
 
   // Variação percentual em relação ao período anterior (null = sem dados para comparar)
@@ -196,6 +205,18 @@ export default async function DashboardPage({
         totalGeral={faturamento}
         label={label}
       />
+
+      {/* Análise detalhada */}
+      <h2 className="text-sm font-medium text-slate-500 mt-6 mb-3">
+        Análise Detalhada
+      </h2>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <GraficoTopClientes dados={topClientes} />
+        <GraficoTopProdutos dataInicio={dataInicio} dataFim={dataFim} />
+      </div>
+
+      <GraficoDiaSemana dados={diasSemana} />
     </div>
   );
 }
