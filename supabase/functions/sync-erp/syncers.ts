@@ -153,10 +153,11 @@ export async function syncVendas(
   dataFinal: string,
   isInicial: boolean
 ): Promise<number> {
-  // Sync inicial sem filtro de data — o limite de 80 páginas controla o volume
+  // Sem filtro de status — salvamos o status real vindo do ERP para que
+  // cancelamentos sejam refletidos no banco e excluídos nas queries do dashboard
   const params = isInicial
-    ? { status: "finalizada" }
-    : { dataInicial, dataFinal, status: "finalizada" };
+    ? {}
+    : { dataInicial, dataFinal };
 
   const vendas = await fetchAllPages<MaxDataVenda>(
     token,

@@ -1,95 +1,201 @@
-// Página principal do dashboard — KPIs mockados, sem chamadas de API ainda
+// Página principal do dashboard — dados reais do Supabase com filtro de período
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign, TrendingUp, AlertCircle, Users } from "lucide-react";
-import type { DashboardKPI } from "@/types";
+import { Badge } from "@/components/ui/badge";
+import { getSelectedLojaId } from "@/app/actions/lojas";
+import {
+  getPeriodoDates,
+  getPeriodoAnteriorDates,
+  getFaturamento,
+  getVendasHoje,
+  getVendasPeriodo,
+  getTicketMedio,
+  getVendasAgrupadas,
+} from "@/lib/db/dashboard";
+import { PeriodoSelector } from "@/components/dashboard/periodo-selector";
+import { GraficoFaturamento } from "@/components/dashboard/grafico-faturamento";
 
-// Dados estáticos — serão substituídos por dados reais do ERP MaxManager
-const kpiData: DashboardKPI = {
-  vendas: 0,
-  faturamento: 0,
-  contasAVencer: 0,
-  clientesAtivos: 0,
-};
-
-function formatCurrency(value: number): string {
-  return value.toLocaleString("pt-BR", {
+function formatarMoeda(valor: number): string {
+  return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-  });
+  }).format(valor);
 }
 
-export default function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ periodo?: string; de?: string; ate?: string }>;
+}) {
+  const params = await searchParams;
+  const periodo = params.periodo ?? "mes";
+  const customDe = params.de;
+  const customAte = params.ate;
+
+  const lojaId = await getSelectedLojaId();
+
+  // Sem loja selecionada — orientar o usuário
+  if (!lojaId) {
+    return (
+      <div className="p-6">
+        <div className="flex justify-between items-start gap-4 flex-wrap mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+            <p className="text-slate-500 text-sm mt-1">Visão geral do seu negócio</p>
+          </div>
+          <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-slate-500 text-sm text-center py-8">
+              Selecione uma loja na barra lateral para ver os dados
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Calcular intervalos de data
+  const { dataInicio, dataFim, label } = getPeriodoDates(periodo, customDe, customAte);
+  const periodoAnterior = getPeriodoAnteriorDates(periodo, customDe, customAte);
+
+  // Buscar todos os KPIs em paralelo
+  const [
+    faturamento,
+    faturamentoAnterior,
+    vendasHoje,
+    ticketMedio,
+    vendasAgrupadas,
+    vendasPeriodo,
+  ] = await Promise.all([
+    getFaturamento(lojaId, dataInicio, dataFim),
+    getFaturamento(lojaId, periodoAnterior.dataInicio, periodoAnterior.dataFim),
+    getVendasHoje(lojaId),
+    getTicketMedio(lojaId, dataInicio, dataFim),
+    getVendasAgrupadas(lojaId, dataInicio, dataFim, periodo),
+    getVendasPeriodo(lojaId, dataInicio, dataFim),
+  ]);
+
+  // Variação percentual em relação ao período anterior (null = sem dados para comparar)
+  const variacao: number | null =
+    faturamentoAnterior > 0
+      ? ((faturamento - faturamentoAnterior) / faturamentoAnterior) * 100
+      : null;
+
+  const hojeStr = new Date().toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
   return (
-    <div className="p-8 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1">Bem-vindo ao LC Dashboard</p>
+    <div className="p-6">
+      {/* Cabeçalho com seletor de período */}
+      <div className="flex justify-between items-start gap-4 flex-wrap mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          <p className="text-slate-500 text-sm mt-1">{label}</p>
+        </div>
+        <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
       </div>
 
-      {/* Cards de KPI */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6">
+      {/* Grid de KPI cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+
+        {/* Card 1 — Faturamento do período */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-600">
-              Vendas do dia
+              Faturamento — {label}
             </CardTitle>
-            <DollarSign className="h-4 w-4 text-slate-400" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-2">
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(kpiData.vendas)}
+              {formatarMoeda(faturamento)}
+            </p>
+            {variacao === null ? (
+              <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">
+                Sem dados anteriores
+              </Badge>
+            ) : variacao > 0 ? (
+              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                ▲ {variacao.toFixed(1).replace(".", ",")}%
+              </Badge>
+            ) : variacao < 0 ? (
+              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                ▼ {Math.abs(variacao).toFixed(1).replace(".", ",")}%
+              </Badge>
+            ) : (
+              <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">
+                Sem variação
+              </Badge>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Card 2 — Vendas no período */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-slate-600">
+              Vendas — {label}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            <p className="text-2xl font-bold text-slate-900">
+              {vendasPeriodo.quantidade}{" "}
+              <span className="text-base font-medium text-slate-500">
+                {vendasPeriodo.quantidade === 1 ? "venda" : "vendas"}
+              </span>
+            </p>
+            <p className="text-sm text-slate-500">
+              {formatarMoeda(vendasPeriodo.total)}
             </p>
           </CardContent>
         </Card>
 
+        {/* Card 3 — Vendas hoje (fixo, não afetado pelo seletor) */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-600">
-              Faturamento do mês
+              Vendas Hoje
             </CardTitle>
-            <TrendingUp className="h-4 w-4 text-slate-400" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-1">
             <p className="text-2xl font-bold text-slate-900">
-              {formatCurrency(kpiData.faturamento)}
+              {vendasHoje.quantidade}{" "}
+              <span className="text-base font-medium text-slate-500">
+                {vendasHoje.quantidade === 1 ? "venda" : "vendas"}
+              </span>
             </p>
+            <p className="text-sm text-slate-500">{formatarMoeda(vendasHoje.total)}</p>
+            <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100 text-xs">
+              {hojeStr}
+            </Badge>
           </CardContent>
         </Card>
 
+        {/* Card 4 — Ticket médio */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-slate-600">
-              Contas a vencer
+              Ticket Médio — {label}
             </CardTitle>
-            <AlertCircle className="h-4 w-4 text-slate-400" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-1">
             <p className="text-2xl font-bold text-slate-900">
-              {kpiData.contasAVencer}
+              {formatarMoeda(ticketMedio)}
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Clientes ativos
-            </CardTitle>
-            <Users className="h-4 w-4 text-slate-400" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-slate-900">
-              {kpiData.clientesAtivos}
-            </p>
+            <p className="text-sm text-slate-500">média por venda no período</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Status da conexão com ERP */}
-      <div className="flex items-center gap-2 text-slate-400 text-sm">
-        <span className="inline-block h-2 w-2 rounded-full bg-yellow-400 animate-pulse" />
-        Conectando ao ERP...
-      </div>
+      {/* Gráfico de faturamento */}
+      <GraficoFaturamento
+        dados={vendasAgrupadas}
+        totalGeral={faturamento}
+        label={label}
+      />
     </div>
   );
 }
