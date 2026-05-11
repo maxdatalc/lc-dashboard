@@ -1,14 +1,11 @@
 // Layout do dashboard — Server Component com dados reais do usuário e lojas
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { LayoutDashboard } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { Badge } from "@/components/ui/badge";
 import { logout } from "@/app/actions/auth";
-import { LojaSelector } from "@/components/dashboard/loja-selector";
 import { getSelectedLojaId } from "@/app/actions/lojas";
+import { NavLinks } from "@/components/dashboard/nav-links";
 
 export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
@@ -64,33 +61,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           <span className="text-xl font-bold text-slate-900">LC Dashboard</span>
         </div>
 
-        {/* Navegação */}
-        <nav className="flex-1 px-4 py-6 space-y-4 overflow-y-auto">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors"
-          >
-            <LayoutDashboard className="h-4 w-4 text-slate-500" />
-            Dashboard
-          </Link>
-
-          {/* Lista de lojas */}
-          <div>
-            <div className="flex items-center justify-between px-3 mb-1">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Lojas
-              </span>
-              <Badge variant="secondary" className="text-xs">
-                {lojas.length}
-              </Badge>
-            </div>
-            {lojas.length > 0 ? (
-              <LojaSelector lojas={lojas} selectedLojaId={selectedLojaId} />
-            ) : (
-              <p className="px-3 text-xs text-slate-400">Nenhuma loja ativa</p>
-            )}
-          </div>
-        </nav>
+        {/* Navegação — Client Component para detectar rota ativa */}
+        <NavLinks lojas={lojas} selectedLojaId={selectedLojaId} />
 
         {/* Rodapé com usuário e botão de logout */}
         <div className="px-4 py-4 border-t border-slate-200 space-y-2">
