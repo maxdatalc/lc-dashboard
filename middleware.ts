@@ -1,6 +1,7 @@
 // Middleware de autenticação — protege rotas do dashboard e redireciona usuários logados
 import { updateSession } from "@/lib/supabase/middleware-client";
 import { type NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(request: NextRequest) {
   const { supabaseResponse, user } = await updateSession(request);
@@ -18,6 +19,34 @@ export async function middleware(request: NextRequest) {
     const dashboardUrl = request.nextUrl.clone();
     dashboardUrl.pathname = "/dashboard";
     return NextResponse.redirect(dashboardUrl);
+  }
+
+  // Proteger rotas /admin — exige autenticação e is_system_admin
+  if (pathname.startsWith("/admin")) {
+    if (user === null) {
+      const loginUrl = request.nextUrl.clone();
+      loginUrl.pathname = "/login";
+      return NextResponse.redirect(loginUrl);
+    }
+
+    // Criar cliente admin sem cookies (service role não precisa de sessão)
+    const adminClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { cookies: { getAll: () => [], setAll: () => {} } }
+    );
+
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("is_system_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!(profile as { is_system_admin?: boolean } | null)?.is_system_admin) {
+      const dashboardUrl = request.nextUrl.clone();
+      dashboardUrl.pathname = "/dashboard";
+      return NextResponse.redirect(dashboardUrl);
+    }
   }
 
   return supabaseResponse;
