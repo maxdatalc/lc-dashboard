@@ -85,7 +85,7 @@ Deno.serve(async (_req) => {
     .maybeSingle();
 
   const offset = offsetLog?.total_registros ?? 0;
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 20;
 
   // 4. Buscar próximo batch de clientes com documento válido
   const { data: clientes } = await supabase
@@ -171,8 +171,8 @@ Deno.serve(async (_req) => {
 
       if (!error) totalRegistros += rowsUnicos.length;
 
-      // Pausa entre clientes para não sobrecarregar a API da loja
-      await new Promise((r) => setTimeout(r, 200));
+      // Pausa entre clientes para respeitar o rate limit da API MaxData
+      await new Promise((r) => setTimeout(r, 300));
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Erro desconhecido";
       erros.push(`${cliente.nome}: ${msg}`);

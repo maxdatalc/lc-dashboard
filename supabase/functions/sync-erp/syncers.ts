@@ -10,6 +10,9 @@ export interface LojaRow {
   erp_base_url: string;
 }
 
+// Helper de delay para respeitar o rate limit da API MaxData
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 // ── Tipos das respostas da API MaxData ─────────────────────────────────────
 
 interface MaxDataProduto {
@@ -41,10 +44,12 @@ interface MaxDataCliente {
 
 interface MaxDataVenda {
   id: number;
+  cfop?: number;
   abertura?: string;
   fechamento?: string;
   clienteId?: number;
   clienteNome?: string;
+  cpfCnpj?: string;
   valorTotalLiquidoProduto?: number;
   valorTotal?: number;
   totalNf?: number;
@@ -68,6 +73,26 @@ interface MaxDataPagamento {
   formaPgto?: string;
   valor?: number;
   parcelas?: number;
+}
+
+// ── Utilitários de data ────────────────────────────────────────────────────
+
+// Janela de 25 horas em horário de Brasília para sync incremental
+// Cancelamentos são possíveis em até 24h após a venda (regra fiscal) +1h de margem
+function toBrazilDateRange(): { dataInicial: string; dataFinal: string } {
+  const agora = new Date();
+  const vinteECincoHorasAtras = new Date(agora.getTime() - 25 * 60 * 60 * 1000);
+
+  const formatBrasilia = (date: Date): string => {
+    const offset = -3 * 60;
+    const local = new Date(date.getTime() + offset * 60 * 1000);
+    return local.toISOString().replace("Z", "-03:00");
+  };
+
+  return {
+    dataInicial: formatBrasilia(vinteECincoHorasAtras),
+    dataFinal: formatBrasilia(agora),
+  };
 }
 
 // ── Sincronizações ─────────────────────────────────────────────────────────
@@ -150,21 +175,26 @@ export async function syncVendas(
   token: string,
   loja: LojaRow,
   dataInicial: string,
-  dataFinal: string,
+  _dataFinal: string, // não usado — range calculado internamente via toBrazilDateRange()
   isInicial: boolean
 ): Promise<number> {
-  // Sem filtro de status — salvamos o status real vindo do ERP para que
-  // cancelamentos sejam refletidos no banco e excluídos nas queries do dashboard
-  const params = isInicial
-    ? {}
-    : { dataInicial, dataFinal };
+  // Sync inicial: sem filtro para capturar histórico completo
+  // Sync incremental: janela de 25h cobre cancelamentos (regra fiscal: máx 24h)
+  const params = isInicial ? {} : toBrazilDateRange();
+  console.log(`[syncers] Loja ${loja.id} params:`, JSON.stringify(params));
 
-  const vendas = await fetchAllPages<MaxDataVenda>(
+  let vendas = await fetchAllPages<MaxDataVenda>(
     token,
     loja.erp_base_url,
     "/sale",
     params
   );
+
+  // Se API retornou 0 com filtro de data, tentar sem filtro como fallback
+  if (vendas.length === 0 && !isInicial) {
+    console.warn(`[syncers] Loja ${loja.id} — filtro de data retornou 0, usando fallback sem filtro`);
+    vendas = await fetchAllPages<MaxDataVenda>(token, loja.erp_base_url, "/sale", {});
+  }
 
   if (vendas.length === 0) return 0;
 
@@ -176,6 +206,7 @@ export async function syncVendas(
     data_venda: (v.fechamento ?? v.abertura ?? dataInicial).split("T")[0],
     cliente_external_id: v.clienteId ?? null,
     cliente_nome: v.clienteNome ?? null,
+    cfop: v.cfop ?? null,
     valor_bruto: v.valorTotalLiquidoProduto ?? v.valorTotal ?? 0,
     valor_desconto: v.valorTotalDesconto ?? 0,
     valor_total: v.totalNf ?? v.vlrPago ?? 0,
@@ -201,8 +232,13 @@ export async function syncVendas(
     if (error) throw new Error(`Erro ao sincronizar vendas: ${error.message}`);
   }
 
-  // Itens e pagamentos são buscados sob demanda no drill-down
-  // para não exceder o timeout da Edge Function
+  // Sincronizar itens e pagamentos de cada venda para alimentar os gráficos do dashboard
+  // Em syncs iniciais com muitas vendas isso pode ser lento — considerar batch assíncrono se necessário
+  for (const row of rowsUnicos) {
+    await syncVendaItens(supabase, token, loja, row.external_id);
+    await syncVendaPagamentos(supabase, token, loja, row.external_id);
+    await sleep(200); // 200ms entre vendas = máx 5 vendas/segundo
+  }
 
   return rowsUnicos.length;
 }
