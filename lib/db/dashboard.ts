@@ -185,13 +185,13 @@ export async function getFaturamento(
   // Exclui vendas canceladas — status real vem do ERP via sync
   const { data } = await supabase
     .from("vendas")
-    .select("valor_total")
+    .select("valor_bruto")
     .eq("loja_id", lojaId)
-    .neq("status", "cancelada")
+    .not("status", "ilike", "cancelada")
     .gte("data_venda", dataInicio)
     .lte("data_venda", dataFim);
 
-  return (data ?? []).reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  return (data ?? []).reduce((acc, v) => acc + (v.valor_bruto ?? 0), 0);
 }
 
 export async function getVendasPeriodo(
@@ -204,16 +204,16 @@ export async function getVendasPeriodo(
   // Exclui vendas canceladas — status real vem do ERP via sync
   const { data } = await supabase
     .from("vendas")
-    .select("valor_total")
+    .select("valor_bruto")
     .eq("loja_id", lojaId)
-    .neq("status", "cancelada")
+    .not("status", "ilike", "cancelada")
     .gte("data_venda", dataInicio)
     .lte("data_venda", dataFim);
 
   const registros = data ?? [];
   return {
     quantidade: registros.length,
-    total: registros.reduce((acc, v) => acc + (v.valor_total ?? 0), 0),
+    total: registros.reduce((acc, v) => acc + (v.valor_bruto ?? 0), 0),
   };
 }
 
@@ -226,15 +226,15 @@ export async function getVendasHoje(
   // Exclui vendas canceladas — status real vem do ERP via sync
   const { data } = await supabase
     .from("vendas")
-    .select("valor_total")
+    .select("valor_bruto")
     .eq("loja_id", lojaId)
-    .neq("status", "cancelada")
+    .not("status", "ilike", "cancelada")
     .eq("data_venda", hoje);
 
   const registros = data ?? [];
   return {
     quantidade: registros.length,
-    total: registros.reduce((acc, v) => acc + (v.valor_total ?? 0), 0),
+    total: registros.reduce((acc, v) => acc + (v.valor_bruto ?? 0), 0),
   };
 }
 
@@ -248,16 +248,16 @@ export async function getTicketMedio(
   // Exclui vendas canceladas — status real vem do ERP via sync
   const { data } = await supabase
     .from("vendas")
-    .select("valor_total")
+    .select("valor_bruto")
     .eq("loja_id", lojaId)
-    .neq("status", "cancelada")
+    .not("status", "ilike", "cancelada")
     .gte("data_venda", dataInicio)
     .lte("data_venda", dataFim);
 
   const registros = data ?? [];
   if (registros.length === 0) return 0;
 
-  const total = registros.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const total = registros.reduce((acc, v) => acc + (v.valor_bruto ?? 0), 0);
   return total / registros.length;
 }
 
@@ -272,9 +272,9 @@ export async function getVendasAgrupadas(
   // Exclui vendas canceladas — status real vem do ERP via sync
   const { data } = await supabase
     .from("vendas")
-    .select("data_venda, valor_total")
+    .select("data_venda, valor_bruto")
     .eq("loja_id", lojaId)
-    .neq("status", "cancelada")
+    .not("status", "ilike", "cancelada")
     .gte("data_venda", dataInicio)
     .lte("data_venda", dataFim);
 
@@ -307,7 +307,7 @@ export async function getVendasAgrupadas(
     }
 
     if (!agrupado[key]) agrupado[key] = { label, total: 0 };
-    agrupado[key].total += (v.valor_total as number) ?? 0;
+    agrupado[key].total += (v.valor_bruto as number) ?? 0;
   }
 
   return Object.entries(agrupado)
@@ -335,9 +335,9 @@ export async function getTopClientes(
     // Exclui canceladas e vendas sem cliente identificado
     const { data, error } = await supabase
       .from("vendas")
-      .select("cliente_nome, cliente_external_id, valor_total, data_venda")
+      .select("cliente_nome, cliente_external_id, valor_bruto, data_venda")
       .eq("loja_id", lojaId)
-      .neq("status", "cancelada")
+      .not("status", "ilike", "cancelada")
       .not("cliente_nome", "is", null)
       .gte("data_venda", dataInicio)
       .lte("data_venda", dataFim);
@@ -357,7 +357,7 @@ export async function getTopClientes(
           ultimaCompra: "",
         };
       }
-      agrupado[key].total += (v.valor_total as number) ?? 0;
+      agrupado[key].total += (v.valor_bruto as number) ?? 0;
       agrupado[key].quantidade += 1;
       if (!agrupado[key].ultimaCompra || (v.data_venda as string) > agrupado[key].ultimaCompra) {
         agrupado[key].ultimaCompra = v.data_venda as string;
@@ -393,9 +393,9 @@ export async function getVendasPorDiaSemana(
   // Exclui vendas canceladas — status real vem do ERP via sync
   const { data } = await supabase
     .from("vendas")
-    .select("data_venda, valor_total")
+    .select("data_venda, valor_bruto")
     .eq("loja_id", lojaId)
-    .neq("status", "cancelada")
+    .not("status", "ilike", "cancelada")
     .gte("data_venda", dataInicio)
     .lte("data_venda", dataFim);
 
@@ -404,7 +404,7 @@ export async function getVendasPorDiaSemana(
 
   for (const v of data ?? []) {
     const dayOfWeek = new Date((v.data_venda as string) + "T12:00:00").getDay();
-    acumulado[dayOfWeek].total += (v.valor_total as number) ?? 0;
+    acumulado[dayOfWeek].total += (v.valor_bruto as number) ?? 0;
     acumulado[dayOfWeek].quantidade += 1;
   }
 

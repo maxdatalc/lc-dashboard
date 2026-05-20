@@ -60,11 +60,12 @@ export async function POST(_req: NextRequest) {
     };
 
     // 6. Disparar sync-erp e sync-financeiro em paralelo
+    // Passar lojaId para o sync-erp sincronizar apenas a loja selecionada
     const [erpResult, finResult] = await Promise.allSettled([
       fetch(`${supabaseUrl}/functions/v1/sync-erp`, {
         method: "POST",
         headers,
-        body: "{}",
+        body: JSON.stringify({ lojaId }),
         signal: AbortSignal.timeout(120_000),
       }).then((r) => r.json()),
       fetch(`${supabaseUrl}/functions/v1/sync-financeiro`, {

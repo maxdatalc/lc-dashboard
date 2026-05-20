@@ -1,10 +1,6 @@
-// API route para buscar top produtos do período via MaxData com cache Redis
-// Disponível para todas as ambientes (dados são cacheados 30 min)
-
 import { NextRequest, NextResponse } from "next/server";
 import { getSelectedLojaId } from "@/app/actions/lojas";
-import { getLojaConfig } from "@/lib/db/tenants";
-import { getMaxDataToken } from "@/lib/maxdata/client";
+import { createClient } from "@/lib/supabase/server";
 import { redis } from "@/lib/redis";
 
 interface ProdutoRanking {
@@ -13,17 +9,6 @@ interface ProdutoRanking {
   total: number;
 }
 
-interface SummaryItem {
-  descricao?: string;
-  qtd?: number;
-  total?: number;
-}
-
-interface SummaryResponse {
-  docs?: SummaryItem[];
-}
-
-// Calcula primeiro e último dia do mês atual como fallback
 function limitesMesAtual(): { dataInicio: string; dataFim: string } {
   const hoje = new Date();
   const ano = hoje.getFullYear();
@@ -52,38 +37,62 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const chave = `dashboard:top-produtos:${lojaId}:${dataInicio}:${dataFim}`;
 
-  // Tentar cache Redis antes de bater na API da loja
+  // Tentar cache Redis antes de bater no banco
   const cached = await redis.get(chave);
   if (cached) {
     return NextResponse.json(cached);
   }
 
   try {
-    const config = await getLojaConfig(lojaId);
-    const token = await getMaxDataToken(config);
+    const supabase = await createClient();
 
-    const response = await fetch(
-      `${config.baseUrl}/v2/summary?data_inicial=${dataInicio}&data_final=${dataFim}`,
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      }
-    );
+    // Passo 1 — busca os IDs das vendas finalizadas no período
+    const { data: vendas, error: erroVendas } = await supabase
+      .from("vendas")
+      .select("external_id")
+      .eq("loja_id", lojaId)
+      .gte("data_venda", dataInicio)
+      .lte("data_venda", dataFim)
+      .neq("status", "cancelada");
 
-    if (!response.ok) {
-      // Retornar vazio sem quebrar o dashboard
+    if (erroVendas || !vendas || vendas.length === 0) {
       return NextResponse.json([]);
     }
 
-    const data = (await response.json()) as SummaryResponse;
-    const docs = data.docs ?? [];
+    const vendaIds = vendas.map((v) => v.external_id);
 
-    const resultado: ProdutoRanking[] = docs
-      .map((item) => ({
-        nome: item.descricao ?? "Produto",
-        quantidade: item.qtd ?? 0,
-        total: item.total ?? 0,
-      }))
+    // Passo 2 — busca os itens dessas vendas
+    const { data: itens, error: erroItens } = await supabase
+      .from("venda_itens")
+      .select("produto_external_id, produto_nome, quantidade, valor_total")
+      .eq("loja_id", lojaId)
+      .in("venda_external_id", vendaIds);
+
+    if (erroItens || !itens || itens.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    // Passo 3 — agrega por produto
+    const agregado = new Map<number, ProdutoRanking>();
+
+    for (const item of itens) {
+      const id = item.produto_external_id as number;
+      if (!id) continue;
+
+      if (!agregado.has(id)) {
+        agregado.set(id, {
+          nome: item.produto_nome ?? "Produto",
+          quantidade: 0,
+          total: 0,
+        });
+      }
+
+      const entry = agregado.get(id)!;
+      entry.quantidade += Number(item.quantidade ?? 0);
+      entry.total += Number(item.valor_total ?? 0);
+    }
+
+    const resultado: ProdutoRanking[] = Array.from(agregado.values())
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
 
@@ -92,7 +101,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     return NextResponse.json(resultado);
   } catch {
-    // Erros da API da loja não quebram o dashboard
     return NextResponse.json([]);
   }
 }

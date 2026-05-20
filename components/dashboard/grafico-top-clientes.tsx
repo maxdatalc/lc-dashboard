@@ -50,10 +50,10 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-lg text-sm space-y-1">
-      <p className="font-medium text-slate-800 truncate max-w-[200px]">{d.nome}</p>
-      <p className="text-blue-600 font-semibold">{formatarMoeda(d.total)}</p>
-      <p className="text-slate-500">{d.quantidade} {d.quantidade === 1 ? "compra" : "compras"}</p>
+    <div style={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", padding: "10px 14px" }} className="text-sm space-y-1">
+      <p className="font-medium truncate max-w-[200px]" style={{ color: "hsl(var(--foreground))" }}>{d.nome}</p>
+      <p className="font-semibold" style={{ color: "hsl(var(--foreground))" }}>{formatarMoeda(d.total)}</p>
+      <p style={{ color: "hsl(var(--muted-foreground))" }}>{d.quantidade} {d.quantidade === 1 ? "compra" : "compras"}</p>
     </div>
   );
 }
@@ -93,7 +93,7 @@ export function GraficoTopClientes({ dados }: Props) {
                   type="category"
                   dataKey="nome"
                   width={120}
-                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={truncar}
@@ -111,7 +111,7 @@ export function GraficoTopClientes({ dados }: Props) {
                   {dados.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={index < 3 ? "#2563EB" : "#93C5FD"}
+                      fill={index < 3 ? "#2563EB" : "#1E3A7A"}
                     />
                   ))}
                   <LabelList

@@ -35,9 +35,9 @@ interface TooltipProps {
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-lg">
-      <p className="text-sm font-medium text-slate-700">{label}</p>
-      <p className="text-sm text-blue-600 font-semibold">
+    <div style={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", padding: "10px 14px" }}>
+      <p className="text-sm font-medium" style={{ color: "hsl(var(--foreground))" }}>{label}</p>
+      <p className="text-sm font-semibold" style={{ color: "hsl(var(--foreground))" }}>
         {formatarMoeda(payload[0].value)}
       </p>
     </div>
@@ -68,12 +68,12 @@ export function GraficoFaturamento({ dados, totalGeral, label }: Props) {
             <BarChart data={dados} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="#f1f5f9"
+                stroke="hsl(var(--border))"
                 vertical={false}
               />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                 axisLine={false}
                 tickLine={false}
               />

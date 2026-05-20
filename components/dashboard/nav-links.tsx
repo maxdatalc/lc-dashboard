@@ -1,7 +1,5 @@
 "use client";
 
-// Navegação lateral do dashboard — Client Component para usar usePathname()
-
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -11,7 +9,6 @@ import {
   ShoppingCart,
   Users,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { LojaSelector } from "@/components/dashboard/loja-selector";
 
 interface Props {
@@ -19,94 +16,65 @@ interface Props {
   selectedLojaId: string | null;
 }
 
-// Links dos módulos — todos com placeholder "Em breve"
 const MODULOS = [
-  {
-    href: "/dashboard/financeiro",
-    label: "Financeiro",
-    icon: Landmark,
-  },
-  {
-    href: "/dashboard/produtos",
-    label: "Produtos & Estoque",
-    icon: Package,
-  },
-  {
-    href: "/dashboard/vendas",
-    label: "Vendas",
-    icon: ShoppingCart,
-  },
-  {
-    href: "/dashboard/clientes",
-    label: "Clientes",
-    icon: Users,
-  },
+  { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark },
+  { href: "/dashboard/produtos",   label: "Produtos & Estoque", icon: Package },
+  { href: "/dashboard/vendas",     label: "Vendas", icon: ShoppingCart },
+  { href: "/dashboard/clientes",   label: "Clientes", icon: Users },
 ];
 
-// Classes compartilhadas para links de navegação
-const BASE_LINK =
-  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer w-full";
-const LINK_ATIVO = "bg-slate-100 text-slate-900";
-const LINK_INATIVO = "text-slate-600 hover:bg-slate-50 hover:text-slate-900";
+const LINK_ATIVO =
+  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium " +
+  "bg-primary/10 text-primary border border-primary/20 transition-colors";
+
+const LINK_INATIVO =
+  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium " +
+  "text-muted-foreground hover:text-foreground hover:bg-accent transition-colors";
 
 export function NavLinks({ lojas, selectedLojaId }: Props) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex-1 px-4 py-6 overflow-y-auto space-y-1">
+    <nav className="flex flex-col gap-0.5 px-3">
       {/* Dashboard principal */}
       <Link
         href="/dashboard"
-        className={`${BASE_LINK} ${pathname === "/dashboard" ? LINK_ATIVO : LINK_INATIVO}`}
+        className={pathname === "/dashboard" ? LINK_ATIVO : LINK_INATIVO}
       >
         <LayoutDashboard className="h-4 w-4 shrink-0" />
         Dashboard
       </Link>
 
       {/* Separador */}
-      <div className="h-px bg-slate-100 my-2" />
+      <div className="h-px bg-border my-2" />
 
-      {/* Label da seção de módulos */}
-      <span className="block text-xs font-semibold text-slate-400 uppercase tracking-wider px-3 mb-1">
-        Módulos
-      </span>
-
-      {/* Links de módulos */}
+      {/* Módulos */}
       {MODULOS.map(({ href, label, icon: Icon }) => (
         <Link
           key={href}
           href={href}
-          className={`${BASE_LINK} ${
-            pathname.startsWith(href) ? LINK_ATIVO : LINK_INATIVO
-          }`}
+          className={pathname.startsWith(href) ? LINK_ATIVO : LINK_INATIVO}
         >
           <Icon className="h-4 w-4 shrink-0" />
           {label}
-          <span className="ml-auto text-xs bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-normal">
+          <span className="ml-auto text-[10px] bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-normal">
             Em breve
           </span>
         </Link>
       ))}
 
       {/* Separador antes das lojas */}
-      <div className="h-px bg-slate-100 my-2" />
+      <div className="h-px bg-border my-2" />
 
-      {/* Seção de lojas — mantida exatamente como estava */}
-      <div>
-        <div className="flex items-center justify-between px-3 mb-1">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Lojas
-          </span>
-          <Badge variant="secondary" className="text-xs">
-            {lojas.length}
-          </Badge>
-        </div>
-        {lojas.length > 0 ? (
-          <LojaSelector lojas={lojas} selectedLojaId={selectedLojaId} />
-        ) : (
-          <p className="px-3 text-xs text-slate-400">Nenhuma loja ativa</p>
-        )}
-      </div>
+      {/* Seção de lojas */}
+      <p className="px-3 py-2 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+        Loja ativa
+      </p>
+      {lojas.length > 0 ? (
+        <LojaSelector lojas={lojas} selectedLojaId={selectedLojaId} />
+      ) : (
+        <p className="px-3 text-xs text-muted-foreground">Nenhuma loja ativa</p>
+      )}
     </nav>
   );
 }

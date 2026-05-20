@@ -1,6 +1,5 @@
 // Página principal do dashboard — dados reais do Supabase com filtro de período
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { getSelectedLojaId } from "@/app/actions/lojas";
 import {
   getPeriodoDates,
@@ -19,6 +18,7 @@ import { GraficoFaturamento } from "@/components/dashboard/grafico-faturamento";
 import { GraficoTopClientes } from "@/components/dashboard/grafico-top-clientes";
 import { GraficoTopProdutos } from "@/components/dashboard/grafico-top-produtos";
 import { GraficoDiaSemana } from "@/components/dashboard/grafico-dia-semana";
+import { KpiSecao } from "@/components/dashboard/kpi-secao";
 
 function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -42,24 +42,27 @@ export default async function DashboardPage({
   // Sem loja selecionada — orientar o usuário
   if (!lojaId) {
     return (
-      <div className="p-6">
-        <div className="flex justify-between items-start gap-4 flex-wrap mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-            <p className="text-slate-500 text-sm mt-1">Visão geral do seu negócio</p>
+      <div>
+        <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md
+          border-b border-border px-6 py-3 flex items-center gap-3 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-sm font-semibold text-foreground">Dashboard</h1>
+            <p className="text-[11px] text-muted-foreground">Visão geral do período</p>
           </div>
-          <div className="flex items-center gap-3">
-            <SyncButton />
+          <div className="flex items-center gap-2 flex-wrap">
+            <SyncButton key="sem-loja" />
             <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
           </div>
         </div>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-slate-500 text-sm text-center py-8">
-              Selecione uma loja na barra lateral para ver os dados
-            </p>
-          </CardContent>
-        </Card>
+        <div className="p-6">
+          <Card>
+            <CardContent className="pt-6">
+              <p className="text-muted-foreground text-sm text-center py-8">
+                Selecione uma loja na barra lateral para ver os dados
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -89,141 +92,150 @@ export default async function DashboardPage({
     getVendasPorDiaSemana(lojaId, dataInicio, dataFim),
   ]);
 
-  // Variação percentual em relação ao período anterior (null = sem dados para comparar)
+  // Variação percentual em relação ao período anterior
   const variacao: number | null =
     faturamentoAnterior > 0
       ? ((faturamento - faturamentoAnterior) / faturamentoAnterior) * 100
       : null;
 
-  const hojeStr = new Date().toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  // Variáveis formatadas para os KPI cards
+  const fmtFaturamento = formatarMoeda(faturamento);
+  const fmtFaturamentoAnterior = formatarMoeda(faturamentoAnterior);
+  const variacaoFaturamento =
+    variacao === null ? "Sem dados anteriores"
+    : variacao > 0   ? `▲ ${variacao.toFixed(1).replace(".", ",")}%`
+    : variacao < 0   ? `▼ ${Math.abs(variacao).toFixed(1).replace(".", ",")}%`
+    : "Sem variação";
+  const trendFaturamento: "up" | "down" | "neutral" =
+    variacao === null || variacao === 0 ? "neutral" : variacao > 0 ? "up" : "down";
+
+  const fmtTicketMedio = formatarMoeda(ticketMedio);
+
+  // vendasHoje preservado para drill-down
+  const fmtVendasHoje = `${vendasHoje.quantidade} ${vendasHoje.quantidade === 1 ? "venda" : "vendas"}`;
 
   return (
-    <div className="p-6">
-      {/* Cabeçalho com seletor de período */}
-      <div className="flex justify-between items-start gap-4 flex-wrap mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-500 text-sm mt-1">{label}</p>
+    <div>
+      {/* Cabeçalho sticky com backdrop blur */}
+      <div className="sticky top-0 z-10 bg-background/80 backdrop-blur-md
+        border-b border-border px-6 py-3 flex items-center gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-sm font-semibold text-foreground">Dashboard</h1>
+          <p className="text-[11px] text-muted-foreground">
+            Visão geral do período
+          </p>
         </div>
-        <div className="flex items-center gap-3">
-          <SyncButton />
+        <div className="flex items-center gap-2 flex-wrap">
+          <SyncButton key={lojaId} />
           <PeriodoSelector periodoAtivo={periodo} customDe={customDe} customAte={customAte} />
         </div>
       </div>
 
-      {/* Grid de KPI cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="p-6 space-y-6">
+        {/* KPI cards com drill-down */}
+        <KpiSecao
+          cards={[
+            {
+              id: "faturamento",
+              label: "Faturamento",
+              value: fmtFaturamento,
+              trend: variacaoFaturamento,
+              trendType: trendFaturamento,
+              accent: "blue",
+              detalhe: {
+                titulo: "Faturamento do período",
+                descricao: "Total de vendas finalizadas no período selecionado",
+                linhas: [
+                  { label: "Período selecionado", valor: fmtFaturamento,         destaque: true },
+                  { label: "Período anterior",    valor: fmtFaturamentoAnterior },
+                  { label: "Variação",            valor: variacaoFaturamento },
+                ],
+              },
+            },
+            {
+              id: "vendas",
+              label: "Vendas realizadas",
+              value: String(vendasPeriodo.quantidade),
+              trend: formatarMoeda(vendasPeriodo.total),
+              trendType: "neutral",
+              accent: "green",
+              detalhe: {
+                titulo: "Vendas do período",
+                descricao: "Quantidade de vendas finalizadas no período",
+                linhas: [
+                  { label: "Vendas no período", valor: String(vendasPeriodo.quantidade), destaque: true },
+                  { label: "Total faturado",    valor: formatarMoeda(vendasPeriodo.total) },
+                  { label: "Vendas hoje",       valor: fmtVendasHoje },
+                ],
+              },
+            },
+            {
+              id: "ticket",
+              label: "Ticket médio",
+              value: fmtTicketMedio,
+              trend: `por venda no ${label.toLowerCase()}`,
+              trendType: "neutral",
+              accent: "indigo",
+              detalhe: {
+                titulo: "Ticket médio do período",
+                descricao: "Valor médio por venda no período selecionado",
+                linhas: [
+                  { label: "Ticket médio",     valor: fmtTicketMedio,          destaque: true },
+                  { label: "Período anterior", valor: fmtFaturamentoAnterior },
+                  { label: "Vendas no período", valor: String(vendasPeriodo.quantidade) },
+                ],
+              },
+            },
+            {
+              id: "avencer",
+              label: "A vencer (30d)",
+              value: "—",
+              trendType: "neutral",
+              accent: "amber",
+              detalhe: {
+                titulo: "Contas a vencer",
+                descricao: "Títulos com vencimento nos próximos 30 dias",
+                linhas: [
+                  { label: "Ver módulo Financeiro", valor: "→", destaque: true },
+                ],
+              },
+            },
+            {
+              id: "inadimplencia",
+              label: "Inadimplência",
+              value: "—",
+              trendType: "down",
+              accent: "red",
+              detalhe: {
+                titulo: "Inadimplência",
+                descricao: "Títulos vencidos e não pagos",
+                linhas: [
+                  { label: "Ver módulo Financeiro", valor: "→", destaque: true },
+                ],
+              },
+            },
+          ]}
+        />
 
-        {/* Card 1 — Faturamento do período */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Faturamento — {label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <p className="text-2xl font-bold text-slate-900">
-              {formatarMoeda(faturamento)}
-            </p>
-            {variacao === null ? (
-              <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">
-                Sem dados anteriores
-              </Badge>
-            ) : variacao > 0 ? (
-              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                ▲ {variacao.toFixed(1).replace(".", ",")}%
-              </Badge>
-            ) : variacao < 0 ? (
-              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
-                ▼ {Math.abs(variacao).toFixed(1).replace(".", ",")}%
-              </Badge>
-            ) : (
-              <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100">
-                Sem variação
-              </Badge>
-            )}
-          </CardContent>
-        </Card>
+        {/* Gráfico de faturamento */}
+        <GraficoFaturamento
+          dados={vendasAgrupadas}
+          totalGeral={faturamento}
+          label={label}
+        />
 
-        {/* Card 2 — Vendas no período */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Vendas — {label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <p className="text-2xl font-bold text-slate-900">
-              {vendasPeriodo.quantidade}{" "}
-              <span className="text-base font-medium text-slate-500">
-                {vendasPeriodo.quantidade === 1 ? "venda" : "vendas"}
-              </span>
-            </p>
-            <p className="text-sm text-slate-500">
-              {formatarMoeda(vendasPeriodo.total)}
-            </p>
-          </CardContent>
-        </Card>
+        {/* Análise detalhada */}
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Análise Detalhada
+        </h2>
 
-        {/* Card 3 — Vendas hoje (fixo, não afetado pelo seletor) */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Vendas Hoje
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <p className="text-2xl font-bold text-slate-900">
-              {vendasHoje.quantidade}{" "}
-              <span className="text-base font-medium text-slate-500">
-                {vendasHoje.quantidade === 1 ? "venda" : "vendas"}
-              </span>
-            </p>
-            <p className="text-sm text-slate-500">{formatarMoeda(vendasHoje.total)}</p>
-            <Badge className="bg-slate-100 text-slate-500 hover:bg-slate-100 text-xs">
-              {hojeStr}
-            </Badge>
-          </CardContent>
-        </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <GraficoTopClientes dados={topClientes} />
+          <GraficoTopProdutos dataInicio={dataInicio} dataFim={dataFim} />
+        </div>
 
-        {/* Card 4 — Ticket médio */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-slate-600">
-              Ticket Médio — {label}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            <p className="text-2xl font-bold text-slate-900">
-              {formatarMoeda(ticketMedio)}
-            </p>
-            <p className="text-sm text-slate-500">média por venda no período</p>
-          </CardContent>
-        </Card>
+        <GraficoDiaSemana dados={diasSemana} />
       </div>
-
-      {/* Gráfico de faturamento */}
-      <GraficoFaturamento
-        dados={vendasAgrupadas}
-        totalGeral={faturamento}
-        label={label}
-      />
-
-      {/* Análise detalhada */}
-      <h2 className="text-sm font-medium text-slate-500 mt-6 mb-3">
-        Análise Detalhada
-      </h2>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <GraficoTopClientes dados={topClientes} />
-        <GraficoTopProdutos dataInicio={dataInicio} dataFim={dataFim} />
-      </div>
-
-      <GraficoDiaSemana dados={diasSemana} />
     </div>
   );
 }

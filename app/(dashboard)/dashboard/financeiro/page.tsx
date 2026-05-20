@@ -86,7 +86,7 @@ export default async function FinanceiroPage({
             Sincronizado da API MaxData · Atualiza automaticamente
           </p>
         </div>
-        <SyncButton />
+        <SyncButton key={lojaId ?? "sem-loja"} />
       </div>
 
       {/* Grid de 4 KPI cards */}

@@ -20,6 +20,12 @@ export type ProdutoItem = {
   estoqueMinimo: number;
   ativo: boolean;
   statusEstoque: "ruptura" | "critico" | "normal";
+  usaEcommerce: boolean;
+  subGrupoNome: string | null;
+  peso: number | null;
+  largura: number | null;
+  altura: number | null;
+  comprimento: number | null;
 };
 
 export type ResumoProdutos = {
@@ -101,7 +107,7 @@ export async function getProdutos(
   let query = supabase
     .from("produtos")
     .select(
-      "id, external_id, nome, codigo, grupo_nome, fabricante, preco_venda, valor_custo, estoque_atual, estoque_minimo, ativo"
+      "id, external_id, nome, codigo, grupo_nome, sub_grupo_nome, fabricante, preco_venda, valor_custo, estoque_atual, estoque_minimo, ativo, usa_ecommerce, peso, largura, altura, comprimento"
     )
     .eq("loja_id", lojaId)
     .eq("ativo", true)
@@ -144,6 +150,12 @@ export async function getProdutos(
       estoqueMinimo,
       ativo: r.ativo as boolean,
       statusEstoque: calcularStatus(estoqueAtual, estoqueMinimo),
+      usaEcommerce: (r.usa_ecommerce as boolean) ?? false,
+      subGrupoNome: (r.sub_grupo_nome as string | null) ?? null,
+      peso: (r.peso as number | null) ?? null,
+      largura: (r.largura as number | null) ?? null,
+      altura: (r.altura as number | null) ?? null,
+      comprimento: (r.comprimento as number | null) ?? null,
     };
   });
 
