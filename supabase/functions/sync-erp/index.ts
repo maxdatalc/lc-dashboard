@@ -29,17 +29,23 @@ function toDateString(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
-Deno.serve(async (_req) => {
+Deno.serve(async (req) => {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // Buscar todas as lojas ativas para sincronizar
-  const { data: lojas, error: lojasError } = await supabase
-    .from("lojas")
-    .select("*")
-    .eq("is_active", true);
+  // Aceitar lojaId opcional no body — usado pelo sync manual para isolar a loja selecionada
+  // Quando ausente (pg_cron), sincroniza todas as lojas ativas
+  const body = await req.json().catch(() => ({}));
+  const lojaIdFiltro: string | null = body.lojaId ?? null;
+
+  // Buscar lojas ativas — filtrar por lojaId quando fornecido
+  let lojasQuery = supabase.from("lojas").select("*").eq("is_active", true);
+  if (lojaIdFiltro) {
+    lojasQuery = lojasQuery.eq("id", lojaIdFiltro);
+  }
+  const { data: lojas, error: lojasError } = await lojasQuery;
 
   if (lojasError) {
     return new Response(
@@ -113,7 +119,11 @@ Deno.serve(async (_req) => {
       if (syncLogId) {
         await supabase
           .from("sync_log")
-          .update({ status: "erro", fim: new Date().toISOString(), erro_mensagem: mensagem })
+          .update({
+            status: "erro",
+            fim: new Date().toISOString(),
+            erro: mensagem.substring(0, 500),
+          })
           .eq("id", syncLogId);
       }
 

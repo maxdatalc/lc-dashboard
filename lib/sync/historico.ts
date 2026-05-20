@@ -18,6 +18,7 @@ interface MaxDataVenda {
   clienteId?: number;
   clienteNome?: string;
   valorTotalLiquidoProduto?: number;
+  valorTotal?: number;
   totalNf?: number;
   vlrPago?: number;
   valorTotalDesconto?: number;
@@ -94,13 +95,13 @@ export async function syncMesVendas(
       loja_id: lojaId,
       external_id: v.id,
       numero_venda: String(v.id),
-      data_venda: (v.abertura ?? v.fechamento ?? dataInicial).split("T")[0],
+      data_venda: (v.fechamento ?? v.abertura ?? dataInicial).split("T")[0],
       cliente_external_id: v.clienteId ?? null,
       cliente_nome: v.clienteNome ?? null,
-      valor_bruto: v.valorTotalLiquidoProduto ?? v.totalNf ?? 0,
+      valor_bruto: v.valorTotalLiquidoProduto ?? v.valorTotal ?? 0,
       valor_desconto: v.valorTotalDesconto ?? 0,
       valor_total: v.totalNf ?? v.vlrPago ?? 0,
-      status: v.status ?? "finalizada",
+      status: (v.status ?? "finalizada").toLowerCase(),
       sincronizado_em: agora,
     }));
 

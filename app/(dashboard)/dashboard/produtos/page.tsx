@@ -19,6 +19,7 @@ import {
   type FiltroProduto,
 } from "@/lib/db/produtos";
 import { SyncButton } from "@/components/dashboard/sync-button";
+import { SyncButtonProdutos } from "@/components/dashboard/sync-button-produtos";
 
 // ── Helpers de formatação ──────────────────────────────────────────────────
 
@@ -77,7 +78,10 @@ export default async function ProdutosPage({
           <h1 className="text-2xl font-bold text-slate-900">Produtos & Estoque</h1>
           <p className="text-slate-500 text-sm mt-1">Gestão de catálogo e níveis de estoque</p>
         </div>
-        <SyncButton />
+        <div className="flex items-center gap-2">
+          <SyncButtonProdutos />
+          <SyncButton />
+        </div>
       </div>
 
       {/* Grid de 4 KPI cards */}
@@ -125,6 +129,11 @@ export default async function ProdutosPage({
           <p className="text-xs text-blue-500 mt-0.5">{resumo.gruposUnicos} grupos de produto</p>
         </div>
       </div>
+
+      {/* Nota sobre atualização parcial */}
+      <p className="text-xs text-slate-400 -mt-2">
+        Atualiza os primeiros 1.500 produtos. Para catálogo completo, use Sincronização Inicial no menu admin.
+      </p>
 
       {/* Filtros + Busca */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">

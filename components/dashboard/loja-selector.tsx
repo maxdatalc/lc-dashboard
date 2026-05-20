@@ -1,6 +1,5 @@
 "use client";
 
-// Seletor de loja na sidebar — chama Server Action ao clicar
 import { useTransition } from "react";
 import { Building2 } from "lucide-react";
 import { selectLoja } from "@/app/actions/lojas";
@@ -16,7 +15,7 @@ export function LojaSelector({ lojas, selectedLojaId }: Props) {
   const [isPending, startTransition] = useTransition();
 
   return (
-    <ul className="space-y-0.5">
+    <ul className="flex flex-col gap-0.5">
       {lojas.map((loja) => {
         const isSelected = loja.id === selectedLojaId;
 
@@ -27,15 +26,16 @@ export function LojaSelector({ lojas, selectedLojaId }: Props) {
               disabled={isPending}
               onClick={() => startTransition(() => { selectLoja(loja.id); })}
               className={[
-                "w-full flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-left transition-colors",
                 isSelected
-                  ? "bg-slate-100 text-slate-900 font-medium"
-                  : "text-slate-600 hover:bg-slate-50",
+                  ? "w-full text-left rounded-lg px-3 py-2 text-sm font-medium bg-primary/10 text-primary border border-primary/20 transition-colors"
+                  : "w-full text-left rounded-lg px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-accent transition-colors",
                 isPending ? "opacity-60 cursor-not-allowed" : "",
               ].join(" ")}
             >
-              <Building2 className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-              <span className="truncate">{loja.name}</span>
+              <span className="flex items-center gap-2">
+                <Building2 className="h-3.5 w-3.5 shrink-0 opacity-60" />
+                <span className="truncate">{loja.name}</span>
+              </span>
             </button>
           </li>
         );

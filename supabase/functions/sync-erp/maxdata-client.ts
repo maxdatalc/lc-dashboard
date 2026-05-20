@@ -14,7 +14,9 @@ interface PaginatedResponse<T> {
 }
 
 export async function getMaxDataToken(config: MaxDataConfig): Promise<string> {
-  const response = await fetch(`${config.baseUrl}/v2/auth`, {
+  const base = config.baseUrl.replace(/\/+$/, "");
+  const authUrl = `${base}/v2/auth`;
+  const response = await fetch(authUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ empId: config.empId, terminal: config.terminal }),
@@ -35,7 +37,8 @@ export async function maxdataGet<T>(
   path: string,
   params: Record<string, string> = {}
 ): Promise<T> {
-  const url = new URL(`${baseUrl}/v2${path}`);
+  const base = baseUrl.replace(/\/+$/, "");
+  const url = new URL(`${base}/v2${path}`);
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, value);
   }

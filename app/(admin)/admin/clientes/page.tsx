@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Building2, Users } from "lucide-react";
 import { getAllTenants } from "@/lib/db/admin";
+import { BotaoExcluirCliente } from "@/components/admin/botao-excluir-cliente";
 import { FEATURES_CATALOG } from "@/lib/features";
 
 function formatarData(dateStr: string): string {
@@ -119,12 +120,15 @@ export default async function AdminClientesPage() {
 
                     {/* Ação */}
                     <td className="px-4 py-3">
-                      <Link
-                        href={`/admin/clientes/${t.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                      >
-                        Gerenciar →
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/admin/clientes/${t.id}`}
+                          className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                        >
+                          Gerenciar →
+                        </Link>
+                        <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
+                      </div>
                     </td>
                   </tr>
                 );

@@ -38,11 +38,11 @@ function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-lg text-sm space-y-1">
-      <p className="font-medium text-slate-800">{label}</p>
-      <p className="text-blue-600 font-semibold">{formatarMoeda(d.total)}</p>
-      <p className="text-slate-500">{d.quantidade} {d.quantidade === 1 ? "venda" : "vendas"}</p>
-      <p className="text-slate-400">Ticket médio: {formatarMoeda(d.media)}</p>
+    <div style={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", padding: "10px 14px" }} className="text-sm space-y-1">
+      <p className="font-medium" style={{ color: "hsl(var(--foreground))" }}>{label}</p>
+      <p className="font-semibold" style={{ color: "hsl(var(--foreground))" }}>{formatarMoeda(d.total)}</p>
+      <p style={{ color: "hsl(var(--muted-foreground))" }}>{d.quantidade} {d.quantidade === 1 ? "venda" : "vendas"}</p>
+      <p style={{ color: "hsl(var(--muted-foreground))" }}>Ticket médio: {formatarMoeda(d.media)}</p>
     </div>
   );
 }
@@ -86,7 +86,7 @@ export function GraficoDiaSemana({ dados }: Props) {
               {/* Linha de referência na média diária */}
               <ReferenceLine
                 y={mediaDiaria}
-                stroke="#94A3B8"
+                stroke="#F59E0B"
                 strokeDasharray="4 4"
                 label={{
                   value: "Média",
@@ -99,7 +99,7 @@ export function GraficoDiaSemana({ dados }: Props) {
                 dataKey="dia"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fill: "#64748b" }}
+                tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
               />
               <YAxis hide={true} />
               <Tooltip content={<CustomTooltip />} />
@@ -119,7 +119,7 @@ export function GraficoDiaSemana({ dados }: Props) {
                         ? "#10B981"
                         : index === piordDiaIdx
                         ? "#F87171"
-                        : "#60A5FA"
+                        : "#2563EB"
                     }
                   />
                 ))}

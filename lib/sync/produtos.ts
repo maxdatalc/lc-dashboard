@@ -16,12 +16,21 @@ interface MaxDataProduto {
   codigoFab?: string;
   grupoId?: number | null;
   grupo?: string | null;    // nome do grupo — campo correto na API
+  subGrupoId?: number | null;
+  subGrupo?: string | null;
   fabricante?: string | null;
   valorVenda?: number | null;   // preço de venda — campo correto na API
   valorCusto?: number | null;
   estoque?: number;
   estoqueMinimo?: number;
   desativado?: boolean;     // INVERTIDO: true = produto inativo
+  usaEcommerce?: boolean;
+  ecommerce?: boolean;
+  peso?: number | null;
+  pesoLiq?: number | null;
+  largura?: number | null;
+  altura?: number | null;
+  comprimento?: number | null;
 }
 
 interface PaginatedResponse {
@@ -89,6 +98,14 @@ export async function syncTodosProdutos(lojaId: string): Promise<ProdutoSyncResu
       estoque_atual: p.estoque ?? 0,
       estoque_minimo: p.estoqueMinimo ?? 0,
       ativo: !(p.desativado ?? false),  // campo API é "desativado" — inverter para "ativo"
+      usa_ecommerce: p.usaEcommerce ?? p.ecommerce ?? false,
+      sub_grupo_id: p.subGrupoId ?? null,
+      sub_grupo_nome: p.subGrupo ?? null,
+      peso: p.peso ?? null,
+      peso_liq: p.pesoLiq ?? null,
+      largura: p.largura ?? null,
+      altura: p.altura ?? null,
+      comprimento: p.comprimento ?? null,
       sincronizado_em: agora,
     }));
 

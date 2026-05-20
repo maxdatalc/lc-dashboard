@@ -3,9 +3,10 @@
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Building2, ArrowLeft } from "lucide-react";
+import { Building2, ArrowLeft, Download } from "lucide-react";
 import { getTenantByIdAdmin, updateTenantFeatures } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
+import { createAdminClient } from "@/lib/supabase/server";
 
 type Aba = "lojas" | "features" | "usuarios";
 
@@ -38,6 +39,20 @@ export default async function GerenciarClientePage({
   const tenant = await getTenantByIdAdmin(id);
   if (!tenant) notFound();
 
+  // Verificar se alguma loja do tenant já completou sincronização inicial
+  let nuncaSincronizado = true;
+  if (tenant.lojas.length > 0) {
+    const adminClient = createAdminClient();
+    const lojaIds = tenant.lojas.map((l) => l.id);
+    const { data: syncRows } = await adminClient
+      .from("sync_log")
+      .select("id")
+      .in("loja_id", lojaIds)
+      .eq("status", "concluido")
+      .limit(1);
+    nuncaSincronizado = !syncRows || syncRows.length === 0;
+  }
+
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
   const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
 
@@ -63,7 +78,16 @@ export default async function GerenciarClientePage({
           <h1 className="text-xl font-bold text-slate-900">{tenant.name}</h1>
           <span className="text-xs text-slate-400 font-mono">{tenant.slug}</span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-3">
+          {nuncaSincronizado && tenant.lojas.length > 0 && (
+            <Link
+              href="/dashboard/sincronizacao-inicial"
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Sincronização Inicial
+            </Link>
+          )}
           {tenant.plan === "premium" ? (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1 text-sm font-medium text-amber-700">
               ★ Premium

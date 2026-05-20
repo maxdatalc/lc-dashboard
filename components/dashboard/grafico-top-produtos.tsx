@@ -45,10 +45,10 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload || payload.length === 0) return null;
   const d = payload[0].payload;
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3 shadow-lg text-sm space-y-1">
-      <p className="font-medium text-slate-800 truncate max-w-[200px]">{d.nome}</p>
-      <p className="text-violet-600 font-semibold">{formatarMoeda(d.total)}</p>
-      <p className="text-slate-500">{d.quantidade} un vendidas</p>
+    <div style={{ backgroundColor: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: "10px", padding: "10px 14px" }} className="text-sm space-y-1">
+      <p className="font-medium truncate max-w-[200px]" style={{ color: "hsl(var(--foreground))" }}>{d.nome}</p>
+      <p className="font-semibold" style={{ color: "hsl(var(--foreground))" }}>{formatarMoeda(d.total)}</p>
+      <p style={{ color: "hsl(var(--muted-foreground))" }}>{d.quantidade} un vendidas</p>
     </div>
   );
 }
@@ -103,7 +103,7 @@ export function GraficoTopProdutos({ dataInicio, dataFim }: Props) {
             </CardTitle>
           </div>
           {/* Badge "Ao vivo" — dados frescos da API MaxData via Redis */}
-          <span className="text-xs font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+          <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5">
             Ao vivo
           </span>
         </CardHeader>
@@ -127,7 +127,7 @@ export function GraficoTopProdutos({ dataInicio, dataFim }: Props) {
                   type="category"
                   dataKey="nome"
                   width={120}
-                  tick={{ fontSize: 11, fill: "#64748b" }}
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   axisLine={false}
                   tickLine={false}
                   tickFormatter={truncar}
@@ -145,7 +145,7 @@ export function GraficoTopProdutos({ dataInicio, dataFim }: Props) {
                   {dados.map((_, index) => (
                     <Cell
                       key={`cell-${index}`}
-                      fill={index < 3 ? "#7C3AED" : "#C4B5FD"}
+                      fill={index < 3 ? "#1D4ED8" : "#1E3A7A"}
                     />
                   ))}
                   <LabelList
