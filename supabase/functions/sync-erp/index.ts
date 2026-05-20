@@ -22,11 +22,15 @@ interface LojaResult {
   status: "concluido" | "erro";
   vendas?: number;
   erro?: string;
+  debug?: { isInicial: boolean; dataInicial: string; dataFinal: string }; // remover em produção
 }
 
-// Formata uma data para YYYY-MM-DD
-function toDateString(date: Date): string {
-  return date.toISOString().split("T")[0];
+// Formata uma data com timezone de Brasília (UTC-3) para a API MaxData
+// A API interpreta datas sem timezone como meia-noite UTC, perdendo vendas do dia
+function toBrazilianISOString(date: Date): string {
+  const offset = -3 * 60; // UTC-3 em minutos
+  const localDate = new Date(date.getTime() + offset * 60 * 1000);
+  return localDate.toISOString().replace("Z", "-03:00");
 }
 
 Deno.serve(async (req) => {
@@ -77,25 +81,43 @@ Deno.serve(async (req) => {
         terminal,
       });
 
-      // Determinar janela de datas: inicial (30 dias) ou incremental (25 minutos)
-      const { data: ultimoSync } = await supabase
+      // Buscar o último sync bem-sucedido desta loja (aceita status com e sem acento)
+      const { data: ultimoSyncRow } = await supabase
         .from("sync_log")
-        .select("id")
+        .select("fim")
         .eq("loja_id", loja.id)
-        .eq("status", "concluido")
-        .order("inicio", { ascending: false })
+        .in("status", ["concluido", "concluído"])
+        .not("fim", "is", null)
+        .order("fim", { ascending: false })
         .limit(1)
         .maybeSingle();
 
+      console.log(`[sync-erp] ultimoSync loja ${loja.id}:`, JSON.stringify(ultimoSyncRow));
+
       const agora = new Date();
-      const isInicial = !ultimoSync;
+      const isInicial = !ultimoSyncRow?.fim;
 
-      const dataFinal = toDateString(agora);
-      const dataInicial = isInicial
-        ? toDateString(new Date(agora.getTime() - 30 * 24 * 60 * 60 * 1000))
-        : toDateString(new Date(agora.getTime() - 25 * 60 * 1000));
+      let dataInicial: string;
+      let dataFinal: string;
 
-      console.log(`[sync-erp] Loja ${loja.id} — ${isInicial ? "sync inicial" : "sync incremental"} (${dataInicial} → ${dataFinal})`);
+      if (isInicial) {
+        // Sync inicial: buscar 1 ano de histórico a partir da meia-noite (Brasília)
+        const umAnoAtras = new Date(agora.getTime() - 365 * 24 * 60 * 60 * 1000);
+        dataInicial = toBrazilianISOString(new Date(umAnoAtras.setHours(0, 0, 0, 0)));
+        dataFinal = toBrazilianISOString(agora);
+      } else {
+        // Sync incremental: desde o último sync com 1 hora de margem de segurança
+        const ultimoFim = new Date(ultimoSyncRow!.fim);
+        const comMargem = new Date(ultimoFim.getTime() - 60 * 60 * 1000);
+        dataInicial = toBrazilianISOString(comMargem);
+        dataFinal = toBrazilianISOString(agora);
+      }
+
+      console.log(
+        `[sync-erp] Loja ${loja.id} (empId=${loja.emp_id}) — ` +
+        `${isInicial ? "INICIAL" : "INCREMENTAL"} ` +
+        `período: ${dataInicial} → ${dataFinal}`
+      );
 
       // Sincronizar apenas vendas (produtos e clientes são sincronizados via rota dedicada)
       const totalVendas = await syncVendas(supabase, token, loja, dataInicial, dataFinal, isInicial);
@@ -110,7 +132,12 @@ Deno.serve(async (req) => {
 
       console.log(`[sync-erp] Loja ${loja.id} concluída — vendas=${totalVendas}`);
 
-      resultados.push({ lojaId: loja.id, status: "concluido", vendas: totalVendas });
+      resultados.push({
+        lojaId: loja.id,
+        status: "concluido",
+        vendas: totalVendas,
+        debug: { isInicial, dataInicial, dataFinal }, // remover em produção
+      });
     } catch (err) {
       const mensagem = err instanceof Error ? err.message : "Erro desconhecido";
       console.error(`[sync-erp] Erro na loja ${loja.id}:`, mensagem);

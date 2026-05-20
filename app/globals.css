@@ -2,10 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
-
 @layer base {
   :root {
+    /* shadcn/ui — variáveis HSL, tema claro */
     --background: 210 40% 98%;
     --foreground: 222 47% 10%;
     --card: 0 0% 100%;
@@ -26,9 +25,27 @@
     --input: 214 32% 91%;
     --ring: 221 83% 53%;
     --radius: 0.625rem;
+
+    /* Design System LC — tema claro */
+    --bg-primary: #f6f8fa;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f0f2f4;
+    --border-subtle: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #636c76;
+    --text-muted: #9198a1;
+    --accent-cyan: #00d4ff;
+    --accent-yellow: #f0a500;
+    --accent-green: #3fb950;
+    --accent-purple: #a371f7;
+    --accent-red: #ff4444;
+    --accent-orange: #ff7b00;
+    --sidebar-width: 64px;
+    --header-height: 56px;
   }
 
   .dark {
+    /* shadcn/ui — variáveis HSL, tema escuro */
     --background: 222 47% 8%;
     --foreground: 213 31% 91%;
     --card: 220 45% 13%;
@@ -48,6 +65,15 @@
     --border: 220 45% 20%;
     --input: 220 45% 20%;
     --ring: 217 91% 60%;
+
+    /* Design System LC — tema escuro */
+    --bg-primary: #0d1117;
+    --bg-card: #161b22;
+    --bg-card-hover: #1c2128;
+    --border-subtle: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #484f58;
   }
 }
 
@@ -57,12 +83,21 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', system-ui, sans-serif;
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
   }
-  /* Números tabulares para KPIs — alinham direito sem pular */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes kpiEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
