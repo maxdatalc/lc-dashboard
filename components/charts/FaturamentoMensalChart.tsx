@@ -7,12 +7,14 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Cell,
+  Legend,
 } from "recharts";
+import { formatCurrency } from "@/lib/utils/format";
 
 export interface FaturamentoMensalData {
   mes: string;
   faturamento: number;
+  devolucoes?: number;
 }
 
 interface Props {
@@ -25,50 +27,64 @@ function formatYAxis(value: number): string {
   return String(value);
 }
 
+
 interface TooltipProps {
   active?: boolean;
-  payload?: { value: number }[];
+  payload?: Array<{ name: string; value: number; color: string }>;
   label?: string;
 }
 
 function CustomTooltip({ active, payload, label }: TooltipProps) {
   if (!active || !payload?.length) return null;
-  const valor = payload[0].value;
-  const fmt =
-    valor >= 1_000_000
-      ? `R$ ${(valor / 1_000_000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`
-      : valor >= 1_000
-      ? `R$ ${(valor / 1_000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`
-      : valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
   return (
     <div
-      className="rounded-xl px-3 py-2 text-xs shadow-xl"
+      className="rounded-xl px-3 py-2.5 text-xs shadow-xl"
       style={{
         backgroundColor: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
         color: "var(--text-primary)",
       }}
     >
-      <p style={{ color: "var(--text-secondary)" }}>{label}</p>
-      <p className="font-semibold tabular-nums">{fmt}</p>
+      <p className="mb-2 font-medium" style={{ color: "var(--text-secondary)" }}>
+        {label}
+      </p>
+      {payload.map((entry) => (
+        <div key={entry.name} className="flex items-center gap-2 tabular-nums">
+          <span
+            className="inline-block rounded-full flex-shrink-0"
+            style={{ width: 7, height: 7, backgroundColor: entry.color }}
+          />
+          <span style={{ color: "var(--text-secondary)" }}>
+            {entry.name === "faturamento" ? "Faturamento" : "Devoluções"}:
+          </span>
+          <span className="font-semibold">{formatCurrency(entry.value)}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
-// Mês atual baseado em YYYY-MM
-function mesAtual(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+function CustomLegend() {
+  return (
+    <div className="flex items-center gap-4 justify-end px-1 pb-1 text-xs" style={{ color: "var(--text-muted)" }}>
+      <div className="flex items-center gap-1.5">
+        <span className="inline-block rounded-sm" style={{ width: 10, height: 10, backgroundColor: "#00e5ff" }} />
+        Faturamento
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="inline-block rounded-sm" style={{ width: 10, height: 10, backgroundColor: "#ef4444" }} />
+        Devoluções
+      </div>
+    </div>
+  );
 }
 
 export function FaturamentoMensalChart({ data }: Props) {
-  const atual = mesAtual();
-
   if (!data.length) {
     return (
       <div
-        className="flex items-center justify-center h-[200px] text-xs"
+        className="flex items-center justify-center h-[220px] text-xs"
         style={{ color: "var(--text-muted)" }}
       >
         Sem dados disponíveis
@@ -76,32 +92,48 @@ export function FaturamentoMensalChart({ data }: Props) {
     );
   }
 
+  const temDevolucoes = data.some((d) => (d.devolucoes ?? 0) > 0);
+
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -10 }}>
-        <XAxis
-          dataKey="mes"
-          tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
-          axisLine={false}
-          tickLine={false}
-        />
-        <YAxis
-          tickFormatter={formatYAxis}
-          tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
-          axisLine={false}
-          tickLine={false}
-          width={48}
-        />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(0,212,255,0.06)" }} />
-        <Bar dataKey="faturamento" radius={[4, 4, 0, 0]} maxBarSize={48}>
-          {data.map((entry, index) => (
-            <Cell
-              key={`cell-${index}`}
-              fill={entry.mes === atual ? "var(--accent-cyan)" : "rgba(0,212,255,0.35)"}
+    <div className="flex flex-col gap-1">
+      <CustomLegend />
+      <ResponsiveContainer width="100%" height={220}>
+        <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -10 }} barGap={3}>
+          <XAxis
+            dataKey="mes"
+            tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis
+            tickFormatter={formatYAxis}
+            tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
+            axisLine={false}
+            tickLine={false}
+            width={48}
+          />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ fill: "var(--border-subtle)", radius: 4 }}
+          />
+          <Bar
+            dataKey="faturamento"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={temDevolucoes ? 36 : 48}
+            fill="#00e5ff"
+            fillOpacity={0.85}
+          />
+          {temDevolucoes && (
+            <Bar
+              dataKey="devolucoes"
+              radius={[4, 4, 0, 0]}
+              maxBarSize={36}
+              fill="#ef4444"
+              fillOpacity={0.75}
             />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+          )}
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

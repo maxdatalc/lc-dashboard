@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import { LayoutDashboard, Settings2, Landmark, Users, Building2, LogOut } from "lucide-react";
+import { useState } from "react";
+import { LayoutDashboard, Settings2, Landmark, Users, LogOut } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -11,8 +11,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { logout } from "@/app/actions/auth";
-import { selectLoja } from "@/app/actions/lojas";
-import { ThemeToggle } from "@/components/theme-toggle";
 import type { Loja } from "@/lib/contexts/loja-context";
 
 interface Props {
@@ -38,14 +36,12 @@ const INACTIVE_STYLE = {
   color: "var(--text-secondary)",
 } as const;
 
-export function Sidebar({ isAdmin, lojas, selectedLojaId }: Props) {
+export function Sidebar({ isAdmin }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const [dashboardOpen, setDashboardOpen] = useState(
     pathname.startsWith("/dashboard")
   );
-  const [lojaOpen, setLojaOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
 
   // Se já está no dashboard: toggle do submenu. Caso contrário: navega e expande.
   function handleDashboardClick() {
@@ -59,7 +55,6 @@ export function Sidebar({ isAdmin, lojas, selectedLojaId }: Props) {
 
   const isDashboardActive = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
   const isAdminActive = pathname.startsWith("/admin");
-  const selectedLojaName = lojas.find((l) => l.id === selectedLojaId)?.name;
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -67,7 +62,7 @@ export function Sidebar({ isAdmin, lojas, selectedLojaId }: Props) {
         className="fixed top-0 left-0 h-screen flex flex-col z-40"
         style={{
           width: "var(--sidebar-width)",
-          backgroundColor: "var(--bg-card)",
+          backgroundColor: "var(--sidebar-bg, var(--bg-card))",
           borderRight: "1px solid var(--border-subtle)",
         }}
       >
@@ -162,64 +157,6 @@ export function Sidebar({ isAdmin, lojas, selectedLojaId }: Props) {
           className="flex flex-col items-center gap-1.5 py-3"
           style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
-          {/* Seletor de loja — popover compacto */}
-          {lojas.length > 0 && (
-            <div className="relative w-full">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setLojaOpen((v) => !v)}
-                    className="w-full flex items-center justify-center transition-colors"
-                    style={{
-                      height: "36px",
-                      color: lojaOpen ? "var(--accent-cyan)" : "var(--text-secondary)",
-                    }}
-                  >
-                    <Building2 className="h-4 w-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  {selectedLojaName ?? "Selecionar loja"}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* Dropdown de lojas */}
-              {lojaOpen && (
-                <div
-                  className="absolute bottom-full left-full ml-2 mb-1 rounded-xl shadow-xl z-50 min-w-[160px] py-1"
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-subtle)",
-                  }}
-                >
-                  {lojas.map((loja) => {
-                    const isSel = loja.id === selectedLojaId;
-                    return (
-                      <button
-                        key={loja.id}
-                        disabled={isPending}
-                        onClick={() => {
-                          startTransition(() => { selectLoja(loja.id); });
-                          setLojaOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors"
-                        style={{
-                          color: isSel ? "var(--accent-cyan)" : "var(--text-secondary)",
-                          backgroundColor: isSel ? "rgba(0,212,255,0.08)" : "transparent",
-                        }}
-                      >
-                        <Building2 className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{loja.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-
-          <ThemeToggle />
-
           <Tooltip>
             <TooltipTrigger asChild>
               <form action={logout}>

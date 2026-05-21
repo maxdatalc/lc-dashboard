@@ -16,20 +16,39 @@ export interface KpiCardProps {
   isLoading?: boolean;
   change?: number;
   changeLabel?: string;
-  secondaryValue?: string;
-  secondaryLabel?: string;
-  secondaryColor?: string;
   subtitle?: string;
   titleTooltip?: string;
   animationDelay?: number;
+  // Compatibilidade com uso anterior
+  secondaryValue?: string;
+  secondaryLabel?: string;
+  secondaryColor?: string;
 }
 
-function Skeleton({ className }: { className?: string }) {
+function DeltaBadge({ change, label }: { change: number; label?: string }) {
+  const pos = change > 0;
+  const neu = change === 0;
+  const bg = pos ? "rgba(16,185,129,0.15)" : neu ? "rgba(71,85,105,0.3)" : "rgba(239,68,68,0.15)";
+  const color = pos ? "#10b981" : neu ? "#94a3b8" : "#ef4444";
+
   return (
     <div
-      className={`animate-pulse rounded ${className ?? ""}`}
-      style={{ backgroundColor: "var(--border-subtle)" }}
-    />
+      className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
+      style={{ backgroundColor: bg, color }}
+    >
+      {pos ? (
+        <TrendingUp style={{ width: 10, height: 10 }} />
+      ) : !neu ? (
+        <TrendingDown style={{ width: 10, height: 10 }} />
+      ) : null}
+      <span>
+        {pos ? "+" : ""}
+        {change.toFixed(1).replace(".", ",")}%
+      </span>
+      {label && (
+        <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>{label}</span>
+      )}
+    </div>
   );
 }
 
@@ -41,132 +60,113 @@ export function KpiCard({
   isLoading = false,
   change,
   changeLabel,
-  secondaryValue,
-  secondaryLabel,
-  secondaryColor,
   subtitle,
   titleTooltip,
   animationDelay = 0,
 }: KpiCardProps) {
   return (
     <div
-      className="rounded-xl p-5 flex flex-col gap-4 transition-colors"
+      className="rounded-xl p-5 flex flex-col gap-3 transition-all duration-200"
       style={{
-        backgroundColor: "var(--bg-card)",
+        background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
-        borderLeft: `3px solid ${accentColor}`,
+        borderTop: `3px solid ${accentColor}`,
+        animation: `fadeInUp 0.4s ease-out both`,
         animationDelay: `${animationDelay}ms`,
-        animation: "kpiEntrance 0.4s ease both",
+      }}
+      onMouseEnter={(e) => {
+        const el = e.currentTarget;
+        el.style.borderColor = `${accentColor}66`;
+        el.style.boxShadow = "0 0 20px rgba(0,229,255,0.08)";
+      }}
+      onMouseLeave={(e) => {
+        const el = e.currentTarget;
+        el.style.borderColor = "var(--border-subtle)";
+        el.style.boxShadow = "none";
       }}
     >
-      {/* Topo — título + ícone */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <p
-            className="text-xs font-semibold uppercase tracking-widest"
-            style={{ color: "var(--text-secondary)" }}
-          >
-            {title}
-          </p>
-          {titleTooltip && (
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Info
-                    className="cursor-help flex-shrink-0"
-                    style={{ width: "14px", height: "14px", color: "var(--text-muted)" }}
-                  />
-                </TooltipTrigger>
-                <TooltipContent side="top" style={{ maxWidth: "240px", lineHeight: "1.4" }}>
-                  {titleTooltip}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-        </div>
+      {/* Topo: ícone + título + delta */}
+      <div className="flex items-start gap-3">
+        {/* Ícone 40×40 */}
         <div
-          className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+          className="flex items-center justify-center flex-shrink-0 rounded-[10px]"
           style={{
+            width: 40,
+            height: 40,
             backgroundColor: `${accentColor}1f`,
             color: accentColor,
           }}
         >
-          <Icon className="h-4.5 w-4.5" style={{ width: "18px", height: "18px" }} />
+          <Icon style={{ width: 20, height: 20 }} />
+        </div>
+
+        {/* Título + valor */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            {/* Título com tooltip opcional */}
+            <div className="flex items-center gap-1">
+              <p
+                className="text-xs font-semibold uppercase tracking-widest"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {title}
+              </p>
+              {titleTooltip && (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info
+                        className="cursor-help flex-shrink-0"
+                        style={{ width: 12, height: 12, color: "var(--text-muted)" }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" style={{ maxWidth: 240, lineHeight: 1.4 }}>
+                      {titleTooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </div>
+
+            {/* Delta badge */}
+            {change !== undefined && !isLoading && (
+              <DeltaBadge change={change} label={changeLabel} />
+            )}
+          </div>
+
+          {/* Valor principal em DM Serif Display */}
+          {isLoading ? (
+            <div className="shimmer rounded mt-2" style={{ height: 36, width: 140 }} />
+          ) : (
+            <p
+              className="tabular-nums mt-1 leading-none"
+              style={{
+                fontFamily: "var(--font-display, 'DM Serif Display', serif)",
+                fontSize: "2rem",
+                fontWeight: 400,
+                color: "var(--text-primary)",
+              }}
+            >
+              {value}
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Valor principal */}
-      {isLoading ? (
-        <Skeleton className="h-8 w-32" />
-      ) : (
-        <p
-          className="text-3xl font-bold tabular-nums leading-none"
-          style={{ color: "var(--text-primary)" }}
-        >
-          {value}
-        </p>
+      {/* Subtítulo opcional com divisor */}
+      {subtitle && !isLoading && (
+        <>
+          <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            {subtitle}
+          </p>
+        </>
       )}
 
-      {/* Rodapé — variação ou valor secundário */}
-      <div className="flex items-center justify-between gap-2 min-h-[20px]">
-        {isLoading ? (
-          <Skeleton className="h-4 w-24" />
-        ) : (
-          <>
-            {/* Subtítulo simples (sem variação) */}
-            {subtitle && change === undefined && (
-              <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                {subtitle}
-              </span>
-            )}
-
-            {/* Variação percentual */}
-            {change !== undefined && (
-              <div
-                className="flex items-center gap-1 text-xs font-medium"
-                style={{
-                  color:
-                    change > 0
-                      ? "var(--accent-green)"
-                      : change < 0
-                      ? "var(--accent-red)"
-                      : "var(--text-secondary)",
-                }}
-              >
-                {change > 0 ? (
-                  <TrendingUp className="h-3 w-3" />
-                ) : change < 0 ? (
-                  <TrendingDown className="h-3 w-3" />
-                ) : null}
-                <span>
-                  {change > 0 ? "+" : ""}
-                  {change.toFixed(1).replace(".", ",")}%
-                </span>
-                {changeLabel && (
-                  <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-                    {changeLabel}
-                  </span>
-                )}
-              </div>
-            )}
-
-            {/* Valor secundário (ex: devoluções) */}
-            {secondaryValue && (
-              <div className="flex items-center gap-1 text-xs">
-                <span
-                  className="font-semibold tabular-nums"
-                  style={{ color: secondaryColor ?? "var(--text-secondary)" }}
-                >
-                  {secondaryValue}
-                </span>
-                {secondaryLabel && (
-                  <span style={{ color: "var(--text-muted)" }}>{secondaryLabel}</span>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+      {/* Loading skeleton para subtítulo */}
+      {isLoading && (
+        <div className="shimmer rounded" style={{ height: 14, width: 100 }} />
+      )}
     </div>
   );
 }
