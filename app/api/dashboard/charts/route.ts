@@ -4,12 +4,20 @@ import { getDateRange } from "@/lib/utils/format";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
+  // lojaIds (multi-loja, comma-sep) tem prioridade; lojaId mantido para compatibilidade
+  const lojaIdsParam = searchParams.get("lojaIds");
   const lojaId = searchParams.get("lojaId");
   const period = searchParams.get("period") ?? "month";
   const type = searchParams.get("type");
 
-  if (!lojaId || !type) {
-    return NextResponse.json({ error: "lojaId e type são obrigatórios" }, { status: 400 });
+  const lojaIds = lojaIdsParam
+    ? lojaIdsParam.split(",").filter(Boolean)
+    : lojaId
+    ? [lojaId]
+    : [];
+
+  if (lojaIds.length === 0 || !type) {
+    return NextResponse.json({ error: "lojaId/lojaIds e type são obrigatórios" }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -35,8 +43,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         const { data, error } = await supabase
           .from("vendas")
-          .select("data_venda, valor_total")
-          .eq("loja_id", lojaId)
+          .select("data_venda, valor_total, cfop")
+          .in("loja_id", lojaIds)
           .eq("status", "finalizada")
           .gte("data_venda", inicio6m)
           .lte("data_venda", hoje);
@@ -46,18 +54,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           return NextResponse.json([]);
         }
 
-        // Agrupar por mês (YYYY-MM) no JavaScript
-        const agrupado: Record<string, number> = {};
+        // Agrupar por mês — separar faturamento de devoluções por prefixo CFOP
+        const agrupado: Record<string, { faturamento: number; devolucoes: number }> = {};
         for (const v of data ?? []) {
           const key = (v.data_venda as string).slice(0, 7);
-          agrupado[key] = (agrupado[key] ?? 0) + ((v.valor_total as number) ?? 0);
+          if (!agrupado[key]) agrupado[key] = { faturamento: 0, devolucoes: 0 };
+          const valor = (v.valor_total as number) ?? 0;
+          const cfop = v.cfop as number | null;
+          // CFOP 1xxx/2xxx/3xxx = devolução; 5xxx/6xxx ou null = venda
+          const isDevolucao = cfop !== null && cfop < 4000;
+          if (isDevolucao) {
+            agrupado[key].devolucoes += valor;
+          } else {
+            agrupado[key].faturamento += valor;
+          }
         }
 
         const resultado = Object.entries(agrupado)
           .sort(([a], [b]) => a.localeCompare(b))
-          .map(([mes, faturamento]) => ({
+          .map(([mes, d]) => ({
             mes: new Date(mes + "-15").toLocaleDateString("pt-BR", { month: "short" }),
-            faturamento,
+            faturamento: d.faturamento,
+            devolucoes: d.devolucoes,
           }));
 
         return NextResponse.json(resultado);
@@ -68,7 +86,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const { data: vendasPeriodo, error: errVendas } = await supabase
           .from("vendas")
           .select("external_id")
-          .eq("loja_id", lojaId)
+          .in("loja_id", lojaIds)
           .eq("status", "finalizada")
           .gte("data_venda", start)
           .lte("data_venda", end)
@@ -87,7 +105,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const { data: pagamentos, error: errPag } = await supabase
           .from("venda_pagamentos")
           .select("forma_pagamento, valor")
-          .eq("loja_id", lojaId)
+          .in("loja_id", lojaIds)
           .in("venda_external_id", externalIds);
 
         if (errPag) {
@@ -121,7 +139,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const { data: vendas, error: errVendas } = await supabase
           .from("vendas")
           .select("external_id")
-          .eq("loja_id", lojaId)
+          .in("loja_id", lojaIds)
           .eq("status", "finalizada")
           .not("external_id", "is", null)
           .gte("data_venda", start)
@@ -141,7 +159,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const { data: itens, error: errItens } = await supabase
           .from("venda_itens")
           .select("produto_nome, quantidade, valor_total")
-          .eq("loja_id", lojaId)
+          .in("loja_id", lojaIds)
           .in("venda_external_id", externalIds);
 
         if (errItens) {
@@ -171,7 +189,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const { data, error } = await supabase
           .from("vendas")
           .select("cliente_nome, valor_total")
-          .eq("loja_id", lojaId)
+          .in("loja_id", lojaIds)
           .eq("status", "finalizada")
           .not("cliente_nome", "is", null)
           .gte("data_venda", start)

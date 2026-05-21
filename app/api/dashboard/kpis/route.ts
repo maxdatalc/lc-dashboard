@@ -77,17 +77,18 @@ function classificarPorPrefixo(cfop: number | null): "venda" | "devolucao" | "ou
 }
 
 // Busca vendas do período com classificação CFOP via JOIN (FK vendas_cfop_fkey)
+// Suporta múltiplas lojas via lojaIds array
 // Fallback automático para classificação por prefixo se FK não estiver configurada
 async function queryVendasPeriodo(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  lojaId: string,
+  lojaIds: string[],
   startDate: string,
   endDate: string
 ): Promise<VendaRow[]> {
   const { data, error } = await supabase
     .from("vendas")
     .select("valor_total, status, cfop, cfop_classificacoes!vendas_cfop_fkey(tipo)")
-    .eq("loja_id", lojaId)
+    .in("loja_id", lojaIds)
     .gte("data_venda", startDate)
     .lte("data_venda", endDate);
 
@@ -100,7 +101,7 @@ async function queryVendasPeriodo(
   const { data: fallback, error: err2 } = await supabase
     .from("vendas")
     .select("valor_total, status, cfop")
-    .eq("loja_id", lojaId)
+    .in("loja_id", lojaIds)
     .gte("data_venda", startDate)
     .lte("data_venda", endDate);
 
@@ -123,11 +124,19 @@ async function queryVendasPeriodo(
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
+  // lojaIds (multi-loja, comma-sep) tem prioridade; lojaId mantido para compatibilidade
+  const lojaIdsParam = searchParams.get("lojaIds");
   const lojaId = searchParams.get("lojaId");
   const period = searchParams.get("period") ?? "month";
 
-  if (!lojaId) {
-    return NextResponse.json({ error: "lojaId é obrigatório" }, { status: 400 });
+  const lojaIds = lojaIdsParam
+    ? lojaIdsParam.split(",").filter(Boolean)
+    : lojaId
+    ? [lojaId]
+    : [];
+
+  if (lojaIds.length === 0) {
+    return NextResponse.json({ error: "lojaId ou lojaIds é obrigatório" }, { status: 400 });
   }
 
   const supabase = await createClient();
@@ -145,8 +154,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // Buscar período atual e anterior em paralelo
   const [vendasPeriodo, vendasAnt] = await Promise.all([
-    queryVendasPeriodo(supabase, lojaId, start, end),
-    queryVendasPeriodo(supabase, lojaId, anterior.start, anterior.end),
+    queryVendasPeriodo(supabase, lojaIds, start, end),
+    queryVendasPeriodo(supabase, lojaIds, anterior.start, anterior.end),
   ]);
 
   // ── Classificar período atual ──────────────────────────────────────────────

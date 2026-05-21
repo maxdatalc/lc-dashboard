@@ -2,10 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import {
-  Sun, Moon, RefreshCw, CheckCircle, AlertCircle, CalendarDays,
+  Sun, Moon, RefreshCw, CheckCircle, AlertCircle, CalendarDays, Building2, ChevronDown, Check,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePeriod, type Period } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
@@ -45,6 +45,136 @@ function toISODate(d: Date): string {
 
 function formatShortDate(d: Date): string {
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function LojaMultiSelect() {
+  const { lojasDisponiveis, lojasSelecionadas, setLojasSelecionadas } = useLoja();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Fechar ao clicar fora
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  // Não exibir se só há uma loja
+  if (lojasDisponiveis.length <= 1) return null;
+
+  const allSelected = lojasSelecionadas.length === 0;
+  const label = allSelected
+    ? "Todas as lojas"
+    : lojasSelecionadas.length === 1
+    ? (lojasDisponiveis.find((l) => l.id === lojasSelecionadas[0])?.name ?? "1 loja")
+    : `${lojasSelecionadas.length} lojas`;
+
+  function toggleLoja(id: string) {
+    if (lojasSelecionadas.includes(id)) {
+      const next = lojasSelecionadas.filter((l) => l !== id);
+      setLojasSelecionadas(next);
+    } else {
+      setLojasSelecionadas([...lojasSelecionadas, id]);
+    }
+  }
+
+  function toggleAll() {
+    setLojasSelecionadas([]);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
+        style={{
+          backgroundColor: !allSelected ? "rgba(0,229,255,0.12)" : "transparent",
+          color: !allSelected ? "#00e5ff" : "var(--text-secondary)",
+          border: `1px solid ${!allSelected ? "rgba(0,229,255,0.3)" : "var(--border-subtle)"}`,
+        }}
+      >
+        <Building2 className="h-3 w-3 flex-shrink-0" />
+        <span className="max-w-[120px] truncate">{label}</span>
+        <ChevronDown
+          className="h-3 w-3 flex-shrink-0 transition-transform"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+
+      {open && (
+        <div
+          className="absolute top-full mt-2 z-50 rounded-xl shadow-xl py-1.5 flex flex-col"
+          style={{
+            backgroundColor: "#111827",
+            border: "1px solid rgba(255,255,255,0.08)",
+            minWidth: 200,
+            right: 0,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Opção "Todas" */}
+          <button
+            onClick={toggleAll}
+            className="flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left"
+            style={{
+              color: allSelected ? "var(--text-primary)" : "var(--text-secondary)",
+              backgroundColor: allSelected ? "rgba(255,255,255,0.04)" : "transparent",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = allSelected ? "rgba(255,255,255,0.04)" : "transparent")}
+          >
+            <div
+              className="flex-shrink-0 flex items-center justify-center rounded"
+              style={{
+                width: 14, height: 14,
+                border: allSelected ? "none" : "1.5px solid rgba(255,255,255,0.2)",
+                backgroundColor: allSelected ? "#00e5ff" : "transparent",
+              }}
+            >
+              {allSelected && <Check style={{ width: 10, height: 10, color: "#0d1117", strokeWidth: 3 }} />}
+            </div>
+            <span className="font-medium">Todas as lojas</span>
+          </button>
+
+          <div style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)", margin: "4px 0" }} />
+
+          {/* Lista de lojas */}
+          {lojasDisponiveis.map((loja) => {
+            const checked = lojasSelecionadas.includes(loja.id);
+            return (
+              <button
+                key={loja.id}
+                onClick={() => toggleLoja(loja.id)}
+                className="flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left"
+                style={{
+                  color: checked ? "var(--text-primary)" : "var(--text-secondary)",
+                  backgroundColor: checked ? "rgba(255,255,255,0.04)" : "transparent",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = checked ? "rgba(255,255,255,0.04)" : "transparent")}
+              >
+                <div
+                  className="flex-shrink-0 flex items-center justify-center rounded"
+                  style={{
+                    width: 14, height: 14,
+                    border: checked ? "none" : "1.5px solid rgba(255,255,255,0.2)",
+                    backgroundColor: checked ? "#00e5ff" : "transparent",
+                  }}
+                >
+                  {checked && <Check style={{ width: 10, height: 10, color: "#0d1117", strokeWidth: 3 }} />}
+                </div>
+                <span className="truncate max-w-[160px]">{loja.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SyncBadge() {
@@ -225,6 +355,9 @@ export function Header() {
           </span>
         )}
       </div>
+
+      {/* Multi-select de lojas */}
+      <LojaMultiSelect />
 
       {/* Centro — seletor de período */}
       <div className="flex-1 flex items-center justify-center gap-1 flex-wrap">

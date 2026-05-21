@@ -27,21 +27,52 @@
     --radius: 0.625rem;
 
     /* Design System LC — tema claro */
-    --bg-primary: #f6f8fa;
+    --bg-primary: #f0f4f8;
     --bg-card: #ffffff;
-    --bg-card-hover: #f0f2f4;
-    --border-subtle: #d0d7de;
-    --text-primary: #1f2328;
-    --text-secondary: #636c76;
-    --text-muted: #9198a1;
-    --accent-cyan: #00d4ff;
-    --accent-yellow: #f0a500;
-    --accent-green: #3fb950;
-    --accent-purple: #a371f7;
-    --accent-red: #ff4444;
-    --accent-orange: #ff7b00;
+    --bg-card-hover: #f8fafc;
+    --border-subtle: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --accent-cyan: #0891b2;
+    --accent-yellow: #d97706;
+    --accent-green: #059669;
+    --accent-purple: #7c3aed;
+    --accent-red: #dc2626;
+    --accent-orange: #ea580c;
+    --sidebar-bg: #1e293b;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #00e5ff;
     --sidebar-width: 64px;
     --header-height: 56px;
+  }
+
+  .light {
+    /* Fundos */
+    --bg-primary: #f0f4f8;
+    --bg-card: #ffffff;
+    --bg-card-hover: #f8fafc;
+
+    /* Bordas */
+    --border-subtle: #e2e8f0;
+
+    /* Textos */
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+
+    /* Accents — mais saturados no light para ter presença */
+    --accent-cyan: #0891b2;
+    --accent-green: #059669;
+    --accent-red: #dc2626;
+    --accent-yellow: #d97706;
+    --accent-purple: #7c3aed;
+    --accent-orange: #ea580c;
+
+    /* Sidebar no light */
+    --sidebar-bg: #1e293b;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #00e5ff;
   }
 
   .dark {
@@ -66,14 +97,23 @@
     --input: 220 45% 20%;
     --ring: 217 91% 60%;
 
-    /* Design System LC — tema escuro */
-    --bg-primary: #0d1117;
-    --bg-card: #161b22;
-    --bg-card-hover: #1c2128;
-    --border-subtle: #30363d;
-    --text-primary: #e6edf3;
-    --text-secondary: #8b949e;
-    --text-muted: #484f58;
+    /* Design System LC — Precision Dark */
+    --bg-primary: #0a0f1e;
+    --bg-card: #111827;
+    --bg-card-hover: #1a2234;
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
+    --accent-cyan: #00e5ff;
+    --accent-yellow: #f59e0b;
+    --accent-green: #10b981;
+    --accent-purple: #7c3aed;
+    --accent-red: #ef4444;
+    --accent-orange: #f97316;
+    --sidebar-bg: #0d1117;
+    --sidebar-text: #94a3b8;
+    --sidebar-active: #00e5ff;
   }
 }
 
@@ -83,6 +123,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: var(--bg-primary);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
   }
@@ -91,13 +132,84 @@
   }
 }
 
-@keyframes kpiEntrance {
+/* ── Animações de entrada ───────────────────────────────────────────────── */
+@keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out both;
+}
+
+/* Mantido para compatibilidade com componentes existentes */
+@keyframes kpiEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Shimmer loading ────────────────────────────────────────────────────── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 25%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ── Ponto pulsando (status finalizada) ─────────────────────────────────── */
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
+}
+
+.pulse-dot {
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* ── Scrollbar customizada ──────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
 }

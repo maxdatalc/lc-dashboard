@@ -1,17 +1,19 @@
+// Formatar moeda em real brasileiro — SEMPRE valor completo, sem abreviação
+// Ex: 12100.50 → "R$ 12.100,50"
+// Ex: 535.6 → "R$ 535,60"
 export function formatCurrency(value: number): string {
-  if (value >= 1_000_000) {
-    return `R$ ${(value / 1_000_000)
-      .toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}M`;
-  }
-  if (value >= 1_000) {
-    return `R$ ${(value / 1_000)
-      .toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`;
-  }
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
 }
 
+// Formatar número inteiro com separador de milhar
+// Ex: 3847 → "3.847"
 export function formatNumber(value: number): string {
-  return value.toLocaleString("pt-BR");
+  return new Intl.NumberFormat('pt-BR').format(value)
 }
 
 export function formatChange(value: number): string {

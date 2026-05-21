@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 
 export interface Loja {
   id: string;
@@ -11,6 +11,10 @@ interface LojaContextValue {
   lojas: Loja[];
   selectedLojaId: string | null;
   selectedLoja: Loja | null;
+  // Multi-select: array de IDs selecionados (vazio = todas as lojas)
+  lojasDisponiveis: Loja[];
+  lojasSelecionadas: string[];
+  setLojasSelecionadas: (ids: string[]) => void;
 }
 
 const LojaContext = createContext<LojaContextValue | null>(null);
@@ -23,8 +27,19 @@ interface LojaProviderProps {
 
 export function LojaProvider({ lojas, selectedLojaId, children }: LojaProviderProps) {
   const selectedLoja = lojas.find((l) => l.id === selectedLojaId) ?? null;
+  const [lojasSelecionadas, setLojasSelecionadas] = useState<string[]>([]);
+
   return (
-    <LojaContext.Provider value={{ lojas, selectedLojaId, selectedLoja }}>
+    <LojaContext.Provider
+      value={{
+        lojas,
+        selectedLojaId,
+        selectedLoja,
+        lojasDisponiveis: lojas,
+        lojasSelecionadas,
+        setLojasSelecionadas,
+      }}
+    >
       {children}
     </LojaContext.Provider>
   );
