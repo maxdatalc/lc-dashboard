@@ -14,11 +14,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Redirecionar para o dashboard se já estiver logado e tentar acessar o login
+  // Redirecionar para o destino correto se já estiver logado e tentar acessar o login
   if (pathname === "/login" && user !== null) {
-    const dashboardUrl = request.nextUrl.clone();
-    dashboardUrl.pathname = "/dashboard";
-    return NextResponse.redirect(dashboardUrl);
+    const adminClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { cookies: { getAll: () => [], setAll: () => {} } }
+    );
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("is_system_admin")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    const isAdmin = (profile as { is_system_admin?: boolean } | null)?.is_system_admin;
+    const destUrl = request.nextUrl.clone();
+    destUrl.pathname = isAdmin ? "/admin" : "/dashboard";
+    return NextResponse.redirect(destUrl);
   }
 
   // Proteger rotas /admin — exige autenticação e is_system_admin
