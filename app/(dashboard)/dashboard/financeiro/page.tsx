@@ -9,8 +9,6 @@ import { getSelectedLojaId } from "@/app/actions/lojas";
 import {
   getResumoFinanceiro,
   getClientesInadimplentes,
-  type ResumoFinanceiro,
-  type ClienteInadimplente,
 } from "@/lib/db/financeiro";
 
 type Filtro = "vencido" | "a_vencer" | "todos";

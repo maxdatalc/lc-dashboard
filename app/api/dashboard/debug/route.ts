@@ -42,7 +42,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   ]);
 
   // Resumo de status únicos
-  let statusCount: Record<string, number> = {};
+  const statusCount: Record<string, number> = {};
   if (statusRes.status === "fulfilled" && statusRes.value.data) {
     for (const row of statusRes.value.data) {
       const s = String(row.status ?? "null");

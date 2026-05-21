@@ -2,7 +2,7 @@
 // Exibe métricas consolidadas de todos os clientes cadastrados
 
 import Link from "next/link";
-import { Building2, Users, Star, Zap } from "lucide-react";
+import { Building2, Star, Zap } from "lucide-react";
 import { getAllTenants } from "@/lib/db/admin";
 import { FEATURES_CATALOG } from "@/lib/features";
 

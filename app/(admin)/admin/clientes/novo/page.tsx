@@ -13,7 +13,7 @@ import {
   MessageCircle, Bell, Sparkles, Building2, UserCheck,
   TrendingUp, Zap, BarChart3,
 } from "lucide-react";
-import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
+import { FEATURES_CATALOG } from "@/lib/features";
 
 // Mapa de ícones para renderização dinâmica dos cards de features
 const ICONE_MAP: Record<string, React.ElementType> = {
