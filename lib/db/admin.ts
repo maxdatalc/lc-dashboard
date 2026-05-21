@@ -272,3 +272,63 @@ export async function adicionarLoja(
   });
   return novaLoja.id;
 }
+
+// ── Usuários ───────────────────────────────────────────────────────────────
+
+export type UsuarioTenant = {
+  id: string;
+  userId: string;
+  role: "admin" | "viewer";
+  fullName: string;
+  email: string;
+};
+
+/** Retorna os usuários vinculados a um tenant com nome e email */
+export async function getUsuariosTenant(tenantId: string): Promise<UsuarioTenant[]> {
+  const supabase = createAdminClient();
+
+  const { data: tenantUsers } = await supabase
+    .from("tenant_users")
+    .select("id, user_id, role")
+    .eq("tenant_id", tenantId);
+
+  if (!tenantUsers?.length) return [];
+
+  const rows = tenantUsers as { id: string; user_id: string; role: string }[];
+  const userIds = rows.map((u) => u.user_id);
+
+  // Buscar nomes na tabela profiles
+  const { data: profiles } = await supabase
+    .from("profiles")
+    .select("id, full_name")
+    .in("id", userIds);
+
+  const profileMap = new Map(
+    ((profiles ?? []) as { id: string; full_name: string | null }[]).map((p) => [
+      p.id,
+      p.full_name ?? "",
+    ])
+  );
+
+  // Buscar emails via admin API (um por usuário; volume esperado < 20)
+  const resultados: UsuarioTenant[] = await Promise.all(
+    rows.map(async (u) => {
+      let email = "";
+      try {
+        const { data } = await supabase.auth.admin.getUserById(u.user_id);
+        email = data?.user?.email ?? "";
+      } catch {
+        // se falhar, deixa email vazio
+      }
+      return {
+        id: u.id,
+        userId: u.user_id,
+        role: u.role as "admin" | "viewer",
+        fullName: profileMap.get(u.user_id) ?? "",
+        email,
+      };
+    })
+  );
+
+  return resultados;
+}
