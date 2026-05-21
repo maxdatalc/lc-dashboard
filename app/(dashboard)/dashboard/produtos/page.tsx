@@ -14,8 +14,6 @@ import { getSelectedLojaId } from "@/app/actions/lojas";
 import {
   getResumoProdutos,
   getProdutos,
-  type ResumoProdutos,
-  type ProdutoItem,
   type FiltroProduto,
 } from "@/lib/db/produtos";
 import { SyncButton } from "@/components/dashboard/sync-button";

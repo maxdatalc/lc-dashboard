@@ -8,7 +8,7 @@ interface Props {
   lojaId?: string;
 }
 
-export function SyncButtonProdutos({ lojaId }: Props) {
+export function SyncButtonProdutos({ lojaId: _lojaId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
