@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Building2, Loader2 } from "lucide-react";
-import { SyncPeriodoModal } from "@/components/admin/SyncPeriodoModal";
+import { SyncInicialModal } from "@/components/admin/SyncPeriodoModal";
 import { BotaoLimparDados } from "@/components/admin/BotaoLimparDados";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
 
@@ -80,6 +80,7 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
   const router = useRouter();
   const [syncLojaId, setSyncLojaId] = useState<string | null>(null);
   const [syncNomeLoja, setSyncNomeLoja] = useState("");
+  const [syncServicesEnabled, setSyncServicesEnabled] = useState(false);
 
   const handleSyncConcluido = () => {
     setSyncLojaId(null);
@@ -171,6 +172,7 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
                         onClick={() => {
                           setSyncLojaId(loja.id);
                           setSyncNomeLoja(loja.name);
+                          setSyncServicesEnabled(loja.syncServicesEnabled);
                         }}
                         className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
                       >
@@ -190,11 +192,12 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
         </div>
       )}
 
-      {/* Modal de sync por período — montado quando syncLojaId está definido */}
+      {/* Modal de sync inicial com 3 abas — montado quando syncLojaId está definido */}
       {syncLojaId && (
-        <SyncPeriodoModal
+        <SyncInicialModal
           lojaId={syncLojaId}
           nomeLoja={syncNomeLoja}
+          syncServicesEnabled={syncServicesEnabled}
           onConcluido={handleSyncConcluido}
           onCancelar={() => setSyncLojaId(null)}
         />
