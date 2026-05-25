@@ -51,6 +51,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Chamar a Edge Function sync-erp-inicial
+    console.log("[sync-inicial] Chamando Edge Function com:", { lojaId, mes, chunkAtual, totalChunks });
+    console.log("[sync-inicial] URL:", `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-erp-inicial`);
+    console.log("[sync-inicial] Service Role Key existe:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+
     const efResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-erp-inicial`,
       {
@@ -63,20 +67,24 @@ export async function POST(req: NextRequest) {
       }
     );
 
+    console.log("[sync-inicial] Status da resposta:", efResponse.status);
+    const responseText = await efResponse.text();
+    console.log("[sync-inicial] Body da resposta:", responseText);
+
     if (!efResponse.ok) {
-      const errText = await efResponse.text();
       // Registrar erro no sync_inicial
       const adminClient = createAdminClient();
       await adminClient
         .from("sync_inicial")
-        .update({ status: "erro", erros: errText.substring(0, 500), atualizado_em: new Date().toISOString() })
+        .update({ status: "erro", erros: responseText.substring(0, 500), atualizado_em: new Date().toISOString() })
         .eq("loja_id", lojaId);
-      return NextResponse.json({ error: `Edge Function: ${errText}` }, { status: 502 });
+      return NextResponse.json({ error: `Edge Function: ${responseText}` }, { status: 502 });
     }
 
-    const data = await efResponse.json();
+    const data = JSON.parse(responseText) as unknown;
     return NextResponse.json(data);
   } catch (err) {
+    console.error("[sync-inicial] Erro completo:", err);
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }

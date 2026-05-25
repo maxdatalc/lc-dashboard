@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { DollarSign, ShoppingCart, TrendingUp, RotateCcw, XCircle } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, RotateCcw, XCircle, Package } from "lucide-react";
 import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 import { KpiCard } from "@/components/ui/KpiCard";
@@ -30,6 +30,7 @@ interface KpiResponse {
   };
   vendas: { value: number; change: number | null };
   ticketMedio: { value: number; change: number | null };
+  outros: { value: number; valorTotal: number };
   totalVendas: number;
   totalDevolucoes: number;
   totalCancelamentos: number;
@@ -113,19 +114,13 @@ function FaturamentoKpiCard({
       {/* Divisor */}
       <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
 
-      {/* Bruto vs Devoluções */}
+      {/* Vendas vs Devoluções */}
       {isLoading ? (
         <div className="shimmer rounded" style={{ height: 14, width: 120 }} />
       ) : (
         <div className="flex items-center justify-between gap-2 text-xs">
           <div>
-            <span style={{ color: "var(--text-muted)" }}>Bruto </span>
-            <span className="font-medium tabular-nums" style={{ color: "var(--text-secondary)" }}>
-              {formatCurrency(vendaTotal)}
-            </span>
-            <span className="ml-1" style={{ color: "var(--text-muted)" }}>
-              ({formatNumber(totalVendas)} vd)
-            </span>
+            <span style={{ color: "var(--text-muted)" }}>{formatNumber(totalVendas)} vendas</span>
           </div>
           <div>
             <span style={{ color: "var(--accent-red)" }}>−{formatCurrency(devolucaoTotal)}</span>
@@ -169,7 +164,7 @@ function SemLoja() {
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
-const DELAY = [0, 60, 120, 180, 240];
+const DELAY = [0, 60, 120, 180, 240, 300];
 
 export default function DashboardPage() {
   const { period, customRange } = usePeriod();
@@ -267,7 +262,7 @@ export default function DashboardPage() {
   return (
     <div className="p-6 flex flex-col gap-6">
       {/* ── KPIs ──────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
         <FaturamentoKpiCard
           vendaTotal={kpis?.faturamento.vendaTotal ?? 0}
           totalVendas={kpis?.faturamento.totalVendas ?? 0}
@@ -316,6 +311,16 @@ export default function DashboardPage() {
           subtitle="cancelamentos no período"
           titleTooltip="Vendas com status cancelada antes do fechamento fiscal"
           animationDelay={DELAY[4]}
+        />
+        <KpiCard
+          title="Op. Internas"
+          value={kpiLoading ? "—" : formatNumber(kpis?.outros.value ?? 0)}
+          icon={Package}
+          accentColor="#94a3b8"
+          isLoading={kpiLoading}
+          subtitle="transferências, acertos de estoque"
+          titleTooltip="Operações identificadas por CFOP tipo 'outro' — não contam como venda nem devolução"
+          animationDelay={DELAY[5]}
         />
       </div>
 
