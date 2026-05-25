@@ -8,6 +8,7 @@ export interface LojaRow {
   id: string;
   emp_id: number;
   erp_base_url: string;
+  sync_services_enabled?: boolean;
 }
 
 // Helper de delay para respeitar o rate limit da API MaxData
@@ -280,6 +281,135 @@ export async function syncVendaItens(
   } catch {
     // Erros de itens não interrompem o sync da venda
   }
+}
+
+// ── Ordens de Serviço ──────────────────────────────────────────────────────
+
+interface MaxDataOrdemServico {
+  id: number;
+  clienteId?: number;
+  clienteNome?: string;
+  cpf?: string;
+  status?: string;
+  statusOs?: string;
+  dataAbertura?: string;
+  dataFechamento?: string;
+  totalNf?: number;
+  valorTotalServico?: number;
+  valorTotalDesconto?: number;
+  equipamento?: string;
+  placa?: string;
+  itens?: Array<{
+    produtoId?: number;
+    produtoDescricao?: string;
+    qtde?: number;
+    valor?: number;
+    desconto?: number;
+    valorDesconto?: number;
+  }>;
+}
+
+// Sincroniza Ordens de Serviço das últimas 25h para lojas com sync_services_enabled = true
+export async function syncOrdemServico(
+  supabase: SupabaseClient,
+  token: string,
+  loja: LojaRow
+): Promise<number> {
+  if (!loja.sync_services_enabled) return 0;
+
+  console.log(`[syncers] Buscando OS para loja ${loja.id}`);
+
+  const { dataInicial, dataFinal } = toBrazilDateRange();
+
+  let osLista = await fetchAllPages<MaxDataOrdemServico>(
+    token,
+    loja.erp_base_url,
+    "/serviceorder",
+    { dataInicial, dataFinal },
+    50
+  );
+
+  // Fallback sem filtro se retornou 0 — filtrar últimas 25h no JS
+  if (osLista.length === 0) {
+    const todas = await fetchAllPages<MaxDataOrdemServico>(
+      token,
+      loja.erp_base_url,
+      "/serviceorder",
+      {},
+      50
+    );
+    const limite = new Date(Date.now() - 25 * 60 * 60 * 1000);
+    osLista = todas.filter((os) => {
+      const raw = os.dataFechamento ?? os.dataAbertura;
+      if (!raw) return false;
+      return new Date(raw) >= limite;
+    });
+  }
+
+  if (osLista.length === 0) return 0;
+
+  const agora = new Date().toISOString();
+  const rows = osLista.map((os) => ({
+    loja_id: loja.id,
+    // external_id negativo para não colidir com IDs de vendas normais
+    external_id: os.id * -1,
+    numero_venda: `OS-${os.id}`,
+    data_venda: (os.dataFechamento ?? os.dataAbertura ?? agora).split("T")[0],
+    cliente_external_id: os.clienteId ?? null,
+    cliente_nome: os.clienteNome ?? null,
+    cpf_cnpj: os.cpf ?? null,
+    valor_bruto: os.totalNf ?? os.valorTotalServico ?? 0,
+    valor_desconto: os.valorTotalDesconto ?? 0,
+    valor_total: os.totalNf ?? os.valorTotalServico ?? 0,
+    status: (os.status ?? os.statusOs ?? "pendente").toLowerCase(),
+    cfop: 5933, // ISSQN padrão para serviços
+    tipo: "venda",
+    subtipo: "servico",
+    source: "os",
+    os_equipamento: os.equipamento ?? null,
+    os_placa: os.placa ?? null,
+    sincronizado_em: agora,
+  }));
+
+  // Deduplicar por external_id
+  const seen = new Set<number>();
+  const unicos = rows.filter((r) => {
+    if (seen.has(r.external_id)) return false;
+    seen.add(r.external_id);
+    return true;
+  });
+
+  for (let i = 0; i < unicos.length; i += 200) {
+    const lote = unicos.slice(i, i + 200);
+    const { error } = await supabase
+      .from("vendas")
+      .upsert(lote, { onConflict: "loja_id,external_id" });
+    // Erros em OS não interrompem o sync principal
+    if (error) console.error("[syncers] Erro OS:", error.message);
+  }
+
+  // Sincronizar itens embutidos nas OS
+  for (const os of osLista) {
+    if (!os.itens || os.itens.length === 0) continue;
+    const osExternalId = os.id * -1;
+    const itens = os.itens.map((item) => ({
+      loja_id: loja.id,
+      venda_external_id: osExternalId,
+      produto_external_id: item.produtoId ?? null,
+      produto_nome: item.produtoDescricao ?? "Serviço",
+      quantidade: item.qtde ?? 0,
+      valor_unitario: item.valor ?? 0,
+      valor_desconto: item.desconto ?? item.valorDesconto ?? 0,
+      valor_total: (item.qtde ?? 0) * (item.valor ?? 0),
+    }));
+
+    await supabase
+      .from("venda_itens")
+      .upsert(itens, { onConflict: "loja_id,venda_external_id,produto_external_id" });
+    await sleep(100);
+  }
+
+  return unicos.length;
 }
 
 export async function syncVendaPagamentos(

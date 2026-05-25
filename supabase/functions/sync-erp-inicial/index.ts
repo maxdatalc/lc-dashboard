@@ -12,6 +12,7 @@ interface LojaRow {
   emp_id: number;
   erp_base_url: string;
   terminal_encrypted: string;
+  sync_services_enabled: boolean;
 }
 
 interface MaxDataVenda {
@@ -62,7 +63,7 @@ Deno.serve(async (req) => {
     // 1. Buscar dados da loja
     const { data: loja, error: lojaError } = await supabase
       .from("lojas")
-      .select("id, emp_id, erp_base_url, terminal_encrypted")
+      .select("id, emp_id, erp_base_url, terminal_encrypted, sync_services_enabled")
       .eq("id", lojaId)
       .single();
 
@@ -183,7 +184,129 @@ Deno.serve(async (req) => {
       vendasSalvasNesteMes = unicos.length;
     }
 
-    // 7. Calcular próximo mês e verificar se concluiu
+    // 7. Sincronizar Ordens de Serviço do mês (se habilitado para esta loja)
+    if (lojaRow.sync_services_enabled) {
+      console.log(`[sync-inicial] Loja ${lojaId}: buscando ordens de serviço para ${mes}`);
+
+      let todasOs = await fetchAllPages<Record<string, unknown>>(
+        token,
+        lojaRow.erp_base_url,
+        "/serviceorder",
+        { dataInicial, dataFinal },
+        300
+      );
+
+      // Fallback sem filtro de data se retornou 0
+      if (todasOs.length === 0) {
+        const todas = await fetchAllPages<Record<string, unknown>>(
+          token,
+          lojaRow.erp_base_url,
+          "/serviceorder",
+          {},
+          300
+        );
+        todasOs = todas.filter((os) => {
+          const raw = (os.dataFechamento ?? os.dataAbertura) as string | undefined;
+          if (!raw) return false;
+          const d = new Date(raw);
+          return d.getFullYear() === ano && (d.getMonth() + 1) === mesNum;
+        });
+      }
+
+      console.log(`[sync-inicial] ${mes}: ${todasOs.length} OS encontradas`);
+
+      if (todasOs.length > 0) {
+        const agora = new Date().toISOString();
+
+        interface OsRow {
+          loja_id: string;
+          external_id: number;
+          numero_venda: string;
+          data_venda: string;
+          cliente_external_id: number | null;
+          cliente_nome: string | null;
+          cpf_cnpj: string | null;
+          valor_bruto: number;
+          valor_desconto: number;
+          valor_total: number;
+          status: string;
+          cfop: number;
+          tipo: string;
+          subtipo: string;
+          source: string;
+          os_equipamento: string | null;
+          os_placa: string | null;
+          sincronizado_em: string;
+        }
+
+        const osRows: OsRow[] = todasOs.map((os) => ({
+          loja_id: lojaId,
+          // external_id negativo para não colidir com IDs de vendas normais
+          external_id: (os.id as number) * -1,
+          numero_venda: `OS-${os.id as number}`,
+          data_venda: ((os.dataFechamento ?? os.dataAbertura ?? dataInicial) as string).split("T")[0],
+          cliente_external_id: (os.clienteId as number) ?? null,
+          cliente_nome: (os.clienteNome as string) ?? null,
+          cpf_cnpj: (os.cpf as string) ?? null,
+          valor_bruto: (os.totalNf ?? os.valorTotalServico ?? 0) as number,
+          valor_desconto: (os.valorTotalDesconto ?? 0) as number,
+          valor_total: (os.totalNf ?? os.valorTotalServico ?? 0) as number,
+          status: ((os.status ?? os.statusOs ?? "pendente") as string).toLowerCase(),
+          cfop: 5933, // ISSQN padrão para serviços
+          tipo: "venda",
+          subtipo: "servico",
+          source: "os",
+          os_equipamento: (os.equipamento as string) ?? null,
+          os_placa: (os.placa as string) ?? null,
+          sincronizado_em: agora,
+        }));
+
+        // Deduplicar por external_id
+        const seenOs = new Set<number>();
+        const osUnicos = osRows.filter((r) => {
+          if (seenOs.has(r.external_id)) return false;
+          seenOs.add(r.external_id);
+          return true;
+        });
+
+        for (let i = 0; i < osUnicos.length; i += 200) {
+          const lote = osUnicos.slice(i, i + 200);
+          const { error: osErr } = await supabase
+            .from("vendas")
+            .upsert(lote, { onConflict: "loja_id,external_id" });
+          // Erros em OS não interrompem o sync — apenas loga
+          if (osErr) console.error(`[sync-inicial] Erro ao salvar OS lote ${i}:`, osErr.message);
+          await sleep(50);
+        }
+
+        // Sincronizar itens que vêm embutidos no objeto OS
+        for (const os of todasOs) {
+          const osExternalId = (os.id as number) * -1;
+          const itens = os.itens as Array<Record<string, unknown>> | undefined;
+          if (!itens || itens.length === 0) continue;
+
+          const itensMapped = itens.map((item) => ({
+            loja_id: lojaId,
+            venda_external_id: osExternalId,
+            produto_external_id: (item.produtoId as number) ?? null,
+            produto_nome: (item.produtoDescricao as string) ?? "Serviço",
+            quantidade: (item.qtde as number) ?? 0,
+            valor_unitario: (item.valor as number) ?? 0,
+            valor_desconto: (item.desconto ?? item.valorDesconto ?? 0) as number,
+            valor_total: ((item.qtde as number) ?? 0) * ((item.valor as number) ?? 0),
+          }));
+
+          await supabase
+            .from("venda_itens")
+            .upsert(itensMapped, { onConflict: "loja_id,venda_external_id,produto_external_id" });
+          await sleep(100);
+        }
+
+        vendasSalvasNesteMes += osUnicos.length;
+      }
+    }
+
+    // 8. (era 7) Calcular próximo mês e verificar se concluiu
     const proxData = new Date(ano, mesNum, 1); // mês seguinte
     const proximoMes =
       `${proxData.getFullYear()}-${String(proxData.getMonth() + 1).padStart(2, "0")}`;

@@ -159,7 +159,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   ]);
 
   // ── Classificar período atual ──────────────────────────────────────────────
-  const finalizadas = vendasPeriodo.filter((v) => v.status === "finalizada");
+  // Status estendidos para cobrir OS: finalizada, concluida, fechada, pago, aprovada
+  const STATUS_FINALIZADOS = ["finalizada", "concluida", "fechada", "pago", "aprovada"];
+  const finalizadas = vendasPeriodo.filter((v) =>
+    STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
+  );
   const canceladas = vendasPeriodo.filter((v) => v.status === "cancelada");
 
   // Vendas = tipo 'venda' ou CFOP não mapeado (conservador — não esconder receita)
@@ -189,7 +193,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
 
   // ── Classificar período anterior ───────────────────────────────────────────
-  const finalizadasAnt = vendasAnt.filter((v) => v.status === "finalizada");
+  const finalizadasAnt = vendasAnt.filter((v) =>
+    STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
+  );
   const vendasCfopAnt = finalizadasAnt.filter((v) => {
     const tipo = v.cfop_classificacoes?.tipo;
     return tipo === "venda" || tipo == null;

@@ -32,6 +32,7 @@ type LojaForm = {
   empId: string;
   erpBaseUrl: string;
   terminal: string;
+  syncServicesEnabled: boolean;
   testStatus: TestStatus;
   testErro: string;
   verTerminal: boolean;
@@ -58,6 +59,7 @@ function novaLoja(base?: Partial<LojaForm>): LojaForm {
     empId: "",
     erpBaseUrl: base?.erpBaseUrl ?? "",
     terminal: base?.terminal ?? "",
+    syncServicesEnabled: false,
     testStatus: "idle",
     testErro: "",
     verTerminal: false,
@@ -220,6 +222,7 @@ export default function NovoClientePage() {
             empId: Number(l.empId),
             erpBaseUrl: l.erpBaseUrl,
             terminal: l.terminal,
+            syncServicesEnabled: l.syncServicesEnabled,
           })),
           features: form.featuresAtivas,
           usuario: {
@@ -457,6 +460,31 @@ export default function NovoClientePage() {
                         Nunca compartilhe este código. Armazenado criptografado.
                       </p>
                     </div>
+                  </div>
+
+                  {/* Toggle: Trabalha com serviços / ordens de serviço */}
+                  <div
+                    className="flex items-start gap-3 p-3 rounded-lg"
+                    style={{ background: "rgba(0,0,0,0.02)", border: "1px solid #e2e8f0" }}
+                  >
+                    <input
+                      type="checkbox"
+                      id={`services-${loja.id}`}
+                      checked={loja.syncServicesEnabled}
+                      onChange={(e) =>
+                        atualizarLoja(loja.id, "syncServicesEnabled", e.target.checked)
+                      }
+                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <label htmlFor={`services-${loja.id}`} className="cursor-pointer">
+                      <p className="text-sm font-medium text-slate-700">
+                        Trabalha com serviços / ordens de serviço
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Ative para sincronizar OS e serviços deste cliente.
+                        Use apenas para oficinas e prestadores de serviço.
+                      </p>
+                    </label>
                   </div>
 
                   {/* Botão de teste de conexão */}

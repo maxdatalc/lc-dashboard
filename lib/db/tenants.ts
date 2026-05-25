@@ -19,6 +19,7 @@ export type CreateLojaInput = {
   empId: number;
   erpBaseUrl: string;
   terminal: string; // texto puro — será criptografado antes de salvar
+  syncServicesEnabled?: boolean;
 };
 
 function rowToTenant(row: Record<string, unknown>): Tenant {
@@ -41,6 +42,7 @@ function rowToLoja(row: Record<string, unknown>): Loja {
     erpBaseUrl: row.erp_base_url as string,
     terminalEncrypted: row.terminal_encrypted as string,
     isActive: row.is_active as boolean,
+    syncServicesEnabled: (row.sync_services_enabled as boolean) ?? false,
     createdAt: row.created_at as string,
   };
 }
@@ -92,6 +94,7 @@ export async function createLoja(input: CreateLojaInput): Promise<Loja> {
       emp_id: input.empId,
       erp_base_url: input.erpBaseUrl,
       terminal_encrypted: terminalEncrypted,
+      sync_services_enabled: input.syncServicesEnabled ?? false,
     })
     .select()
     .single();

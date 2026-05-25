@@ -4,13 +4,14 @@
 import { createClient } from "npm:@supabase/supabase-js";
 import { decrypt } from "./crypto.ts";
 import { getMaxDataToken } from "./maxdata-client.ts";
-import { syncVendas } from "./syncers.ts";
+import { syncVendas, syncOrdemServico } from "./syncers.ts";
 
 interface LojaRow {
   id: string;
   emp_id: number;
   erp_base_url: string;
   terminal_encrypted: string;
+  sync_services_enabled?: boolean;
 }
 
 interface SyncLogEntry {
@@ -121,6 +122,10 @@ Deno.serve(async (req) => {
 
       // Sincronizar apenas vendas (produtos e clientes são sincronizados via rota dedicada)
       const totalVendas = await syncVendas(supabase, token, loja, dataInicial, dataFinal, isInicial);
+
+      // Sincronizar OS se habilitado para esta loja — erros internos não propagam
+      const totalOs = await syncOrdemServico(supabase, token, loja);
+      if (totalOs > 0) console.log(`[sync-erp] Loja ${loja.id}: ${totalOs} OS sincronizadas`);
 
       // Atualizar sync_log como concluído
       if (syncLogId) {
