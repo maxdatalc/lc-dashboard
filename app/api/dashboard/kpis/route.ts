@@ -171,14 +171,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const devolucoesCfop = finalizadas.filter(
     (v) => v.cfop_classificacoes?.tipo === "devolucao"
   );
+  // Outros = transferências, acertos de estoque (CFOPs 4xxx, 7xxx ou não mapeados explicitamente como "outro")
+  const outrosCfop = finalizadas.filter(
+    (v) => v.cfop_classificacoes?.tipo === "outro"
+  );
 
   const totalVendas = vendasCfop.length;
   const totalDevolucoes = devolucoesCfop.length;
   const totalCancelamentos = canceladas.length;
+  const totalOutros = outrosCfop.length;
 
   const vendaTotal = vendasCfop.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
   const valorDevolvido = devolucoesCfop.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const faturamento = vendaTotal - valorDevolvido;
+  const valorOutros = outrosCfop.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  // Faturamento bruto — não subtrai devoluções (exibidas separadamente no dashboard)
+  const faturamento = vendaTotal;
   const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
 
   // ── Classificar período anterior ───────────────────────────────────────────
@@ -193,7 +200,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const vendaTotalAnt = vendasCfopAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
   const valorDevolvidoAnt = devolucoesCfopAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const faturamentoAnt = vendaTotalAnt - valorDevolvidoAnt;
+  const faturamentoAnt = vendaTotalAnt;
   const ticketMedioAnt =
     vendasCfopAnt.length > 0 ? faturamentoAnt / vendasCfopAnt.length : 0;
 
@@ -213,6 +220,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ticketMedio: {
       value: ticketMedio,
       change: calcVariacao(ticketMedio, ticketMedioAnt),
+    },
+    outros: {
+      value: totalOutros,
+      valorTotal: valorOutros,
     },
     totalVendas,
     totalDevolucoes,

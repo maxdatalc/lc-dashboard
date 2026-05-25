@@ -7,7 +7,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Building2, Loader2 } from "lucide-react";
-import { SyncInicialModal } from "@/components/admin/SyncInicialModal";
+import { SyncPeriodoModal } from "@/components/admin/SyncPeriodoModal";
+import { BotaoLimparDados } from "@/components/admin/BotaoLimparDados";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
 
 type Loja = {
@@ -147,7 +148,7 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <ToggleLojaButton
                         lojaId={loja.id}
                         isActive={loja.isActive}
@@ -162,6 +163,11 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
                       >
                         Sincronizar
                       </button>
+                      <BotaoLimparDados
+                        lojaId={loja.id}
+                        nomeLoja={loja.name}
+                        onLimpo={() => router.refresh()}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -171,12 +177,13 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
         </div>
       )}
 
-      {/* Modal de sync — montado quando syncLojaId está definido */}
+      {/* Modal de sync por período — montado quando syncLojaId está definido */}
       {syncLojaId && (
-        <SyncInicialModal
+        <SyncPeriodoModal
           lojaId={syncLojaId}
           nomeLoja={syncNomeLoja}
           onConcluido={handleSyncConcluido}
+          onCancelar={() => setSyncLojaId(null)}
         />
       )}
     </div>
