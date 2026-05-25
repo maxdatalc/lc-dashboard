@@ -17,6 +17,7 @@ type Loja = {
   empId: number;
   erpBaseUrl: string;
   isActive: boolean;
+  syncServicesEnabled: boolean;
 };
 
 // ── Sub-componente por linha — precisa de estado próprio para o toggle ────────
@@ -112,7 +113,7 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
-                {["Nome", "EmpId", "URL do Túnel", "Status", "Ações"].map(
+                {["Nome", "EmpId", "URL do Túnel", "Status", "Serviços", "Ações"].map(
                   (col) => (
                     <th
                       key={col}
@@ -145,6 +146,18 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
                       <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500">
                         Inativa
                       </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {loja.syncServicesEnabled ? (
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        style={{ background: "rgba(0,229,255,0.1)", color: "var(--accent-cyan, #06b6d4)" }}
+                      >
+                        ✓ OS
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

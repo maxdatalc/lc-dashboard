@@ -20,6 +20,7 @@ export type TenantComLojas = {
     empId: number;
     erpBaseUrl: string;
     isActive: boolean;
+    syncServicesEnabled: boolean;
   }[];
   features: string[];
   totalUsuarios: number;
@@ -27,7 +28,7 @@ export type TenantComLojas = {
 
 export type NovoClienteInput = {
   tenant: { name: string; slug: string; plan: "free" | "premium" };
-  lojas: { name: string; empId: number; erpBaseUrl: string; terminal: string }[];
+  lojas: { name: string; empId: number; erpBaseUrl: string; terminal: string; syncServicesEnabled?: boolean }[];
   features: string[];
   usuario: {
     email: string;
@@ -59,7 +60,7 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
   // Buscar tenants, lojas, features e usuários em paralelo
   const [tenantRes, lojasRes, featuresRes, usuariosRes] = await Promise.all([
     supabase.from("tenants").select("*").order("created_at", { ascending: false }),
-    supabase.from("lojas").select("id, tenant_id, name, emp_id, erp_base_url, is_active"),
+    supabase.from("lojas").select("id, tenant_id, name, emp_id, erp_base_url, is_active, sync_services_enabled"),
     supabase.from("tenant_features").select("tenant_id, feature_key"),
     supabase.from("tenant_users").select("tenant_id"),
   ]);
@@ -102,6 +103,7 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
       empId: l.emp_id as number,
       erpBaseUrl: l.erp_base_url as string,
       isActive: l.is_active as boolean,
+      syncServicesEnabled: (l.sync_services_enabled as boolean) ?? false,
     })),
     features: featuresPorTenant[t.id as string] ?? [],
     totalUsuarios: usuariosPorTenant[t.id as string] ?? 0,
@@ -114,7 +116,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
 
   const [tenantRes, lojasRes, featuresRes, usuariosRes] = await Promise.all([
     supabase.from("tenants").select("*").eq("id", id).maybeSingle(),
-    supabase.from("lojas").select("id, name, emp_id, erp_base_url, is_active").eq("tenant_id", id),
+    supabase.from("lojas").select("id, name, emp_id, erp_base_url, is_active, sync_services_enabled").eq("tenant_id", id),
     supabase.from("tenant_features").select("feature_key").eq("tenant_id", id),
     supabase.from("tenant_users").select("tenant_id").eq("tenant_id", id),
   ]);
@@ -136,6 +138,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
       empId: l.emp_id as number,
       erpBaseUrl: l.erp_base_url as string,
       isActive: l.is_active as boolean,
+      syncServicesEnabled: (l.sync_services_enabled as boolean) ?? false,
     })),
     features: ((featuresRes.data ?? []) as Record<string, unknown>[]).map(
       (f) => f.feature_key as string
@@ -177,6 +180,7 @@ export async function createNovoCliente(input: NovoClienteInput): Promise<{
         empId: lojaInput.empId,
         erpBaseUrl: lojaInput.erpBaseUrl,
         terminal: lojaInput.terminal,
+        syncServicesEnabled: lojaInput.syncServicesEnabled ?? false,
       });
       lojaIds.push(loja.id);
     }

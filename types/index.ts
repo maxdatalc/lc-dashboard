@@ -17,6 +17,7 @@ export type Loja = {
   erpBaseUrl: string;
   terminalEncrypted: string;
   isActive: boolean;
+  syncServicesEnabled: boolean;
   createdAt: string;
 };
 
