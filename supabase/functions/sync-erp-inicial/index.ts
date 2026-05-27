@@ -148,6 +148,7 @@ Deno.serve(async (req) => {
         return {
           loja_id: lojaId,
           external_id: v.id,
+          source: "sale",
           numero_venda: String(v.id),
           data_venda: (v.fechamento ?? v.abertura ?? dataInicial).split("T")[0],
           cliente_external_id: v.clienteId ?? null,
@@ -176,7 +177,7 @@ Deno.serve(async (req) => {
         const lote = unicos.slice(i, i + 200);
         const { error } = await supabase
           .from("vendas")
-          .upsert(lote, { onConflict: "loja_id,external_id" });
+          .upsert(lote, { onConflict: "loja_id,external_id,source" });
         if (error) throw new Error(error.message);
         await sleep(50);
       }
@@ -241,8 +242,7 @@ Deno.serve(async (req) => {
 
         const osRows: OsRow[] = todasOs.map((os) => ({
           loja_id: lojaId,
-          // external_id negativo para não colidir com IDs de vendas normais
-          external_id: (os.id as number) * -1,
+          external_id: os.id as number,
           numero_venda: `OS-${os.id as number}`,
           data_venda: ((os.dataFechamento ?? os.dataAbertura ?? dataInicial) as string).split("T")[0],
           cliente_external_id: (os.clienteId as number) ?? null,
@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
           const lote = osUnicos.slice(i, i + 200);
           const { error: osErr } = await supabase
             .from("vendas")
-            .upsert(lote, { onConflict: "loja_id,external_id" });
+            .upsert(lote, { onConflict: "loja_id,external_id,source" });
           // Erros em OS não interrompem o sync — apenas loga
           if (osErr) console.error(`[sync-inicial] Erro ao salvar OS lote ${i}:`, osErr.message);
           await sleep(50);
@@ -281,7 +281,7 @@ Deno.serve(async (req) => {
 
         // Sincronizar itens que vêm embutidos no objeto OS
         for (const os of todasOs) {
-          const osExternalId = (os.id as number) * -1;
+          const osExternalId = os.id as number;
           const itens = os.itens as Array<Record<string, unknown>> | undefined;
           if (!itens || itens.length === 0) continue;
 
