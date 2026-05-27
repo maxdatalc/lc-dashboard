@@ -2,6 +2,7 @@
 // Exige autenticação como system admin
 
 import { NextResponse, NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isSystemAdmin } from "@/lib/db/admin";
 
@@ -48,6 +49,10 @@ export async function DELETE(request: NextRequest) {
       .eq("id", tenantId);
 
     if (error) throw new Error(error.message);
+
+    // Invalidar cache para que a lista não mostre o cliente deletado em navegações futuras
+    revalidatePath("/admin/clientes", "layout");
+    revalidatePath("/admin", "page");
 
     return NextResponse.json({ success: true });
   } catch (err) {

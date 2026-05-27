@@ -1,5 +1,8 @@
 // Visão geral do painel administrativo
 // Exibe métricas consolidadas de todos os clientes cadastrados
+// force-dynamic garante que cada visita busca dados frescos do banco (sem Router Cache stale)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import Link from "next/link";
 import { Building2, Star, Zap } from "lucide-react";

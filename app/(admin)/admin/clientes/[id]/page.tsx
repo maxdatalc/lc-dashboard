@@ -1,5 +1,8 @@
 // Página de gerenciamento de um cliente — abas: Lojas | Módulos | Usuários
 // Server Component com Server Action para atualização de features
+// force-dynamic garante que cada visita busca dados frescos do banco (sem Router Cache stale)
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
