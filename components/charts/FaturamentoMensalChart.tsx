@@ -98,6 +98,12 @@ export function FaturamentoMensalChart({ data }: Props) {
       <CustomLegend />
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -10 }} barGap={3}>
+          <defs>
+            <linearGradient id="faturGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00e5ff" stopOpacity={1} />
+              <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.35} />
+            </linearGradient>
+          </defs>
           <XAxis
             dataKey="mes"
             tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
@@ -119,8 +125,7 @@ export function FaturamentoMensalChart({ data }: Props) {
             dataKey="faturamento"
             radius={[4, 4, 0, 0]}
             maxBarSize={temDevolucoes ? 36 : 48}
-            fill="#00e5ff"
-            fillOpacity={0.85}
+            fill="url(#faturGrad)"
           />
           {temDevolucoes && (
             <Bar

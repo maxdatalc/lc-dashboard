@@ -10,12 +10,14 @@ import { FaturamentoMensalChart } from "@/components/charts/FaturamentoMensalCha
 import { FormasPagamentoChart } from "@/components/charts/FormasPagamentoChart";
 import { TopProdutosChart } from "@/components/charts/TopProdutosChart";
 import { TopClientesChart } from "@/components/charts/TopClientesChart";
+import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TabelaVendas } from "@/components/dashboard/TabelaVendas";
 import { formatCurrency, formatNumber } from "@/lib/utils/format";
 import type { FaturamentoMensalData } from "@/components/charts/FaturamentoMensalChart";
 import type { FormasPagamentoData } from "@/components/charts/FormasPagamentoChart";
 import type { TopProdutoData } from "@/components/charts/TopProdutosChart";
 import type { TopClienteData } from "@/components/charts/TopClientesChart";
+import type { VendasTipoData } from "@/components/charts/VendasTipoChart";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -37,7 +39,7 @@ interface KpiResponse {
   valorDevolvido: number;
 }
 
-// ─── Card de Faturamento composto (Precision Dark) ────────────────────────────
+// ─── Card de Faturamento composto ─────────────────────────────────────────────
 
 function FaturamentoKpiCard({
   vendaTotal,
@@ -58,7 +60,7 @@ function FaturamentoKpiCard({
 }) {
   return (
     <div
-      className="rounded-xl p-5 flex flex-col gap-3 transition-all duration-200"
+      className="rounded-xl p-4 flex flex-col gap-2 transition-all duration-200"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
@@ -67,17 +69,17 @@ function FaturamentoKpiCard({
         animationDelay: "0ms",
       }}
     >
-      {/* Título + ícone */}
-      <div className="flex items-center gap-3">
+      {/* Ícone + título + delta */}
+      <div className="flex items-center gap-2.5">
         <div
-          className="flex items-center justify-center flex-shrink-0 rounded-[10px]"
-          style={{ width: 40, height: 40, backgroundColor: "rgba(0,229,255,0.12)", color: "#00e5ff" }}
+          className="flex items-center justify-center flex-shrink-0 rounded-[8px]"
+          style={{ width: 32, height: 32, backgroundColor: "rgba(0,229,255,0.12)", color: "#00e5ff" }}
         >
-          <DollarSign style={{ width: 20, height: 20 }} />
+          <DollarSign style={{ width: 16, height: 16 }} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--text-secondary)" }}>
+            <p className="font-semibold uppercase tracking-widest" style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
               Faturamento
             </p>
             {change != null && !isLoading && (
@@ -94,13 +96,13 @@ function FaturamentoKpiCard({
             )}
           </div>
           {isLoading ? (
-            <div className="shimmer rounded mt-2" style={{ height: 36, width: 140 }} />
+            <div className="shimmer rounded mt-2" style={{ height: 28, width: 120 }} />
           ) : (
             <p
               className="tabular-nums mt-1 leading-none"
               style={{
                 fontFamily: "var(--font-display, 'DM Serif Display', serif)",
-                fontSize: "1.8rem",
+                fontSize: "clamp(16px, 2.5vw, 24px)",
                 fontWeight: 400,
                 color: "var(--text-primary)",
               }}
@@ -111,23 +113,19 @@ function FaturamentoKpiCard({
         </div>
       </div>
 
-      {/* Divisor */}
-      <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
-
       {/* Vendas vs Devoluções */}
+      <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
       {isLoading ? (
-        <div className="shimmer rounded" style={{ height: 14, width: 120 }} />
+        <div className="shimmer rounded" style={{ height: 12, width: 100 }} />
       ) : (
         <div className="flex items-center justify-between gap-2 text-xs">
-          <div>
-            <span style={{ color: "var(--text-muted)" }}>{formatNumber(totalVendas)} vendas</span>
-          </div>
-          <div>
+          <span style={{ color: "var(--text-muted)" }}>{formatNumber(totalVendas)} vendas</span>
+          <span>
             <span style={{ color: "var(--accent-red)" }}>−{formatCurrency(devolucaoTotal)}</span>
             <span className="ml-1" style={{ color: "var(--text-muted)" }}>
               ({formatNumber(totalDevolucoes)} dev)
             </span>
-          </div>
+          </span>
         </div>
       )}
     </div>
@@ -137,9 +135,7 @@ function FaturamentoKpiCard({
 // ─── Skeleton de gráfico ──────────────────────────────────────────────────────
 
 function ChartSkeleton({ height = 220 }: { height?: number }) {
-  return (
-    <div className="shimmer rounded-lg w-full" style={{ height }} />
-  );
+  return <div className="shimmer rounded-lg w-full" style={{ height }} />;
 }
 
 // ─── Sem loja ─────────────────────────────────────────────────────────────────
@@ -164,7 +160,7 @@ function SemLoja() {
 
 // ─── Página ───────────────────────────────────────────────────────────────────
 
-const DELAY = [0, 60, 120, 180, 240, 300];
+const DELAY = [0, 60, 120, 180, 240];
 
 export default function DashboardPage() {
   const { period, customRange } = usePeriod();
@@ -178,6 +174,10 @@ export default function DashboardPage() {
   const [formasPagamento, setFormasPagamento] = useState<FormasPagamentoData[]>([]);
   const [topProdutos, setTopProdutos] = useState<TopProdutoData[]>([]);
   const [topClientes, setTopClientes] = useState<TopClienteData[]>([]);
+  const [vendasTipo, setVendasTipo] = useState<VendasTipoData>({
+    pf: { total: 0, clientes: 0 },
+    pj: { total: 0, clientes: 0 },
+  });
 
   // lojaIds: usa multi-select se houver seleção explícita; senão, todas as lojas disponíveis
   const lojaIds =
@@ -211,7 +211,7 @@ export default function DashboardPage() {
 
     const params = new URLSearchParams({ lojaIds: lojaIds.join(","), period, start, end });
 
-    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes] =
+    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes] =
       await Promise.allSettled([
         fetch(`/api/dashboard/kpis?${params}`).then((r) =>
           r.ok ? (r.json() as Promise<KpiResponse>) : null
@@ -228,6 +228,9 @@ export default function DashboardPage() {
         fetch(`/api/dashboard/charts?${params}&type=top-clientes`).then((r) =>
           r.ok ? (r.json() as Promise<TopClienteData[]>) : []
         ),
+        fetch(`/api/dashboard/charts?${params}&type=vendas-tipo-cliente`).then((r) =>
+          r.ok ? (r.json() as Promise<VendasTipoData>) : { pf: { total: 0, clientes: 0 }, pj: { total: 0, clientes: 0 } }
+        ),
       ]);
 
     setKpiLoading(false);
@@ -238,6 +241,7 @@ export default function DashboardPage() {
     if (pagamentosRes.status === "fulfilled") setFormasPagamento(pagamentosRes.value as FormasPagamentoData[]);
     if (produtosRes.status === "fulfilled") setTopProdutos(produtosRes.value as TopProdutoData[]);
     if (clientesRes.status === "fulfilled") setTopClientes(clientesRes.value as TopClienteData[]);
+    if (tipoRes.status === "fulfilled") setVendasTipo(tipoRes.value as VendasTipoData);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaIds.join(","), period, customRange]);
 
@@ -260,9 +264,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-6">
-      {/* ── KPIs ──────────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
+    <div className="p-6 flex flex-col gap-5">
+      {/* ── KPIs — 5 cards em linha ─────────────────────────────────────────── */}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
         <FaturamentoKpiCard
           vendaTotal={kpis?.faturamento.vendaTotal ?? 0}
           totalVendas={kpis?.faturamento.totalVendas ?? 0}
@@ -312,43 +316,37 @@ export default function DashboardPage() {
           titleTooltip="Vendas com status cancelada antes do fechamento fiscal"
           animationDelay={DELAY[4]}
         />
-        <KpiCard
-          title="Op. Internas"
-          value={kpiLoading ? "—" : formatNumber(kpis?.outros.value ?? 0)}
-          icon={Package}
-          accentColor="#94a3b8"
-          isLoading={kpiLoading}
-          subtitle="transferências, acertos de estoque"
-          titleTooltip="Operações identificadas por CFOP tipo 'outro' — não contam como venda nem devolução"
-          animationDelay={DELAY[5]}
-        />
       </div>
 
-      {/* ── Faturamento Mensal + Formas de Pagamento ──────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3">
-          <ChartCard title="Faturamento Mensal" subtitle="últimos 6 meses" animationDelay={80}>
-            {chartsLoading ? <ChartSkeleton /> : <FaturamentoMensalChart data={faturamentoMensal} />}
-          </ChartCard>
-        </div>
-        <div className="lg:col-span-2">
-          <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={120}>
-            {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
-          </ChartCard>
-        </div>
+      {/* ── Linha 2: Top Produtos | PF/PJ | Faturamento Mensal ──────────────── */}
+      <div
+        className="grid gap-4"
+        style={{ gridTemplateColumns: "1fr 0.85fr 1fr" }}
+      >
+        <ChartCard title="Top Produtos" subtitle="por faturamento — período selecionado" animationDelay={80}>
+          {chartsLoading ? <ChartSkeleton height={260} /> : <TopProdutosChart data={topProdutos} />}
+        </ChartCard>
+
+        <ChartCard title="PF vs PJ" subtitle="tipo de cliente — período selecionado" animationDelay={100}>
+          {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
+        </ChartCard>
+
+        <ChartCard title="Faturamento Mensal" subtitle="últimos 6 meses com dados" animationDelay={120}>
+          {chartsLoading ? <ChartSkeleton /> : <FaturamentoMensalChart data={faturamentoMensal} />}
+        </ChartCard>
       </div>
 
-      {/* ── Top Produtos + Top Clientes ───────────────────────────────────────── */}
+      {/* ── Linha 3: Top Clientes | Formas de Pagamento ─────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Top Produtos" subtitle="por faturamento — período selecionado" animationDelay={160}>
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
+        <ChartCard title="Top Clientes" subtitle="por faturamento — período selecionado" animationDelay={160}>
+          {chartsLoading ? <ChartSkeleton height={260} /> : <TopClientesChart data={topClientes} />}
         </ChartCard>
-        <ChartCard title="Top Clientes" subtitle="por faturamento — período selecionado" animationDelay={200}>
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={200}>
+          {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
         </ChartCard>
       </div>
 
-      {/* ── Tabela de Vendas ──────────────────────────────────────────────────── */}
+      {/* ── Tabela de Vendas ─────────────────────────────────────────────────── */}
       {tabelaStart && tabelaEnd && (
         <ChartCard title="Vendas" subtitle="drill-down com detalhes por venda" animationDelay={240}>
           <TabelaVendas

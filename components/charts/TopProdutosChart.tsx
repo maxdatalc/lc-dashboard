@@ -98,7 +98,14 @@ export function TopProdutosChart({ data }: Props) {
           const gradId = `grad-p-${i}`;
 
           return (
-            <div key={i} className="flex items-center gap-2.5">
+            <div
+              key={i}
+              className="flex items-center gap-2.5"
+              style={{
+                animation: "fadeInUp 0.3s ease-out both",
+                animationDelay: `${i * 40}ms`,
+              }}
+            >
               <RankBadge rank={i} />
 
               {/* Nome + barra */}

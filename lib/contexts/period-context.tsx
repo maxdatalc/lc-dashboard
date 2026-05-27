@@ -41,7 +41,7 @@ export function computeRange(period: Exclude<Period, "custom">): { start: string
 }
 
 export function PeriodProvider({ children }: { children: ReactNode }) {
-  const [period, setPeriod] = useState<Period>("month");
+  const [period, setPeriod] = useState<Period>("prev-year");
   const [customRange, setCustomRange] = useState<{ start: Date; end: Date } | null>(null);
 
   function getDateRange(): { start: string; end: string } {
