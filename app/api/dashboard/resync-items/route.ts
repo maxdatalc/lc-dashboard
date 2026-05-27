@@ -33,12 +33,19 @@ interface MaxDataPagamento {
 
 // Normaliza a resposta paginada ou array direto da API MaxData
 function extrairArray<T>(raw: unknown): T[] {
-  if (Array.isArray(raw)) return raw as T[];
-  const obj = raw as Record<string, unknown>;
-  if (Array.isArray(obj.data)) return obj.data as T[];
-  const nested = obj.data as Record<string, unknown> | undefined;
-  if (nested && Array.isArray(nested.data)) return nested.data as T[];
-  return [];
+  if (Array.isArray(raw)) return raw as T[]
+  const obj = raw as Record<string, unknown>
+
+  // API MaxData usa "docs" como chave principal
+  if (Array.isArray(obj.docs)) return obj.docs as T[]
+
+  // Fallbacks alternativos
+  if (Array.isArray(obj.data)) return obj.data as T[]
+  const nested = obj.data as Record<string, unknown> | undefined
+  if (nested && Array.isArray(nested.data)) return nested.data as T[]
+  if (nested && Array.isArray(nested.docs)) return nested.docs as T[]
+
+  return []
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -72,9 +79,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const adminClient = createAdminClient();
 
   // Buscar vendas da loja com paginação (mais recentes primeiro para priorizar dados novos)
+  // source incluído para determinar o endpoint correto (sale vs serviceorder)
   const { data: vendas, error: vendasError } = await adminClient
     .from("vendas")
-    .select("id, external_id")
+    .select("id, external_id, source")
     .eq("loja_id", lojaId)
     .not("external_id", "is", null)
     .order("data_venda", { ascending: false })
@@ -91,10 +99,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Para cada venda, buscar itens e pagamentos na API MaxData e salvar no banco
   for (const venda of vendas ?? []) {
     const externalId = venda.external_id as number | string;
+    // OS usa endpoint /serviceorder; vendas normais usam /sale
+    const isOs = (venda.source as string | null) === "os";
+    const itemsEndpoint = isOs
+      ? `${erpBaseUrl}/v2/serviceorder/${externalId}/items`
+      : `${erpBaseUrl}/v2/sale/${externalId}/items`;
+    const paymentEndpoint = isOs
+      ? `${erpBaseUrl}/v2/serviceorder/${externalId}/payment`
+      : `${erpBaseUrl}/v2/sale/${externalId}/payment`;
 
     try {
       // ── ITENS DA VENDA ──────────────────────────────────────────────────────
-      const itensRes = await fetch(`${erpBaseUrl}/v2/sale/${externalId}/items`, {
+      const itensRes = await fetch(itemsEndpoint, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
       });
@@ -137,7 +153,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       // ── PAGAMENTOS DA VENDA ─────────────────────────────────────────────────
-      const pgtoRes = await fetch(`${erpBaseUrl}/v2/sale/${externalId}/payment`, {
+      const pgtoRes = await fetch(paymentEndpoint, {
         headers: { Authorization: `Bearer ${token}` },
         signal: AbortSignal.timeout(10_000),
       });

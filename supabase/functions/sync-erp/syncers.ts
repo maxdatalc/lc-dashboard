@@ -203,6 +203,7 @@ export async function syncVendas(
   const rows = vendas.map((v) => ({
     loja_id: loja.id,
     external_id: v.id,
+    source: "sale",
     numero_venda: String(v.id),
     data_venda: (v.fechamento ?? v.abertura ?? dataInicial).split("T")[0],
     cliente_external_id: v.clienteId ?? null,
@@ -229,7 +230,7 @@ export async function syncVendas(
     const lote = rowsUnicos.slice(i, i + LOTE);
     const { error } = await supabase
       .from("vendas")
-      .upsert(lote, { onConflict: "loja_id,external_id" });
+      .upsert(lote, { onConflict: "loja_id,external_id,source" });
     if (error) throw new Error(`Erro ao sincronizar vendas: ${error.message}`);
   }
 
@@ -351,8 +352,7 @@ export async function syncOrdemServico(
   const agora = new Date().toISOString();
   const rows = osLista.map((os) => ({
     loja_id: loja.id,
-    // external_id negativo para não colidir com IDs de vendas normais
-    external_id: os.id * -1,
+    external_id: os.id,
     numero_venda: `OS-${os.id}`,
     data_venda: (os.dataFechamento ?? os.dataAbertura ?? agora).split("T")[0],
     cliente_external_id: os.clienteId ?? null,
@@ -383,7 +383,7 @@ export async function syncOrdemServico(
     const lote = unicos.slice(i, i + 200);
     const { error } = await supabase
       .from("vendas")
-      .upsert(lote, { onConflict: "loja_id,external_id" });
+      .upsert(lote, { onConflict: "loja_id,external_id,source" });
     // Erros em OS não interrompem o sync principal
     if (error) console.error("[syncers] Erro OS:", error.message);
   }
@@ -391,7 +391,7 @@ export async function syncOrdemServico(
   // Sincronizar itens embutidos nas OS
   for (const os of osLista) {
     if (!os.itens || os.itens.length === 0) continue;
-    const osExternalId = os.id * -1;
+    const osExternalId = os.id;
     const itens = os.itens.map((item) => ({
       loja_id: loja.id,
       venda_external_id: osExternalId,
