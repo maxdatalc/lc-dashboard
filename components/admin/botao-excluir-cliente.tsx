@@ -3,6 +3,7 @@
 // Botão de exclusão permanente de cliente — exibe confirmação antes de agir
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Trash2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -12,6 +13,7 @@ interface Props {
 }
 
 export function BotaoExcluirCliente({ tenantId, tenantName }: Props) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -31,7 +33,9 @@ export function BotaoExcluirCliente({ tenantId, tenantName }: Props) {
       });
 
       if (res.ok) {
-        window.location.href = "/admin/clientes";
+        // router.refresh() invalida o Router Cache antes de navegar para a lista
+        router.refresh();
+        router.push("/admin/clientes");
         return;
       }
 
