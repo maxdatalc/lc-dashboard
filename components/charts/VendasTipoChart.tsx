@@ -110,7 +110,7 @@ export function VendasTipoChart({ data }: Props) {
                 className="text-xs tabular-nums"
                 style={{ color: "var(--text-muted)", minWidth: 50, textAlign: "right" }}
               >
-                {d.clientes.toLocaleString("pt-BR")} v.
+                {d.clientes.toLocaleString("pt-BR")} vendas
               </span>
             </div>
           );

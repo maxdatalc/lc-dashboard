@@ -57,28 +57,14 @@ function periodoAnterior(
   }
 }
 
-// Tipo unificado para linha de venda com classificação CFOP via JOIN
+// Linha de venda usando o campo tipo diretamente (populado pelo sync)
 type VendaRow = {
   valor_total: number | null;
   status: string | null;
-  cfop: number | null;
-  cfop_classificacoes: { tipo: string } | null;
+  tipo: string | null;
 };
 
-// Classifica CFOP por prefixo numérico — fallback quando FK ainda não está configurada
-// tipo 'venda'     → CFOPs 5xxx e 6xxx
-// tipo 'devolucao' → CFOPs 1xxx, 2xxx, 3xxx
-function classificarPorPrefixo(cfop: number | null): "venda" | "devolucao" | "outro" | null {
-  if (cfop == null) return null;
-  const p = Math.floor(cfop / 1000);
-  if (p === 5 || p === 6) return "venda";
-  if (p === 1 || p === 2 || p === 3) return "devolucao";
-  return "outro";
-}
-
-// Busca vendas do período com classificação CFOP via JOIN (FK vendas_cfop_fkey)
-// Suporta múltiplas lojas via lojaIds array
-// Fallback automático para classificação por prefixo se FK não estiver configurada
+// Busca vendas do período usando o campo tipo — sem join com cfop_classificacoes
 async function queryVendasPeriodo(
   supabase: Awaited<ReturnType<typeof createClient>>,
   lojaIds: string[],
@@ -87,39 +73,17 @@ async function queryVendasPeriodo(
 ): Promise<VendaRow[]> {
   const { data, error } = await supabase
     .from("vendas")
-    .select("valor_total, status, cfop, cfop_classificacoes!vendas_cfop_fkey(tipo)")
+    .select("valor_total, status, tipo")
     .in("loja_id", lojaIds)
     .gte("data_venda", startDate)
     .lte("data_venda", endDate);
 
-  if (!error) {
-    return (data ?? []) as unknown as VendaRow[];
-  }
-
-  // FK não configurada ainda — fallback com classificação por prefixo CFOP
-  console.warn("[kpis] join cfop indisponível, usando prefixo:", error.message);
-  const { data: fallback, error: err2 } = await supabase
-    .from("vendas")
-    .select("valor_total, status, cfop")
-    .in("loja_id", lojaIds)
-    .gte("data_venda", startDate)
-    .lte("data_venda", endDate);
-
-  if (err2) {
-    console.error("[kpis] erro no fallback:", err2);
+  if (error) {
+    console.error("[kpis] erro ao buscar vendas:", error.message);
     return [];
   }
 
-  return (fallback ?? []).map((row) => {
-    const cfop = row.cfop as number | null;
-    const tipo = classificarPorPrefixo(cfop);
-    return {
-      valor_total: row.valor_total as number | null,
-      status: row.status as string | null,
-      cfop,
-      cfop_classificacoes: tipo != null ? { tipo } : null,
-    };
-  });
+  return (data ?? []) as VendaRow[];
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -166,28 +130,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
   const canceladas = vendasPeriodo.filter((v) => v.status === "cancelada");
 
-  // Vendas = tipo 'venda' ou CFOP não mapeado (conservador — não esconder receita)
-  const vendasCfop = finalizadas.filter((v) => {
-    const tipo = v.cfop_classificacoes?.tipo;
-    return tipo === "venda" || tipo == null;
-  });
-  // Devoluções = tipo 'devolucao' (CFOPs 1xxx, 2xxx, 3xxx) com status finalizada
-  const devolucoesCfop = finalizadas.filter(
-    (v) => v.cfop_classificacoes?.tipo === "devolucao"
-  );
-  // Outros = transferências, acertos de estoque (CFOPs 4xxx, 7xxx ou não mapeados explicitamente como "outro")
-  const outrosCfop = finalizadas.filter(
-    (v) => v.cfop_classificacoes?.tipo === "outro"
-  );
+  // Classificar usando campo tipo (já populado pelo sync — inclui OS com tipo='venda')
+  const vendasTipo = finalizadas.filter((v) => v.tipo === "venda" || v.tipo == null);
+  const devolucoesTipo = finalizadas.filter((v) => v.tipo === "devolucao");
+  const outrosTipo = finalizadas.filter((v) => v.tipo === "outro");
 
-  const totalVendas = vendasCfop.length;
-  const totalDevolucoes = devolucoesCfop.length;
+  const totalVendas = vendasTipo.length;
+  const totalDevolucoes = devolucoesTipo.length;
   const totalCancelamentos = canceladas.length;
-  const totalOutros = outrosCfop.length;
+  const totalOutros = outrosTipo.length;
 
-  const vendaTotal = vendasCfop.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const valorDevolvido = devolucoesCfop.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const valorOutros = outrosCfop.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const vendaTotal = vendasTipo.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const valorDevolvido = devolucoesTipo.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const valorOutros = outrosTipo.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
   // Faturamento bruto — não subtrai devoluções (exibidas separadamente no dashboard)
   const faturamento = vendaTotal;
   const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
@@ -196,19 +151,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const finalizadasAnt = vendasAnt.filter((v) =>
     STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
   );
-  const vendasCfopAnt = finalizadasAnt.filter((v) => {
-    const tipo = v.cfop_classificacoes?.tipo;
-    return tipo === "venda" || tipo == null;
-  });
-  const devolucoesCfopAnt = finalizadasAnt.filter(
-    (v) => v.cfop_classificacoes?.tipo === "devolucao"
-  );
+  const vendasTipoAnt = finalizadasAnt.filter((v) => v.tipo === "venda" || v.tipo == null);
+  const devolucoesTipoAnt = finalizadasAnt.filter((v) => v.tipo === "devolucao");
 
-  const vendaTotalAnt = vendasCfopAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const valorDevolvidoAnt = devolucoesCfopAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const vendaTotalAnt = vendasTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const valorDevolvidoAnt = devolucoesTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
   const faturamentoAnt = vendaTotalAnt;
   const ticketMedioAnt =
-    vendasCfopAnt.length > 0 ? faturamentoAnt / vendasCfopAnt.length : 0;
+    vendasTipoAnt.length > 0 ? faturamentoAnt / vendasTipoAnt.length : 0;
 
   return NextResponse.json({
     faturamento: {
@@ -221,7 +171,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     },
     vendas: {
       value: totalVendas,
-      change: calcVariacao(totalVendas, vendasCfopAnt.length),
+      change: calcVariacao(totalVendas, vendasTipoAnt.length),
     },
     ticketMedio: {
       value: ticketMedio,
