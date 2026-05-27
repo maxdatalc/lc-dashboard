@@ -34,11 +34,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     switch (type) {
       case "faturamento-mensal": {
-        // Sempre últimos 6 meses completos, independente do período selecionado
-        const d6m = new Date();
-        d6m.setMonth(d6m.getMonth() - 5);
-        d6m.setDate(1);
-        const inicio6m = d6m.toISOString().split("T")[0];
+        // Buscar últimos 18 meses para garantir que encontramos 6 meses com dados
+        const d18m = new Date();
+        d18m.setMonth(d18m.getMonth() - 17);
+        d18m.setDate(1);
+        const inicio18m = d18m.toISOString().split("T")[0];
         const hoje = new Date().toISOString().split("T")[0];
 
         const { data, error } = await supabase
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .select("data_venda, valor_total, cfop")
           .in("loja_id", lojaIds)
           .eq("status", "finalizada")
-          .gte("data_venda", inicio6m)
+          .gte("data_venda", inicio18m)
           .lte("data_venda", hoje);
 
         if (error) {
@@ -70,8 +70,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           }
         }
 
+        // Retorna os 6 meses mais recentes que tenham dados (faturamento > 0)
         const resultado = Object.entries(agrupado)
+          .filter(([, d]) => d.faturamento > 0 || d.devolucoes > 0)
           .sort(([a], [b]) => a.localeCompare(b))
+          .slice(-6)
           .map(([mes, d]) => ({
             mes: new Date(mes + "-15").toLocaleDateString("pt-BR", { month: "short" }),
             faturamento: d.faturamento,
@@ -79,6 +82,43 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           }));
 
         return NextResponse.json(resultado);
+      }
+
+      case "vendas-tipo-cliente": {
+        // Classifica vendas por tipo de pessoa: PF (CPF 11 dígitos ou null) vs PJ (CNPJ 14 dígitos)
+        const { data, error } = await supabase
+          .from("vendas")
+          .select("cpf_cnpj, valor_total")
+          .in("loja_id", lojaIds)
+          .eq("status", "finalizada")
+          .gte("data_venda", start)
+          .lte("data_venda", end)
+          .or("cfop.is.null,cfop.in.(5101,5102,5401,5403,5405,6101,6102,6107,6108,6401,6403,6404)");
+
+        if (error) {
+          console.error("[charts/vendas-tipo-cliente] erro:", error);
+          return NextResponse.json({ pf: { total: 0, clientes: 0 }, pj: { total: 0, clientes: 0 } });
+        }
+
+        let pfTotal = 0, pfCount = 0;
+        let pjTotal = 0, pjCount = 0;
+
+        for (const v of data ?? []) {
+          const doc = ((v.cpf_cnpj as string) ?? "").replace(/\D/g, "");
+          const valor = (v.valor_total as number) ?? 0;
+          if (doc.length === 14) {
+            pjTotal += valor;
+            pjCount += 1;
+          } else {
+            pfTotal += valor;
+            pfCount += 1;
+          }
+        }
+
+        return NextResponse.json({
+          pf: { total: pfTotal, clientes: pfCount },
+          pj: { total: pjTotal, clientes: pjCount },
+        });
       }
 
       case "formas-pagamento": {

@@ -216,19 +216,19 @@ function SyncBadge() {
   }, [router]);
 
   if (cooldown > 0) {
-    const min = Math.floor(cooldown / 60);
-    const sec = String(cooldown % 60).padStart(2, "0");
+    const elapsedMin = Math.floor((300 - cooldown) / 60);
+    const tempoLabel = elapsedMin === 0 ? "agora" : `${elapsedMin}min atrás`;
     return (
       <div
         className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
         style={{
-          backgroundColor: "rgba(63, 185, 80, 0.12)",
+          backgroundColor: "rgba(16, 185, 129, 0.1)",
           color: "var(--accent-green)",
-          border: "1px solid rgba(63, 185, 80, 0.2)",
+          border: "1px solid rgba(16, 185, 129, 0.2)",
         }}
       >
-        <CheckCircle className="h-3 w-3" />
-        <span>{min}:{sec}</span>
+        <span style={{ fontSize: 8 }}>●</span>
+        <span>Sincronizado {tempoLabel}</span>
       </div>
     );
   }

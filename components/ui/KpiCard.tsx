@@ -66,7 +66,7 @@ export function KpiCard({
 }: KpiCardProps) {
   return (
     <div
-      className="rounded-xl p-5 flex flex-col gap-3 transition-all duration-200"
+      className="rounded-xl p-4 flex flex-col gap-2 transition-all duration-200"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
@@ -86,18 +86,18 @@ export function KpiCard({
       }}
     >
       {/* Topo: ícone + título + delta */}
-      <div className="flex items-start gap-3">
-        {/* Ícone 40×40 */}
+      <div className="flex items-start gap-2.5">
+        {/* Ícone 32×32 */}
         <div
-          className="flex items-center justify-center flex-shrink-0 rounded-[10px]"
+          className="flex items-center justify-center flex-shrink-0 rounded-[8px]"
           style={{
-            width: 40,
-            height: 40,
+            width: 32,
+            height: 32,
             backgroundColor: `${accentColor}1f`,
             color: accentColor,
           }}
         >
-          <Icon style={{ width: 20, height: 20 }} />
+          <Icon style={{ width: 16, height: 16 }} />
         </div>
 
         {/* Título + valor */}
@@ -106,8 +106,8 @@ export function KpiCard({
             {/* Título com tooltip opcional */}
             <div className="flex items-center gap-1">
               <p
-                className="text-xs font-semibold uppercase tracking-widest"
-                style={{ color: "var(--text-secondary)" }}
+                className="font-semibold uppercase tracking-widest"
+                style={{ fontSize: "11px", color: "var(--text-secondary)" }}
               >
                 {title}
               </p>
@@ -136,13 +136,13 @@ export function KpiCard({
 
           {/* Valor principal em DM Serif Display */}
           {isLoading ? (
-            <div className="shimmer rounded mt-2" style={{ height: 36, width: 140 }} />
+            <div className="shimmer rounded mt-2" style={{ height: 28, width: 120 }} />
           ) : (
             <p
               className="tabular-nums mt-1 leading-none"
               style={{
                 fontFamily: "var(--font-display, 'DM Serif Display', serif)",
-                fontSize: "2rem",
+                fontSize: "clamp(16px, 2.5vw, 24px)",
                 fontWeight: 400,
                 color: "var(--text-primary)",
               }}
