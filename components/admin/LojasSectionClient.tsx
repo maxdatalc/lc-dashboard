@@ -3,10 +3,10 @@
 // Seção de lojas do painel admin — Client Component para gerenciar estado do modal de sync
 // e botão toggle ativa/inativa por linha.
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, Loader2 } from "lucide-react";
+import { Building2, Loader2, Wrench } from "lucide-react";
 import { SyncInicialModal } from "@/components/admin/SyncPeriodoModal";
 import { BotaoLimparDados } from "@/components/admin/BotaoLimparDados";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
@@ -76,15 +76,53 @@ interface Props {
   tenantId: string;
 }
 
-export function LojasSectionClient({ lojas, tenantId }: Props) {
+export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
   const router = useRouter();
+
+  // Estado local das lojas para updates otimistas (toggle de serviços sem router.refresh)
+  const [lojas, setLojas] = useState(lojasProp);
+  // Sincronizar quando o Server Component pai re-render (ex: após router.refresh)
+  useEffect(() => { setLojas(lojasProp); }, [lojasProp]);
+
   const [syncLojaId, setSyncLojaId] = useState<string | null>(null);
   const [syncNomeLoja, setSyncNomeLoja] = useState("");
   const [syncServicesEnabled, setSyncServicesEnabled] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
 
   const handleSyncConcluido = () => {
     setSyncLojaId(null);
     router.refresh(); // recarrega dados do Server Component pai
+  };
+
+  // Toggle sync_services_enabled com update otimista — sem precisar de router.refresh()
+  const handleToggleServicos = async (lojaId: string, valor: boolean) => {
+    setToggling(lojaId);
+    // Atualizar UI imediatamente (otimista)
+    setLojas((prev) =>
+      prev.map((l) => l.id === lojaId ? { ...l, syncServicesEnabled: valor } : l)
+    );
+    try {
+      const res = await fetch("/api/admin/toggle-servicos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lojaId, valor }),
+      });
+      if (!res.ok) {
+        // Reverter se falhou
+        setLojas((prev) =>
+          prev.map((l) => l.id === lojaId ? { ...l, syncServicesEnabled: !valor } : l)
+        );
+        alert("Erro ao atualizar configuração de serviços");
+      }
+    } catch {
+      // Reverter em caso de erro de rede
+      setLojas((prev) =>
+        prev.map((l) => l.id === lojaId ? { ...l, syncServicesEnabled: !valor } : l)
+      );
+      alert("Erro de conexão");
+    } finally {
+      setToggling(null);
+    }
   };
 
   return (
@@ -150,16 +188,32 @@ export function LojasSectionClient({ lojas, tenantId }: Props) {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {loja.syncServicesEnabled ? (
-                      <span
-                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                        style={{ background: "rgba(0,229,255,0.1)", color: "var(--accent-cyan, #06b6d4)" }}
-                      >
-                        ✓ OS
-                      </span>
-                    ) : (
-                      <span className="text-xs text-slate-400">—</span>
-                    )}
+                    <button
+                      onClick={() => handleToggleServicos(loja.id, !loja.syncServicesEnabled)}
+                      disabled={toggling === loja.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                      style={{
+                        background: loja.syncServicesEnabled
+                          ? "rgba(0,229,255,0.12)"
+                          : "rgba(255,255,255,0.04)",
+                        border: `1px solid ${loja.syncServicesEnabled
+                          ? "rgba(0,229,255,0.3)"
+                          : "rgba(255,255,255,0.1)"}`,
+                        color: loja.syncServicesEnabled
+                          ? "var(--accent-cyan, #06b6d4)"
+                          : "var(--text-muted, #94a3b8)",
+                      }}
+                      title={loja.syncServicesEnabled
+                        ? "O.S. ativa — clique para desativar"
+                        : "Clique para ativar O.S."}
+                    >
+                      {toggling === loja.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Wrench className="h-3 w-3" />
+                      )}
+                      {loja.syncServicesEnabled ? "O.S. ativa" : "O.S. inativa"}
+                    </button>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">

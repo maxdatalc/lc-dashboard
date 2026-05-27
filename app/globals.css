@@ -198,6 +198,16 @@
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/* ── Transição suave entre páginas ─────────────────────────────────────────── */
+@keyframes pageEnter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+main, [data-page] {
+  animation: pageEnter 0.2s ease-out both;
+}
+
 /* ── Scrollbar customizada ──────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;

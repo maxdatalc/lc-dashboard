@@ -241,6 +241,8 @@ export default function NovoClientePage() {
       }
 
       setSucesso(true);
+      // router.refresh() invalida o Router Cache para que a lista mostre o novo cliente
+      router.refresh();
       setTimeout(() => router.push("/admin/clientes"), 1500);
     } catch {
       setErroGeral("Erro de rede. Tente novamente.");
