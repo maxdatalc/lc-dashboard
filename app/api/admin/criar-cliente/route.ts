@@ -2,6 +2,7 @@
 // Exige autenticação como system admin antes de executar qualquer operação
 
 import { NextResponse, NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isSystemAdmin, createNovoCliente, type NovoClienteInput } from "@/lib/db/admin";
 import { getCoreFeatures } from "@/lib/features";
@@ -50,6 +51,9 @@ export async function POST(req: NextRequest) {
 
     // 5. Criar cliente completo
     const resultado = await createNovoCliente({ ...input, features: featuresFinais });
+
+    // Invalidar cache do Router para que a lista mostre o novo cliente imediatamente
+    revalidatePath("/admin/clientes", "layout");
 
     return NextResponse.json({
       success: true,
