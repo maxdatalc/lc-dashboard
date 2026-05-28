@@ -155,7 +155,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const devolucoesTipoAnt = finalizadasAnt.filter((v) => v.tipo === "devolucao");
 
   const vendaTotalAnt = vendasTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const valorDevolvidoAnt = devolucoesTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
+  const _valorDevolvidoAnt = devolucoesTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
   const faturamentoAnt = vendaTotalAnt;
   const ticketMedioAnt =
     vendasTipoAnt.length > 0 ? faturamentoAnt / vendasTipoAnt.length : 0;
