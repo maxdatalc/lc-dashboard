@@ -31,6 +31,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ? { start: startParam, end: endParam }
     : getDateRange(period);
 
+  // Log de diagnóstico — útil para depurar gráficos vazios
+  console.log(`[charts] type=${type} period=${period}`);
+  console.log(`[charts] lojaIds:`, lojaIds);
+  console.log(`[charts] start=${start} end=${end}`);
+
   try {
     switch (type) {
       case "faturamento-mensal": {
@@ -49,8 +54,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .gte("data_venda", inicio18m)
           .lte("data_venda", hoje);
 
+        console.log(`[charts/faturamento-mensal] rows encontrados:`, data?.length ?? 0);
         if (error) {
-          console.error("[charts/faturamento-mensal] erro:", error);
+          console.error("[charts/faturamento-mensal] erro:", error.message);
           return NextResponse.json([]);
         }
 
@@ -85,18 +91,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "vendas-tipo-cliente": {
-        // Classifica vendas por tipo de pessoa: PF (CPF 11 dígitos ou null) vs PJ (CNPJ 14 dígitos)
+        // Filtra por tipo='venda' para incluir OS (cfop=5933 seria excluído pelo filtro de CFOP)
         const { data, error } = await supabase
           .from("vendas")
           .select("cpf_cnpj, valor_total")
           .in("loja_id", lojaIds)
           .eq("status", "finalizada")
+          .eq("tipo", "venda")
           .gte("data_venda", start)
-          .lte("data_venda", end)
-          .or("cfop.is.null,cfop.in.(5101,5102,5401,5403,5405,6101,6102,6107,6108,6401,6403,6404)");
+          .lte("data_venda", end);
 
+        console.log(`[charts/vendas-tipo-cliente] rows encontrados:`, data?.length ?? 0, "erro:", error?.message);
         if (error) {
-          console.error("[charts/vendas-tipo-cliente] erro:", error);
+          console.error("[charts/vendas-tipo-cliente] erro:", error.message);
           return NextResponse.json({ pf: { total: 0, clientes: 0 }, pj: { total: 0, clientes: 0 } });
         }
 
@@ -122,19 +129,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "formas-pagamento": {
-        // Buscar external_ids das vendas finalizadas no período — excluir devoluções por CFOP
+        // Buscar external_ids das vendas finalizadas no período
+        // Usa tipo='venda' em vez de filtro CFOP para incluir OS
         const { data: vendasPeriodo, error: errVendas } = await supabase
           .from("vendas")
           .select("external_id")
           .in("loja_id", lojaIds)
           .eq("status", "finalizada")
+          .eq("tipo", "venda")
           .gte("data_venda", start)
           .lte("data_venda", end)
           .not("external_id", "is", null)
-          .or("cfop.is.null,cfop.in.(5101,5102,5401,5403,5405,6101,6102,6107,6108,6401,6403,6404)");
+          .limit(500);
 
+        console.log(`[charts/formas-pagamento] vendas no período:`, vendasPeriodo?.length ?? 0, "erro:", errVendas?.message);
         if (errVendas) {
-          console.error("[charts/formas-pagamento] erro ao buscar vendas:", errVendas);
+          console.error("[charts/formas-pagamento] erro ao buscar vendas:", errVendas.message);
           return NextResponse.json([]);
         }
         if (!vendasPeriodo?.length) return NextResponse.json([]);
@@ -148,8 +158,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .in("loja_id", lojaIds)
           .in("venda_external_id", externalIds);
 
+        console.log(`[charts/formas-pagamento] pagamentos encontrados:`, pagamentos?.length ?? 0, "erro:", errPag?.message);
         if (errPag) {
-          console.error("[charts/formas-pagamento] erro ao buscar pagamentos:", errPag);
+          console.error("[charts/formas-pagamento] erro ao buscar pagamentos:", errPag.message);
           return NextResponse.json([]);
         }
         if (!pagamentos?.length) return NextResponse.json([]);
@@ -175,19 +186,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-produtos": {
-        // Buscar external_ids das vendas finalizadas no período — excluir devoluções por CFOP
+        // Filtra por tipo='venda' para incluir OS nos top produtos
         const { data: vendas, error: errVendas } = await supabase
           .from("vendas")
           .select("external_id")
           .in("loja_id", lojaIds)
           .eq("status", "finalizada")
+          .eq("tipo", "venda")
           .not("external_id", "is", null)
           .gte("data_venda", start)
-          .lte("data_venda", end)
-          .or("cfop.is.null,cfop.in.(5101,5102,5401,5403,5405,6101,6102,6107,6108,6401,6403,6404)");
+          .lte("data_venda", end);
 
+        console.log(`[charts/top-produtos] vendas no período:`, vendas?.length ?? 0, "erro:", errVendas?.message);
         if (errVendas) {
-          console.error("[charts/top-produtos] erro ao buscar vendas:", errVendas);
+          console.error("[charts/top-produtos] erro ao buscar vendas:", errVendas.message);
           return NextResponse.json([]);
         }
         if (!vendas?.length) return NextResponse.json([]);
@@ -202,8 +214,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .in("loja_id", lojaIds)
           .in("venda_external_id", externalIds);
 
+        console.log(`[charts/top-produtos] itens encontrados:`, itens?.length ?? 0, "erro:", errItens?.message);
         if (errItens) {
-          console.error("[charts/top-produtos] erro ao buscar itens:", errItens);
+          console.error("[charts/top-produtos] erro ao buscar itens:", errItens.message);
           return NextResponse.json([]);
         }
         if (!itens?.length) return NextResponse.json([]);
@@ -225,19 +238,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-clientes": {
-        // Excluir devoluções por CFOP — top-clientes deve refletir apenas compras reais
+        // Filtra por tipo='venda' para incluir OS — CFOP=5933 seria excluído pelo filtro anterior
         const { data, error } = await supabase
           .from("vendas")
           .select("cliente_nome, valor_total")
           .in("loja_id", lojaIds)
           .eq("status", "finalizada")
+          .eq("tipo", "venda")
           .not("cliente_nome", "is", null)
+          .neq("cliente_nome", "")
           .gte("data_venda", start)
-          .lte("data_venda", end)
-          .or("cfop.is.null,cfop.in.(5101,5102,5401,5403,5405,6101,6102,6107,6108,6401,6403,6404)");
+          .lte("data_venda", end);
 
+        console.log(`[charts/top-clientes] rows encontrados:`, data?.length ?? 0, "erro:", error?.message);
         if (error) {
-          console.error("[charts/top-clientes] erro:", error);
+          console.error("[charts/top-clientes] erro:", error.message);
           return NextResponse.json([]);
         }
         if (!data?.length) return NextResponse.json([]);
