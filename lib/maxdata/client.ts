@@ -7,8 +7,12 @@ import type { MaxDataConfig, MaxDataTokenResponse } from "@/types";
 // TTL do cache de token: 50 minutos (a API emite tokens com validade de 1 hora)
 const TOKEN_TTL_SECONDS = 3000;
 
-function buildCacheKey(empId: number): string {
-  return `maxdata:token:${empId}`;
+function buildCacheKey(empId: number, baseUrl: string): string {
+  const urlKey = baseUrl
+    .replace(/https?:\/\//, "")
+    .replace(/\/$/, "")
+    .replace(/[^a-zA-Z0-9.-]/g, "_");
+  return `maxdata:token:${urlKey}:${empId}`;
 }
 
 // Retorna um preview seguro do token para logs (nunca expõe o valor completo)
@@ -17,7 +21,7 @@ function tokenPreview(token: string): string {
 }
 
 export async function getMaxDataToken(config: MaxDataConfig): Promise<string> {
-  const cacheKey = buildCacheKey(config.empId);
+  const cacheKey = buildCacheKey(config.empId, config.baseUrl);
 
   // Verificar cache antes de chamar a API
   const cached = await redis.get<string>(cacheKey);
@@ -98,7 +102,7 @@ export async function maxdataRequest<T>(
 
   // Token inválido ou expirado — limpar cache para forçar nova autenticação
   if (response.status === 401) {
-    await redis.del(buildCacheKey(config.empId));
+    await redis.del(buildCacheKey(config.empId, config.baseUrl));
     console.error(`[MaxData] Token rejeitado (401) para empId=${config.empId}, cache invalidado`);
     throw new Error("Token inválido ou expirado");
   }

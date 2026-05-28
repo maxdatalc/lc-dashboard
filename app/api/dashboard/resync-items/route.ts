@@ -96,106 +96,118 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let itensSincronizados = 0;
   let pagamentosSincronizados = 0;
 
-  // Para cada venda, buscar itens e pagamentos na API MaxData e salvar no banco
-  for (const venda of vendas ?? []) {
-    const externalId = venda.external_id as number | string;
-    // OS usa endpoint /serviceorder; vendas normais usam /sale
-    const isOs = (venda.source as string | null) === "os";
-    const itemsEndpoint = isOs
-      ? `${erpBaseUrl}/v2/serviceorder/${externalId}/items`
-      : `${erpBaseUrl}/v2/sale/${externalId}/items`;
-    const paymentEndpoint = isOs
-      ? `${erpBaseUrl}/v2/serviceorder/${externalId}/payment`
-      : `${erpBaseUrl}/v2/sale/${externalId}/payment`;
+  const BATCH_SIZE = 2;
 
-    try {
-      // ── ITENS DA VENDA ──────────────────────────────────────────────────────
-      const itensRes = await fetch(itemsEndpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      });
+  for (let i = 0; i < (vendas ?? []).length; i += BATCH_SIZE) {
+    const batch = (vendas ?? []).slice(i, i + BATCH_SIZE);
 
-      if (itensRes.ok) {
-        const itens = extrairArray<MaxDataItem>(await itensRes.json() as unknown);
+    const resultados = await Promise.all(
+      batch.map(async (venda) => {
+        const externalId = venda.external_id as number | string;
+        const isOs = (venda.source as string | null) === "os";
+        let itens = 0;
+        let pgtos = 0;
+        const errosBatch: string[] = [];
 
-        if (itens.length > 0) {
-          const itensMapeados = itens.map((item) => ({
-            loja_id: lojaId,
-            venda_external_id: externalId,
-            produto_external_id: item.produtoId ?? null,
-            produto_nome: item.descricaoProduto ?? item.vdiProNome ?? "Produto",
-            quantidade: item.qtde ?? item.vdiQtde ?? 0,
-            valor_unitario: item.valor ?? item.vdiValor ?? 0,
-            valor_desconto: item.valorDesconto ?? item.vdiValorDesconto ?? 0,
-            valor_total: item.valorTotal ?? item.vdiValorTotal ?? 0,
-          }));
+        try {
+          // ── ITENS ────────────────────────────────────────────────────────────
+          const itemsEndpoint = isOs
+            ? `${erpBaseUrl}/v2/serviceorder/${externalId}/items`
+            : `${erpBaseUrl}/v2/sale/${externalId}/items`;
 
-          // Substituir itens antigos (delete + insert para garantir consistência)
-          await adminClient
-            .from("venda_itens")
-            .delete()
-            .eq("venda_external_id", externalId)
-            .eq("loja_id", lojaId);
+          const itensRes = await fetch(itemsEndpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(8_000),
+          });
 
-          const { error: insertErr } = await adminClient
-            .from("venda_itens")
-            .insert(itensMapeados);
+          if (itensRes.ok) {
+            const itensList = extrairArray<MaxDataItem>(await itensRes.json() as unknown);
 
-          if (insertErr) {
-            erros.push(`Itens venda ${externalId}: ${insertErr.message}`);
-          } else {
-            itensSincronizados += itensMapeados.length;
+            if (itensList.length > 0) {
+              const mapeados = itensList.map((item) => {
+                const qtde = item.qtde ?? item.vdiQtde ?? 0;
+                const valorUnit = item.valor ?? item.vdiValor ?? 0;
+                const desconto = item.valorDesconto ?? item.vdiValorDesconto ?? 0;
+                return {
+                  loja_id: lojaId,
+                  venda_external_id: externalId,
+                  produto_external_id: item.produtoId ?? null,
+                  produto_nome: item.descricaoProduto ?? item.vdiProNome ?? null,
+                  quantidade: qtde,
+                  valor_unitario: valorUnit,
+                  valor_desconto: desconto,
+                  valor_total: qtde * valorUnit - desconto,
+                };
+              }).filter((i) => i.produto_nome !== null && i.produto_nome !== "");
+
+              // Deletar antes de inserir — produto_external_id pode ser null,
+              // impedindo upsert pelo constraint loja+venda+produto
+              await adminClient
+                .from("venda_itens")
+                .delete()
+                .eq("loja_id", lojaId)
+                .eq("venda_external_id", externalId);
+
+              const { error } = await adminClient.from("venda_itens").insert(mapeados);
+              if (error) errosBatch.push(`Itens ${externalId}: ${error.message}`);
+              else itens = mapeados.length;
+            }
+          } else if (itensRes.status !== 404) {
+            errosBatch.push(`Itens ${externalId}: HTTP ${itensRes.status}`);
           }
-        }
-      } else if (itensRes.status !== 404) {
-        // 404 é esperado para vendas sem itens — ignorar silenciosamente
-        erros.push(`Itens venda ${externalId}: HTTP ${itensRes.status}`);
-      }
 
-      // ── PAGAMENTOS DA VENDA ─────────────────────────────────────────────────
-      const pgtoRes = await fetch(paymentEndpoint, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(10_000),
-      });
+          // ── PAGAMENTOS ───────────────────────────────────────────────────────
+          const paymentEndpoint = isOs
+            ? `${erpBaseUrl}/v2/serviceorder/${externalId}/payment`
+            : `${erpBaseUrl}/v2/sale/${externalId}/payment`;
 
-      if (pgtoRes.ok) {
-        const pagamentos = extrairArray<MaxDataPagamento>(await pgtoRes.json() as unknown);
+          const pgtoRes = await fetch(paymentEndpoint, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(8_000),
+          });
 
-        if (pagamentos.length > 0) {
-          const pgtosMapeados = pagamentos.map((p) => ({
-            loja_id: lojaId,
-            venda_external_id: externalId,
-            forma_pagamento: p.formaPgto ?? p.forma_pagamento ?? "Outra",
-            valor: p.valor ?? 0,
-            parcelas: p.qtdParcela ?? p.parcelas ?? 1,
-          }));
+          if (pgtoRes.ok) {
+            const pgtoList = extrairArray<MaxDataPagamento>(await pgtoRes.json() as unknown);
 
-          await adminClient
-            .from("venda_pagamentos")
-            .delete()
-            .eq("venda_external_id", externalId)
-            .eq("loja_id", lojaId);
+            if (pgtoList.length > 0) {
+              const mapeados = pgtoList.map((p) => ({
+                loja_id: lojaId,
+                venda_external_id: externalId,
+                forma_pagamento: p.formaPgto ?? p.forma_pagamento ?? "Outra",
+                valor: p.valor ?? 0,
+                parcelas: p.qtdParcela ?? p.parcelas ?? 1,
+              }));
 
-          const { error: insertErr } = await adminClient
-            .from("venda_pagamentos")
-            .insert(pgtosMapeados);
+              await adminClient
+                .from("venda_pagamentos")
+                .delete()
+                .eq("loja_id", lojaId)
+                .eq("venda_external_id", externalId);
 
-          if (insertErr) {
-            erros.push(`Pagamentos venda ${externalId}: ${insertErr.message}`);
-          } else {
-            pagamentosSincronizados += pgtosMapeados.length;
+              const { error } = await adminClient.from("venda_pagamentos").insert(mapeados);
+              if (error) errosBatch.push(`Pgtos ${externalId}: ${error.message}`);
+              else pgtos = mapeados.length;
+            }
+          } else if (pgtoRes.status !== 404) {
+            errosBatch.push(`Pgtos ${externalId}: HTTP ${pgtoRes.status}`);
           }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          errosBatch.push(`Venda ${externalId}: ${msg}`);
         }
-      } else if (pgtoRes.status !== 404) {
-        erros.push(`Pagamentos venda ${externalId}: HTTP ${pgtoRes.status}`);
-      }
 
-      // Pausa de 100ms para não sobrecarregar a API MaxData
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      erros.push(`Venda ${externalId}: ${msg}`);
-    }
+        return { itens, pgtos, erros: errosBatch };
+      })
+    );
+
+    resultados.forEach((r) => {
+      itensSincronizados += r.itens;
+      pagamentosSincronizados += r.pgtos;
+      erros.push(...r.erros);
+    });
+
+    // Pausa entre batches para não sobrecarregar a API MaxData
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
   return NextResponse.json({
