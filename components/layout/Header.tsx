@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import {
-  Sun, Moon, RefreshCw, CheckCircle, AlertCircle, CalendarDays, Building2, ChevronDown, Check,
+  Sun, Moon, RefreshCw, AlertCircle, CalendarDays, Building2, ChevronDown, Check,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useState, useEffect, useCallback, useRef } from "react";

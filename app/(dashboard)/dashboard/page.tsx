@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { DollarSign, ShoppingCart, TrendingUp, RotateCcw, XCircle, Package } from "lucide-react";
+import { DollarSign, ShoppingCart, TrendingUp, RotateCcw, XCircle } from "lucide-react";
 import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 import { KpiCard } from "@/components/ui/KpiCard";
@@ -42,7 +42,7 @@ interface KpiResponse {
 // ─── Card de Faturamento composto ─────────────────────────────────────────────
 
 function FaturamentoKpiCard({
-  vendaTotal,
+  vendaTotal: _vendaTotal,
   totalVendas,
   devolucaoTotal,
   totalDevolucoes,
