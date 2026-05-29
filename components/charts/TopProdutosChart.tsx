@@ -1,53 +1,139 @@
 "use client";
 
 import { useState } from "react";
-import { formatCurrency } from "@/lib/utils/format";
+import type { ReactNode } from "react";
 
-export interface TopProdutoData {
+export interface ProdutoItem {
   nome: string;
   valor: number;
   quantidade: number;
+  codigo?: string | null;
+  grupoNome?: string | null;
+  subGrupo?: string | null;
+  fabricante?: string | null;
+  precoVenda?: number;
+  valorCusto?: number | null;
+  margem?: number | null;
+  estoqueAtual?: number | null;
 }
+
+export type TopProdutoData = ProdutoItem;
 
 interface Props {
-  data: TopProdutoData[];
+  data: ProdutoItem[];
 }
 
+type SortMode = "valor" | "quantidade";
 
-// Cor e label do pódio
 const RANK_STYLES: Record<number, { color: string; bg: string }> = {
-  0: { color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },   // ouro
-  1: { color: "#94a3b8", bg: "rgba(148,163,184,0.12)" },  // prata
-  2: { color: "#a78bfa", bg: "rgba(167,139,250,0.15)" },  // bronze/roxo
+  0: { color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
+  1: { color: "#cbd5e1", bg: "rgba(203,213,225,0.12)" },
+  2: { color: "#a78bfa", bg: "rgba(167,139,250,0.15)" },
 };
 
+function formatCurrencyBRL(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatNumberBR(value: number): string {
+  return new Intl.NumberFormat("pt-BR", {
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function RankBadge({ rank }: { rank: number }) {
-  const style = RANK_STYLES[rank] ?? { color: "#475569", bg: "rgba(71,85,105,0.12)" };
+  const style = RANK_STYLES[rank] ?? { color: "#94a3b8", bg: "rgba(148,163,184,0.10)" };
+
   return (
-    <div
-      className="flex-shrink-0 flex items-center justify-center rounded-md text-[10px] font-bold tabular-nums"
+    <span
       style={{
-        width: 22,
-        height: 22,
-        backgroundColor: style.bg,
+        width: 30,
+        height: 24,
+        borderRadius: 6,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: style.bg,
         color: style.color,
+        fontSize: 11,
+        fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
       }}
     >
-      {rank + 1}
+      #{rank + 1}
+    </span>
+  );
+}
+
+function InfoItem({
+  icon,
+  children,
+  wide,
+}: {
+  icon: string;
+  children: ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        minWidth: 0,
+        gridColumn: wide ? "1 / -1" : undefined,
+      }}
+    >
+      <span style={{ fontSize: 12, flexShrink: 0 }}>{icon}</span>
+      <span
+        style={{
+          fontSize: 11,
+          color: "var(--text-secondary)",
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {children}
+      </span>
     </div>
   );
 }
 
-// Cores de gradiente para as barras por rank
-const BAR_GRADIENTS: Record<number, [string, string]> = {
-  0: ["#f59e0b", "#f59e0b33"],
-  1: ["#94a3b8", "#94a3b833"],
-  2: ["#a78bfa", "#a78bfa33"],
-};
-const DEFAULT_GRADIENT: [string, string] = ["#00e5ff", "#00e5ff22"];
+function MarginBadge({ margem }: { margem: number }) {
+  const style =
+    margem > 30
+      ? { bg: "rgba(16,185,129,0.15)", color: "#10b981" }
+      : margem >= 15
+      ? { bg: "rgba(245,158,11,0.15)", color: "#f59e0b" }
+      : { bg: "rgba(239,68,68,0.15)", color: "#ef4444" };
+
+  return (
+    <span
+      style={{
+        padding: "1px 6px",
+        borderRadius: 4,
+        background: style.bg,
+        color: style.color,
+        fontSize: 11,
+        fontWeight: 600,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {formatNumberBR(margem)}%
+    </span>
+  );
+}
 
 export function TopProdutosChart({ data }: Props) {
-  const [modo, setModo] = useState<"valor" | "quantidade">("valor");
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [sortMode, setSortMode] = useState<SortMode>("valor");
 
   if (!data.length) {
     return (
@@ -61,102 +147,168 @@ export function TopProdutosChart({ data }: Props) {
   }
 
   const sorted = [...data].sort((a, b) =>
-    modo === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
+    sortMode === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
   );
-  const maxVal = sorted[0]
-    ? modo === "valor"
-      ? sorted[0].valor
-      : sorted[0].quantidade
-    : 1;
+  const maxValue = sorted[0] ? (sortMode === "valor" ? sorted[0].valor : sorted[0].quantidade) : 1;
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Toggle */}
-      <div className="flex gap-1.5">
-        {(["valor", "quantidade"] as const).map((m) => (
-          <button
-            key={m}
-            onClick={() => setModo(m)}
-            className="px-3 py-0.5 rounded-full text-xs font-medium transition-all duration-150"
-            style={
-              modo === m
-                ? { backgroundColor: "rgba(0,229,255,0.15)", color: "#00e5ff", border: "1px solid rgba(0,229,255,0.3)" }
-                : { backgroundColor: "transparent", color: "var(--text-muted)", border: "1px solid rgba(255,255,255,0.06)" }
-            }
-          >
-            {m === "valor" ? "Valor" : "Qtd"}
-          </button>
-        ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
+        {(["valor", "quantidade"] as const).map((mode) => {
+          const active = sortMode === mode;
+
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setSortMode(mode)}
+              style={{
+                padding: "4px 12px",
+                borderRadius: 999,
+                border: active ? "1px solid rgba(0,229,255,0.35)" : "1px solid rgba(255,255,255,0.06)",
+                background: active ? "rgba(0,229,255,0.14)" : "transparent",
+                color: active ? "#00e5ff" : "var(--text-muted)",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "background 0.15s, color 0.15s, border-color 0.15s",
+              }}
+            >
+              {mode === "valor" ? "Valor" : "Qtd"}
+            </button>
+          );
+        })}
       </div>
 
-      {/* Lista */}
-      <div className="flex flex-col gap-2.5">
-        {sorted.slice(0, 8).map((produto, i) => {
-          const current = modo === "valor" ? produto.valor : produto.quantidade;
-          const pct = maxVal > 0 ? (current / maxVal) * 100 : 0;
-          const [barFrom, barTo] = BAR_GRADIENTS[i] ?? DEFAULT_GRADIENT;
-          const gradId = `grad-p-${i}`;
+      <div className="custom-scroll" style={{ height: 380, overflowY: "auto", paddingRight: 4 }}>
+        {sorted.map((produto, index) => {
+          const currentValue = sortMode === "valor" ? produto.valor : produto.quantidade;
+          const progress = maxValue > 0 ? Math.min((currentValue / maxValue) * 100, 100) : 0;
+          const isHovered = hoveredIndex === index;
+          const grupoLabel = produto.grupoNome
+            ? `Grupo: ${produto.grupoNome}${produto.subGrupo ? ` -> Sub-grupo: ${produto.subGrupo}` : ""}`
+            : produto.subGrupo
+            ? `Sub-grupo: ${produto.subGrupo}`
+            : null;
 
           return (
             <div
-              key={i}
-              className="flex items-center gap-2.5"
+              key={`${produto.codigo ?? produto.nome}-${index}`}
+              onMouseEnter={() => setHoveredIndex(index)}
+              onMouseLeave={() => setHoveredIndex(null)}
               style={{
-                animation: "fadeInUp 0.3s ease-out both",
-                animationDelay: `${i * 40}ms`,
+                padding: "10px 0",
+                paddingLeft: isHovered ? 8 : 0,
+                paddingRight: 4,
+                borderBottom: "1px solid var(--border-subtle)",
+                borderRadius: 8,
+                background: isHovered ? "rgba(0,229,255,0.03)" : "transparent",
+                cursor: "default",
+                transition: "background 0.15s, padding-left 0.15s",
               }}
             >
-              <RankBadge rank={i} />
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+                <RankBadge rank={index} />
 
-              {/* Nome + barra */}
-              <div className="flex-1 min-w-0 flex flex-col gap-1">
-                <span
-                  className="text-xs truncate"
-                  style={{ color: "var(--text-secondary)" }}
-                  title={produto.nome}
-                >
-                  {produto.nome}
-                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span
+                      title={produto.nome}
+                      style={{
+                        color: "var(--text-primary)",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {produto.nome}
+                    </span>
+                    {produto.margem != null && <MarginBadge margem={produto.margem} />}
+                  </div>
 
-                {/* Barra gradiente */}
-                <div
-                  className="relative rounded-full overflow-hidden"
-                  style={{ height: 5, backgroundColor: "rgba(255,255,255,0.05)" }}
-                >
-                  <svg
-                    className="absolute inset-0"
-                    width="100%"
-                    height="100%"
-                    preserveAspectRatio="none"
+                  <div
+                    style={{
+                      marginTop: 5,
+                      height: 4,
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.05)",
+                      overflow: "hidden",
+                    }}
                   >
-                    <defs>
-                      <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor={barFrom} />
-                        <stop offset="100%" stopColor={barTo} />
-                      </linearGradient>
-                    </defs>
-                    <rect
-                      x="0"
-                      y="0"
-                      width={`${pct}%`}
-                      height="100%"
-                      fill={`url(#${gradId})`}
-                      rx="9999"
-                      style={{ transition: "width 0.5s ease" }}
+                    <div
+                      style={{
+                        width: `${progress}%`,
+                        height: "100%",
+                        borderRadius: 999,
+                        background: "linear-gradient(90deg, #00e5ff, rgba(0,229,255,0.18))",
+                        transition: "width 0.5s ease",
+                      }}
                     />
-                  </svg>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    color: "var(--text-primary)",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    textAlign: "right",
+                    minWidth: 96,
+                    flexShrink: 0,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {sortMode === "valor"
+                    ? formatCurrencyBRL(produto.valor)
+                    : `${formatNumberBR(produto.quantidade)} un`}
                 </div>
               </div>
 
-              {/* Valor */}
-              <span
-                className="text-xs font-semibold tabular-nums text-right flex-shrink-0"
-                style={{ color: "var(--text-primary)", minWidth: 68 }}
-              >
-                {modo === "valor"
-                  ? formatCurrency(produto.valor)
-                  : `${produto.quantidade.toLocaleString("pt-BR")} un`}
-              </span>
+              {isHovered && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    marginLeft: 40,
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(255,255,255,0.06)",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
+                    gap: "7px 16px",
+                    animation: "fadeInUp 0.15s ease-out",
+                  }}
+                >
+                  {grupoLabel && (
+                    <InfoItem icon="📦" wide>
+                      {grupoLabel}
+                    </InfoItem>
+                  )}
+                  {produto.codigo && <InfoItem icon="🏷️">Código: {produto.codigo}</InfoItem>}
+                  {produto.fabricante && <InfoItem icon="🏭">Fabricante: {produto.fabricante}</InfoItem>}
+                  {produto.precoVenda != null && (
+                    <InfoItem icon="💵">Preço venda: {formatCurrencyBRL(produto.precoVenda)}</InfoItem>
+                  )}
+                  {produto.valorCusto != null && (
+                    <InfoItem icon="💰">Custo: {formatCurrencyBRL(produto.valorCusto)}</InfoItem>
+                  )}
+                  {produto.margem != null && (
+                    <InfoItem icon="📈">
+                      Margem: <MarginBadge margem={produto.margem} />
+                    </InfoItem>
+                  )}
+                  <InfoItem icon="🔢">
+                    {formatNumberBR(produto.quantidade)} un vendidas no período
+                  </InfoItem>
+                  {produto.estoqueAtual != null && (
+                    <InfoItem icon="📊">Estoque atual: {formatNumberBR(produto.estoqueAtual)} un</InfoItem>
+                  )}
+                  <InfoItem icon="💵">Valor vendido: {formatCurrencyBRL(produto.valor)}</InfoItem>
+                </div>
+              )}
             </div>
           );
         })}

@@ -323,8 +323,8 @@ export default function DashboardPage() {
         className="grid gap-4"
         style={{ gridTemplateColumns: "1fr 0.85fr 1fr" }}
       >
-        <ChartCard title="Top Produtos" subtitle="por faturamento — período selecionado" animationDelay={80}>
-          {chartsLoading ? <ChartSkeleton height={260} /> : <TopProdutosChart data={topProdutos} />}
+        <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[480px]">
+          {chartsLoading ? <ChartSkeleton height={380} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>
 
         <ChartCard title="PF vs PJ" subtitle="tipo de cliente — período selecionado" animationDelay={100}>
@@ -338,8 +338,8 @@ export default function DashboardPage() {
 
       {/* ── Linha 3: Top Clientes | Formas de Pagamento ─────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Top Clientes" subtitle="por faturamento — período selecionado" animationDelay={160}>
-          {chartsLoading ? <ChartSkeleton height={260} /> : <TopClientesChart data={topClientes} />}
+        <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={160} className="min-h-[480px]">
+          {chartsLoading ? <ChartSkeleton height={380} /> : <TopClientesChart data={topClientes} />}
         </ChartCard>
         <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={200}>
           {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
