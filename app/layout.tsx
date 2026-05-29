@@ -19,6 +19,7 @@ const dmSans = DM_Sans({
 export const metadata: Metadata = {
   title: "LC Dashboard",
   description: "Dashboard integrado ao ERP MaxManager",
+  viewport: "width=device-width, initial-scale=1, viewport-fit=cover",
 };
 
 export default function RootLayout({

@@ -174,7 +174,7 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
   return (
     <div className="flex flex-col gap-3">
       {/* Barra de filtros */}
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none flex-nowrap">
         {/* Busca */}
         <div
           className="flex items-center gap-2 px-3 rounded-lg flex-1"
@@ -228,17 +228,16 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
       >
         {/* Cabeçalho */}
         <div
-          className="grid text-[10px] font-semibold uppercase tracking-wider px-4 py-2.5"
+          className="tabela-vendas-grid grid text-[10px] font-semibold uppercase tracking-wider px-4 py-2.5"
           style={{
-            gridTemplateColumns: "1fr 130px 80px 100px 24px",
             backgroundColor: "var(--bg-primary)",
             color: "var(--text-muted)",
             borderBottom: "1px solid var(--border-subtle)",
           }}
         >
           <span>Cliente</span>
-          <span>Data</span>
-          <span>Tipo</span>
+          <span className="hidden sm:block">Data</span>
+          <span className="hidden md:block">Tipo</span>
           <span className="text-right">Valor</span>
           <span />
         </div>
@@ -262,9 +261,8 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
               <div key={rowKey} style={{ borderBottom: "1px solid var(--border-subtle)" }}>
                 {/* Linha principal */}
                 <div
-                  className="grid items-center px-4 py-2.5 cursor-pointer transition-colors"
+                  className="tabela-vendas-grid grid items-center px-4 py-2.5 cursor-pointer transition-colors"
                   style={{
-                    gridTemplateColumns: "1fr 130px 80px 100px 24px",
                     backgroundColor: isExpanded ? "rgba(0,229,255,0.03)" : "transparent",
                   }}
                   onClick={() => void handleRowClick(rowKey, venda.external_id, venda.loja_id)}
@@ -281,10 +279,10 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
                     </span>
                     <StatusBadge status={venda.status} />
                   </div>
-                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                  <span className="hidden sm:block text-xs" style={{ color: "var(--text-secondary)" }}>
                     {formatDate(venda.data_venda)}
                   </span>
-                  <span className="text-xs">
+                  <span className="hidden md:block text-xs">
                     <TipoLabel cfop={venda.cfop} />
                   </span>
                   <span

@@ -56,10 +56,21 @@ export function Sidebar({ isAdmin }: Props) {
   const isDashboardActive = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
   const isAdminActive = pathname.startsWith("/admin");
 
+  const BOTTOM_NAV = [
+    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark },
+    { href: "/dashboard/clientes", label: "Clientes", icon: Users },
+    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2 }] : []),
+  ];
+
+  const isBottomActive = (href: string) =>
+    href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+
   return (
     <TooltipProvider delayDuration={150}>
+      {/* Desktop: sidebar lateral */}
       <aside
-        className="fixed top-0 left-0 h-screen flex flex-col z-40"
+        className="hidden md:flex fixed top-0 left-0 h-screen flex-col z-40"
         style={{
           width: "var(--sidebar-width)",
           backgroundColor: "var(--sidebar-bg, var(--bg-card))",
@@ -173,6 +184,33 @@ export function Sidebar({ isAdmin }: Props) {
           </Tooltip>
         </div>
       </aside>
+
+      {/* Mobile: bottom navigation */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2"
+        style={{
+          background: "var(--bg-card)",
+          borderTop: "1px solid var(--border-subtle)",
+          paddingTop: "8px",
+          paddingBottom: "calc(8px + env(safe-area-inset-bottom))",
+          minHeight: "64px",
+        }}
+      >
+        {BOTTOM_NAV.map(({ href, label, icon: Icon }) => {
+          const active = isBottomActive(href);
+          return (
+            <Link
+              key={href}
+              href={href}
+              className="flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors"
+              style={{ color: active ? "var(--accent-cyan)" : "var(--text-muted)" }}
+            >
+              <Icon size={20} />
+              <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400 }}>{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </TooltipProvider>
   );
 }
