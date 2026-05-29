@@ -70,7 +70,7 @@ export default async function DashboardLayout({
             <Header />
 
             <main
-              className="flex-1 overflow-y-auto"
+              className="flex-1 overflow-y-auto pb-20 md:pb-0"
               style={{ paddingTop: "var(--header-height)" }}
             >
               {children}

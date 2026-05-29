@@ -264,9 +264,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="p-6 flex flex-col gap-5">
+    <div className="px-3 py-4 sm:px-4 md:p-6 flex flex-col gap-5">
       {/* ── KPIs — 5 cards em linha ─────────────────────────────────────────── */}
-      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
         <FaturamentoKpiCard
           vendaTotal={kpis?.faturamento.vendaTotal ?? 0}
           totalVendas={kpis?.faturamento.totalVendas ?? 0}
@@ -319,10 +319,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 2: Top Produtos | PF/PJ | Faturamento Mensal ──────────────── */}
-      <div
-        className="grid gap-4"
-        style={{ gridTemplateColumns: "1fr 0.85fr 1fr" }}
-      >
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[480px]">
           {chartsLoading ? <ChartSkeleton height={380} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>

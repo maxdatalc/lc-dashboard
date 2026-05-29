@@ -228,7 +228,7 @@ function SyncBadge() {
         }}
       >
         <span style={{ fontSize: 8 }}>●</span>
-        <span>Sincronizado {tempoLabel}</span>
+        <span className="hidden sm:inline">Sincronizado {tempoLabel}</span>
       </div>
     );
   }
@@ -255,7 +255,7 @@ function SyncBadge() {
       ) : (
         <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
       )}
-      <span>{loading ? "Sincronizando..." : "Sincronizar"}</span>
+      <span className="hidden sm:inline">{loading ? "Sincronizando..." : "Sincronizar"}</span>
     </button>
   );
 }
@@ -360,28 +360,51 @@ export function Header() {
       <LojaMultiSelect />
 
       {/* Centro — seletor de período */}
-      <div className="flex-1 flex items-center justify-center gap-1 flex-wrap">
-        {PERIODS.map((p) => (
-          <button
-            key={p.value}
-            onClick={() => setPeriod(p.value)}
-            className="px-3 py-1 rounded-full text-xs font-medium transition-all"
-            style={period === p.value ? activePillStyle : inactivePillStyle}
-          >
-            {p.label}
-          </button>
-        ))}
+      <div className="flex-1 flex items-center justify-center gap-1">
+        {/* Mobile: dropdown compacto */}
+        <select
+          className="md:hidden text-xs px-2 py-1 rounded-lg"
+          style={{
+            background: "var(--bg-primary)",
+            border: "1px solid var(--border-subtle)",
+            color: "var(--text-primary)",
+            outline: "none",
+          }}
+          value={period}
+          onChange={(e) => setPeriod(e.target.value as Period)}
+        >
+          <option value="today">Hoje</option>
+          <option value="7d">7 dias</option>
+          <option value="month">Mês atual</option>
+          <option value="3m">3 meses</option>
+          <option value="year">Ano</option>
+          <option value="prev-year">Ano ant.</option>
+          <option value="custom">Personalizado</option>
+        </select>
 
-        {/* Pill "Personalizado" com popover de calendário */}
-        <div className="relative">
-          <button
-            onClick={openCustomPopover}
-            className="px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1.5"
-            style={period === "custom" ? activePillStyle : inactivePillStyle}
-          >
-            <CalendarDays className="h-3 w-3" />
-            {customLabel}
-          </button>
+        {/* Desktop: pills normais */}
+        <div className="hidden md:flex items-center gap-1 flex-wrap">
+          {PERIODS.map((p) => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className="px-3 py-1 rounded-full text-xs font-medium transition-all"
+              style={period === p.value ? activePillStyle : inactivePillStyle}
+            >
+              {p.label}
+            </button>
+          ))}
+
+          {/* Pill "Personalizado" com popover de calendário */}
+          <div className="relative">
+            <button
+              onClick={openCustomPopover}
+              className="px-3 py-1 rounded-full text-xs font-medium transition-all flex items-center gap-1.5"
+              style={period === "custom" ? activePillStyle : inactivePillStyle}
+            >
+              <CalendarDays className="h-3 w-3" />
+              {customLabel}
+            </button>
 
           {customOpen && (
             <>
@@ -390,6 +413,7 @@ export function Header() {
                 className="fixed inset-0 z-40"
                 onClick={handleCancelCustom}
               />
+
 
               {/* Popover de seleção de datas */}
               <div
@@ -465,6 +489,7 @@ export function Header() {
               </div>
             </>
           )}
+          </div>
         </div>
       </div>
 

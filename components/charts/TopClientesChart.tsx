@@ -142,6 +142,7 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
+                      maxWidth: "clamp(100px, 35vw, 200px)",
                     }}
                   >
                     {cliente.nome}
@@ -177,7 +178,7 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
 
               <span
                 style={{
-                  fontSize: "13px",
+                  fontSize: "clamp(11px, 3vw, 13px)",
                   fontWeight: 600,
                   color: "var(--text-primary)",
                   flexShrink: 0,

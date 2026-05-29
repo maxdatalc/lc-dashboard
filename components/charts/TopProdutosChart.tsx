@@ -143,6 +143,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                         display: "block",
+                        maxWidth: "clamp(100px, 35vw, 200px)",
                       }}
                       title={produto.nome}
                     >
@@ -171,7 +172,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
 
                 <span
                   style={{
-                    fontSize: "13px",
+                    fontSize: "clamp(11px, 3vw, 13px)",
                     fontWeight: 600,
                     color: "var(--text-primary)",
                     flexShrink: 0,
