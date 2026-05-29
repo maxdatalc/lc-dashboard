@@ -11,7 +11,7 @@ export interface ProdutoItem {
   grupoNome?: string | null;
   subGrupo?: string | null;
   fabricante?: string | null;
-  precoVenda?: number;
+  precoVenda?: number | null;
   valorCusto?: number | null;
   margem?: number | null;
   estoqueAtual?: number | null;
@@ -19,206 +19,143 @@ export interface ProdutoItem {
 
 export type TopProdutoData = ProdutoItem;
 
-interface Props {
-  data: ProdutoItem[];
-}
+type Ordenacao = "valor" | "quantidade";
 
-type SortMode = "valor" | "quantidade";
-
-const RANK_STYLES: Record<number, { color: string; bg: string }> = {
-  0: { color: "#f59e0b", bg: "rgba(245,158,11,0.15)" },
-  1: { color: "#cbd5e1", bg: "rgba(203,213,225,0.12)" },
-  2: { color: "#a78bfa", bg: "rgba(167,139,250,0.15)" },
-};
-
-function formatCurrencyBRL(value: number): string {
+function formatMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency: "BRL",
-    minimumFractionDigits: 2,
-  }).format(value);
+  }).format(valor);
 }
 
-function formatNumberBR(value: number): string {
+function formatNumero(valor: number): string {
   return new Intl.NumberFormat("pt-BR", {
-    maximumFractionDigits: 2,
-  }).format(value);
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 0,
+  }).format(valor);
 }
 
-function RankBadge({ rank }: { rank: number }) {
-  const style = RANK_STYLES[rank] ?? { color: "#94a3b8", bg: "rgba(148,163,184,0.10)" };
-
-  return (
-    <span
-      style={{
-        width: 30,
-        height: 24,
-        borderRadius: 6,
-        flexShrink: 0,
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: style.bg,
-        color: style.color,
-        fontSize: 11,
-        fontWeight: 700,
-        fontVariantNumeric: "tabular-nums",
-      }}
-    >
-      #{rank + 1}
-    </span>
-  );
+function getRankColor(index: number): string {
+  if (index === 0) return "#f59e0b";
+  if (index === 1) return "#94a3b8";
+  if (index === 2) return "#a78bfa";
+  return "#475569";
 }
 
-function InfoItem({
-  icon,
-  children,
-  wide,
-}: {
-  icon: string;
-  children: ReactNode;
-  wide?: boolean;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 6,
-        minWidth: 0,
-        gridColumn: wide ? "1 / -1" : undefined,
-      }}
-    >
-      <span style={{ fontSize: 12, flexShrink: 0 }}>{icon}</span>
-      <span
-        style={{
-          fontSize: 11,
-          color: "var(--text-secondary)",
-          minWidth: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {children}
-      </span>
-    </div>
-  );
+function getMargemStyle(margem: number): { background: string; color: string } {
+  if (margem > 30) return { background: "rgba(16,185,129,0.15)", color: "#10b981" };
+  if (margem >= 15) return { background: "rgba(245,158,11,0.15)", color: "#f59e0b" };
+  return { background: "rgba(239,68,68,0.15)", color: "#ef4444" };
 }
 
-function MarginBadge({ margem }: { margem: number }) {
-  const style =
-    margem > 30
-      ? { bg: "rgba(16,185,129,0.15)", color: "#10b981" }
-      : margem >= 15
-      ? { bg: "rgba(245,158,11,0.15)", color: "#f59e0b" }
-      : { bg: "rgba(239,68,68,0.15)", color: "#ef4444" };
+function MargemBadge({ margem }: { margem: number }) {
+  const style = getMargemStyle(margem);
 
   return (
     <span
       style={{
         padding: "1px 6px",
-        borderRadius: 4,
-        background: style.bg,
-        color: style.color,
-        fontSize: 11,
+        borderRadius: "4px",
         fontWeight: 600,
-        fontVariantNumeric: "tabular-nums",
+        background: style.background,
+        color: style.color,
       }}
     >
-      {formatNumberBR(margem)}%
+      {margem.toFixed(1)}%
     </span>
   );
 }
 
-export function TopProdutosChart({ data }: Props) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>("valor");
+export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
+  const [expandido, setExpandido] = useState<number | null>(null);
+  const [ordenacao, setOrdenacao] = useState<Ordenacao>("valor");
 
   if (!data.length) {
     return (
-      <div
-        className="flex items-center justify-center py-8 text-xs"
-        style={{ color: "var(--text-muted)" }}
-      >
+      <div className="flex items-center justify-center py-8 text-xs" style={{ color: "var(--text-muted)" }}>
         Sem dados disponíveis
       </div>
     );
   }
 
-  const sorted = [...data].sort((a, b) =>
-    sortMode === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
+  const produtos = [...data].sort((a, b) =>
+    ordenacao === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
   );
-  const maxValue = sorted[0] ? (sortMode === "valor" ? sorted[0].valor : sorted[0].quantidade) : 1;
+  const maxValor = produtos[0] ? (ordenacao === "valor" ? produtos[0].valor : produtos[0].quantidade) : 1;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
-        {(["valor", "quantidade"] as const).map((mode) => {
-          const active = sortMode === mode;
+    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
+        {(["valor", "quantidade"] as const).map((modo) => {
+          const ativo = ordenacao === modo;
 
           return (
             <button
-              key={mode}
+              key={modo}
               type="button"
-              onClick={() => setSortMode(mode)}
+              onClick={() => setOrdenacao(modo)}
               style={{
                 padding: "4px 12px",
-                borderRadius: 999,
-                border: active ? "1px solid rgba(0,229,255,0.35)" : "1px solid rgba(255,255,255,0.06)",
-                background: active ? "rgba(0,229,255,0.14)" : "transparent",
-                color: active ? "#00e5ff" : "var(--text-muted)",
-                fontSize: 12,
+                borderRadius: "999px",
+                border: ativo ? "1px solid rgba(0,229,255,0.35)" : "1px solid rgba(255,255,255,0.06)",
+                background: ativo ? "rgba(0,229,255,0.14)" : "transparent",
+                color: ativo ? "#00e5ff" : "var(--text-muted)",
+                fontSize: "12px",
                 fontWeight: 600,
                 cursor: "pointer",
-                transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
               }}
             >
-              {mode === "valor" ? "Valor" : "Qtd"}
+              {modo === "valor" ? "Valor" : "Qtd"}
             </button>
           );
         })}
       </div>
 
-      <div className="custom-scroll" style={{ height: 380, overflowY: "auto", paddingRight: 4 }}>
-        {sorted.map((produto, index) => {
-          const currentValue = sortMode === "valor" ? produto.valor : produto.quantidade;
-          const progress = maxValue > 0 ? Math.min((currentValue / maxValue) * 100, 100) : 0;
-          const isHovered = hoveredIndex === index;
-          const grupoLabel = produto.grupoNome
-            ? `Grupo: ${produto.grupoNome}${produto.subGrupo ? ` -> Sub-grupo: ${produto.subGrupo}` : ""}`
+      <div className="custom-scroll" style={{ height: "400px", overflowY: "auto", paddingRight: "4px" }}>
+        {produtos.map((produto, i) => {
+          const isExpanded = expandido === i;
+          const valorBase = ordenacao === "valor" ? produto.valor : produto.quantidade;
+          const progresso = maxValor > 0 ? Math.min((valorBase / maxValor) * 100, 100) : 0;
+          const grupo = produto.grupoNome
+            ? `Grupo: ${produto.grupoNome}${produto.subGrupo ? ` › ${produto.subGrupo}` : ""}`
             : produto.subGrupo
-            ? `Sub-grupo: ${produto.subGrupo}`
-            : null;
+            ? `Grupo: ${produto.subGrupo}`
+            : "";
 
           return (
             <div
-              key={`${produto.codigo ?? produto.nome}-${index}`}
-              onMouseEnter={() => setHoveredIndex(index)}
-              onMouseLeave={() => setHoveredIndex(null)}
+              key={`${produto.codigo ?? produto.nome}-${i}`}
+              onMouseEnter={() => setExpandido(i)}
+              onMouseLeave={() => setExpandido(null)}
               style={{
-                padding: "10px 0",
-                paddingLeft: isHovered ? 8 : 0,
-                paddingRight: 4,
-                borderBottom: "1px solid var(--border-subtle)",
-                borderRadius: 8,
-                background: isHovered ? "rgba(0,229,255,0.03)" : "transparent",
+                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                paddingBottom: "8px",
+                marginBottom: "8px",
                 cursor: "default",
-                transition: "background 0.15s, padding-left 0.15s",
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-                <RankBadge rank={index} />
+              {/* Linha principal do ranking */}
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    minWidth: "30px",
+                    color: getRankColor(i),
+                  }}
+                >
+                  #{i + 1}
+                </span>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                     <span
                       title={produto.nome}
                       style={{
-                        color: "var(--text-primary)",
-                        fontSize: 13,
+                        fontSize: "12px",
                         fontWeight: 500,
-                        minWidth: 0,
+                        color: "var(--text-primary)",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
@@ -226,93 +163,108 @@ export function TopProdutosChart({ data }: Props) {
                     >
                       {produto.nome}
                     </span>
-                    {produto.margem != null && <MarginBadge margem={produto.margem} />}
+                    {produto.margem != null && <MargemBadge margem={produto.margem} />}
                   </div>
 
-                  <div
-                    style={{
-                      marginTop: 5,
-                      height: 4,
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.05)",
-                      overflow: "hidden",
-                    }}
-                  >
+                  <div style={{ height: "2px", background: "rgba(255,255,255,0.06)", borderRadius: "1px" }}>
                     <div
                       style={{
-                        width: `${progress}%`,
+                        width: `${progresso}%`,
                         height: "100%",
-                        borderRadius: 999,
-                        background: "linear-gradient(90deg, #00e5ff, rgba(0,229,255,0.18))",
-                        transition: "width 0.5s ease",
+                        borderRadius: "1px",
+                        background: "linear-gradient(90deg, #00e5ff 0%, rgba(0,229,255,0.2) 100%)",
+                        transition: "width 0.8s ease",
                       }}
                     />
                   </div>
                 </div>
 
-                <div
+                <span
                   style={{
-                    color: "var(--text-primary)",
-                    fontSize: 13,
+                    fontSize: "13px",
                     fontWeight: 600,
-                    textAlign: "right",
-                    minWidth: 96,
+                    color: "var(--text-primary)",
                     flexShrink: 0,
-                    fontVariantNumeric: "tabular-nums",
+                    fontFamily: "DM Serif Display, serif",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  {sortMode === "valor"
-                    ? formatCurrencyBRL(produto.valor)
-                    : `${formatNumberBR(produto.quantidade)} un`}
-                </div>
+                  {ordenacao === "valor" ? formatMoeda(produto.valor) : `${formatNumero(produto.quantidade)} un.`}
+                </span>
               </div>
 
-              {isHovered && (
+              <div
+                style={{
+                  maxHeight: isExpanded ? "260px" : "0px",
+                  opacity: isExpanded ? 1 : 0,
+                  overflow: "hidden",
+                  transition: "max-height 0.2s ease-out, opacity 0.2s ease-out",
+                }}
+              >
                 <div
                   style={{
-                    marginTop: 10,
-                    marginLeft: 40,
-                    padding: "10px 12px",
-                    borderRadius: 8,
-                    background: "rgba(255,255,255,0.03)",
-                    border: "1px solid rgba(255,255,255,0.06)",
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
-                    gap: "7px 16px",
-                    animation: "fadeInUp 0.15s ease-out",
+                    marginTop: "8px",
+                    marginLeft: "40px",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    borderLeft: "2px solid var(--accent-cyan)",
+                    background: "rgba(0,229,255,0.04)",
                   }}
                 >
-                  {grupoLabel && (
-                    <InfoItem icon="📦" wide>
-                      {grupoLabel}
-                    </InfoItem>
-                  )}
-                  {produto.codigo && <InfoItem icon="🏷️">Código: {produto.codigo}</InfoItem>}
-                  {produto.fabricante && <InfoItem icon="🏭">Fabricante: {produto.fabricante}</InfoItem>}
-                  {produto.precoVenda != null && (
-                    <InfoItem icon="💵">Preço venda: {formatCurrencyBRL(produto.precoVenda)}</InfoItem>
-                  )}
-                  {produto.valorCusto != null && (
-                    <InfoItem icon="💰">Custo: {formatCurrencyBRL(produto.valorCusto)}</InfoItem>
-                  )}
-                  {produto.margem != null && (
-                    <InfoItem icon="📈">
-                      Margem: <MarginBadge margem={produto.margem} />
-                    </InfoItem>
-                  )}
-                  <InfoItem icon="🔢">
-                    {formatNumberBR(produto.quantidade)} un vendidas no período
-                  </InfoItem>
-                  {produto.estoqueAtual != null && (
-                    <InfoItem icon="📊">Estoque atual: {formatNumberBR(produto.estoqueAtual)} un</InfoItem>
-                  )}
-                  <InfoItem icon="💵">Valor vendido: {formatCurrencyBRL(produto.valor)}</InfoItem>
+                  {/* Lista vertical do hover */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {grupo && <InfoLinha icon="📦" texto={grupo} />}
+                    {produto.codigo && <InfoLinha icon="🏷️" texto={`Cód: ${produto.codigo}`} />}
+                    {produto.fabricante && <InfoLinha icon="🏭" texto={`Fabricante: ${produto.fabricante}`} />}
+                    {produto.precoVenda != null && produto.precoVenda > 0 && (
+                      <InfoLinha icon="💵" texto={`Preço venda: ${formatMoeda(produto.precoVenda)}`} />
+                    )}
+                    {produto.valorCusto != null && (
+                      <InfoLinha icon="💰" texto={`Custo: ${formatMoeda(produto.valorCusto)}`} />
+                    )}
+                    {produto.margem != null && (
+                      <InfoLinha
+                        icon="📈"
+                        texto=""
+                        custom={
+                          <span style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
+                            Margem: <MargemBadge margem={produto.margem} />
+                          </span>
+                        }
+                      />
+                    )}
+                    <InfoLinha icon="🔢" texto={`${produto.quantidade.toFixed(1)} un. vendidas no período`} />
+                    {produto.estoqueAtual != null && (
+                      <InfoLinha icon="📊" texto={`Estoque atual: ${formatNumero(produto.estoqueAtual)} un.`} />
+                    )}
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function InfoLinha({ icon, texto, custom }: { icon: string; texto: string; custom?: ReactNode }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+      <span style={{ fontSize: "16px", lineHeight: "1.4", flexShrink: 0 }}>{icon}</span>
+      {custom ?? (
+        <span
+          style={{
+            fontSize: "12px",
+            color: "var(--text-secondary)",
+            lineHeight: "1.4",
+            minWidth: 0,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {texto}
+        </span>
+      )}
     </div>
   );
 }
