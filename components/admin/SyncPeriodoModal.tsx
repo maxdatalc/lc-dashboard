@@ -11,6 +11,7 @@ import {
   ShoppingCart,
   Wrench,
   Package,
+  FileText,
   ArrowRight,
   AlertTriangle,
 } from "lucide-react";
@@ -25,7 +26,7 @@ interface Props {
   onCancelar: () => void;
 }
 
-type AbaId = "vendas" | "os" | "produtos";
+type AbaId = "vendas" | "os" | "produtos" | "itens";
 type StatusSync = "idle" | "rodando" | "concluido" | "erro";
 type StatusMes = "pendente" | "atual" | "concluido" | "erro";
 
@@ -43,6 +44,14 @@ interface EstadoProdutos {
   totalPaginas: number;
   produtosSalvos: number;
   erro: string | null;
+}
+
+interface EstadoItens {
+  status: StatusSync;
+  offset: number;
+  itensSalvos: number;
+  pagamentosSalvos: number;
+  erros: string[];
 }
 
 // ── Presets de período ────────────────────────────────────────────────────────
@@ -470,6 +479,205 @@ function SyncProdutosContent({
   );
 }
 
+// ── Sub-componente: conteúdo da aba Itens & Pagamentos ───────────────────────
+
+function SyncItensContent({
+  estado,
+  onIniciar,
+  onReiniciar,
+}: {
+  estado: EstadoItens;
+  onIniciar: () => void;
+  onReiniciar: () => void;
+}) {
+  if (estado.status === "idle") {
+    return (
+      <div>
+        <div
+          className="rounded-lg p-3 mb-3 text-xs"
+          style={{
+            background: "rgba(0,229,255,0.06)",
+            border: "1px solid rgba(0,229,255,0.15)",
+            color: "var(--accent-cyan, #00e5ff)",
+          }}
+        >
+          <p className="font-semibold mb-1">⚡ Por que sincronizar itens?</p>
+          <p style={{ color: "var(--text-secondary)", lineHeight: "1.6" }}>
+            Busca os produtos e formas de pagamento de cada venda.
+            Necessário para os gráficos de{" "}
+            <strong>Top Produtos</strong> e{" "}
+            <strong>Formas de Pagamento</strong> funcionarem.
+          </p>
+        </div>
+        <div
+          className="rounded-lg p-3 mb-4 text-xs"
+          style={{
+            background: "rgba(245,158,11,0.06)",
+            border: "1px solid rgba(245,158,11,0.15)",
+            color: "#f59e0b",
+          }}
+        >
+          ⏱️ Esta etapa pode demorar dependendo do volume de vendas.
+          Não feche esta janela durante o processo.
+        </div>
+        <button
+          onClick={onIniciar}
+          className="inline-flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-medium transition-colors"
+          style={{ background: "var(--accent-cyan, #00e5ff)", color: "#0a0f1e" }}
+        >
+          Iniciar sincronização
+        </button>
+      </div>
+    );
+  }
+
+  if (estado.status === "rodando") {
+    const loteAtual = Math.floor(estado.offset / 50) + 1;
+
+    return (
+      <div>
+        <div className="flex items-center gap-2 mb-4">
+          <Loader2
+            className="h-4 w-4 animate-spin flex-shrink-0"
+            style={{ color: "var(--accent-cyan, #00e5ff)" }}
+          />
+          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            Buscando itens e pagamentos — lote {loteAtual}...
+          </span>
+        </div>
+
+        {/* Contadores em tempo real */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div
+            className="rounded-lg p-3 text-center"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <div
+              className="text-xl font-semibold mb-0.5 tabular-nums"
+              style={{
+                color: "var(--accent-cyan, #00e5ff)",
+                fontFamily: "DM Serif Display, serif",
+              }}
+            >
+              {estado.itensSalvos.toLocaleString("pt-BR")}
+            </div>
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              itens sincronizados
+            </div>
+          </div>
+          <div
+            className="rounded-lg p-3 text-center"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <div
+              className="text-xl font-semibold mb-0.5 tabular-nums"
+              style={{
+                color: "#7c3aed",
+                fontFamily: "DM Serif Display, serif",
+              }}
+            >
+              {estado.pagamentosSalvos.toLocaleString("pt-BR")}
+            </div>
+            <div className="text-xs" style={{ color: "var(--text-muted)" }}>
+              pagamentos sincronizados
+            </div>
+          </div>
+        </div>
+
+        {/* Barra indeterminada */}
+        <div
+          className="rounded-full h-1.5 overflow-hidden"
+          style={{ background: "rgba(255,255,255,0.08)" }}
+        >
+          <div
+            className="h-full w-2/5 rounded-full shimmer"
+            style={{
+              background:
+                "linear-gradient(90deg, var(--accent-cyan, #00e5ff), #7c3aed)",
+            }}
+          />
+        </div>
+
+        <p className="text-xs text-center mt-3" style={{ color: "var(--text-muted)" }}>
+          ⚠️ Não feche esta janela durante a sincronização
+        </p>
+      </div>
+    );
+  }
+
+  // concluido ou erro
+  const sucesso = estado.status === "concluido";
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-4">
+        {sucesso ? (
+          <CheckCircle className="h-4 w-4 text-emerald-500" />
+        ) : (
+          <XCircle className="h-4 w-4 text-red-500" />
+        )}
+        <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+          {sucesso ? "Itens sincronizados com sucesso!" : "Concluído com erros"}
+        </span>
+      </div>
+
+      <div className="space-y-2 mb-4">
+        <div className="flex justify-between text-sm">
+          <span style={{ color: "var(--text-muted)" }}>Itens de venda</span>
+          <span className="font-medium font-mono" style={{ color: "var(--text-primary)" }}>
+            {estado.itensSalvos.toLocaleString("pt-BR")}
+          </span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span style={{ color: "var(--text-muted)" }}>Pagamentos</span>
+          <span className="font-medium font-mono" style={{ color: "var(--text-primary)" }}>
+            {estado.pagamentosSalvos.toLocaleString("pt-BR")}
+          </span>
+        </div>
+      </div>
+
+      {estado.erros.length > 0 && (
+        <div
+          className="rounded-lg p-3 border mb-4"
+          style={{
+            borderColor: "rgba(239,68,68,0.25)",
+            background: "rgba(239,68,68,0.05)",
+          }}
+        >
+          <p className="text-xs font-semibold text-red-500 mb-1.5">
+            {estado.erros.length} erro(s) — podem ser vendas sem itens no ERP
+          </p>
+          <ul className="space-y-1">
+            {estado.erros.slice(0, 5).map((e, i) => (
+              <li key={i} className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                {e}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <button
+        onClick={onReiniciar}
+        className="text-sm px-4 py-2 rounded-lg transition-colors"
+        style={{
+          background: "rgba(255,255,255,0.04)",
+          border: "1px solid var(--border-subtle)",
+          color: "var(--text-secondary)",
+        }}
+      >
+        Rodar novamente
+      </button>
+    </div>
+  );
+}
+
 // ── Componente principal ───────────────────────────────────────────────────────
 
 export function SyncInicialModal({
@@ -503,6 +711,14 @@ export function SyncInicialModal({
     totalPaginas: 0,
     produtosSalvos: 0,
     erro: null,
+  });
+
+  const [estadoItens, setEstadoItens] = useState<EstadoItens>({
+    status: "idle",
+    offset: 0,
+    itensSalvos: 0,
+    pagamentosSalvos: 0,
+    erros: [],
   });
 
   const canceladoRef = useRef(false);
@@ -673,12 +889,109 @@ export function SyncInicialModal({
     }
   }, [lojaId]);
 
+  // ── Sync de itens e pagamentos: loop por offset até tem_mais = false ─────
+
+  const iniciarSyncItens = useCallback(async () => {
+    canceladoRef.current = false;
+    setEstadoItens({
+      status: "rodando",
+      offset: 0,
+      itensSalvos: 0,
+      pagamentosSalvos: 0,
+      erros: [],
+    });
+
+    const LIMIT = 50;
+    let offset = 0;
+    let itensSalvos = 0;
+    let pagamentosSalvos = 0;
+    const erros: string[] = [];
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      if (canceladoRef.current) break;
+
+      let tentativas = 0;
+      let sucesso = false;
+
+      while (tentativas < 3) {
+        try {
+          const res = await fetch(
+            `/api/dashboard/resync-items?lojaId=${lojaId}&limit=${LIMIT}&offset=${offset}`
+          );
+          const data = (await res.json()) as {
+            itens_sincronizados?: number;
+            pagamentos_sincronizados?: number;
+            erros?: string[];
+            tem_mais?: boolean;
+            error?: string;
+          };
+
+          if (!res.ok) {
+            erros.push(`offset ${offset}: ${data.error ?? res.status}`);
+            tentativas++;
+            await new Promise((r) => setTimeout(r, 2000));
+            continue;
+          }
+
+          itensSalvos += data.itens_sincronizados ?? 0;
+          pagamentosSalvos += data.pagamentos_sincronizados ?? 0;
+
+          if (data.erros && data.erros.length > 0) {
+            erros.push(...data.erros.slice(0, 3));
+          }
+
+          setEstadoItens((prev) => ({
+            ...prev,
+            offset,
+            itensSalvos,
+            pagamentosSalvos,
+          }));
+
+          if (!data.tem_mais) {
+            setEstadoItens((prev) => ({
+              ...prev,
+              status: erros.length > 0 ? "erro" : "concluido",
+              erros,
+            }));
+            return;
+          }
+
+          offset += LIMIT;
+          sucesso = true;
+          break;
+        } catch (e) {
+          tentativas++;
+          if (tentativas >= 3) {
+            erros.push(
+              `offset ${offset}: ${e instanceof Error ? e.message : "Erro de rede"}`
+            );
+          } else {
+            await new Promise((r) => setTimeout(r, 2000));
+          }
+        }
+      }
+
+      if (!sucesso) break;
+
+      // Pausa entre lotes para não sobrecarregar a API
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+
+    setEstadoItens((prev) => ({
+      ...prev,
+      status: erros.length > 0 ? "erro" : "concluido",
+      erros,
+    }));
+  }, [lojaId]);
+
   // ── Status consolidado ────────────────────────────────────────────────────
 
   const abaStatus: Record<AbaId, StatusSync> = {
     vendas: estadoVendas.status,
     os: estadoOs.status,
     produtos: estadoProdutos.status,
+    itens: estadoItens.status,
   };
 
   const algumaRodando = Object.values(abaStatus).some((s) => s === "rodando");
@@ -694,6 +1007,7 @@ export function SyncInicialModal({
     { id: "vendas", label: "Vendas", icon: ShoppingCart },
     { id: "os", label: "O.S.", icon: Wrench },
     { id: "produtos", label: "Produtos", icon: Package },
+    { id: "itens", label: "Itens", icon: FileText },
   ];
 
   return (
@@ -899,6 +1213,21 @@ export function SyncInicialModal({
             <SyncProdutosContent
               estado={estadoProdutos}
               onIniciar={iniciarSyncProdutos}
+            />
+          )}
+          {abaAtiva === "itens" && (
+            <SyncItensContent
+              estado={estadoItens}
+              onIniciar={iniciarSyncItens}
+              onReiniciar={() =>
+                setEstadoItens({
+                  status: "idle",
+                  offset: 0,
+                  itensSalvos: 0,
+                  pagamentosSalvos: 0,
+                  erros: [],
+                })
+              }
             />
           )}
         </div>
