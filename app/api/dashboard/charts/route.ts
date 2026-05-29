@@ -2,6 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
 
+const IN_FILTER_BATCH_SIZE = 1000;
+const QUERY_PAGE_SIZE = 1000;
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function toNumber(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function toNullableNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
   // lojaIds (multi-loja, comma-sep) tem prioridade; lojaId mantido para compatibilidade
@@ -186,90 +208,235 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-produtos": {
-        // Filtra por tipo='venda' para incluir OS nos top produtos
-        const { data: vendas, error: errVendas } = await supabase
-          .from("vendas")
-          .select("external_id")
-          .in("loja_id", lojaIds)
-          .eq("status", "finalizada")
-          .eq("tipo", "venda")
-          .not("external_id", "is", null)
-          .gte("data_venda", start)
-          .lte("data_venda", end);
+        const vendasIds: Record<string, unknown>[] = [];
 
-        console.log(`[charts/top-produtos] vendas no período:`, vendas?.length ?? 0, "erro:", errVendas?.message);
-        if (errVendas) {
-          console.error("[charts/top-produtos] erro ao buscar vendas:", errVendas.message);
-          return NextResponse.json([]);
-        }
-        if (!vendas?.length) return NextResponse.json([]);
+        for (let offset = 0; ; offset += QUERY_PAGE_SIZE) {
+          const { data: vendasLote, error: errVendas } = await supabase
+            .from("vendas")
+            .select("external_id")
+            .in("loja_id", lojaIds)
+            .eq("tipo", "venda")
+            .eq("status", "finalizada")
+            .gte("data_venda", start)
+            .lte("data_venda", end)
+            .not("external_id", "is", null)
+            .range(offset, offset + QUERY_PAGE_SIZE - 1);
 
-        const externalIds = vendas.map((v) => v.external_id as string | number).filter(Boolean);
-        if (!externalIds.length) return NextResponse.json([]);
+          if (errVendas) {
+            console.error("[charts/top-produtos] erro:", errVendas.message);
+            return NextResponse.json([]);
+          }
 
-        // Chave do join: venda_itens.venda_external_id → vendas.external_id
-        const { data: itens, error: errItens } = await supabase
-          .from("venda_itens")
-          .select("produto_nome, quantidade, valor_total")
-          .in("loja_id", lojaIds)
-          .in("venda_external_id", externalIds);
-
-        console.log(`[charts/top-produtos] itens encontrados:`, itens?.length ?? 0, "erro:", errItens?.message);
-        if (errItens) {
-          console.error("[charts/top-produtos] erro ao buscar itens:", errItens.message);
-          return NextResponse.json([]);
-        }
-        if (!itens?.length) return NextResponse.json([]);
-
-        const agrupado: Record<string, { valor: number; quantidade: number }> = {};
-        for (const item of itens) {
-          const nome = (item.produto_nome as string) ?? "Produto";
-          if (!agrupado[nome]) agrupado[nome] = { valor: 0, quantidade: 0 };
-          agrupado[nome].valor += (item.valor_total as number) ?? 0;
-          agrupado[nome].quantidade += (item.quantidade as number) ?? 0;
+          vendasIds.push(...((vendasLote ?? []) as Record<string, unknown>[]));
+          if ((vendasLote?.length ?? 0) < QUERY_PAGE_SIZE) break;
         }
 
-        const resultado = Object.entries(agrupado)
-          .sort(([, a], [, b]) => b.valor - a.valor)
-          .slice(0, 8)
-          .map(([nome, d]) => ({ nome, ...d }));
+        console.log(`[charts/top-produtos] vendas no período:`, vendasIds.length);
+        if (!vendasIds.length) return NextResponse.json([]);
+
+        const ids = vendasIds.map((v) => v.external_id as string | number).filter(Boolean);
+        if (!ids.length) return NextResponse.json([]);
+
+        const itens: Record<string, unknown>[] = [];
+        for (const loteIds of chunkArray(ids, IN_FILTER_BATCH_SIZE)) {
+          const { data: itensLote, error: errItens } = await supabase
+            .from("venda_itens")
+            .select("produto_nome, produto_external_id, quantidade, valor_total, valor_unitario")
+            .in("loja_id", lojaIds)
+            .in("venda_external_id", loteIds);
+
+          if (errItens) {
+            console.error("[charts/top-produtos] erro:", errItens.message);
+            return NextResponse.json([]);
+          }
+
+          itens.push(...((itensLote ?? []) as Record<string, unknown>[]));
+        }
+
+        console.log(`[charts/top-produtos] itens encontrados:`, itens.length);
+        if (!itens.length) return NextResponse.json([]);
+
+        const porProduto = new Map<string, {
+          nome: string;
+          produtoExternalId: number | null;
+          valorTotal: number;
+          quantidade: number;
+          valorUnitario: number;
+        }>();
+
+        for (const i of itens) {
+          const nome = ((i.produto_nome as string) ?? "Produto").trim();
+          const produtoExternalId = toNullableNumber(i.produto_external_id);
+          const key = produtoExternalId != null ? `id:${produtoExternalId}` : `nome:${nome}`;
+          const existing = porProduto.get(key);
+          if (!existing) {
+            porProduto.set(key, {
+              nome,
+              produtoExternalId,
+              valorTotal: toNumber(i.valor_total),
+              quantidade: toNumber(i.quantidade),
+              valorUnitario: toNumber(i.valor_unitario),
+            });
+          } else {
+            existing.valorTotal += toNumber(i.valor_total);
+            existing.quantidade += toNumber(i.quantidade);
+            if (!existing.valorUnitario) existing.valorUnitario = toNumber(i.valor_unitario);
+          }
+        }
+
+        const top50 = Array.from(porProduto.values())
+          .sort((a, b) => b.valorTotal - a.valorTotal)
+          .slice(0, 50);
+
+        const produtoIds = Array.from(
+          new Set(top50.map((p) => p.produtoExternalId).filter((id): id is number => id != null))
+        );
+
+        let detalhesMap = new Map<number, Record<string, unknown>>();
+        if (produtoIds.length > 0) {
+          const produtosDetalhes: Record<string, unknown>[] = [];
+          for (const loteProdutoIds of chunkArray(produtoIds, IN_FILTER_BATCH_SIZE)) {
+            const { data: produtosLote, error: errProdutos } = await supabase
+              .from("produtos")
+              .select("external_id, codigo, grupo_nome, sub_grupo_nome, fabricante, preco_venda, valor_custo, estoque_atual")
+              .in("loja_id", lojaIds)
+              .in("external_id", loteProdutoIds);
+
+            if (errProdutos) {
+              console.error("[charts/top-produtos] erro detalhes:", errProdutos.message);
+              return NextResponse.json([]);
+            }
+
+            produtosDetalhes.push(...((produtosLote ?? []) as Record<string, unknown>[]));
+          }
+
+          detalhesMap = new Map(
+            produtosDetalhes.map((p) => [toNumber(p.external_id), p as Record<string, unknown>])
+          );
+        }
+
+        const resultado = top50.map((p) => {
+          const det = p.produtoExternalId ? detalhesMap.get(p.produtoExternalId) : null;
+          const precoVenda = toNullableNumber(det?.preco_venda) ?? p.valorUnitario;
+          const valorCusto = toNullableNumber(det?.valor_custo);
+          const margem =
+            valorCusto != null && precoVenda > 0
+              ? Number((((precoVenda - valorCusto) / precoVenda) * 100).toFixed(1))
+              : null;
+
+          return {
+            nome: p.nome,
+            valor: p.valorTotal,
+            quantidade: p.quantidade,
+            codigo: (det?.codigo as string) ?? null,
+            grupoNome: (det?.grupo_nome as string) ?? null,
+            subGrupo: (det?.sub_grupo_nome as string) ?? null,
+            fabricante: (det?.fabricante as string) ?? null,
+            precoVenda,
+            valorCusto,
+            margem,
+            estoqueAtual: (det?.estoque_atual as number) ?? null,
+          };
+        });
 
         return NextResponse.json(resultado);
       }
 
       case "top-clientes": {
-        // Filtra por tipo='venda' para incluir OS — CFOP=5933 seria excluído pelo filtro anterior
-        const { data, error } = await supabase
-          .from("vendas")
-          .select("cliente_nome, valor_total")
-          .in("loja_id", lojaIds)
-          .eq("status", "finalizada")
-          .eq("tipo", "venda")
-          .not("cliente_nome", "is", null)
-          .neq("cliente_nome", "")
-          .gte("data_venda", start)
-          .lte("data_venda", end);
+        const vendasData: Record<string, unknown>[] = [];
 
-        console.log(`[charts/top-clientes] rows encontrados:`, data?.length ?? 0, "erro:", error?.message);
-        if (error) {
-          console.error("[charts/top-clientes] erro:", error.message);
-          return NextResponse.json([]);
-        }
-        if (!data?.length) return NextResponse.json([]);
+        for (let offset = 0; ; offset += QUERY_PAGE_SIZE) {
+          const { data: vendasLote, error: errVendas } = await supabase
+            .from("vendas")
+            .select("cliente_nome, cliente_external_id, cpf_cnpj, valor_total, data_venda")
+            .in("loja_id", lojaIds)
+            .eq("tipo", "venda")
+            .eq("status", "finalizada")
+            .gte("data_venda", start)
+            .lte("data_venda", end)
+            .not("cliente_nome", "is", null)
+            .neq("cliente_nome", "")
+            .range(offset, offset + QUERY_PAGE_SIZE - 1);
 
-        const agrupado: Record<string, { total: number; compras: number }> = {};
-        for (const v of data) {
-          const nome = (v.cliente_nome as string).trim();
-          if (!nome) continue;
-          if (!agrupado[nome]) agrupado[nome] = { total: 0, compras: 0 };
-          agrupado[nome].total += (v.valor_total as number) ?? 0;
-          agrupado[nome].compras += 1;
+          if (errVendas) {
+            console.error("[charts/top-clientes] erro:", errVendas.message);
+            return NextResponse.json([]);
+          }
+
+          vendasData.push(...((vendasLote ?? []) as Record<string, unknown>[]));
+          if ((vendasLote?.length ?? 0) < QUERY_PAGE_SIZE) break;
         }
 
-        const resultado = Object.entries(agrupado)
-          .sort(([, a], [, b]) => b.total - a.total)
-          .slice(0, 8)
-          .map(([nome, d]) => ({ nome, ...d }));
+        console.log(`[charts/top-clientes] rows encontrados:`, vendasData.length);
+        if (!vendasData.length) return NextResponse.json([]);
+
+        const porCliente = new Map<string, {
+          nome: string;
+          clienteExternalId: number | null;
+          cpfCnpj: string;
+          total: number;
+          compras: number;
+          ultimaCompra: string;
+        }>();
+
+        for (const v of vendasData) {
+          const key = (v.cliente_nome as string).trim();
+          if (!key) continue;
+          const existing = porCliente.get(key);
+          if (!existing) {
+            porCliente.set(key, {
+              nome: key,
+              clienteExternalId: (v.cliente_external_id as number) ?? null,
+              cpfCnpj: (v.cpf_cnpj as string) ?? "",
+              total: (v.valor_total as number) ?? 0,
+              compras: 1,
+              ultimaCompra: v.data_venda as string,
+            });
+          } else {
+            existing.total += (v.valor_total as number) ?? 0;
+            existing.compras += 1;
+            if ((v.data_venda as string) > existing.ultimaCompra) {
+              existing.ultimaCompra = v.data_venda as string;
+            }
+          }
+        }
+
+        const top50 = Array.from(porCliente.values())
+          .sort((a, b) => b.total - a.total)
+          .slice(0, 50);
+
+        const externalIds = top50.map((c) => c.clienteExternalId).filter(Boolean) as number[];
+
+        let detalhesMap = new Map<number, Record<string, unknown>>();
+        if (externalIds.length > 0) {
+          const { data: clientesDetalhes } = await supabase
+            .from("clientes")
+            .select("external_id, email, telefone, cidade, estado, cnpj_cpf")
+            .in("loja_id", lojaIds)
+            .in("external_id", externalIds);
+          detalhesMap = new Map(
+            (clientesDetalhes ?? []).map((c) => [c.external_id as number, c as Record<string, unknown>])
+          );
+        }
+
+        const resultado = top50.map((c) => {
+          const det = c.clienteExternalId ? detalhesMap.get(c.clienteExternalId) : null;
+          const cnpjCpf = (det?.cnpj_cpf as string) ?? c.cpfCnpj ?? null;
+          const tipoPessoa = (cnpjCpf ?? "").replace(/\D/g, "").length === 14 ? "PJ" : "PF";
+          return {
+            nome: c.nome,
+            total: c.total,
+            compras: c.compras,
+            ticketMedio: c.total / c.compras,
+            ultimaCompra: c.ultimaCompra,
+            tipoPessoa,
+            cidade: (det?.cidade as string) ?? null,
+            estado: (det?.estado as string) ?? null,
+            email: (det?.email as string) ?? null,
+            telefone: (det?.telefone as string) ?? null,
+            cnpjCpf,
+          };
+        });
 
         return NextResponse.json(resultado);
       }
