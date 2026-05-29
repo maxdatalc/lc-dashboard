@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import type { ReactNode } from "react";
 
 export interface ProdutoItem {
   nome: string;
@@ -19,113 +18,97 @@ export interface ProdutoItem {
 
 export type TopProdutoData = ProdutoItem;
 
-type Ordenacao = "valor" | "quantidade";
-
-function formatMoeda(valor: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(valor);
-}
-
-function formatNumero(valor: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: 0,
-  }).format(valor);
-}
-
-function getRankColor(index: number): string {
-  if (index === 0) return "#f59e0b";
-  if (index === 1) return "#94a3b8";
-  if (index === 2) return "#a78bfa";
-  return "#475569";
-}
-
-function getMargemStyle(margem: number): { background: string; color: string } {
-  if (margem > 30) return { background: "rgba(16,185,129,0.15)", color: "#10b981" };
-  if (margem >= 15) return { background: "rgba(245,158,11,0.15)", color: "#f59e0b" };
-  return { background: "rgba(239,68,68,0.15)", color: "#ef4444" };
-}
-
-function MargemBadge({ margem }: { margem: number }) {
-  const style = getMargemStyle(margem);
-
+function InfoLinha({ icon, texto }: { icon: string; texto: string }) {
   return (
-    <span
-      style={{
-        padding: "1px 6px",
-        borderRadius: "4px",
-        fontWeight: 600,
-        background: style.background,
-        color: style.color,
-      }}
-    >
-      {margem.toFixed(1)}%
-    </span>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+      <span style={{ fontSize: "13px", lineHeight: "1.4", flexShrink: 0 }}>{icon}</span>
+      <span style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
+        {texto}
+      </span>
+    </div>
   );
 }
 
 export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
+  const [modo, setModo] = useState<"valor" | "qtd">("valor");
   const [expandido, setExpandido] = useState<number | null>(null);
-  const [ordenacao, setOrdenacao] = useState<Ordenacao>("valor");
+
+  const formatMoeda = (v: number) =>
+    new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
   if (!data.length) {
     return (
-      <div className="flex items-center justify-center py-8 text-xs" style={{ color: "var(--text-muted)" }}>
+      <div
+        className="flex items-center justify-center py-8 text-xs"
+        style={{ color: "var(--text-muted)" }}
+      >
         Sem dados disponíveis
       </div>
     );
   }
 
-  const produtos = [...data].sort((a, b) =>
-    ordenacao === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
+  const lista = [...data].sort((a, b) =>
+    modo === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
   );
-  const maxValor = produtos[0] ? (ordenacao === "valor" ? produtos[0].valor : produtos[0].quantidade) : 1;
+
+  const maxValor = lista[0]?.valor ?? 1;
+  const maxQtd = lista[0]?.quantidade ?? 1;
+
+  const corMargem = (m: number) => {
+    if (m > 30) return { bg: "rgba(16,185,129,0.15)", text: "#10b981" };
+    if (m > 15) return { bg: "rgba(245,158,11,0.15)", text: "#f59e0b" };
+    return { bg: "rgba(239,68,68,0.15)", text: "#ef4444" };
+  };
+
+  const corRanking = (i: number) => {
+    if (i === 0) return "#f59e0b";
+    if (i === 1) return "#94a3b8";
+    if (i === 2) return "#a78bfa";
+    return "#475569";
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
-        {(["valor", "quantidade"] as const).map((modo) => {
-          const ativo = ordenacao === modo;
-
-          return (
-            <button
-              key={modo}
-              type="button"
-              onClick={() => setOrdenacao(modo)}
-              style={{
-                padding: "4px 12px",
-                borderRadius: "999px",
-                border: ativo ? "1px solid rgba(0,229,255,0.35)" : "1px solid rgba(255,255,255,0.06)",
-                background: ativo ? "rgba(0,229,255,0.14)" : "transparent",
-                color: ativo ? "#00e5ff" : "var(--text-muted)",
-                fontSize: "12px",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "background 0.15s ease, color 0.15s ease, border-color 0.15s ease",
-              }}
-            >
-              {modo === "valor" ? "Valor" : "Qtd"}
-            </button>
-          );
-        })}
+    <div>
+      {/* Toggle Valor/Qtd */}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+        {(["valor", "qtd"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setModo(m)}
+            style={{
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "12px",
+              fontWeight: 500,
+              border: "1px solid",
+              cursor: "pointer",
+              background: modo === m ? "var(--accent-cyan)" : "transparent",
+              borderColor: modo === m ? "var(--accent-cyan)" : "rgba(255,255,255,0.12)",
+              color: modo === m ? "#0a0f1e" : "var(--text-secondary)",
+              transition: "all 0.15s",
+            }}
+          >
+            {m === "valor" ? "Valor" : "Qtd"}
+          </button>
+        ))}
       </div>
 
-      <div className="custom-scroll" style={{ height: "400px", overflowY: "auto", paddingRight: "4px" }}>
-        {produtos.map((produto, i) => {
+      {/* Lista com scroll */}
+      <div
+        className="custom-scroll"
+        style={{ height: "380px", overflowY: "auto", paddingRight: "4px" }}
+      >
+        {lista.map((produto, i) => {
           const isExpanded = expandido === i;
-          const valorBase = ordenacao === "valor" ? produto.valor : produto.quantidade;
-          const progresso = maxValor > 0 ? Math.min((valorBase / maxValor) * 100, 100) : 0;
-          const grupo = produto.grupoNome
-            ? `Grupo: ${produto.grupoNome}${produto.subGrupo ? ` › ${produto.subGrupo}` : ""}`
-            : produto.subGrupo
-            ? `Grupo: ${produto.subGrupo}`
-            : "";
+          const barraWidth =
+            modo === "valor"
+              ? (produto.valor / maxValor) * 100
+              : (produto.quantidade / maxQtd) * 100;
 
           return (
             <div
-              key={`${produto.codigo ?? produto.nome}-${i}`}
+              key={i}
               onMouseEnter={() => setExpandido(i)}
               onMouseLeave={() => setExpandido(null)}
               style={{
@@ -135,23 +118,23 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                 cursor: "default",
               }}
             >
-              {/* Linha principal do ranking */}
+              {/* Linha principal */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span
                   style={{
                     fontSize: "11px",
-                    fontWeight: 600,
-                    minWidth: "30px",
-                    color: getRankColor(i),
+                    fontWeight: 700,
+                    minWidth: "24px",
+                    flexShrink: 0,
+                    color: corRanking(i),
                   }}
                 >
                   #{i + 1}
                 </span>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                  <div style={{ marginBottom: "4px" }}>
                     <span
-                      title={produto.nome}
                       style={{
                         fontSize: "12px",
                         fontWeight: 500,
@@ -159,20 +142,27 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
+                        display: "block",
                       }}
+                      title={produto.nome}
                     >
                       {produto.nome}
                     </span>
-                    {produto.margem != null && <MargemBadge margem={produto.margem} />}
                   </div>
-
-                  <div style={{ height: "2px", background: "rgba(255,255,255,0.06)", borderRadius: "1px" }}>
+                  <div
+                    style={{
+                      height: "2px",
+                      background: "rgba(255,255,255,0.06)",
+                      borderRadius: "1px",
+                    }}
+                  >
                     <div
                       style={{
-                        width: `${progresso}%`,
+                        width: `${barraWidth}%`,
                         height: "100%",
                         borderRadius: "1px",
-                        background: "linear-gradient(90deg, #00e5ff 0%, rgba(0,229,255,0.2) 100%)",
+                        background:
+                          "linear-gradient(90deg, #00e5ff 0%, rgba(0,229,255,0.2) 100%)",
                         transition: "width 0.8s ease",
                       }}
                     />
@@ -189,82 +179,91 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {ordenacao === "valor" ? formatMoeda(produto.valor) : `${formatNumero(produto.quantidade)} un.`}
+                  {modo === "valor"
+                    ? formatMoeda(produto.valor)
+                    : `${produto.quantidade.toFixed(0)} un`}
                 </span>
               </div>
 
-              <div
-                style={{
-                  maxHeight: isExpanded ? "260px" : "0px",
-                  opacity: isExpanded ? 1 : 0,
-                  overflow: "hidden",
-                  transition: "max-height 0.2s ease-out, opacity 0.2s ease-out",
-                }}
-              >
+              {/* Painel expandido ao hover */}
+              {isExpanded && (
                 <div
                   style={{
                     marginTop: "8px",
-                    marginLeft: "40px",
+                    marginLeft: "34px",
                     padding: "10px 14px",
                     borderRadius: "8px",
                     borderLeft: "2px solid var(--accent-cyan)",
                     background: "rgba(0,229,255,0.04)",
+                    animation: "fadeInUp 0.15s ease-out",
                   }}
                 >
-                  {/* Lista vertical do hover */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                    {grupo && <InfoLinha icon="📦" texto={grupo} />}
-                    {produto.codigo && <InfoLinha icon="🏷️" texto={`Cód: ${produto.codigo}`} />}
-                    {produto.fabricante && <InfoLinha icon="🏭" texto={`Fabricante: ${produto.fabricante}`} />}
-                    {produto.precoVenda != null && produto.precoVenda > 0 && (
-                      <InfoLinha icon="💵" texto={`Preço venda: ${formatMoeda(produto.precoVenda)}`} />
-                    )}
-                    {produto.valorCusto != null && (
-                      <InfoLinha icon="💰" texto={`Custo: ${formatMoeda(produto.valorCusto)}`} />
-                    )}
-                    {produto.margem != null && (
+                    {produto.grupoNome && (
                       <InfoLinha
-                        icon="📈"
-                        texto=""
-                        custom={
-                          <span style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
-                            Margem: <MargemBadge margem={produto.margem} />
-                          </span>
+                        icon="📦"
+                        texto={
+                          produto.subGrupo
+                            ? `${produto.grupoNome.trim()} › ${produto.subGrupo.trim()}`
+                            : produto.grupoNome.trim()
                         }
                       />
                     )}
-                    <InfoLinha icon="🔢" texto={`${produto.quantidade.toFixed(1)} un. vendidas no período`} />
+                    {produto.codigo && (
+                      <InfoLinha icon="🏷️" texto={`Cód: ${produto.codigo}`} />
+                    )}
+                    {produto.fabricante && (
+                      <InfoLinha icon="🏭" texto={`Fabricante: ${produto.fabricante}`} />
+                    )}
+                    {produto.precoVenda != null && produto.precoVenda > 0 && (
+                      <InfoLinha
+                        icon="💵"
+                        texto={`Preço venda: ${formatMoeda(produto.precoVenda)}`}
+                      />
+                    )}
+                    {produto.valorCusto != null && produto.valorCusto > 0 && (
+                      <InfoLinha
+                        icon="💰"
+                        texto={`Custo: ${formatMoeda(produto.valorCusto)}`}
+                      />
+                    )}
+                    {produto.margem != null && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ fontSize: "13px", flexShrink: 0 }}>📈</span>
+                        <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                          Margem:{" "}
+                          <span
+                            style={{
+                              padding: "2px 8px",
+                              borderRadius: "4px",
+                              fontWeight: 600,
+                              fontSize: "11px",
+                              background: corMargem(produto.margem).bg,
+                              color: corMargem(produto.margem).text,
+                            }}
+                          >
+                            {produto.margem.toFixed(1)}%
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    <InfoLinha
+                      icon="🔢"
+                      texto={`${produto.quantidade.toFixed(0)} un. vendidas no período`}
+                    />
                     {produto.estoqueAtual != null && (
-                      <InfoLinha icon="📊" texto={`Estoque atual: ${formatNumero(produto.estoqueAtual)} un.`} />
+                      <InfoLinha
+                        icon="📊"
+                        texto={`Estoque atual: ${produto.estoqueAtual} un.`}
+                      />
                     )}
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function InfoLinha({ icon, texto, custom }: { icon: string; texto: string; custom?: ReactNode }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-      <span style={{ fontSize: "16px", lineHeight: "1.4", flexShrink: 0 }}>{icon}</span>
-      {custom ?? (
-        <span
-          style={{
-            fontSize: "12px",
-            color: "var(--text-secondary)",
-            lineHeight: "1.4",
-            minWidth: 0,
-            overflowWrap: "anywhere",
-          }}
-        >
-          {texto}
-        </span>
-      )}
     </div>
   );
 }
