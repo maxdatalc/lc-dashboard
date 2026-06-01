@@ -1,7 +1,7 @@
 // Edge Function: sync-erp-inicial
-// Processa UM mês de vendas por invocação.
-// Chamada sequencialmente pelo frontend (SyncInicialModal) até completar 13 meses.
-// Itens e pagamentos por venda são omitidos aqui — o sync incremental os preenche.
+// Processa UM intervalo de datas (tipicamente uma semana) por invocação.
+// Chamada sequencialmente pelo frontend (SyncPeriodoModal) semana por semana.
+// Usa filtro de data da API MaxData — sem buscar tudo e filtrar no JS.
 
 import { createClient } from "npm:@supabase/supabase-js";
 import { decrypt } from "../sync-erp/crypto.ts";
@@ -39,21 +39,22 @@ interface CfopRow {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-function toBrazilianISOString(date: Date): string {
-  const offset = -3 * 60;
-  const local = new Date(date.getTime() + offset * 60 * 1000);
-  return local.toISOString().replace("Z", "-03:00");
-}
-
 Deno.serve(async (req) => {
   try {
+    // Body: { lojaId, dataInicial: "YYYY-MM-DD", dataFinal: "YYYY-MM-DD" }
     const body = await req.json() as {
       lojaId: string;
-      mes: string;
-      chunkAtual: number;
-      totalChunks: number;
+      dataInicial: string;
+      dataFinal: string;
     };
-    const { lojaId, mes, chunkAtual, totalChunks } = body;
+    const { lojaId, dataInicial, dataFinal } = body;
+
+    if (!lojaId || !dataInicial || !dataFinal) {
+      return new Response(
+        JSON.stringify({ error: "Campos obrigatórios: lojaId, dataInicial, dataFinal" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -84,48 +85,42 @@ Deno.serve(async (req) => {
       terminal,
     });
 
-    // 3. Calcular range do mês alvo
-    const [ano, mesNum] = mes.split("-").map(Number);
-    const inicio = new Date(ano, mesNum - 1, 1, 0, 0, 0);
-    const fim = new Date(ano, mesNum, 0, 23, 59, 59); // último dia do mês
+    // 3. Construir filtros ISO com timezone Brasil
+    const dataInicialISO = `${dataInicial}T00:00:00-03:00`;
+    const dataFinalISO = `${dataFinal}T23:59:59-03:00`;
 
-    const dataInicial = toBrazilianISOString(inicio);
-    const dataFinal = toBrazilianISOString(fim);
+    console.log(`[sync-inicial] ${dataInicial} → ${dataFinal}`);
 
-    console.log(
-      `[sync-inicial] chunk ${chunkAtual}/${totalChunks} — ` +
-      `${mes} (${dataInicial} → ${dataFinal})`
-    );
-
-    // 4. Buscar vendas (tenta filtro de data, fallback sem filtro + filtro JS)
+    // 4. Buscar vendas com filtro de data (API MaxData aceita dataInicial/dataFinal)
+    //    Fallback: se retornar 0, busca tudo e filtra por intervalo no JS
     let vendas = await fetchAllPages<MaxDataVenda>(
       token,
       lojaRow.erp_base_url,
       "/sale",
-      { dataInicial, dataFinal },
-      300 // máx 300 páginas × 50 = 15.000 vendas por mês
+      { dataInicial: dataInicialISO, dataFinal: dataFinalISO },
+      500 // máx 500 páginas × 50 = 25.000 vendas por semana
     );
 
     if (vendas.length === 0) {
-      console.log(`[sync-inicial] ${mes}: filtro de data retornou 0 — buscando sem filtro e filtrando no JS`);
+      console.log(`[sync-inicial] ${dataInicial}→${dataFinal}: filtro retornou 0 — fallback sem filtro`);
       const todas = await fetchAllPages<MaxDataVenda>(
         token,
         lojaRow.erp_base_url,
         "/sale",
         {},
-        300
+        500
       );
       vendas = todas.filter((v) => {
         const raw = v.fechamento ?? v.abertura;
         if (!raw) return false;
-        const d = new Date(raw);
-        return d.getFullYear() === ano && (d.getMonth() + 1) === mesNum;
+        const dataVenda = new Date(raw).toISOString().split("T")[0];
+        return dataVenda >= dataInicial && dataVenda <= dataFinal;
       });
     }
 
-    console.log(`[sync-inicial] ${mes}: ${vendas.length} vendas encontradas`);
+    console.log(`[sync-inicial] ${dataInicial}→${dataFinal}: ${vendas.length} vendas encontradas`);
 
-    // 5. Buscar mapa de CFOPs
+    // 5. Buscar mapa de CFOPs para classificação
     const { data: cfopRows } = await supabase
       .from("cfop_classificacoes")
       .select("cfop, tipo, subtipo");
@@ -138,7 +133,7 @@ Deno.serve(async (req) => {
     );
 
     // 6. Mapear, deduplicar e salvar vendas em lotes de 200
-    let vendasSalvasNesteMes = 0;
+    let vendasSalvasNestePeriodo = 0;
 
     if (vendas.length > 0) {
       const agora = new Date().toISOString();
@@ -150,7 +145,7 @@ Deno.serve(async (req) => {
           external_id: v.id,
           source: "sale",
           numero_venda: String(v.id),
-          data_venda: (v.fechamento ?? v.abertura ?? dataInicial).split("T")[0],
+          data_venda: (v.fechamento ?? v.abertura ?? dataInicialISO).split("T")[0],
           cliente_external_id: v.clienteId ?? null,
           cliente_nome: v.clienteNome ?? null,
           cpf_cnpj: v.cpfCnpj ?? null,
@@ -165,7 +160,7 @@ Deno.serve(async (req) => {
         };
       });
 
-      // Deduplicar por external_id (mantém primeira ocorrência)
+      // Deduplicar por external_id — mantém primeira ocorrência
       const seen = new Set<number>();
       const unicos = rows.filter((r) => {
         if (seen.has(r.external_id)) return false;
@@ -182,22 +177,22 @@ Deno.serve(async (req) => {
         await sleep(50);
       }
 
-      vendasSalvasNesteMes = unicos.length;
+      vendasSalvasNestePeriodo = unicos.length;
     }
 
-    // 7. Sincronizar Ordens de Serviço do mês (se habilitado para esta loja)
+    // 7. Sincronizar Ordens de Serviço do período (se habilitado para esta loja)
     if (lojaRow.sync_services_enabled) {
-      console.log(`[sync-inicial] Loja ${lojaId}: buscando ordens de serviço para ${mes}`);
+      console.log(`[sync-inicial] Loja ${lojaId}: buscando OS para ${dataInicial}→${dataFinal}`);
 
       let todasOs = await fetchAllPages<Record<string, unknown>>(
         token,
         lojaRow.erp_base_url,
         "/serviceorder",
-        { dataInicial, dataFinal },
+        { dataInicial: dataInicialISO, dataFinal: dataFinalISO },
         300
       );
 
-      // Fallback sem filtro de data se retornou 0
+      // Fallback sem filtro de data
       if (todasOs.length === 0) {
         const todas = await fetchAllPages<Record<string, unknown>>(
           token,
@@ -209,12 +204,12 @@ Deno.serve(async (req) => {
         todasOs = todas.filter((os) => {
           const raw = (os.dataFechamento ?? os.dataAbertura) as string | undefined;
           if (!raw) return false;
-          const d = new Date(raw);
-          return d.getFullYear() === ano && (d.getMonth() + 1) === mesNum;
+          const dataOs = new Date(raw).toISOString().split("T")[0];
+          return dataOs >= dataInicial && dataOs <= dataFinal;
         });
       }
 
-      console.log(`[sync-inicial] ${mes}: ${todasOs.length} OS encontradas`);
+      console.log(`[sync-inicial] ${dataInicial}→${dataFinal}: ${todasOs.length} OS encontradas`);
 
       if (todasOs.length > 0) {
         const agora = new Date().toISOString();
@@ -244,7 +239,7 @@ Deno.serve(async (req) => {
           loja_id: lojaId,
           external_id: os.id as number,
           numero_venda: `OS-${os.id as number}`,
-          data_venda: ((os.dataFechamento ?? os.dataAbertura ?? dataInicial) as string).split("T")[0],
+          data_venda: ((os.dataFechamento ?? os.dataAbertura ?? dataInicialISO) as string).split("T")[0],
           cliente_external_id: (os.clienteId as number) ?? null,
           cliente_nome: (os.clienteNome as string) ?? null,
           cpf_cnpj: (os.cpf as string) ?? null,
@@ -252,7 +247,7 @@ Deno.serve(async (req) => {
           valor_desconto: (os.valorTotalDesconto ?? 0) as number,
           valor_total: (os.totalNf ?? os.valorTotalServico ?? 0) as number,
           status: ((os.status ?? os.statusOs ?? "pendente") as string).toLowerCase(),
-          cfop: 5933, // ISSQN padrão para serviços
+          cfop: 5933,
           tipo: "venda",
           subtipo: "servico",
           source: "os",
@@ -261,7 +256,6 @@ Deno.serve(async (req) => {
           sincronizado_em: agora,
         }));
 
-        // Deduplicar por external_id
         const seenOs = new Set<number>();
         const osUnicos = osRows.filter((r) => {
           if (seenOs.has(r.external_id)) return false;
@@ -274,12 +268,11 @@ Deno.serve(async (req) => {
           const { error: osErr } = await supabase
             .from("vendas")
             .upsert(lote, { onConflict: "loja_id,external_id,source" });
-          // Erros em OS não interrompem o sync — apenas loga
-          if (osErr) console.error(`[sync-inicial] Erro ao salvar OS lote ${i}:`, osErr.message);
+          if (osErr) console.error(`[sync-inicial] Erro OS lote ${i}:`, osErr.message);
           await sleep(50);
         }
 
-        // Sincronizar itens que vêm embutidos no objeto OS
+        // Itens embutidos nas OS
         for (const os of todasOs) {
           const osExternalId = os.id as number;
           const itens = os.itens as Array<Record<string, unknown>> | undefined;
@@ -302,45 +295,34 @@ Deno.serve(async (req) => {
           await sleep(100);
         }
 
-        vendasSalvasNesteMes += osUnicos.length;
+        vendasSalvasNestePeriodo += osUnicos.length;
       }
     }
 
-    // 8. (era 7) Calcular próximo mês e verificar se concluiu
-    const proxData = new Date(ano, mesNum, 1); // mês seguinte
-    const proximoMes =
-      `${proxData.getFullYear()}-${String(proxData.getMonth() + 1).padStart(2, "0")}`;
-
-    const hoje = new Date();
-    const mesAtualStr =
-      `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}`;
-    const concluido = mes >= mesAtualStr;
-
-    // 8. Contar total de vendas salvas para esta loja
+    // 8. Contar total de vendas salvas para esta loja e atualizar progresso
     const { count: totalVendasSalvas } = await supabase
       .from("vendas")
       .select("id", { count: "exact", head: true })
       .eq("loja_id", lojaId);
 
-    // 9. Atualizar progresso no sync_inicial
     await supabase
       .from("sync_inicial")
-      .update({
-        status: concluido ? "concluido" : "em_andamento",
-        chunk_atual: chunkAtual,
-        mes_atual: mes,
-        vendas_salvas: totalVendasSalvas ?? 0,
-        atualizado_em: new Date().toISOString(),
-        ...(concluido ? { concluido_em: new Date().toISOString() } : {}),
-      })
-      .eq("loja_id", lojaId);
+      .upsert(
+        {
+          loja_id: lojaId,
+          status: "em_andamento",
+          mes_atual: dataInicial,
+          vendas_salvas: totalVendasSalvas ?? 0,
+          atualizado_em: new Date().toISOString(),
+        },
+        { onConflict: "loja_id" }
+      );
 
     return new Response(
       JSON.stringify({
-        mes_processado: mes,
-        vendas_salvas: vendasSalvasNesteMes,
-        proximo_mes: concluido ? null : proximoMes,
-        concluido,
+        periodo_processado: `${dataInicial} → ${dataFinal}`,
+        vendas_salvas: vendasSalvasNestePeriodo,
+        concluido: true,
       }),
       { headers: { "Content-Type": "application/json" } }
     );

@@ -69,17 +69,38 @@ const PRESETS = [
 
 const HOJE = new Date();
 
-function calcularMeses(inicio: Date, fim: Date): string[] {
-  const meses: string[] = [];
-  const cur = new Date(inicio.getFullYear(), inicio.getMonth(), 1);
-  const end = new Date(fim.getFullYear(), fim.getMonth(), 1);
-  while (cur <= end) {
-    meses.push(
-      `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`
-    );
-    cur.setMonth(cur.getMonth() + 1);
+interface Semana {
+  dataInicial: string; // "YYYY-MM-DD"
+  dataFinal: string;   // "YYYY-MM-DD"
+  label: string;       // "01-07 mai"
+}
+
+// Divide um intervalo em semanas de 7 dias para envio à Edge Function
+function calcularSemanas(inicio: string, fim: string): Semana[] {
+  const semanas: Semana[] = [];
+  const d = new Date(inicio + "T12:00:00");
+  const fim2 = new Date(fim + "T12:00:00");
+
+  while (d <= fim2) {
+    const inicioSemana = d.toISOString().split("T")[0];
+
+    const fimSemana = new Date(d);
+    fimSemana.setDate(fimSemana.getDate() + 6);
+    const dataFinalSemana =
+      fimSemana > fim2
+        ? fim2.toISOString().split("T")[0]
+        : fimSemana.toISOString().split("T")[0];
+
+    const mes = new Date(inicioSemana + "T12:00:00").toLocaleDateString("pt-BR", {
+      month: "short",
+    });
+    const label = `${inicioSemana.slice(8)}-${dataFinalSemana.slice(8)} ${mes}`;
+
+    semanas.push({ dataInicial: inicioSemana, dataFinal: dataFinalSemana, label });
+    d.setDate(d.getDate() + 7);
   }
-  return meses;
+
+  return semanas;
 }
 
 function toInputDate(d: Date): string {
@@ -270,8 +291,8 @@ function SyncAbaContent({
           {mesesPreview.length > 0
             ? `${mesesPreview.length} ${
                 mesesPreview.length === 1
-                  ? "mês será sincronizado"
-                  : "meses serão sincronizados"
+                  ? "semana será sincronizada"
+                  : "semanas serão sincronizadas"
               }`
             : "Selecione um período acima para continuar."}
         </p>
@@ -730,25 +751,24 @@ export function SyncInicialModal({
     setDataFim(toInputDate(HOJE));
   };
 
-  const mesesPreview =
-    dataInicio && dataFim
-      ? calcularMeses(
-          new Date(dataInicio + "T00:00:00"),
-          new Date(dataFim + "T00:00:00")
-        )
-      : [];
+  // Semanas do período selecionado — recalculado ao mudar datas
+  const semanasPreview =
+    dataInicio && dataFim ? calcularSemanas(dataInicio, dataFim) : [];
 
-  // ── Sync mensal genérico — usado por Vendas e OS ──────────────────────────
+  // Labels para o SyncAbaContent (mantém assinatura do componente)
+  const mesesPreview = semanasPreview.map((s) => s.label);
 
-  const iniciarSyncMensal = useCallback(
+  // ── Sync semanal genérico — usado por Vendas e OS ─────────────────────────
+
+  const iniciarSyncSemanal = useCallback(
     async (
-      meses: string[],
+      semanas: Semana[],
       setEstado: React.Dispatch<React.SetStateAction<EstadoAbaMensal>>
     ) => {
       canceladoRef.current = false;
 
       const statusInicial: Record<string, StatusMes> = {};
-      for (const m of meses) statusInicial[m] = "pendente";
+      for (const s of semanas) statusInicial[s.label] = "pendente";
 
       setEstado({
         status: "rodando",
@@ -761,14 +781,14 @@ export function SyncInicialModal({
       let totalItens = 0;
       const erros: string[] = [];
 
-      for (let i = 0; i < meses.length; i++) {
+      for (let i = 0; i < semanas.length; i++) {
         if (canceladoRef.current) break;
-        const mes = meses[i];
+        const semana = semanas[i];
 
         setEstado((prev) => ({
           ...prev,
-          mesAtual: mes,
-          statusMeses: { ...prev.statusMeses, [mes]: "atual" },
+          mesAtual: semana.label,
+          statusMeses: { ...prev.statusMeses, [semana.label]: "atual" },
         }));
 
         try {
@@ -777,9 +797,8 @@ export function SyncInicialModal({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               lojaId,
-              mes,
-              chunkAtual: i + 1,
-              totalChunks: meses.length,
+              dataInicial: semana.dataInicial,
+              dataFinal: semana.dataFinal,
             }),
           });
           const data = (await res.json()) as {
@@ -788,33 +807,33 @@ export function SyncInicialModal({
           };
 
           if (!res.ok) {
-            erros.push(`${mes}: ${data.error ?? "Erro desconhecido"}`);
+            erros.push(`${semana.label}: ${data.error ?? "Erro desconhecido"}`);
             setEstado((prev) => ({
               ...prev,
-              statusMeses: { ...prev.statusMeses, [mes]: "erro" },
+              statusMeses: { ...prev.statusMeses, [semana.label]: "erro" },
             }));
           } else {
             totalItens += data.vendas_salvas ?? 0;
             setEstado((prev) => ({
               ...prev,
-              statusMeses: { ...prev.statusMeses, [mes]: "concluido" },
+              statusMeses: { ...prev.statusMeses, [semana.label]: "concluido" },
               totalItens,
             }));
           }
         } catch (e) {
           erros.push(
-            `${mes}: ${e instanceof Error ? e.message : "Erro de rede"}`
+            `${semana.label}: ${e instanceof Error ? e.message : "Erro de rede"}`
           );
           setEstado((prev) => ({
             ...prev,
-            statusMeses: { ...prev.statusMeses, [mes]: "erro" },
+            statusMeses: { ...prev.statusMeses, [semana.label]: "erro" },
           }));
         }
       }
 
       setEstado((prev) => ({
         ...prev,
-        status: erros.length === meses.length ? "erro" : "concluido",
+        status: erros.length === semanas.length ? "erro" : "concluido",
         mesAtual: null,
         totalItens,
         erros,
@@ -1195,7 +1214,7 @@ export function SyncInicialModal({
               mesesPreview={mesesPreview}
               labelItens="Vendas importadas"
               onIniciar={() =>
-                iniciarSyncMensal(mesesPreview, setEstadoVendas)
+                iniciarSyncSemanal(semanasPreview, setEstadoVendas)
               }
             />
           )}
@@ -1206,7 +1225,7 @@ export function SyncInicialModal({
               labelItens="Ordens de serviço importadas"
               disabled={!syncServicesEnabled}
               disabledMsg="Sync de O.S. não está habilitado para esta loja. Ative a opção nas configurações da loja para habilitar."
-              onIniciar={() => iniciarSyncMensal(mesesPreview, setEstadoOs)}
+              onIniciar={() => iniciarSyncSemanal(semanasPreview, setEstadoOs)}
             />
           )}
           {abaAtiva === "produtos" && (
