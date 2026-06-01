@@ -89,6 +89,42 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
   const [syncServicesEnabled, setSyncServicesEnabled] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
 
+  // IDs de lojas com sync ativo na fila (pg_cron)
+  const [lojasComSync, setLojasComSync] = useState<Set<string>>(new Set());
+
+  // Verificar status de sync para cada loja ao montar e a cada 15s
+  useEffect(() => {
+    const verificar = async () => {
+      const novosAtivos = new Set<string>();
+      await Promise.all(
+        lojas.map(async (loja) => {
+          try {
+            const res = await fetch(
+              `/api/admin/sync-queue?lojaId=${loja.id}`
+            );
+            if (!res.ok) return;
+            const data = await res.json() as {
+              resumo: { pendentes: number; processando: number };
+            };
+            if (
+              (data.resumo.pendentes > 0 || data.resumo.processando > 0)
+            ) {
+              novosAtivos.add(loja.id);
+            }
+          } catch {
+            // silencioso
+          }
+        })
+      );
+      setLojasComSync(novosAtivos);
+    };
+
+    void verificar();
+    const interval = setInterval(() => void verificar(), 15_000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojas.map((l) => l.id).join(",")]);
+
   const handleSyncConcluido = () => {
     setSyncLojaId(null);
     router.refresh(); // recarrega dados do Server Component pai
@@ -217,6 +253,23 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* Badge de sync em andamento */}
+                      {lojasComSync.has(loja.id) && (
+                        <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
+                          style={{
+                            background: "rgba(0,229,255,0.1)",
+                            color: "var(--accent-cyan, #06b6d4)",
+                            border: "1px solid rgba(0,229,255,0.25)",
+                          }}
+                        >
+                          <span
+                            className="w-1.5 h-1.5 rounded-full animate-pulse"
+                            style={{ background: "var(--accent-cyan, #06b6d4)" }}
+                          />
+                          Sync ativo
+                        </span>
+                      )}
+
                       <ToggleLojaButton
                         lojaId={loja.id}
                         isActive={loja.isActive}
@@ -228,9 +281,14 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                           setSyncNomeLoja(loja.name);
                           setSyncServicesEnabled(loja.syncServicesEnabled);
                         }}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                        className="text-xs font-medium transition-colors"
+                        style={{
+                          color: lojasComSync.has(loja.id)
+                            ? "var(--accent-cyan, #06b6d4)"
+                            : "#2563eb",
+                        }}
                       >
-                        Sincronizar
+                        {lojasComSync.has(loja.id) ? "Ver progresso" : "Sincronizar"}
                       </button>
                       <BotaoLimparDados
                         lojaId={loja.id}

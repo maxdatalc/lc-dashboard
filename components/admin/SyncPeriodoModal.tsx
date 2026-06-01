@@ -783,6 +783,21 @@ export function SyncInicialModal({
   const [modoBackground, setModoBackground] = useState(false);
   const [jobsStatus, setJobsStatus] = useState<SyncQueueStatus | null>(null);
 
+  // Na montagem: verificar automaticamente se já há jobs ativos para retomar
+  useEffect(() => {
+    fetch(`/api/admin/sync-queue?lojaId=${lojaId}`)
+      .then((r) => r.json() as Promise<SyncQueueStatus>)
+      .then((data) => {
+        if (data.resumo.pendentes > 0 || data.resumo.processando > 0) {
+          setJobsStatus(data);
+          setModoBackground(true);
+          setEstadoVendas((prev) => ({ ...prev, status: "rodando" }));
+        }
+      })
+      .catch(() => {}); // silencioso — falha não deve bloquear o modal
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaId]);
+
   // Polling a cada 5s quando em modo background
   useEffect(() => {
     if (!modoBackground) return;
