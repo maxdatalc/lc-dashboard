@@ -1,6 +1,8 @@
-// API route para o sync inicial por mês
-// POST — inicializa o controle e proxy para a Edge Function sync-erp-inicial
+// API route para o sync inicial
+// POST — proxy para /api/admin/sync-direto (Next.js nativo, sem Edge Function)
 // GET  — retorna o status atual do sync de uma loja específica
+
+export const maxDuration = 300;
 
 import { NextResponse, NextRequest } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
