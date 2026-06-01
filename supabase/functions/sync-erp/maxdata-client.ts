@@ -92,3 +92,44 @@ export async function fetchAllPages<T>(
 
   return results;
 }
+
+// Processa páginas uma a uma — callback recebe cada página, salva e descarta da memória.
+// Evita acumular milhares de objetos em memória (WORKER_RESOURCE_LIMIT).
+export async function fetchPageByPage<T>(
+  token: string,
+  baseUrl: string,
+  path: string,
+  params: Record<string, string> = {},
+  onPage: (docs: T[], pageNum: number, totalPages: number) => Promise<void>,
+  maxPages = 500
+): Promise<{ totalProcessado: number; totalPaginas: number }> {
+  let page = 1;
+  let totalProcessado = 0;
+  let totalPaginas = 1;
+
+  while (page <= maxPages) {
+    const data = await maxdataGet<PaginatedResponse<T>>(token, baseUrl, path, {
+      ...params,
+      page: String(page),
+      limit: "50",
+    });
+
+    if (!data.docs || data.docs.length === 0) break;
+
+    totalPaginas = data.pages ?? 1;
+
+    // Processar e salvar imediatamente — docs descartados após o await
+    await onPage(data.docs, page, totalPaginas);
+
+    totalProcessado += data.docs.length;
+
+    if (page >= totalPaginas) break;
+
+    page++;
+
+    // Pausa entre páginas para não sobrecarregar a API local da loja
+    await new Promise((r) => setTimeout(r, 80));
+  }
+
+  return { totalProcessado, totalPaginas };
+}

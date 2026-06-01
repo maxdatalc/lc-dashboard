@@ -5,7 +5,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js";
 import { decrypt } from "../sync-erp/crypto.ts";
-import { getMaxDataToken, fetchAllPages } from "../sync-erp/maxdata-client.ts";
+import { getMaxDataToken, fetchAllPages, fetchPageByPage } from "../sync-erp/maxdata-client.ts";
 
 interface LojaRow {
   id: string;
@@ -91,36 +91,7 @@ Deno.serve(async (req) => {
 
     console.log(`[sync-inicial] ${dataInicial} → ${dataFinal}`);
 
-    // 4. Buscar vendas com filtro de data (API MaxData aceita dataInicial/dataFinal)
-    //    Fallback: se retornar 0, busca tudo e filtra por intervalo no JS
-    let vendas = await fetchAllPages<MaxDataVenda>(
-      token,
-      lojaRow.erp_base_url,
-      "/sale",
-      { dataInicial: dataInicialISO, dataFinal: dataFinalISO },
-      500 // máx 500 páginas × 50 = 25.000 vendas por semana
-    );
-
-    if (vendas.length === 0) {
-      console.log(`[sync-inicial] ${dataInicial}→${dataFinal}: filtro retornou 0 — fallback sem filtro`);
-      const todas = await fetchAllPages<MaxDataVenda>(
-        token,
-        lojaRow.erp_base_url,
-        "/sale",
-        {},
-        500
-      );
-      vendas = todas.filter((v) => {
-        const raw = v.fechamento ?? v.abertura;
-        if (!raw) return false;
-        const dataVenda = new Date(raw).toISOString().split("T")[0];
-        return dataVenda >= dataInicial && dataVenda <= dataFinal;
-      });
-    }
-
-    console.log(`[sync-inicial] ${dataInicial}→${dataFinal}: ${vendas.length} vendas encontradas`);
-
-    // 5. Buscar mapa de CFOPs para classificação
+    // 4. Buscar mapa de CFOPs antecipadamente (pequeno, cabe em memória)
     const { data: cfopRows } = await supabase
       .from("cfop_classificacoes")
       .select("cfop, tipo, subtipo");
@@ -132,13 +103,19 @@ Deno.serve(async (req) => {
       ])
     );
 
-    // 6. Mapear, deduplicar e salvar vendas em lotes de 200
+    // 5. Processar vendas página por página — sem acumular em memória
     let vendasSalvasNestePeriodo = 0;
+    const agora = new Date().toISOString();
 
-    if (vendas.length > 0) {
-      const agora = new Date().toISOString();
+    // Callback: recebe 50 vendas, salva no banco, descarta da memória
+    const processarPagina = async (
+      docs: MaxDataVenda[],
+      pageNum: number,
+      totalPages: number
+    ) => {
+      console.log(`[sync-inicial] Página ${pageNum}/${totalPages}: ${docs.length} vendas`);
 
-      const rows = vendas.map((v) => {
+      const rows = docs.map((v) => {
         const cl = v.cfop ? cfopMap.get(v.cfop) : undefined;
         return {
           loja_id: lojaId,
@@ -160,7 +137,7 @@ Deno.serve(async (req) => {
         };
       });
 
-      // Deduplicar por external_id — mantém primeira ocorrência
+      // Deduplicar dentro da página
       const seen = new Set<number>();
       const unicos = rows.filter((r) => {
         if (seen.has(r.external_id)) return false;
@@ -168,17 +145,52 @@ Deno.serve(async (req) => {
         return true;
       });
 
-      for (let i = 0; i < unicos.length; i += 200) {
-        const lote = unicos.slice(i, i + 200);
+      // Salvar em lotes de 100 para economizar memória
+      for (let i = 0; i < unicos.length; i += 100) {
+        const lote = unicos.slice(i, i + 100);
         const { error } = await supabase
           .from("vendas")
           .upsert(lote, { onConflict: "loja_id,external_id,source" });
-        if (error) throw new Error(error.message);
-        await sleep(50);
+        if (error) throw new Error(`Upsert erro página ${pageNum}: ${error.message}`);
+        await sleep(30);
       }
 
-      vendasSalvasNestePeriodo = unicos.length;
+      vendasSalvasNestePeriodo += unicos.length;
+    };
+
+    // Buscar com filtro de data da API — processa página por página
+    const { totalProcessado } = await fetchPageByPage<MaxDataVenda>(
+      token,
+      lojaRow.erp_base_url,
+      "/sale",
+      { dataInicial: dataInicialISO, dataFinal: dataFinalISO },
+      processarPagina,
+      500
+    );
+
+    // Fallback: se API ignorou o filtro e retornou 0, busca tudo e filtra no JS
+    // Limita a 200 páginas para não ultrapassar o timeout
+    if (totalProcessado === 0) {
+      console.log(`[sync-inicial] Filtro retornou 0 — ativando fallback sem filtro`);
+      const todas = await fetchAllPages<MaxDataVenda>(
+        token,
+        lojaRow.erp_base_url,
+        "/sale",
+        {},
+        200
+      );
+      const vendasFiltradas = todas.filter((v) => {
+        const raw = v.fechamento ?? v.abertura;
+        if (!raw) return false;
+        const dataVenda = new Date(raw).toISOString().split("T")[0];
+        return dataVenda >= dataInicial && dataVenda <= dataFinal;
+      });
+      if (vendasFiltradas.length > 0) {
+        await processarPagina(vendasFiltradas, 1, 1);
+      }
     }
+
+    console.log(`[sync-inicial] ${dataInicial}→${dataFinal}: ${vendasSalvasNestePeriodo} vendas salvas`);
 
     // 7. Sincronizar Ordens de Serviço do período (se habilitado para esta loja)
     if (lojaRow.sync_services_enabled) {
