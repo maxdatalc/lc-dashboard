@@ -62,6 +62,9 @@ type VendaRow = {
   valor_total: number | null;
   status: string | null;
   tipo: string | null;
+  external_id: string | null;
+  cpf_cnpj: string | null;
+  loja_id: string | null;
 };
 
 // Busca vendas do período usando o campo tipo — sem join com cfop_classificacoes
@@ -73,7 +76,7 @@ async function queryVendasPeriodo(
 ): Promise<VendaRow[]> {
   const { data, error } = await supabase
     .from("vendas")
-    .select("valor_total, status, tipo")
+    .select("valor_total, status, tipo, external_id, cpf_cnpj, loja_id")
     .in("loja_id", lojaIds)
     .gte("data_venda", startDate)
     .lte("data_venda", endDate);
@@ -84,6 +87,50 @@ async function queryVendasPeriodo(
   }
 
   return (data ?? []) as VendaRow[];
+}
+
+// Calcula custo total a partir dos itens de venda e custos dos produtos
+async function calcCustoTotal(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  lojaIds: string[],
+  vendas: VendaRow[]
+): Promise<number> {
+  const externalIds = vendas
+    .map((v) => v.external_id)
+    .filter(Boolean)
+    .slice(0, 2000) as string[];
+
+  if (externalIds.length === 0) return 0;
+
+  const { data: itens } = await supabase
+    .from("venda_itens")
+    .select("produto_external_id, quantidade, loja_id")
+    .in("loja_id", lojaIds)
+    .in("venda_external_id", externalIds);
+
+  if (!itens || itens.length === 0) return 0;
+
+  const produtoIds = [...new Set(
+    itens.map((i: { produto_external_id: string | null }) => i.produto_external_id).filter(Boolean)
+  )] as string[];
+
+  const { data: produtos } = await supabase
+    .from("produtos")
+    .select("external_id, valor_custo, loja_id")
+    .in("loja_id", lojaIds)
+    .in("external_id", produtoIds);
+
+  const custoPorProduto = new Map(
+    (produtos ?? []).map((p: { loja_id: string; external_id: string; valor_custo: number | null }) =>
+      [`${p.loja_id}:${p.external_id}`, p.valor_custo ?? 0]
+    )
+  );
+
+  return itens.reduce((acc: number, item: { loja_id: string; produto_external_id: string | null; quantidade: number | null }) => {
+    const key = `${item.loja_id}:${item.produto_external_id}`;
+    const custo = custoPorProduto.get(key) ?? 0;
+    return acc + (item.quantidade ?? 0) * custo;
+  }, 0);
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -147,10 +194,27 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const faturamento = vendaTotal;
   const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
 
+  // Clientes únicos por CPF/CNPJ nas vendas do período
+  const clientesUnicos = new Set(
+    vendasTipo
+      .map((v) => (v.cpf_cnpj ?? "").replace(/\D/g, ""))
+      .filter(Boolean)
+  ).size;
+
+  // Custo e lucro calculados em paralelo com período anterior
+  const [custoTotal, finalizadasAnt] = await Promise.all([
+    calcCustoTotal(supabase, lojaIds, vendasTipo),
+    Promise.resolve(
+      vendasAnt.filter((v) =>
+        STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
+      )
+    ),
+  ]);
+
+  const lucroTotal = faturamento - custoTotal;
+  const margemPercent = faturamento > 0 ? (lucroTotal / faturamento) * 100 : 0;
+
   // ── Classificar período anterior ───────────────────────────────────────────
-  const finalizadasAnt = vendasAnt.filter((v) =>
-    STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
-  );
   const vendasTipoAnt = finalizadasAnt.filter((v) => v.tipo === "venda" || v.tipo == null);
   const devolucoesTipoAnt = finalizadasAnt.filter((v) => v.tipo === "devolucao");
 
@@ -169,6 +233,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       totalVendas,
       totalDevolucoes,
     },
+    custo: { value: custoTotal },
+    lucro: { value: lucroTotal, margem: margemPercent },
+    clientes: { value: clientesUnicos },
     vendas: {
       value: totalVendas,
       change: calcVariacao(totalVendas, vendasTipoAnt.length),
