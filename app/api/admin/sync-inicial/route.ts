@@ -6,60 +6,29 @@ import { NextResponse, NextRequest } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isSystemAdmin } from "@/lib/db/admin";
 
-// ── POST: processa um período (semana) ───────────────────────────────────────
+// ── POST: proxy para sync-direto (Next.js nativo, sem Edge Function) ─────────
 
 export async function POST(req: NextRequest) {
   try {
-    // 1. Verificar autenticação e privilégio admin
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+    const body = await req.text();
 
-    const admin = await isSystemAdmin(user.id);
-    if (!admin) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
-
-    // 2. Parsear corpo — novo formato: semana por semana
-    const body = await req.json() as {
-      lojaId: string;
-      dataInicial: string; // "YYYY-MM-DD"
-      dataFinal: string;   // "YYYY-MM-DD"
-    };
-    const { lojaId, dataInicial, dataFinal } = body;
-
-    if (!lojaId || !dataInicial || !dataFinal) {
-      return NextResponse.json(
-        { error: "Campos obrigatórios: lojaId, dataInicial, dataFinal" },
-        { status: 400 }
-      );
-    }
-
-    // 3. Chamar a Edge Function sync-erp-inicial
-    console.log("[sync-inicial] Chamando Edge Function com:", { lojaId, dataInicial, dataFinal });
-
-    const efResponse = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-erp-inicial`,
+    // Redirecionar para sync-direto que processa sem Edge Function
+    const res = await fetch(
+      new URL("/api/admin/sync-direto", req.url).toString(),
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
           "Content-Type": "application/json",
+          // Repassar cookies de sessão para autenticação na rota destino
+          Cookie: req.headers.get("cookie") ?? "",
         },
-        body: JSON.stringify({ lojaId, dataInicial, dataFinal }),
+        body,
       }
     );
 
-    console.log("[sync-inicial] Status da resposta:", efResponse.status);
-    const responseText = await efResponse.text();
-    console.log("[sync-inicial] Body da resposta:", responseText);
-
-    if (!efResponse.ok) {
-      return NextResponse.json({ error: `Edge Function: ${responseText}` }, { status: 502 });
-    }
-
-    const data = JSON.parse(responseText) as unknown;
-    return NextResponse.json(data);
+    const data = await res.json() as unknown;
+    return NextResponse.json(data, { status: res.status });
   } catch (err) {
-    console.error("[sync-inicial] Erro completo:", err);
     const message = err instanceof Error ? err.message : "Erro desconhecido";
     return NextResponse.json({ error: message }, { status: 500 });
   }
