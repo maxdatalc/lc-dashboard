@@ -69,30 +69,49 @@ const PRESETS = [
 
 const HOJE = new Date();
 
-interface Dia {
-  dataInicial: string; // "YYYY-MM-DD"
-  dataFinal: string;   // "YYYY-MM-DD" (igual ao dataInicial)
-  label: string;       // "01 mai"
+interface MesPeriodo {
+  dataInicial: string; // primeiro dia do mês: "2025-05-01"
+  dataFinal: string;   // último dia do mês: "2025-05-31"
+  label: string;       // "Mai/25"
 }
 
-// Divide um intervalo em dias individuais para envio à Edge Function
-function calcularDias(inicio: string, fim: string): Dia[] {
-  const dias: Dia[] = [];
+const NOMES_MESES = ["Jan","Fev","Mar","Abr","Mai","Jun",
+                     "Jul","Ago","Set","Out","Nov","Dez"];
+
+// Divide um intervalo em meses completos para envio à rota de sync
+function calcularMeses(inicio: string, fim: string): MesPeriodo[] {
+  const meses: MesPeriodo[] = [];
   const d = new Date(inicio + "T12:00:00");
   const f = new Date(fim + "T12:00:00");
 
   while (d <= f) {
-    const data = d.toISOString().split("T")[0];
-    const label = new Date(data + "T12:00:00").toLocaleDateString("pt-BR", {
-      day: "2-digit",
-      month: "short",
-    });
+    const ano = d.getFullYear();
+    const mes = d.getMonth();
 
-    dias.push({ dataInicial: data, dataFinal: data, label });
-    d.setDate(d.getDate() + 1);
+    // Respeitar as datas exatas do período selecionado nas extremidades
+    const primeiroDia = new Date(ano, mes, 1);
+    const ultimoDia = new Date(ano, mes + 1, 0);
+
+    const dataIni =
+      primeiroDia < new Date(inicio + "T12:00:00")
+        ? inicio
+        : primeiroDia.toISOString().split("T")[0];
+
+    const dataFim =
+      ultimoDia > f
+        ? fim
+        : ultimoDia.toISOString().split("T")[0];
+
+    const label = `${NOMES_MESES[mes]}/${String(ano).slice(2)}`;
+
+    meses.push({ dataInicial: dataIni, dataFinal: dataFim, label });
+
+    // Avançar para o primeiro dia do próximo mês
+    d.setMonth(d.getMonth() + 1);
+    d.setDate(1);
   }
 
-  return dias;
+  return meses;
 }
 
 function toInputDate(d: Date): string {
@@ -283,9 +302,9 @@ function SyncAbaContent({
           {mesesPreview.length > 0
             ? `${mesesPreview.length} ${
                 mesesPreview.length === 1
-                  ? "dia será sincronizado"
-                  : "dias serão sincronizados"
-              }`
+                  ? "mês será sincronizado"
+                  : "meses serão sincronizados"
+              } — estimativa: ~${mesesPreview.length} min`
             : "Selecione um período acima para continuar."}
         </p>
         <button
@@ -309,7 +328,7 @@ function SyncAbaContent({
             style={{ color: "var(--accent-cyan, #00e5ff)" }}
           />
           <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            {mesesOk} de {totalMeses} dias
+            {mesesOk} de {totalMeses} meses
             {estado.mesAtual ? ` — processando ${estado.mesAtual}` : ""}
           </span>
         </div>
@@ -743,28 +762,27 @@ export function SyncInicialModal({
     setDataFim(toInputDate(HOJE));
   };
 
-  // Dias do período selecionado — recalculado ao mudar datas
-  const diasPreview =
-    dataInicio && dataFim ? calcularDias(dataInicio, dataFim) : [];
+  // Meses do período selecionado — recalculado ao mudar datas
+  const periodosPreview =
+    dataInicio && dataFim ? calcularMeses(dataInicio, dataFim) : [];
 
   // Labels para o SyncAbaContent (mantém assinatura do componente)
-  const mesesPreview = diasPreview.map((d) => d.label);
+  const mesesPreview = periodosPreview.map((m) => m.label);
 
-  // ── Sync diário genérico — usado por Vendas e OS ──────────────────────────
+  // ── Sync mensal genérico — usado por Vendas e OS ──────────────────────────
 
-  const iniciarSyncDiario = useCallback(
+  const iniciarSyncMensal = useCallback(
     async (
-      dias: Dia[],
+      meses: MesPeriodo[],
       setEstado: React.Dispatch<React.SetStateAction<EstadoAbaMensal>>
     ) => {
-      if (dias.length === 0) return;
+      if (meses.length === 0) return;
 
-      // Aviso para períodos muito longos (> 180 dias ≈ 6 meses)
-      if (dias.length > 180) {
-        const estimativa = Math.round(dias.length * 0.1);
+      // Aviso para períodos longos (> 6 meses)
+      if (meses.length > 6) {
         const ok = window.confirm(
-          `⚠️ Período de ${dias.length} dias pode demorar bastante.\n` +
-          `Estimativa: ~${estimativa} minutos.\n\nContinuar?`
+          `⚠️ Período de ${meses.length} meses.\n` +
+          `Estimativa: ~${meses.length} minuto(s).\n\nContinuar?`
         );
         if (!ok) return;
       }
@@ -772,7 +790,7 @@ export function SyncInicialModal({
       canceladoRef.current = false;
 
       const statusInicial: Record<string, StatusMes> = {};
-      for (const d of dias) statusInicial[d.label] = "pendente";
+      for (const m of meses) statusInicial[m.label] = "pendente";
 
       setEstado({
         status: "rodando",
@@ -785,14 +803,14 @@ export function SyncInicialModal({
       let totalItens = 0;
       const erros: string[] = [];
 
-      for (let i = 0; i < dias.length; i++) {
+      for (let i = 0; i < meses.length; i++) {
         if (canceladoRef.current) break;
-        const dia = dias[i];
+        const mes = meses[i];
 
         setEstado((prev) => ({
           ...prev,
-          mesAtual: dia.label,
-          statusMeses: { ...prev.statusMeses, [dia.label]: "atual" },
+          mesAtual: mes.label,
+          statusMeses: { ...prev.statusMeses, [mes.label]: "atual" },
         }));
 
         try {
@@ -801,8 +819,8 @@ export function SyncInicialModal({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               lojaId,
-              dataInicial: dia.dataInicial,
-              dataFinal: dia.dataFinal,
+              dataInicial: mes.dataInicial,
+              dataFinal: mes.dataFinal,
             }),
           });
           const data = (await res.json()) as {
@@ -811,36 +829,36 @@ export function SyncInicialModal({
           };
 
           if (!res.ok) {
-            erros.push(`${dia.label}: ${data.error ?? "Erro desconhecido"}`);
+            erros.push(`${mes.label}: ${data.error ?? "Erro desconhecido"}`);
             setEstado((prev) => ({
               ...prev,
-              statusMeses: { ...prev.statusMeses, [dia.label]: "erro" },
+              statusMeses: { ...prev.statusMeses, [mes.label]: "erro" },
             }));
           } else {
             totalItens += data.vendas_salvas ?? 0;
             setEstado((prev) => ({
               ...prev,
-              statusMeses: { ...prev.statusMeses, [dia.label]: "concluido" },
+              statusMeses: { ...prev.statusMeses, [mes.label]: "concluido" },
               totalItens,
             }));
           }
         } catch (e) {
           erros.push(
-            `${dia.label}: ${e instanceof Error ? e.message : "Erro de rede"}`
+            `${mes.label}: ${e instanceof Error ? e.message : "Erro de rede"}`
           );
           setEstado((prev) => ({
             ...prev,
-            statusMeses: { ...prev.statusMeses, [dia.label]: "erro" },
+            statusMeses: { ...prev.statusMeses, [mes.label]: "erro" },
           }));
         }
 
-        // Pausa entre dias para não sobrecarregar a API e o banco
-        await new Promise((r) => setTimeout(r, 200));
+        // Pausa entre meses
+        await new Promise((r) => setTimeout(r, 300));
       }
 
       setEstado((prev) => ({
         ...prev,
-        status: erros.length === dias.length ? "erro" : "concluido",
+        status: erros.length === meses.length ? "erro" : "concluido",
         mesAtual: null,
         totalItens,
         erros,
@@ -1221,7 +1239,7 @@ export function SyncInicialModal({
               mesesPreview={mesesPreview}
               labelItens="Vendas importadas"
               onIniciar={() =>
-                iniciarSyncDiario(diasPreview, setEstadoVendas)
+                iniciarSyncMensal(periodosPreview, setEstadoVendas)
               }
             />
           )}
@@ -1232,7 +1250,7 @@ export function SyncInicialModal({
               labelItens="Ordens de serviço importadas"
               disabled={!syncServicesEnabled}
               disabledMsg="Sync de O.S. não está habilitado para esta loja. Ative a opção nas configurações da loja para habilitar."
-              onIniciar={() => iniciarSyncDiario(diasPreview, setEstadoOs)}
+              onIniciar={() => iniciarSyncMensal(periodosPreview, setEstadoOs)}
             />
           )}
           {abaAtiva === "produtos" && (
