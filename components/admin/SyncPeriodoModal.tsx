@@ -893,6 +893,46 @@ export function SyncInicialModal({
     }
   }, [lojaId, dataInicio, dataFim]);
 
+  // ── Sync completo: enfileira vendas + OS + produtos + itens de uma vez ────
+
+  const iniciarSyncCompleto = useCallback(async () => {
+    if (!dataInicio || !dataFim) return;
+
+    setEstadoVendas((prev) => ({ ...prev, status: "rodando" }));
+
+    try {
+      const res = await fetch("/api/admin/sync-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lojaId,
+          dataInicial: dataInicio,
+          dataFinal: dataFim,
+          tipo: "completo",
+        }),
+      });
+
+      const data = (await res.json()) as { sucesso?: boolean; error?: string };
+
+      if (!res.ok) {
+        setEstadoVendas((prev) => ({
+          ...prev,
+          status: "erro",
+          erros: [data.error ?? "Erro ao enfileirar sync completo"],
+        }));
+        return;
+      }
+
+      setModoBackground(true);
+    } catch {
+      setEstadoVendas((prev) => ({
+        ...prev,
+        status: "erro",
+        erros: ["Erro de conexão"],
+      }));
+    }
+  }, [lojaId, dataInicio, dataFim]);
+
   // ── Sync mensal genérico — usado por Vendas e OS ──────────────────────────
 
   const iniciarSyncMensal = useCallback(
@@ -1345,6 +1385,37 @@ export function SyncInicialModal({
               Vendas, O.S. e Produtos
             </span>
           </div>
+
+          {/* Sync Completo — enfileira tudo de uma vez em background */}
+          {!modoBackground && estadoVendas.status === "idle" && (
+            <div
+              className="mt-3 p-4 rounded-xl"
+              style={{
+                background: "linear-gradient(135deg, rgba(0,229,255,0.08), rgba(124,58,237,0.08))",
+                border: "1px solid rgba(0,229,255,0.2)",
+              }}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold mb-1" style={{ color: "var(--text-primary)" }}>
+                    ⚡ Sync Completo
+                  </p>
+                  <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+                    Sincroniza vendas, OS, produtos e itens em background.
+                    Pode fechar esta janela — o processo continua automaticamente.
+                  </p>
+                </div>
+                <button
+                  onClick={iniciarSyncCompleto}
+                  disabled={!dataInicio || !dataFim}
+                  className="flex-shrink-0 px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                  style={{ background: "var(--accent-cyan, #00e5ff)", color: "#0a0f1e", whiteSpace: "nowrap" }}
+                >
+                  Iniciar tudo
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Navegação entre abas ───────────────────────────────────────── */}
@@ -1396,12 +1467,25 @@ export function SyncInicialModal({
               // ── UI de progresso em background ─────────────────────────────
               <div>
                 <div className="flex items-center gap-2 mb-4">
-                  <div
-                    className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{ borderColor: "var(--accent-cyan, #00e5ff)" }}
-                  />
-                  <span className="text-sm font-medium" style={{ color: "var(--accent-cyan, #00e5ff)" }}>
-                    Sincronizando em background...
+                  {estadoVendas.status === "concluido" ? (
+                    <CheckCircle className="h-4 w-4 text-emerald-500" />
+                  ) : (
+                    <div
+                      className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
+                      style={{ borderColor: "var(--accent-cyan, #00e5ff)" }}
+                    />
+                  )}
+                  <span
+                    className="text-sm font-medium"
+                    style={{
+                      color: estadoVendas.status === "concluido"
+                        ? "#10b981"
+                        : "var(--accent-cyan, #00e5ff)",
+                    }}
+                  >
+                    {estadoVendas.status === "concluido"
+                      ? "Sincronização concluída!"
+                      : "Sincronizando em background..."}
                   </span>
                 </div>
 
@@ -1409,10 +1493,10 @@ export function SyncInicialModal({
                 <div className="mb-4">
                   <div className="flex justify-between text-xs mb-1">
                     <span style={{ color: "var(--text-secondary)" }}>
-                      {jobsStatus.resumo.concluidos}/{jobsStatus.resumo.total} meses
+                      {jobsStatus.resumo.concluidos}/{jobsStatus.resumo.total} jobs
                     </span>
                     <span style={{ color: "var(--text-primary)" }}>
-                      {jobsStatus.resumo.registros.toLocaleString("pt-BR")} vendas
+                      {jobsStatus.resumo.registros.toLocaleString("pt-BR")} registros
                     </span>
                   </div>
                   <div
@@ -1434,40 +1518,62 @@ export function SyncInicialModal({
                   </div>
                 </div>
 
-                {/* Lista de meses com status */}
-                <div className="space-y-1 max-h-48 overflow-y-auto custom-scroll">
-                  {jobsStatus.jobs.map((job, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between text-xs py-1"
-                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
-                    >
-                      <span
-                        style={{
-                          color:
-                            job.status === "concluido" ? "#10b981"
-                            : job.status === "processando" ? "var(--accent-cyan, #00e5ff)"
-                            : job.status === "erro" ? "#ef4444"
-                            : "var(--text-muted)",
-                        }}
-                      >
-                        {job.status === "concluido" ? "✓"
-                          : job.status === "processando" ? "⟳"
-                          : job.status === "erro" ? "✗"
-                          : "○"}{" "}
-                        {new Date(job.data_ini + "T12:00:00").toLocaleDateString("pt-BR", {
-                          month: "short",
-                          year: "2-digit",
-                        })}
-                      </span>
-                      <span style={{ color: "var(--text-muted)" }}>
-                        {job.registros_salvos > 0
-                          ? `${(job.registros_salvos as number).toLocaleString("pt-BR")} reg.`
-                          : job.status === "pendente" ? "aguardando..."
-                          : ""}
-                      </span>
-                    </div>
-                  ))}
+                {/* Progresso agrupado por tipo */}
+                <div className="space-y-3">
+                  {(["vendas", "os", "produtos", "itens"] as const).map((tipo) => {
+                    const jobsTipo = jobsStatus.jobs.filter((j: SyncQueueJob) => j.tipo === tipo);
+                    if (jobsTipo.length === 0) return null;
+
+                    const concluidos = jobsTipo.filter((j: SyncQueueJob) => j.status === "concluido").length;
+                    const total = jobsTipo.length;
+                    const registros = jobsTipo.reduce((s: number, j: SyncQueueJob) => s + (j.registros_salvos ?? 0), 0);
+                    const temErro = jobsTipo.some((j: SyncQueueJob) => j.status === "erro");
+                    const processando = jobsTipo.some((j: SyncQueueJob) => j.status === "processando");
+
+                    const labels: Record<string, string> = {
+                      vendas: "📊 Vendas",
+                      os: "🔧 O.S.",
+                      produtos: "📦 Produtos",
+                      itens: "🧾 Itens & Pgtos",
+                    };
+
+                    return (
+                      <div key={tipo}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+                            {labels[tipo]}
+                          </span>
+                          <span className="text-xs" style={{
+                            color: temErro ? "#ef4444" : concluidos === total ? "#10b981" : "var(--text-muted)",
+                          }}>
+                            {temErro
+                              ? "⚠️ erro"
+                              : concluidos === total
+                              ? "✓ concluído"
+                              : processando
+                              ? "⟳ processando..."
+                              : `${concluidos}/${total}`}
+                            {registros > 0 && ` — ${registros.toLocaleString("pt-BR")} reg.`}
+                          </span>
+                        </div>
+                        <div
+                          className="h-1.5 rounded-full overflow-hidden"
+                          style={{ background: "rgba(255,255,255,0.06)" }}
+                        >
+                          <div
+                            style={{
+                              width: `${total > 0 ? (concluidos / total) * 100 : 0}%`,
+                              height: "100%",
+                              background: temErro
+                                ? "#ef4444"
+                                : "linear-gradient(90deg, var(--accent-cyan, #00e5ff), #7c3aed)",
+                              transition: "width 0.5s ease",
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)" }}>
