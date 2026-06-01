@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { DollarSign, ShoppingCart, TrendingUp, RotateCcw, XCircle } from "lucide-react";
 import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
-import { KpiCard } from "@/components/ui/KpiCard";
+import { KpiBar } from "@/components/ui/KpiBar";
 import { ChartCard } from "@/components/ui/ChartCard";
 import { FaturamentoMensalChart } from "@/components/charts/FaturamentoMensalChart";
 import { FormasPagamentoChart } from "@/components/charts/FormasPagamentoChart";
@@ -12,7 +11,6 @@ import { TopProdutosChart } from "@/components/charts/TopProdutosChart";
 import { TopClientesChart } from "@/components/charts/TopClientesChart";
 import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TabelaVendas } from "@/components/dashboard/TabelaVendas";
-import { formatCurrency, formatNumber } from "@/lib/utils/format";
 import type { FaturamentoMensalData } from "@/components/charts/FaturamentoMensalChart";
 import type { FormasPagamentoData } from "@/components/charts/FormasPagamentoChart";
 import type { TopProdutoData } from "@/components/charts/TopProdutosChart";
@@ -30,6 +28,9 @@ interface KpiResponse {
     totalVendas: number;
     totalDevolucoes: number;
   };
+  custo: { value: number };
+  lucro: { value: number; margem: number };
+  clientes: { value: number };
   vendas: { value: number; change: number | null };
   ticketMedio: { value: number; change: number | null };
   outros: { value: number; valorTotal: number };
@@ -37,99 +38,6 @@ interface KpiResponse {
   totalDevolucoes: number;
   totalCancelamentos: number;
   valorDevolvido: number;
-}
-
-// ─── Card de Faturamento composto ─────────────────────────────────────────────
-
-function FaturamentoKpiCard({
-  vendaTotal: _vendaTotal,
-  totalVendas,
-  devolucaoTotal,
-  totalDevolucoes,
-  faturamentoLiquido,
-  change,
-  isLoading,
-}: {
-  vendaTotal: number;
-  totalVendas: number;
-  devolucaoTotal: number;
-  totalDevolucoes: number;
-  faturamentoLiquido: number;
-  change?: number | null;
-  isLoading?: boolean;
-}) {
-  return (
-    <div
-      className="rounded-xl p-4 flex flex-col gap-2 transition-all duration-200"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border-subtle)",
-        borderTop: "3px solid var(--accent-cyan)",
-        animation: "fadeInUp 0.4s ease-out both",
-        animationDelay: "0ms",
-      }}
-    >
-      {/* Ícone + título + delta */}
-      <div className="flex items-center gap-2.5">
-        <div
-          className="flex items-center justify-center flex-shrink-0 rounded-[8px]"
-          style={{ width: 32, height: 32, backgroundColor: "rgba(0,229,255,0.12)", color: "#00e5ff" }}
-        >
-          <DollarSign style={{ width: 16, height: 16 }} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2">
-            <p className="font-semibold uppercase tracking-widest" style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
-              Faturamento
-            </p>
-            {change != null && !isLoading && (
-              <span
-                className="px-2 py-0.5 rounded-full text-xs font-medium flex-shrink-0"
-                style={{
-                  backgroundColor: change >= 0 ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)",
-                  color: change >= 0 ? "#10b981" : "#ef4444",
-                }}
-              >
-                {change >= 0 ? "+" : ""}
-                {change.toFixed(1).replace(".", ",")}%
-              </span>
-            )}
-          </div>
-          {isLoading ? (
-            <div className="shimmer rounded mt-2" style={{ height: 28, width: 120 }} />
-          ) : (
-            <p
-              className="tabular-nums mt-1 leading-none"
-              style={{
-                fontFamily: "var(--font-display, 'DM Serif Display', serif)",
-                fontSize: "clamp(16px, 2.5vw, 24px)",
-                fontWeight: 400,
-                color: "var(--text-primary)",
-              }}
-            >
-              {formatCurrency(faturamentoLiquido)}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Vendas vs Devoluções */}
-      <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
-      {isLoading ? (
-        <div className="shimmer rounded" style={{ height: 12, width: 100 }} />
-      ) : (
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <span style={{ color: "var(--text-muted)" }}>{formatNumber(totalVendas)} vendas</span>
-          <span>
-            <span style={{ color: "var(--accent-red)" }}>−{formatCurrency(devolucaoTotal)}</span>
-            <span className="ml-1" style={{ color: "var(--text-muted)" }}>
-              ({formatNumber(totalDevolucoes)} dev)
-            </span>
-          </span>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ─── Skeleton de gráfico ──────────────────────────────────────────────────────
@@ -159,8 +67,6 @@ function SemLoja() {
 }
 
 // ─── Página ───────────────────────────────────────────────────────────────────
-
-const DELAY = [0, 60, 120, 180, 240];
 
 export default function DashboardPage() {
   const { period, customRange } = usePeriod();
@@ -265,58 +171,18 @@ export default function DashboardPage() {
 
   return (
     <div className="px-3 py-4 sm:px-4 md:p-6 flex flex-col gap-5">
-      {/* ── KPIs — 5 cards em linha ─────────────────────────────────────────── */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 xl:grid-cols-5">
-        <FaturamentoKpiCard
-          vendaTotal={kpis?.faturamento.vendaTotal ?? 0}
-          totalVendas={kpis?.faturamento.totalVendas ?? 0}
-          devolucaoTotal={kpis?.faturamento.devolucaoTotal ?? 0}
-          totalDevolucoes={kpis?.faturamento.totalDevolucoes ?? 0}
-          faturamentoLiquido={kpis?.faturamento.value ?? 0}
-          change={kpis?.faturamento.change}
-          isLoading={kpiLoading}
-        />
-        <KpiCard
-          title="Vendas"
-          value={kpiLoading ? "—" : formatNumber(kpis?.totalVendas ?? 0)}
-          icon={ShoppingCart}
-          accentColor="#7c3aed"
-          isLoading={kpiLoading}
-          change={kpis?.vendas.change ?? undefined}
-          changeLabel="vs período ant."
-          animationDelay={DELAY[1]}
-        />
-        <KpiCard
-          title="Ticket Médio"
-          value={kpiLoading ? "—" : formatCurrency(kpis?.ticketMedio.value ?? 0)}
-          icon={TrendingUp}
-          accentColor="#10b981"
-          isLoading={kpiLoading}
-          change={kpis?.ticketMedio.change ?? undefined}
-          changeLabel="vs período ant."
-          animationDelay={DELAY[2]}
-        />
-        <KpiCard
-          title="Devoluções"
-          value={kpiLoading ? "—" : formatNumber(kpis?.totalDevolucoes ?? 0)}
-          icon={RotateCcw}
-          accentColor="#ef4444"
-          isLoading={kpiLoading}
-          subtitle={kpis ? `${formatCurrency(kpis.valorDevolvido)} devolvidos` : undefined}
-          titleTooltip="Identificadas por CFOP fiscal (1xxx, 2xxx, 3xxx)"
-          animationDelay={DELAY[3]}
-        />
-        <KpiCard
-          title="Cancelamentos"
-          value={kpiLoading ? "—" : formatNumber(kpis?.totalCancelamentos ?? 0)}
-          icon={XCircle}
-          accentColor="#f97316"
-          isLoading={kpiLoading}
-          subtitle="cancelamentos no período"
-          titleTooltip="Vendas com status cancelada antes do fechamento fiscal"
-          animationDelay={DELAY[4]}
-        />
-      </div>
+      {/* ── KPIs — barra horizontal unificada ──────────────────────────────── */}
+      <KpiBar
+        faturamento={kpis?.faturamento?.value ?? 0}
+        devolucaoTotal={kpis?.valorDevolvido ?? 0}
+        totalDevolucoes={kpis?.totalDevolucoes ?? 0}
+        custo={kpis?.custo?.value ?? 0}
+        lucro={kpis?.lucro?.value ?? 0}
+        margem={kpis?.lucro?.margem ?? 0}
+        ticketMedio={kpis?.ticketMedio?.value ?? 0}
+        totalClientes={kpis?.clientes?.value ?? 0}
+        isLoading={kpiLoading}
+      />
 
       {/* ── Linha 2: Top Produtos | PF/PJ | Faturamento Mensal ──────────────── */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">

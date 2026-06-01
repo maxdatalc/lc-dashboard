@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
-import { DM_Serif_Display, DM_Sans } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 
-// DM Serif Display — fonte para números e títulos de destaque
-const dmSerifDisplay = DM_Serif_Display({
+const inter = Inter({
   subsets: ["latin"],
-  weight: "400",
-  variable: "--font-display",
-});
-
-// DM Sans — fonte corpo para labels, dados e UI
-const dmSans = DM_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-inter",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -28,8 +21,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning className={dmSerifDisplay.variable}>
-      <body className={`${dmSans.className} antialiased`} suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning className={inter.variable}>
+      <body className={`${inter.className} antialiased`} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

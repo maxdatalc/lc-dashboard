@@ -118,12 +118,18 @@
 }
 
 @layer base {
+  :root {
+    --font-body: var(--font-inter), 'Inter', -apple-system, sans-serif;
+    --font-display: var(--font-inter), 'Inter', -apple-system, sans-serif;
+  }
+
   * {
     @apply border-border;
   }
   body {
     @apply bg-background text-foreground;
     background-color: var(--bg-primary);
+    font-family: var(--font-body);
     font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
   }
