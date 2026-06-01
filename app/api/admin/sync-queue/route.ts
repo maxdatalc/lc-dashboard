@@ -13,6 +13,7 @@ interface SyncQueueInsert {
   data_fim: string;
   pagina_atual: number;
   status: string;
+  metadata?: Record<string, unknown>;
 }
 
 // Divide um período em jobs mensais para granularidade de progresso
@@ -83,6 +84,65 @@ export async function POST(req: NextRequest) {
     }
 
     const adminClient = createAdminClient();
+
+    // Caso especial: sync completo — enfileira todos os 4 tipos de uma vez
+    if (tipo === "completo") {
+      const { data: lojaInfo } = await adminClient
+        .from("lojas")
+        .select("sync_services_enabled")
+        .eq("id", lojaId)
+        .single();
+
+      // Cancelar TODOS os jobs pendentes desta loja (todos os tipos)
+      await adminClient
+        .from("sync_queue")
+        .update({ status: "cancelado", atualizado_em: new Date().toISOString() })
+        .eq("loja_id", lojaId)
+        .in("status", ["pendente"]);
+
+      const jobsVendas = gerarJobsPorMes(lojaId, dataInicial, dataFinal, "vendas");
+      const jobsOS = lojaInfo?.sync_services_enabled
+        ? gerarJobsPorMes(lojaId, dataInicial, dataFinal, "os")
+        : [];
+
+      const jobProdutos: SyncQueueInsert[] = [{
+        loja_id: lojaId,
+        tipo: "produtos",
+        data_ini: dataInicial,
+        data_fim: dataFinal,
+        pagina_atual: 1,
+        status: "pendente",
+      }];
+
+      const jobItens: SyncQueueInsert[] = [{
+        loja_id: lojaId,
+        tipo: "itens",
+        data_ini: dataInicial,
+        data_fim: dataFinal,
+        pagina_atual: 1,
+        status: "pendente",
+        metadata: { offset: 0 },
+      }];
+
+      const todosJobs = [...jobsVendas, ...jobsOS, ...jobProdutos, ...jobItens];
+
+      const { error: insertErr } = await adminClient
+        .from("sync_queue")
+        .insert(todosJobs);
+
+      if (insertErr) {
+        return NextResponse.json({ error: insertErr.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        sucesso: true,
+        jobs_criados: todosJobs.length,
+        mensagem:
+          `Sync completo enfileirado: ${jobsVendas.length} meses de vendas` +
+          (jobsOS.length > 0 ? ` + ${jobsOS.length} meses de OS` : "") +
+          " + produtos + itens",
+      });
+    }
 
     // Cancelar jobs pendentes anteriores para esta loja/tipo (evitar duplicatas)
     await adminClient
