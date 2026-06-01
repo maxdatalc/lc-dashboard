@@ -3,7 +3,7 @@
 // Modal de sincronização inicial com 3 abas independentes: Vendas, O.S. e Produtos.
 // Cada aba controla seu próprio ciclo de sync — período compartilhado, execução separada.
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Loader2,
   CheckCircle,
@@ -52,6 +52,30 @@ interface EstadoItens {
   itensSalvos: number;
   pagamentosSalvos: number;
   erros: string[];
+}
+
+interface SyncQueueJob {
+  id: string;
+  loja_id: string;
+  tipo: string;
+  data_ini: string;
+  data_fim: string;
+  pagina_atual: number;
+  total_paginas: number | null;
+  registros_salvos: number;
+  status: string;
+}
+
+interface SyncQueueStatus {
+  jobs: SyncQueueJob[];
+  resumo: {
+    total: number;
+    concluidos: number;
+    erros: number;
+    pendentes: number;
+    processando: number;
+    registros: number;
+  };
 }
 
 // ── Presets de período ────────────────────────────────────────────────────────
@@ -244,7 +268,7 @@ function ResumoSyncComp({
                 className="text-xs"
                 style={{ color: "var(--text-secondary)" }}
               >
-                {e}
+                {typeof e === "string" ? e : JSON.stringify(e)}
               </li>
             ))}
           </ul>
@@ -755,6 +779,35 @@ export function SyncInicialModal({
 
   const canceladoRef = useRef(false);
 
+  // ── Modo background: sync via fila pg_cron ────────────────────────────────
+  const [modoBackground, setModoBackground] = useState(false);
+  const [jobsStatus, setJobsStatus] = useState<SyncQueueStatus | null>(null);
+
+  // Polling a cada 5s quando em modo background
+  useEffect(() => {
+    if (!modoBackground) return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/admin/sync-queue?lojaId=${lojaId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as SyncQueueStatus;
+        setJobsStatus(data);
+
+        // Parar polling e marcar como concluído quando não houver mais jobs ativos
+        if (data.resumo.pendentes === 0 && data.resumo.processando === 0) {
+          setEstadoVendas((prev) => ({ ...prev, status: "concluido" }));
+        }
+      } catch {
+        // Erros de polling são silenciosos — próxima tentativa em 5s
+      }
+    };
+
+    void poll(); // primeira chamada imediata
+    const interval = setInterval(() => void poll(), 5000);
+    return () => clearInterval(interval);
+  }, [modoBackground, lojaId]);
+
   const aplicarPreset = (dias: number) => {
     setDataInicio(
       dias === 0 ? toInputDate(HOJE) : toInputDate(subDias(HOJE, dias))
@@ -768,6 +821,62 @@ export function SyncInicialModal({
 
   // Labels para o SyncAbaContent (mantém assinatura do componente)
   const mesesPreview = periodosPreview.map((m) => m.label);
+
+  // ── Sync via fila pg_cron — exclusivo para aba Vendas ────────────────────
+
+  const iniciarSyncVendas = useCallback(async () => {
+    if (!dataInicio || !dataFim) return;
+
+    setEstadoVendas((prev) => ({ ...prev, status: "rodando" }));
+
+    try {
+      // Verificar se já existem jobs ativos para retomar monitoramento
+      const statusRes = await fetch(`/api/admin/sync-queue?lojaId=${lojaId}`);
+      if (statusRes.ok) {
+        const statusData = (await statusRes.json()) as SyncQueueStatus;
+        const temAtivos =
+          statusData.resumo.pendentes > 0 || statusData.resumo.processando > 0;
+
+        if (temAtivos) {
+          setJobsStatus(statusData);
+          setModoBackground(true);
+          return;
+        }
+      }
+
+      // Enfileirar todos os meses de uma vez
+      const res = await fetch("/api/admin/sync-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lojaId,
+          dataInicial: dataInicio,
+          dataFinal: dataFim,
+          tipo: "vendas",
+        }),
+      });
+
+      const data = (await res.json()) as { sucesso?: boolean; error?: string };
+
+      if (!res.ok) {
+        setEstadoVendas((prev) => ({
+          ...prev,
+          status: "erro",
+          erros: [data.error ?? "Erro ao enfileirar sync"],
+        }));
+        return;
+      }
+
+      // Ativar modo background — polling cuidará do progresso
+      setModoBackground(true);
+    } catch {
+      setEstadoVendas((prev) => ({
+        ...prev,
+        status: "erro",
+        erros: ["Erro de conexão ao enfileirar sync"],
+      }));
+    }
+  }, [lojaId, dataInicio, dataFim]);
 
   // ── Sync mensal genérico — usado por Vendas e OS ──────────────────────────
 
@@ -843,7 +952,13 @@ export function SyncInicialModal({
               error?: string;
             };
 
-            if (!res.ok) throw new Error(data.error ?? "Erro desconhecido");
+            if (!res.ok) {
+              const msgErro =
+                typeof data.error === "string"
+                  ? data.error
+                  : (JSON.stringify(data.error) ?? "Erro desconhecido");
+              throw new Error(msgErro);
+            }
 
             totalSalvo += data.vendas_salvas ?? 0;
 
@@ -1064,7 +1179,9 @@ export function SyncInicialModal({
     itens: estadoItens.status,
   };
 
-  const algumaRodando = Object.values(abaStatus).some((s) => s === "rodando");
+  // No modo background o sync continua no servidor — permitir fechar o modal
+  const algumaRodando =
+    !modoBackground && Object.values(abaStatus).some((s) => s === "rodando");
   const algumaConcluida = Object.values(abaStatus).some(
     (s) => s === "concluido"
   );
@@ -1260,14 +1377,96 @@ export function SyncInicialModal({
         {/* ── Conteúdo da aba ativa ──────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto px-6 py-5 min-h-[180px]">
           {abaAtiva === "vendas" && (
-            <SyncAbaContent
-              estado={estadoVendas}
-              mesesPreview={mesesPreview}
-              labelItens="Vendas importadas"
-              onIniciar={() =>
-                iniciarSyncMensal(periodosPreview, setEstadoVendas)
-              }
-            />
+            modoBackground && jobsStatus ? (
+              // ── UI de progresso em background ─────────────────────────────
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div
+                    className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin"
+                    style={{ borderColor: "var(--accent-cyan, #00e5ff)" }}
+                  />
+                  <span className="text-sm font-medium" style={{ color: "var(--accent-cyan, #00e5ff)" }}>
+                    Sincronizando em background...
+                  </span>
+                </div>
+
+                {/* Barra de progresso geral */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs mb-1">
+                    <span style={{ color: "var(--text-secondary)" }}>
+                      {jobsStatus.resumo.concluidos}/{jobsStatus.resumo.total} meses
+                    </span>
+                    <span style={{ color: "var(--text-primary)" }}>
+                      {jobsStatus.resumo.registros.toLocaleString("pt-BR")} vendas
+                    </span>
+                  </div>
+                  <div
+                    className="h-2 rounded-full overflow-hidden"
+                    style={{ background: "rgba(255,255,255,0.06)" }}
+                  >
+                    <div
+                      style={{
+                        width: `${
+                          jobsStatus.resumo.total > 0
+                            ? (jobsStatus.resumo.concluidos / jobsStatus.resumo.total) * 100
+                            : 0
+                        }%`,
+                        height: "100%",
+                        background: "linear-gradient(90deg, var(--accent-cyan, #00e5ff), #7c3aed)",
+                        transition: "width 0.5s ease",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Lista de meses com status */}
+                <div className="space-y-1 max-h-48 overflow-y-auto custom-scroll">
+                  {jobsStatus.jobs.map((job, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between text-xs py-1"
+                      style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}
+                    >
+                      <span
+                        style={{
+                          color:
+                            job.status === "concluido" ? "#10b981"
+                            : job.status === "processando" ? "var(--accent-cyan, #00e5ff)"
+                            : job.status === "erro" ? "#ef4444"
+                            : "var(--text-muted)",
+                        }}
+                      >
+                        {job.status === "concluido" ? "✓"
+                          : job.status === "processando" ? "⟳"
+                          : job.status === "erro" ? "✗"
+                          : "○"}{" "}
+                        {new Date(job.data_ini + "T12:00:00").toLocaleDateString("pt-BR", {
+                          month: "short",
+                          year: "2-digit",
+                        })}
+                      </span>
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {job.registros_salvos > 0
+                          ? `${(job.registros_salvos as number).toLocaleString("pt-BR")} reg.`
+                          : job.status === "pendente" ? "aguardando..."
+                          : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)" }}>
+                  ✅ Pode fechar esta janela — o sync continua em background
+                </p>
+              </div>
+            ) : (
+              <SyncAbaContent
+                estado={estadoVendas}
+                mesesPreview={mesesPreview}
+                labelItens="Vendas importadas"
+                onIniciar={iniciarSyncVendas}
+              />
+            )
           )}
           {abaAtiva === "os" && (
             <SyncAbaContent
