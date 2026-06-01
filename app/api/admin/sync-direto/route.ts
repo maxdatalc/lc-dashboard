@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
       lojaId,
       dataInicial,
       dataFinal,
-      pageLimit = 150,
+      pageLimit = 50,
       startPage = 1,
     } = body;
 
