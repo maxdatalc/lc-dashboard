@@ -831,7 +831,7 @@ export function SyncInicialModal({
                 lojaId,
                 dataInicial: dataIni,
                 dataFinal: dataFim,
-                pageLimit: 150,
+                pageLimit: 50,
                 startPage: proximaPagina,
               }),
             });
