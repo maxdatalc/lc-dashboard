@@ -813,35 +813,61 @@ export function SyncInicialModal({
           statusMeses: { ...prev.statusMeses, [mes.label]: "atual" },
         }));
 
-        try {
-          const res = await fetch("/api/admin/sync-inicial", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              lojaId,
-              dataInicial: mes.dataInicial,
-              dataFinal: mes.dataFinal,
-            }),
-          });
-          const data = (await res.json()) as {
-            vendas_salvas?: number;
-            error?: string;
-          };
+        // Sincroniza um período completo — trata automaticamente meses com
+        // muitas páginas que requerem múltiplos requests (pageLimit)
+        const sincronizarPeriodo = async (
+          dataIni: string,
+          dataFim: string
+        ): Promise<number> => {
+          let totalSalvo = 0;
+          let proximaPagina = 1;
+          const MAX_CHUNKS = 20; // máximo de requests por mês (segurança)
 
-          if (!res.ok) {
-            erros.push(`${mes.label}: ${data.error ?? "Erro desconhecido"}`);
-            setEstado((prev) => ({
-              ...prev,
-              statusMeses: { ...prev.statusMeses, [mes.label]: "erro" },
-            }));
-          } else {
-            totalItens += data.vendas_salvas ?? 0;
-            setEstado((prev) => ({
-              ...prev,
-              statusMeses: { ...prev.statusMeses, [mes.label]: "concluido" },
-              totalItens,
-            }));
+          for (let chunk = 0; chunk < MAX_CHUNKS; chunk++) {
+            const res = await fetch("/api/admin/sync-inicial", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                lojaId,
+                dataInicial: dataIni,
+                dataFinal: dataFim,
+                pageLimit: 150,
+                startPage: proximaPagina,
+              }),
+            });
+
+            const data = (await res.json()) as {
+              vendas_salvas?: number;
+              concluido?: boolean;
+              proxima_pagina?: number;
+              error?: string;
+            };
+
+            if (!res.ok) throw new Error(data.error ?? "Erro desconhecido");
+
+            totalSalvo += data.vendas_salvas ?? 0;
+
+            // Mês concluído — sair do loop de chunks
+            if (data.concluido !== false) break;
+
+            // Continuar da próxima página
+            proximaPagina = data.proxima_pagina ?? proximaPagina + 150;
+
+            // Pequeno delay entre chunks do mesmo mês
+            await new Promise((r) => setTimeout(r, 200));
           }
+
+          return totalSalvo;
+        };
+
+        try {
+          const vendas = await sincronizarPeriodo(mes.dataInicial, mes.dataFinal);
+          totalItens += vendas;
+          setEstado((prev) => ({
+            ...prev,
+            statusMeses: { ...prev.statusMeses, [mes.label]: "concluido" },
+            totalItens,
+          }));
         } catch (e) {
           erros.push(
             `${mes.label}: ${e instanceof Error ? e.message : "Erro de rede"}`

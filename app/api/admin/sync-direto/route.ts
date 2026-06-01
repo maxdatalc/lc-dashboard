@@ -61,10 +61,18 @@ export async function POST(req: NextRequest) {
     // 2. Parsear corpo
     const body = await req.json() as {
       lojaId: string;
-      dataInicial: string; // "YYYY-MM-DD"
-      dataFinal: string;   // "YYYY-MM-DD"
+      dataInicial: string;  // "YYYY-MM-DD"
+      dataFinal: string;    // "YYYY-MM-DD"
+      pageLimit?: number;   // máx páginas por request (padrão 150)
+      startPage?: number;   // página inicial para retomar (padrão 1)
     };
-    const { lojaId, dataInicial, dataFinal } = body;
+    const {
+      lojaId,
+      dataInicial,
+      dataFinal,
+      pageLimit = 150,
+      startPage = 1,
+    } = body;
 
     if (!lojaId || !dataInicial || !dataFinal) {
       return NextResponse.json(
@@ -124,11 +132,38 @@ export async function POST(req: NextRequest) {
     const dataFinalISO = `${dataFinal}T23:59:59-03:00`;
     const agora = new Date().toISOString();
     let vendasSalvas = 0;
-    let page = 1;
+    let page = startPage;  // retomar da página indicada pelo frontend
     let totalPages = 1;
+    let paginasProcessadas = 0;
 
     // 7. Processar vendas página por página — sem acumular em memória
     while (page <= totalPages) {
+      // Limite de páginas por request para evitar timeout
+      if (paginasProcessadas >= pageLimit) {
+        console.log(
+          `[sync-direto] Limite de ${pageLimit} páginas atingido — retornando para continuar`
+        );
+        await adminClient
+          .from("sync_inicial")
+          .upsert(
+            {
+              loja_id: lojaId,
+              status: "em_andamento",
+              mes_atual: dataInicial,
+              vendas_salvas: vendasSalvas,
+              atualizado_em: new Date().toISOString(),
+            },
+            { onConflict: "loja_id" }
+          );
+        return NextResponse.json({
+          periodo_processado: `${dataInicial} → ${dataFinal}`,
+          vendas_salvas: vendasSalvas,
+          concluido: false,
+          proxima_pagina: page,
+          total_pages: totalPages,
+        });
+      }
+
       const url = new URL(`${lojaRow.erp_base_url}/v2/sale`);
       url.searchParams.set("page", String(page));
       url.searchParams.set("limit", "50");
@@ -159,7 +194,11 @@ export async function POST(req: NextRequest) {
           external_id: v.id,
           source: "sale",
           numero_venda: String(v.id),
-          data_venda: (v.fechamento ?? v.abertura ?? dataInicial).split("T")[0],
+          data_venda: (() => {
+            const raw = v.fechamento ?? v.abertura;
+            if (raw && raw.trim() !== "") return raw.split("T")[0];
+            return dataInicial; // fallback para a data inicial do período
+          })(),
           cliente_external_id: v.clienteId ?? null,
           cliente_nome: v.clienteNome ?? null,
           cpf_cnpj: v.cpfCnpj ?? null,
@@ -198,6 +237,7 @@ export async function POST(req: NextRequest) {
         `[sync-direto] ${dataInicial}: página ${page}/${totalPages} — ${docs.length} vendas`
       );
 
+      paginasProcessadas++;
       if (page >= totalPages) break;
       page++;
       await sleep(50);
