@@ -2,6 +2,8 @@
 // Compensa syncs anteriores que não popularam venda_itens/venda_pagamentos
 // Suporta paginação via ?offset=N&limit=N para evitar timeout em grandes lotes
 
+export const maxDuration = 300;
+
 import { NextRequest, NextResponse } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { getLojaConfig } from "@/lib/db/tenants";
