@@ -238,22 +238,27 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (!ids.length) return NextResponse.json([]);
 
         const itens: Record<string, unknown>[] = [];
+
+        console.log(`[charts/top-produtos] total de IDs de vendas:`, ids.length);
+
         for (const loteIds of chunkArray(ids, IN_FILTER_BATCH_SIZE)) {
           const { data: itensLote, error: errItens } = await supabase
             .from("venda_itens")
             .select("produto_nome, produto_external_id, quantidade, valor_total, valor_unitario")
             .in("loja_id", lojaIds)
-            .in("venda_external_id", loteIds);
+            .in("venda_external_id", loteIds)
+            .limit(10000);
 
           if (errItens) {
-            console.error("[charts/top-produtos] erro:", errItens.message);
+            console.error("[charts/top-produtos] erro itens:", errItens.message);
             return NextResponse.json([]);
           }
 
+          console.log(`[charts/top-produtos] lote ${loteIds.length} IDs → ${itensLote?.length ?? 0} itens`);
           itens.push(...((itensLote ?? []) as Record<string, unknown>[]));
         }
 
-        console.log(`[charts/top-produtos] itens encontrados:`, itens.length);
+        console.log(`[charts/top-produtos] total itens acumulados:`, itens.length);
         if (!itens.length) return NextResponse.json([]);
 
         const porProduto = new Map<string, {
