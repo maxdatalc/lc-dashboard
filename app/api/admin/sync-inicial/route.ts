@@ -6,7 +6,7 @@ import { NextResponse, NextRequest } from "next/server";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isSystemAdmin } from "@/lib/db/admin";
 
-// ── POST: processa um chunk (mês) ─────────────────────────────────────────────
+// ── POST: processa um período (semana) ───────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,42 +18,23 @@ export async function POST(req: NextRequest) {
     const admin = await isSystemAdmin(user.id);
     if (!admin) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
 
-    // 2. Parsear corpo
+    // 2. Parsear corpo — novo formato: semana por semana
     const body = await req.json() as {
       lojaId: string;
-      mes: string;
-      chunkAtual: number;
-      totalChunks: number;
+      dataInicial: string; // "YYYY-MM-DD"
+      dataFinal: string;   // "YYYY-MM-DD"
     };
-    const { lojaId, mes, chunkAtual, totalChunks } = body;
+    const { lojaId, dataInicial, dataFinal } = body;
 
-    if (!lojaId || !mes || !chunkAtual || !totalChunks) {
-      return NextResponse.json({ error: "Campos obrigatórios: lojaId, mes, chunkAtual, totalChunks" }, { status: 400 });
-    }
-
-    // 3. No primeiro chunk: inicializar registro de controle no sync_inicial
-    if (chunkAtual === 1) {
-      const adminClient = createAdminClient();
-      await adminClient.from("sync_inicial").upsert(
-        {
-          loja_id: lojaId,
-          status: "em_andamento",
-          chunk_atual: 0,
-          total_chunks: totalChunks,
-          mes_atual: mes,
-          vendas_salvas: 0,
-          erros: null,
-          iniciado_em: new Date().toISOString(),
-          atualizado_em: new Date().toISOString(),
-        },
-        { onConflict: "loja_id" }
+    if (!lojaId || !dataInicial || !dataFinal) {
+      return NextResponse.json(
+        { error: "Campos obrigatórios: lojaId, dataInicial, dataFinal" },
+        { status: 400 }
       );
     }
 
-    // 4. Chamar a Edge Function sync-erp-inicial
-    console.log("[sync-inicial] Chamando Edge Function com:", { lojaId, mes, chunkAtual, totalChunks });
-    console.log("[sync-inicial] URL:", `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-erp-inicial`);
-    console.log("[sync-inicial] Service Role Key existe:", !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+    // 3. Chamar a Edge Function sync-erp-inicial
+    console.log("[sync-inicial] Chamando Edge Function com:", { lojaId, dataInicial, dataFinal });
 
     const efResponse = await fetch(
       `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/sync-erp-inicial`,
@@ -63,7 +44,7 @@ export async function POST(req: NextRequest) {
           Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ lojaId, mes, chunkAtual, totalChunks }),
+        body: JSON.stringify({ lojaId, dataInicial, dataFinal }),
       }
     );
 
@@ -72,12 +53,6 @@ export async function POST(req: NextRequest) {
     console.log("[sync-inicial] Body da resposta:", responseText);
 
     if (!efResponse.ok) {
-      // Registrar erro no sync_inicial
-      const adminClient = createAdminClient();
-      await adminClient
-        .from("sync_inicial")
-        .update({ status: "erro", erros: responseText.substring(0, 500), atualizado_em: new Date().toISOString() })
-        .eq("loja_id", lojaId);
       return NextResponse.json({ error: `Edge Function: ${responseText}` }, { status: 502 });
     }
 
