@@ -69,38 +69,30 @@ const PRESETS = [
 
 const HOJE = new Date();
 
-interface Semana {
+interface Dia {
   dataInicial: string; // "YYYY-MM-DD"
-  dataFinal: string;   // "YYYY-MM-DD"
-  label: string;       // "01-07 mai"
+  dataFinal: string;   // "YYYY-MM-DD" (igual ao dataInicial)
+  label: string;       // "01 mai"
 }
 
-// Divide um intervalo em semanas de 7 dias para envio à Edge Function
-function calcularSemanas(inicio: string, fim: string): Semana[] {
-  const semanas: Semana[] = [];
+// Divide um intervalo em dias individuais para envio à Edge Function
+function calcularDias(inicio: string, fim: string): Dia[] {
+  const dias: Dia[] = [];
   const d = new Date(inicio + "T12:00:00");
-  const fim2 = new Date(fim + "T12:00:00");
+  const f = new Date(fim + "T12:00:00");
 
-  while (d <= fim2) {
-    const inicioSemana = d.toISOString().split("T")[0];
-
-    const fimSemana = new Date(d);
-    fimSemana.setDate(fimSemana.getDate() + 6);
-    const dataFinalSemana =
-      fimSemana > fim2
-        ? fim2.toISOString().split("T")[0]
-        : fimSemana.toISOString().split("T")[0];
-
-    const mes = new Date(inicioSemana + "T12:00:00").toLocaleDateString("pt-BR", {
+  while (d <= f) {
+    const data = d.toISOString().split("T")[0];
+    const label = new Date(data + "T12:00:00").toLocaleDateString("pt-BR", {
+      day: "2-digit",
       month: "short",
     });
-    const label = `${inicioSemana.slice(8)}-${dataFinalSemana.slice(8)} ${mes}`;
 
-    semanas.push({ dataInicial: inicioSemana, dataFinal: dataFinalSemana, label });
-    d.setDate(d.getDate() + 7);
+    dias.push({ dataInicial: data, dataFinal: data, label });
+    d.setDate(d.getDate() + 1);
   }
 
-  return semanas;
+  return dias;
 }
 
 function toInputDate(d: Date): string {
@@ -291,8 +283,8 @@ function SyncAbaContent({
           {mesesPreview.length > 0
             ? `${mesesPreview.length} ${
                 mesesPreview.length === 1
-                  ? "semana será sincronizada"
-                  : "semanas serão sincronizadas"
+                  ? "dia será sincronizado"
+                  : "dias serão sincronizados"
               }`
             : "Selecione um período acima para continuar."}
         </p>
@@ -317,7 +309,7 @@ function SyncAbaContent({
             style={{ color: "var(--accent-cyan, #00e5ff)" }}
           />
           <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-            {mesesOk} de {totalMeses} meses
+            {mesesOk} de {totalMeses} dias
             {estado.mesAtual ? ` — processando ${estado.mesAtual}` : ""}
           </span>
         </div>
@@ -751,24 +743,36 @@ export function SyncInicialModal({
     setDataFim(toInputDate(HOJE));
   };
 
-  // Semanas do período selecionado — recalculado ao mudar datas
-  const semanasPreview =
-    dataInicio && dataFim ? calcularSemanas(dataInicio, dataFim) : [];
+  // Dias do período selecionado — recalculado ao mudar datas
+  const diasPreview =
+    dataInicio && dataFim ? calcularDias(dataInicio, dataFim) : [];
 
   // Labels para o SyncAbaContent (mantém assinatura do componente)
-  const mesesPreview = semanasPreview.map((s) => s.label);
+  const mesesPreview = diasPreview.map((d) => d.label);
 
-  // ── Sync semanal genérico — usado por Vendas e OS ─────────────────────────
+  // ── Sync diário genérico — usado por Vendas e OS ──────────────────────────
 
-  const iniciarSyncSemanal = useCallback(
+  const iniciarSyncDiario = useCallback(
     async (
-      semanas: Semana[],
+      dias: Dia[],
       setEstado: React.Dispatch<React.SetStateAction<EstadoAbaMensal>>
     ) => {
+      if (dias.length === 0) return;
+
+      // Aviso para períodos muito longos (> 180 dias ≈ 6 meses)
+      if (dias.length > 180) {
+        const estimativa = Math.round(dias.length * 0.1);
+        const ok = window.confirm(
+          `⚠️ Período de ${dias.length} dias pode demorar bastante.\n` +
+          `Estimativa: ~${estimativa} minutos.\n\nContinuar?`
+        );
+        if (!ok) return;
+      }
+
       canceladoRef.current = false;
 
       const statusInicial: Record<string, StatusMes> = {};
-      for (const s of semanas) statusInicial[s.label] = "pendente";
+      for (const d of dias) statusInicial[d.label] = "pendente";
 
       setEstado({
         status: "rodando",
@@ -781,14 +785,14 @@ export function SyncInicialModal({
       let totalItens = 0;
       const erros: string[] = [];
 
-      for (let i = 0; i < semanas.length; i++) {
+      for (let i = 0; i < dias.length; i++) {
         if (canceladoRef.current) break;
-        const semana = semanas[i];
+        const dia = dias[i];
 
         setEstado((prev) => ({
           ...prev,
-          mesAtual: semana.label,
-          statusMeses: { ...prev.statusMeses, [semana.label]: "atual" },
+          mesAtual: dia.label,
+          statusMeses: { ...prev.statusMeses, [dia.label]: "atual" },
         }));
 
         try {
@@ -797,8 +801,8 @@ export function SyncInicialModal({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               lojaId,
-              dataInicial: semana.dataInicial,
-              dataFinal: semana.dataFinal,
+              dataInicial: dia.dataInicial,
+              dataFinal: dia.dataFinal,
             }),
           });
           const data = (await res.json()) as {
@@ -807,33 +811,36 @@ export function SyncInicialModal({
           };
 
           if (!res.ok) {
-            erros.push(`${semana.label}: ${data.error ?? "Erro desconhecido"}`);
+            erros.push(`${dia.label}: ${data.error ?? "Erro desconhecido"}`);
             setEstado((prev) => ({
               ...prev,
-              statusMeses: { ...prev.statusMeses, [semana.label]: "erro" },
+              statusMeses: { ...prev.statusMeses, [dia.label]: "erro" },
             }));
           } else {
             totalItens += data.vendas_salvas ?? 0;
             setEstado((prev) => ({
               ...prev,
-              statusMeses: { ...prev.statusMeses, [semana.label]: "concluido" },
+              statusMeses: { ...prev.statusMeses, [dia.label]: "concluido" },
               totalItens,
             }));
           }
         } catch (e) {
           erros.push(
-            `${semana.label}: ${e instanceof Error ? e.message : "Erro de rede"}`
+            `${dia.label}: ${e instanceof Error ? e.message : "Erro de rede"}`
           );
           setEstado((prev) => ({
             ...prev,
-            statusMeses: { ...prev.statusMeses, [semana.label]: "erro" },
+            statusMeses: { ...prev.statusMeses, [dia.label]: "erro" },
           }));
         }
+
+        // Pausa entre dias para não sobrecarregar a API e o banco
+        await new Promise((r) => setTimeout(r, 200));
       }
 
       setEstado((prev) => ({
         ...prev,
-        status: erros.length === semanas.length ? "erro" : "concluido",
+        status: erros.length === dias.length ? "erro" : "concluido",
         mesAtual: null,
         totalItens,
         erros,
@@ -1214,7 +1221,7 @@ export function SyncInicialModal({
               mesesPreview={mesesPreview}
               labelItens="Vendas importadas"
               onIniciar={() =>
-                iniciarSyncSemanal(semanasPreview, setEstadoVendas)
+                iniciarSyncDiario(diasPreview, setEstadoVendas)
               }
             />
           )}
@@ -1225,7 +1232,7 @@ export function SyncInicialModal({
               labelItens="Ordens de serviço importadas"
               disabled={!syncServicesEnabled}
               disabledMsg="Sync de O.S. não está habilitado para esta loja. Ative a opção nas configurações da loja para habilitar."
-              onIniciar={() => iniciarSyncSemanal(semanasPreview, setEstadoOs)}
+              onIniciar={() => iniciarSyncDiario(diasPreview, setEstadoOs)}
             />
           )}
           {abaAtiva === "produtos" && (
