@@ -16,15 +16,20 @@ interface LojaRow {
 interface MaxDataProduto {
   id: number;
   codigo?: string;
+  codigoFab?: string;
   descricao?: string;
   nome?: string;
   grupoId?: number;
+  grupo?: string;
   grupoNome?: string;
+  subGrupo?: string;
+  fabricante?: string;
   valorVenda?: number;
   precoVenda?: number;
   valor?: number;
   valorCusto?: number;
   custoFinal?: number;
+  estoque?: number;
   ativo?: boolean;
   desativado?: boolean;
 }
@@ -97,14 +102,16 @@ Deno.serve(async (req) => {
       const rows = produtos.map((p) => ({
         loja_id: lojaId,
         external_id: p.id,
-        codigo: p.codigo ?? null,
+        codigo: p.codigoFab ?? null,
         nome: p.descricao ?? p.nome ?? "Produto",
         grupo_id: p.grupoId ?? null,
-        grupo_nome: p.grupoNome ?? null,
-        preco_venda: p.valorVenda ?? p.precoVenda ?? p.valor ?? null,
+        grupo_nome: p.grupo ?? null,
+        sub_grupo_nome: p.subGrupo ?? null,
+        fabricante: p.fabricante ?? null,
+        preco_venda: p.valorVenda ?? p.precoVenda ?? null,
         valor_custo: p.valorCusto ?? p.custoFinal ?? null,
-        estoque_atual: 0, // estoque é atualizado pelo sync incremental
-        ativo: p.ativo ?? !(p.desativado ?? false),
+        estoque_atual: p.estoque ?? 0,
+        ativo: !p.desativado ?? true,
         sincronizado_em: agora,
       }));
 
