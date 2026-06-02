@@ -225,10 +225,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                       />
                     )}
                     {produto.externalId != null && (
-                      <InfoLinha icon="🏷️" texto={`Cód. interno: ${produto.externalId}`} />
-                    )}
-                    {produto.codigo && (
-                      <InfoLinha icon="🔖" texto={`Cód. fabricante: ${produto.codigo}`} />
+                      <InfoLinha icon="🏷️" texto={`Cód: ${produto.externalId}`} />
                     )}
                     {produto.fabricante && (
                       <InfoLinha icon="🏭" texto={`Fabricante: ${produto.fabricante}`} />
