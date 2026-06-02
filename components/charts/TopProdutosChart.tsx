@@ -6,6 +6,7 @@ export interface ProdutoItem {
   nome: string;
   valor: number;
   quantidade: number;
+  externalId?: number | null;
   codigo?: string | null;
   grupoNome?: string | null;
   subGrupo?: string | null;
@@ -109,13 +110,12 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
           return (
             <div
               key={i}
-              onMouseEnter={() => setExpandido(i)}
-              onMouseLeave={() => setExpandido(null)}
+              onClick={() => setExpandido(expandido === i ? null : i)}
               style={{
                 borderBottom: "1px solid rgba(255,255,255,0.05)",
                 paddingBottom: "8px",
                 marginBottom: "8px",
-                cursor: "default",
+                cursor: "pointer",
               }}
             >
               {/* Linha principal */}
@@ -176,13 +176,27 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     fontWeight: 600,
                     color: "var(--text-primary)",
                     flexShrink: 0,
-                    fontFamily: "DM Serif Display, serif",
+                    fontFamily: "var(--font-inter, Inter, sans-serif)",
                     whiteSpace: "nowrap",
                   }}
                 >
                   {modo === "valor"
                     ? formatMoeda(produto.valor)
                     : `${produto.quantidade.toFixed(0)} un`}
+                </span>
+
+                {/* Chevron indica que o item é clicável */}
+                <span
+                  style={{
+                    fontSize: "10px",
+                    color: "var(--text-muted)",
+                    flexShrink: 0,
+                    transition: "transform 0.2s ease",
+                    transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                    display: "inline-block",
+                  }}
+                >
+                  ▼
                 </span>
               </div>
 
@@ -210,8 +224,11 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                         }
                       />
                     )}
+                    {produto.externalId != null && (
+                      <InfoLinha icon="🏷️" texto={`Cód. interno: ${produto.externalId}`} />
+                    )}
                     {produto.codigo && (
-                      <InfoLinha icon="🏷️" texto={`Cód: ${produto.codigo}`} />
+                      <InfoLinha icon="🔖" texto={`Cód. fabricante: ${produto.codigo}`} />
                     )}
                     {produto.fabricante && (
                       <InfoLinha icon="🏭" texto={`Fabricante: ${produto.fabricante}`} />
@@ -252,12 +269,6 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                       icon="🔢"
                       texto={`${produto.quantidade.toFixed(0)} un. vendidas no período`}
                     />
-                    {produto.estoqueAtual != null && (
-                      <InfoLinha
-                        icon="📊"
-                        texto={`Estoque atual: ${produto.estoqueAtual} un.`}
-                      />
-                    )}
                   </div>
                 </div>
               )}
