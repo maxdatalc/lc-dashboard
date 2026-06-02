@@ -211,9 +211,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const faturamento = vendaTotal;
   const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
 
-  // Clientes únicos por CPF/CNPJ nas vendas do período
+  // Clientes únicos por CPF/CNPJ — inclui quem devolveu, pois também foi cliente
   const clientesUnicos = new Set(
-    vendasTipo
+    [...vendasTipo, ...devolucoesTipo]
       .map((v) => (v.cpf_cnpj ?? "").replace(/\D/g, ""))
       .filter(Boolean)
   ).size;
@@ -228,7 +228,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ),
   ]);
 
-  const lucroTotal = faturamento - custoTotal;
+  // Lucro líquido: faturamento de vendas menos custo e menos devoluções
+  const lucroTotal = faturamento - custoTotal - valorDevolvido;
   const margemPercent = faturamento > 0 ? (lucroTotal / faturamento) * 100 : 0;
 
   // ── Classificar período anterior ───────────────────────────────────────────
