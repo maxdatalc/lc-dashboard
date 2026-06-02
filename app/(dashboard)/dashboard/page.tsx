@@ -174,12 +174,13 @@ export default function DashboardPage() {
       {/* ── KPIs — barra horizontal unificada ──────────────────────────────── */}
       <KpiBar
         faturamento={kpis?.faturamento?.value ?? 0}
+        totalVendas={kpis?.faturamento?.totalVendas ?? 0}
         devolucaoTotal={kpis?.valorDevolvido ?? 0}
         totalDevolucoes={kpis?.totalDevolucoes ?? 0}
         custo={kpis?.custo?.value ?? 0}
+        ticketMedio={kpis?.ticketMedio?.value ?? 0}
         lucro={kpis?.lucro?.value ?? 0}
         margem={kpis?.lucro?.margem ?? 0}
-        ticketMedio={kpis?.ticketMedio?.value ?? 0}
         totalClientes={kpis?.clientes?.value ?? 0}
         isLoading={kpiLoading}
       />
