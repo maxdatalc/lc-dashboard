@@ -332,6 +332,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             nome: p.nome,
             valor: p.valorTotal,
             quantidade: p.quantidade,
+            externalId: p.produtoExternalId ?? null,
             codigo: (det?.codigo as string) ?? null,
             grupoNome: (det?.grupo_nome as string) ?? null,
             subGrupo: (det?.sub_grupo_nome as string) ?? null,
@@ -339,7 +340,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             precoVenda,
             valorCusto,
             margem,
-            estoqueAtual: (det?.estoque_atual as number) ?? null,
+            estoqueAtual: null,
           };
         });
 
