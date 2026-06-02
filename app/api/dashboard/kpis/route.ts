@@ -89,48 +89,58 @@ async function queryVendasPeriodo(
   return (data ?? []) as VendaRow[];
 }
 
-// Calcula custo total a partir dos itens de venda e custos dos produtos
+// Calcula custo total processando vendas em lotes de 500 para suportar grandes volumes
 async function calcCustoTotal(
   supabase: Awaited<ReturnType<typeof createClient>>,
   lojaIds: string[],
   vendas: VendaRow[]
 ): Promise<number> {
-  const externalIds = vendas
-    .map((v) => v.external_id)
-    .filter(Boolean)
-    .slice(0, 2000) as string[];
+  const vendasIds = vendas.map((v) => v.external_id).filter(Boolean) as string[];
+  if (vendasIds.length === 0) return 0;
 
-  if (externalIds.length === 0) return 0;
+  const LOTE = 500;
+  let custoTotal = 0;
 
-  const { data: itens } = await supabase
-    .from("venda_itens")
-    .select("produto_external_id, quantidade, loja_id")
-    .in("loja_id", lojaIds)
-    .in("venda_external_id", externalIds);
+  for (let i = 0; i < vendasIds.length; i += LOTE) {
+    const lote = vendasIds.slice(i, i + LOTE);
 
-  if (!itens || itens.length === 0) return 0;
+    const { data: itens } = await supabase
+      .from("venda_itens")
+      .select("produto_external_id, quantidade, loja_id")
+      .in("loja_id", lojaIds)
+      .in("venda_external_id", lote);
 
-  const produtoIds = [...new Set(
-    itens.map((i: { produto_external_id: string | null }) => i.produto_external_id).filter(Boolean)
-  )] as string[];
+    if (!itens?.length) continue;
 
-  const { data: produtos } = await supabase
-    .from("produtos")
-    .select("external_id, valor_custo, loja_id")
-    .in("loja_id", lojaIds)
-    .in("external_id", produtoIds);
+    const produtoIds = [...new Set(
+      itens.map((it: { produto_external_id: string | null }) => it.produto_external_id).filter(Boolean)
+    )];
 
-  const custoPorProduto = new Map(
-    (produtos ?? []).map((p: { loja_id: string; external_id: string; valor_custo: number | null }) =>
-      [`${p.loja_id}:${p.external_id}`, p.valor_custo ?? 0]
-    )
-  );
+    if (!produtoIds.length) continue;
 
-  return itens.reduce((acc: number, item: { loja_id: string; produto_external_id: string | null; quantidade: number | null }) => {
-    const key = `${item.loja_id}:${item.produto_external_id}`;
-    const custo = custoPorProduto.get(key) ?? 0;
-    return acc + (item.quantidade ?? 0) * custo;
-  }, 0);
+    const { data: produtos } = await supabase
+      .from("produtos")
+      .select("external_id, valor_custo, loja_id")
+      .in("loja_id", lojaIds)
+      .in("external_id", produtoIds)
+      .gt("valor_custo", 0);
+
+    if (!produtos?.length) continue;
+
+    const custoPorProduto = new Map(
+      produtos.map((p: { loja_id: string; external_id: string; valor_custo: number | null }) =>
+        [`${p.loja_id}:${p.external_id}`, p.valor_custo ?? 0]
+      )
+    );
+
+    custoTotal += itens.reduce((acc: number, item: { loja_id: string; produto_external_id: string | null; quantidade: number | null }) => {
+      const key = `${item.loja_id}:${item.produto_external_id}`;
+      const custo = custoPorProduto.get(key) ?? 0;
+      return acc + (item.quantidade ?? 0) * custo;
+    }, 0);
+  }
+
+  return custoTotal;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -179,6 +189,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   // Classificar usando campo tipo (já populado pelo sync — inclui OS com tipo='venda')
   const vendasTipo = finalizadas.filter((v) => v.tipo === "venda" || v.tipo == null);
+
+  // Diagnóstico: amostra dos primeiros registros para validar valores
+  console.log("[kpis] sample vendas:", vendasTipo.slice(0, 3).map((v) => ({
+    valor_total: v.valor_total,
+    status: v.status,
+    tipo: v.tipo,
+  })));
   const devolucoesTipo = finalizadas.filter((v) => v.tipo === "devolucao");
   const outrosTipo = finalizadas.filter((v) => v.tipo === "outro");
 
