@@ -177,7 +177,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           .from("venda_pagamentos")
           .select("forma_pagamento, valor")
           .in("loja_id", lojaIds)
-          .in("venda_external_id", externalIds);
+          .in("venda_external_id", externalIds.map(String));
 
         console.log(`[charts/formas-pagamento] pagamentos encontrados:`, pagamentos?.length ?? 0, "erro:", errPag?.message);
         if (errPag) {
@@ -245,7 +245,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             .from("venda_itens")
             .select("produto_nome, produto_external_id, quantidade, valor_total, valor_unitario")
             .in("loja_id", lojaIds)
-            .in("venda_external_id", loteIds)
+            .in("venda_external_id", loteIds.map(String))
             .limit(10000);
 
           if (errItens) {
@@ -304,7 +304,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               .from("produtos")
               .select("external_id, codigo, grupo_nome, sub_grupo_nome, fabricante, preco_venda, valor_custo, estoque_atual")
               .in("loja_id", lojaIds)
-              .in("external_id", loteProdutoIds);
+              .in("external_id", loteProdutoIds.map(String));
 
             if (errProdutos) {
               console.error("[charts/top-produtos] erro detalhes:", errProdutos.message);
@@ -317,10 +317,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           detalhesMap = new Map(
             produtosDetalhes.map((p) => [toNumber(p.external_id), p as Record<string, unknown>])
           );
-
-          console.log(`[charts/top-produtos] produtoIds encontrados:`, produtoIds.length);
-          console.log(`[charts/top-produtos] produtos com detalhes:`, detalhesMap.size);
-          console.log(`[charts/top-produtos] sample produto:`, produtosDetalhes[0] ? JSON.stringify(produtosDetalhes[0]) : "nenhum");
         }
 
         const resultado = top50.map((p) => {
@@ -421,7 +417,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             .from("clientes")
             .select("external_id, email, telefone, cidade, estado, cnpj_cpf")
             .in("loja_id", lojaIds)
-            .in("external_id", externalIds);
+            .in("external_id", externalIds.map(String));
           detalhesMap = new Map(
             (clientesDetalhes ?? []).map((c) => [c.external_id as number, c as Record<string, unknown>])
           );

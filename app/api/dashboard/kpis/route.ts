@@ -108,7 +108,7 @@ async function calcCustoTotal(
       .from("venda_itens")
       .select("produto_external_id, quantidade, loja_id")
       .in("loja_id", lojaIds)
-      .in("venda_external_id", lote);
+      .in("venda_external_id", lote.map(String));
 
     if (!itens?.length) continue;
 
@@ -122,7 +122,7 @@ async function calcCustoTotal(
       .from("produtos")
       .select("external_id, valor_custo, loja_id")
       .in("loja_id", lojaIds)
-      .in("external_id", produtoIds)
+      .in("external_id", produtoIds.map(String))
       .gt("valor_custo", 0);
 
     if (!produtos?.length) continue;
