@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { LayoutDashboard, Settings2, Landmark, Users, LogOut } from "lucide-react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  LayoutDashboard,
+  Settings2,
+  Landmark,
+  Users,
+  LogOut,
+} from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Loja } from "@/lib/contexts/loja-context";
 
@@ -19,173 +19,195 @@ interface Props {
   selectedLojaId: string | null;
 }
 
-const SUBMENUS = [
-  { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark },
-  { href: "/dashboard/clientes", label: "Clientes", icon: Users },
-];
-
 const ACTIVE_STYLE = {
-  borderLeft: "3px solid var(--accent-cyan)",
   backgroundColor: "rgba(0, 212, 255, 0.12)",
   color: "var(--accent-cyan)",
 } as const;
 
 const INACTIVE_STYLE = {
-  borderLeft: "3px solid transparent",
   backgroundColor: "transparent",
   color: "var(--text-secondary)",
 } as const;
 
+// Itens de navegação principais
+const NAV_ITEMS = [
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark, exact: false },
+  { href: "/dashboard/clientes", label: "Clientes", icon: Users, exact: false },
+];
+
 export function Sidebar({ isAdmin }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [dashboardOpen, setDashboardOpen] = useState(
-    pathname.startsWith("/dashboard")
-  );
+  const [expanded, setExpanded] = useState(false);
 
-  // Se já está no dashboard: toggle do submenu. Caso contrário: navega e expande.
-  function handleDashboardClick() {
-    if (pathname === "/dashboard") {
-      setDashboardOpen((v) => !v);
-    } else {
-      router.push("/dashboard");
-      setDashboardOpen(true);
-    }
-  }
+  const isActive = (href: string, exact: boolean) =>
+    exact ? pathname === href : pathname.startsWith(href);
 
-  const isDashboardActive = pathname === "/dashboard" || pathname.startsWith("/dashboard/");
-  const isAdminActive = pathname.startsWith("/admin");
-
-  const BOTTOM_NAV = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark },
-    { href: "/dashboard/clientes", label: "Clientes", icon: Users },
-    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2 }] : []),
+  const allItems = [
+    ...NAV_ITEMS,
+    ...(isAdmin
+      ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false }]
+      : []),
   ];
 
-  const isBottomActive = (href: string) =>
-    href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(href);
+  // Bottom nav mobile usa os mesmos itens
+  const BOTTOM_NAV = allItems;
+
+  const isBottomActive = (href: string, exact: boolean) =>
+    exact ? pathname === href : pathname.startsWith(href);
 
   return (
-    <TooltipProvider delayDuration={150}>
-      {/* Desktop: sidebar lateral */}
+    <>
+      {/* ── Desktop: sidebar expansível ao hover ────────────────────── */}
       <aside
+        onMouseEnter={() => setExpanded(true)}
+        onMouseLeave={() => setExpanded(false)}
         className="hidden md:flex fixed top-0 left-0 h-screen flex-col z-40"
         style={{
-          width: "var(--sidebar-width)",
+          width: expanded ? "200px" : "56px",
           backgroundColor: "var(--sidebar-bg, var(--bg-card))",
           borderRight: "1px solid var(--border-subtle)",
+          transition: "width 0.25s ease",
+          overflow: "hidden",
         }}
       >
         {/* Logo */}
         <div
-          className="flex items-center justify-center flex-shrink-0"
+          className="flex items-center flex-shrink-0 overflow-hidden"
           style={{
-            height: "var(--header-height)",
+            height: "var(--header-height, 56px)",
             borderBottom: "1px solid var(--border-subtle)",
+            padding: "0 12px",
+            gap: "10px",
           }}
         >
+          {/* Quadrado LC */}
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center font-bold text-sm select-none"
-            style={{ backgroundColor: "var(--accent-cyan)", color: "#0d1117" }}
+            className="flex-shrink-0 rounded-lg flex items-center justify-center font-bold select-none"
+            style={{
+              width: 32,
+              height: 32,
+              backgroundColor: "var(--accent-cyan)",
+              color: "#0d1117",
+              fontSize: "13px",
+            }}
           >
             LC
           </div>
-        </div>
 
-        {/* Nav */}
-        <nav className="flex-1 flex flex-col overflow-hidden py-2">
-          {/* Dashboard — navega ou toggle do submenu */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={handleDashboardClick}
-                className="w-full flex items-center justify-center transition-colors"
-                style={{
-                  height: "48px",
-                  ...(isDashboardActive ? ACTIVE_STYLE : INACTIVE_STYLE),
-                }}
-              >
-                <LayoutDashboard className="h-5 w-5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">Dashboard</TooltipContent>
-          </Tooltip>
-
-          {/* Submenus animados */}
-          <div
+          {/* Texto "Gestor" — desliza ao expandir */}
+          <span
             style={{
-              overflow: "hidden",
-              maxHeight: dashboardOpen ? `${SUBMENUS.length * 36}px` : "0px",
-              opacity: dashboardOpen ? 1 : 0,
-              transition: "max-height 0.25s ease, opacity 0.2s ease",
+              fontSize: "15px",
+              fontWeight: 700,
+              color: "var(--text-primary)",
+              whiteSpace: "nowrap",
+              opacity: expanded ? 1 : 0,
+              transform: expanded ? "translateX(0)" : "translateX(-8px)",
+              transition: "opacity 0.2s ease 0.05s, transform 0.2s ease 0.05s",
+              letterSpacing: "-0.3px",
             }}
           >
-            {SUBMENUS.map(({ href, label, icon: Icon }) => {
-              const active = pathname.startsWith(href);
-              return (
-                <Tooltip key={href}>
-                  <TooltipTrigger asChild>
-                    <Link
-                      href={href}
-                      className="w-full flex items-center justify-center transition-colors"
-                      style={{
-                        height: "36px",
-                        ...(active ? ACTIVE_STYLE : INACTIVE_STYLE),
-                      }}
-                    >
-                      <Icon className="h-3.5 w-3.5" />
-                    </Link>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">{label}</TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
+            Gestor
+          </span>
+        </div>
 
-          {/* Admin — apenas system admins */}
-          {isAdmin && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Link
-                  href="/admin"
-                  className="w-full flex items-center justify-center transition-colors mt-1"
+        {/* Nav items */}
+        <nav className="flex-1 flex flex-col py-2 overflow-hidden">
+          {allItems.map(({ href, label, icon: Icon, exact }, i) => {
+            const active = isActive(href, exact);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="flex items-center transition-colors"
+                style={{
+                  height: "44px",
+                  padding: "0 14px",
+                  gap: "12px",
+                  borderLeft: active
+                    ? "3px solid var(--accent-cyan)"
+                    : "3px solid transparent",
+                  ...(active ? ACTIVE_STYLE : INACTIVE_STYLE),
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)";
+                    e.currentTarget.style.color = "var(--text-primary)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                    e.currentTarget.style.color = "var(--text-secondary)";
+                  }
+                }}
+              >
+                {/* Ícone — sempre visível */}
+                <Icon className="flex-shrink-0" style={{ width: 18, height: 18 }} />
+
+                {/* Label — desliza ao expandir com stagger por índice */}
+                <span
                   style={{
-                    height: "48px",
-                    ...(isAdminActive ? ACTIVE_STYLE : INACTIVE_STYLE),
+                    fontSize: "13px",
+                    fontWeight: active ? 600 : 400,
+                    whiteSpace: "nowrap",
+                    opacity: expanded ? 1 : 0,
+                    transform: expanded ? "translateX(0)" : "translateX(-6px)",
+                    transition: `opacity 0.2s ease ${0.05 + i * 0.02}s, transform 0.2s ease ${0.05 + i * 0.02}s`,
+                    overflow: "hidden",
                   }}
                 >
-                  <Settings2 className="h-5 w-5" />
-                </Link>
-              </TooltipTrigger>
-              <TooltipContent side="right">Admin</TooltipContent>
-            </Tooltip>
-          )}
+                  {label}
+                </span>
+              </Link>
+            );
+          })}
         </nav>
 
-        {/* Rodapé */}
+        {/* Rodapé: logout */}
         <div
-          className="flex flex-col items-center gap-1.5 py-3"
+          className="flex flex-col py-3"
           style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <form action={logout}>
-                <button
-                  type="submit"
-                  className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
-                  style={{ color: "var(--text-muted)" }}
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                </button>
-              </form>
-            </TooltipTrigger>
-            <TooltipContent side="right">Sair da conta</TooltipContent>
-          </Tooltip>
+          <form action={logout}>
+            <button
+              type="submit"
+              className="w-full flex items-center transition-colors"
+              style={{
+                height: "40px",
+                padding: "0 14px",
+                gap: "12px",
+                color: "var(--text-muted)",
+                borderLeft: "3px solid transparent",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "#ef4444";
+                e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.06)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <LogOut className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+              <span
+                style={{
+                  fontSize: "13px",
+                  whiteSpace: "nowrap",
+                  opacity: expanded ? 1 : 0,
+                  transform: expanded ? "translateX(0)" : "translateX(-6px)",
+                  transition: "opacity 0.2s ease 0.1s, transform 0.2s ease 0.1s",
+                }}
+              >
+                Sair da conta
+              </span>
+            </button>
+          </form>
         </div>
       </aside>
 
-      {/* Mobile: bottom navigation */}
+      {/* ── Mobile: bottom navigation (inalterado) ──────────────────── */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2"
         style={{
@@ -196,8 +218,8 @@ export function Sidebar({ isAdmin }: Props) {
           minHeight: "64px",
         }}
       >
-        {BOTTOM_NAV.map(({ href, label, icon: Icon }) => {
-          const active = isBottomActive(href);
+        {BOTTOM_NAV.map(({ href, label, icon: Icon, exact }) => {
+          const active = isBottomActive(href, exact);
           return (
             <Link
               key={href}
@@ -206,11 +228,13 @@ export function Sidebar({ isAdmin }: Props) {
               style={{ color: active ? "var(--accent-cyan)" : "var(--text-muted)" }}
             >
               <Icon size={20} />
-              <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400 }}>{label}</span>
+              <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400 }}>
+                {label}
+              </span>
             </Link>
           );
         })}
       </nav>
-    </TooltipProvider>
+    </>
   );
 }
