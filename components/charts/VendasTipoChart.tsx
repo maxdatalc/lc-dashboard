@@ -81,7 +81,7 @@ export function VendasTipoChart({ data }: Props) {
             {dominantPct}%
           </p>
           <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-            {dominantName}
+            {dominantName === "PF" ? "Física" : "Jurídica"}
           </p>
         </div>
       </div>
@@ -117,8 +117,8 @@ export function VendasTipoChart({ data }: Props) {
         })}
         <div style={{ height: 1, backgroundColor: "var(--border-subtle)", margin: "4px 0" }} />
         <div className="flex justify-between text-xs" style={{ color: "var(--text-muted)" }}>
-          <span>PF: {formatCurrency(data.pf.total)}</span>
-          <span>PJ: {formatCurrency(data.pj.total)}</span>
+          <span>Física: {formatCurrency(data.pf.total)}</span>
+          <span>Jurídica: {formatCurrency(data.pj.total)}</span>
         </div>
       </div>
     </div>

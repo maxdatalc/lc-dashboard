@@ -184,13 +184,13 @@ export default function DashboardPage() {
         isLoading={kpiLoading}
       />
 
-      {/* ── Linha 2: Top Produtos | PF/PJ | Faturamento Mensal ──────────────── */}
+      {/* ── Linha 2: Top Produtos | PF vs PJ | Faturamento Mensal ─────────────── */}
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
         <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[480px]">
           {chartsLoading ? <ChartSkeleton height={380} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>
 
-        <ChartCard title="PF vs PJ" subtitle="tipo de cliente — período selecionado" animationDelay={100}>
+        <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={100}>
           {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
         </ChartCard>
 

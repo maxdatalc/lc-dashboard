@@ -70,9 +70,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         const { data, error } = await supabase
           .from("vendas")
-          .select("data_venda, valor_total, cfop")
+          .select("data_venda, valor_total, tipo")
           .in("loja_id", lojaIds)
-          .eq("status", "finalizada")
+          .in("status", ["finalizada", "concluida", "fechada", "pago", "aprovada"])
           .gte("data_venda", inicio18m)
           .lte("data_venda", hoje);
 
@@ -82,18 +82,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           return NextResponse.json([]);
         }
 
-        // Agrupar por mês — separar faturamento de devoluções por prefixo CFOP
+        // Agrupar por mês — faturamento (tipo='venda') vs devoluções (tipo='devolucao')
+        // tipo='outro' é ignorado no gráfico mensal
         const agrupado: Record<string, { faturamento: number; devolucoes: number }> = {};
         for (const v of data ?? []) {
           const key = (v.data_venda as string).slice(0, 7);
           if (!agrupado[key]) agrupado[key] = { faturamento: 0, devolucoes: 0 };
           const valor = (v.valor_total as number) ?? 0;
-          const cfop = v.cfop as number | null;
-          // CFOP 1xxx/2xxx/3xxx = devolução; 5xxx/6xxx ou null = venda
-          const isDevolucao = cfop !== null && cfop < 4000;
-          if (isDevolucao) {
+          const tipo = v.tipo as string | null;
+          if (tipo === "devolucao") {
             agrupado[key].devolucoes += valor;
-          } else {
+          } else if (tipo === "venda" || tipo == null) {
             agrupado[key].faturamento += valor;
           }
         }
@@ -318,6 +317,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           detalhesMap = new Map(
             produtosDetalhes.map((p) => [toNumber(p.external_id), p as Record<string, unknown>])
           );
+
+          console.log(`[charts/top-produtos] produtoIds encontrados:`, produtoIds.length);
+          console.log(`[charts/top-produtos] produtos com detalhes:`, detalhesMap.size);
+          console.log(`[charts/top-produtos] sample produto:`, produtosDetalhes[0] ? JSON.stringify(produtosDetalhes[0]) : "nenhum");
         }
 
         const resultado = top50.map((p) => {
