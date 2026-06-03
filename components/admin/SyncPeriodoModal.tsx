@@ -787,14 +787,27 @@ export function SyncInicialModal({
   const [modoBackground, setModoBackground] = useState(false);
   const [jobsStatus, setJobsStatus] = useState<SyncQueueStatus | null>(null);
 
-  // Na montagem: verificar automaticamente se já há jobs ativos para retomar
+  // Na montagem: verificar jobs existentes e restaurar estado correto
   useEffect(() => {
     fetch(`/api/admin/sync-queue?lojaId=${lojaId}`)
       .then((r) => r.json() as Promise<SyncQueueStatus>)
       .then((data) => {
-        if (data.resumo.pendentes > 0 || data.resumo.processando > 0) {
-          setJobsStatus(data);
-          setModoBackground(true);
+        // Sem jobs — estado idle é correto, não fazer nada
+        if (data.resumo.total === 0) return;
+
+        // Há jobs — sempre mostrar o painel de background
+        setJobsStatus(data);
+        setModoBackground(true);
+
+        const temAtivos = data.resumo.pendentes > 0 || data.resumo.processando > 0;
+        const todosOk = data.resumo.concluidos === data.resumo.total;
+        const temErro = data.resumo.erros > 0;
+
+        if (todosOk) {
+          setEstadoVendas((prev) => ({ ...prev, status: "concluido" }));
+        } else if (temErro && !temAtivos) {
+          setEstadoVendas((prev) => ({ ...prev, status: "erro" }));
+        } else {
           setEstadoVendas((prev) => ({ ...prev, status: "rodando" }));
         }
       })
@@ -813,9 +826,17 @@ export function SyncInicialModal({
         const data = (await res.json()) as SyncQueueStatus;
         setJobsStatus(data);
 
-        // Parar polling e marcar como concluído quando não houver mais jobs ativos
-        if (data.resumo.pendentes === 0 && data.resumo.processando === 0) {
-          setEstadoVendas((prev) => ({ ...prev, status: "concluido" }));
+        const temAtivos = data.resumo.pendentes > 0 || data.resumo.processando > 0;
+        const todosOk = data.resumo.concluidos === data.resumo.total;
+        const temErro = data.resumo.erros > 0;
+
+        // Quando não há mais jobs ativos, definir status final e parar o polling
+        if (!temAtivos) {
+          if (todosOk) {
+            setEstadoVendas((prev) => ({ ...prev, status: "concluido" }));
+          } else if (temErro) {
+            setEstadoVendas((prev) => ({ ...prev, status: "erro" }));
+          }
         }
       } catch {
         // Erros de polling são silenciosos — próxima tentativa em 5s
@@ -1619,6 +1640,28 @@ export function SyncInicialModal({
                 <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)" }}>
                   ✅ Pode fechar esta janela — o sync continua em background
                 </p>
+
+                {/* Botão "Novo sync" aparece quando tudo concluiu */}
+                {estadoVendas.status === "concluido" && (
+                  <div className="flex justify-center mt-3">
+                    <button
+                      onClick={() => {
+                        setModoBackground(false);
+                        setJobsStatus(null);
+                        setEstadoVendas({ status: "idle", statusMeses: {}, mesAtual: null, totalItens: 0, erros: [] });
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg"
+                      style={{
+                        background: "rgba(255,255,255,0.04)",
+                        border: "1px solid var(--border-subtle)",
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      ↺ Iniciar novo sync
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <SyncAbaContent

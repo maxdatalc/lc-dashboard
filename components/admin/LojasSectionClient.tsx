@@ -104,10 +104,12 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
             );
             if (!res.ok) return;
             const data = await res.json() as {
-              resumo: { pendentes: number; processando: number };
+              resumo: { pendentes: number; processando: number; erros: number };
             };
             if (
-              (data.resumo.pendentes > 0 || data.resumo.processando > 0)
+              data.resumo.pendentes > 0 ||
+              data.resumo.processando > 0 ||
+              data.resumo.erros > 0
             ) {
               novosAtivos.add(loja.id);
             }
