@@ -14,6 +14,7 @@ import {
   FileText,
   ArrowRight,
   AlertTriangle,
+  Users,
 } from "lucide-react";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ interface Props {
   onCancelar: () => void;
 }
 
-type AbaId = "vendas" | "os" | "produtos" | "itens";
+type AbaId = "vendas" | "os" | "produtos" | "itens" | "atendente";
 type StatusSync = "idle" | "rodando" | "concluido" | "erro";
 type StatusMes = "pendente" | "atual" | "concluido" | "erro";
 
@@ -777,6 +778,9 @@ export function SyncInicialModal({
     erros: [],
   });
 
+  const [statusAtendente, setStatusAtendente] = useState<StatusSync>("idle");
+  const [erroAtual, setErroAtual] = useState<string | null>(null);
+
   const canceladoRef = useRef(false);
 
   // ── Modo background: sync via fila pg_cron ────────────────────────────────
@@ -930,6 +934,39 @@ export function SyncInicialModal({
         status: "erro",
         erros: ["Erro de conexão"],
       }));
+    }
+  }, [lojaId, dataInicio, dataFim]);
+
+  // ── Sync de atendentes — job único enfileirado em background ─────────────
+
+  const iniciarSyncAtendente = useCallback(async () => {
+    setStatusAtendente("rodando");
+    setErroAtual(null);
+
+    try {
+      const res = await fetch("/api/admin/sync-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lojaId,
+          dataInicial: dataInicio,
+          dataFinal: dataFim,
+          tipo: "atendente",
+        }),
+      });
+
+      const data = (await res.json()) as { sucesso?: boolean; error?: string };
+
+      if (!res.ok) {
+        setErroAtual(typeof data.error === "string" ? data.error : JSON.stringify(data.error));
+        setStatusAtendente("erro");
+        return;
+      }
+
+      setModoBackground(true);
+    } catch {
+      setErroAtual("Erro de conexão");
+      setStatusAtendente("erro");
     }
   }, [lojaId, dataInicio, dataFim]);
 
@@ -1232,6 +1269,7 @@ export function SyncInicialModal({
     os: estadoOs.status,
     produtos: estadoProdutos.status,
     itens: estadoItens.status,
+    atendente: statusAtendente,
   };
 
   // No modo background o sync continua no servidor — permitir fechar o modal
@@ -1250,6 +1288,7 @@ export function SyncInicialModal({
     { id: "os", label: "O.S.", icon: Wrench },
     { id: "produtos", label: "Produtos", icon: Package },
     { id: "itens", label: "Itens", icon: FileText },
+    { id: "atendente", label: "Atendentes", icon: Users },
   ];
 
   return (
@@ -1520,7 +1559,7 @@ export function SyncInicialModal({
 
                 {/* Progresso agrupado por tipo */}
                 <div className="space-y-3">
-                  {(["vendas", "os", "produtos", "itens"] as const).map((tipo) => {
+                  {(["vendas", "os", "produtos", "itens", "atendente"] as const).map((tipo) => {
                     const jobsTipo = jobsStatus.jobs.filter((j: SyncQueueJob) => j.tipo === tipo);
                     if (jobsTipo.length === 0) return null;
 
@@ -1535,6 +1574,7 @@ export function SyncInicialModal({
                       os: "🔧 O.S.",
                       produtos: "📦 Produtos",
                       itens: "🧾 Itens & Pgtos",
+                      atendente: "👤 Atendentes",
                     };
 
                     return (
@@ -1619,6 +1659,84 @@ export function SyncInicialModal({
                 })
               }
             />
+          )}
+          {abaAtiva === "atendente" && (
+            <div>
+              {statusAtendente === "idle" && (
+                <>
+                  <div
+                    className="p-3 rounded-lg mb-4 text-xs"
+                    style={{
+                      background: "rgba(0,229,255,0.06)",
+                      border: "1px solid rgba(0,229,255,0.15)",
+                      color: "var(--accent-cyan, #00e5ff)",
+                    }}
+                  >
+                    <p className="font-semibold mb-1">👤 Por que sincronizar atendentes?</p>
+                    <p style={{ color: "var(--text-secondary)", lineHeight: "1.6" }}>
+                      Vincula o vendedor responsável a cada venda histórica.
+                      Necessário para o gráfico de{" "}
+                      <strong>Top 10 Vendedores</strong> funcionar.
+                      Processa em background — pode fechar esta janela.
+                    </p>
+                  </div>
+                  <div
+                    className="p-3 rounded-lg mb-4 text-xs"
+                    style={{
+                      background: "rgba(245,158,11,0.06)",
+                      border: "1px solid rgba(245,158,11,0.15)",
+                      color: "#f59e0b",
+                    }}
+                  >
+                    ⏱️ Esta etapa pode demorar algumas horas dependendo
+                    do volume de vendas. O processo continua em background.
+                  </div>
+                  <button
+                    onClick={iniciarSyncAtendente}
+                    className="w-full py-2.5 rounded-lg text-sm font-medium"
+                    style={{ background: "var(--accent-cyan, #00e5ff)", color: "#0a0f1e" }}
+                  >
+                    Iniciar Sync de Atendentes
+                  </button>
+                </>
+              )}
+              {statusAtendente === "rodando" && modoBackground && (
+                <div className="text-center py-8">
+                  <div
+                    className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin mx-auto mb-3"
+                    style={{ borderColor: "var(--accent-cyan, #00e5ff)" }}
+                  />
+                  <p className="text-sm" style={{ color: "var(--accent-cyan, #00e5ff)" }}>
+                    Sincronizando em background...
+                  </p>
+                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                    ✅ Pode fechar esta janela
+                  </p>
+                </div>
+              )}
+              {statusAtendente === "erro" && (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <XCircle className="h-4 w-4 text-red-500" />
+                    <span className="text-sm font-medium" style={{ color: "#ef4444" }}>
+                      Erro ao enfileirar sync de atendentes
+                    </span>
+                  </div>
+                  {erroAtual && (
+                    <p
+                      className="text-xs p-3 rounded-lg border"
+                      style={{
+                        borderColor: "rgba(239,68,68,0.25)",
+                        background: "rgba(239,68,68,0.05)",
+                        color: "#ef4444",
+                      }}
+                    >
+                      {erroAtual}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
 
