@@ -9,8 +9,8 @@
 - GitHub: maxdatalc/lc-dashboard (privado, branch main)
 
 ## URLs
-- Produção: app.lctecnologias.com.br
-- Futuro: app.lcgestor.com.br (quando domínio chegar)
+- Produção: app.lcgestor.com.br
+- ECOMMMERCE: TERÁ OUTRO URL
 
 ## Multi-tenancy
 - tenant → lojas[] (cada empId = 1 loja)
