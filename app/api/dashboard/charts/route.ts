@@ -446,6 +446,63 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         return NextResponse.json(resultado);
       }
 
+      case "top-vendedores": {
+        // Buscar vendas do período com atendente_id preenchido
+        const { data: vendasVendedor } = await supabase
+          .from("vendas")
+          .select("atendente_id, valor_total")
+          .in("loja_id", lojaIds)
+          .gte("data_venda", start)
+          .lte("data_venda", end)
+          .eq("tipo", "venda")
+          .in("status", ["finalizada", "concluida", "fechada", "pago"])
+          .not("atendente_id", "is", null);
+
+        if (!vendasVendedor?.length) return NextResponse.json([]);
+
+        // Agrupar por atendente_id
+        const porVendedor = new Map<number, { total: number; qtd: number }>();
+        for (const v of vendasVendedor) {
+          const id = v.atendente_id as number;
+          const existing = porVendedor.get(id);
+          if (!existing) {
+            porVendedor.set(id, { total: toNumber(v.valor_total), qtd: 1 });
+          } else {
+            existing.total += toNumber(v.valor_total);
+            existing.qtd++;
+          }
+        }
+
+        // Buscar nomes dos vendedores na tabela vendedores
+        const vendedorIds = Array.from(porVendedor.keys());
+        const { data: vendedores } = await supabase
+          .from("vendedores")
+          .select("external_id, nome, apelido")
+          .in("loja_id", lojaIds)
+          .in("external_id", vendedorIds.map(String));
+
+        const nomeMap = new Map(
+          (vendedores ?? []).map((v) => [
+            toNumber(v.external_id),
+            (v.nome as string) ?? `Vendedor ${v.external_id}`,
+          ])
+        );
+
+        // Top 10 por valor total
+        const resultado = Array.from(porVendedor.entries())
+          .map(([id, dados]) => ({
+            vendedorId: id,
+            nome: nomeMap.get(id) ?? `Vendedor ${id}`,
+            valor: dados.total,
+            quantidade: dados.qtd,
+            ticketMedio: dados.qtd > 0 ? dados.total / dados.qtd : 0,
+          }))
+          .sort((a, b) => b.valor - a.valor)
+          .slice(0, 10);
+
+        return NextResponse.json(resultado);
+      }
+
       default:
         return NextResponse.json({ error: "type inválido" }, { status: 400 });
     }

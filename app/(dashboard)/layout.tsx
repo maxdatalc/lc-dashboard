@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { PeriodProvider } from "@/lib/contexts/period-context";
 import { LojaProvider } from "@/lib/contexts/loja-context";
+import { FilterProvider } from "@/lib/contexts/filter-context";
 
 export default async function DashboardLayout({
   children,
@@ -57,6 +58,7 @@ export default async function DashboardLayout({
   return (
     <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>
       <PeriodProvider>
+      <FilterProvider>
         <div
           className="min-h-screen"
           style={{ backgroundColor: "var(--bg-primary)" }}
@@ -77,6 +79,7 @@ export default async function DashboardLayout({
             </main>
           </div>
         </div>
+      </FilterProvider>
       </PeriodProvider>
     </LojaProvider>
   );

@@ -5,7 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js";
 import { decrypt } from "../sync-erp/crypto.ts";
 import { getMaxDataToken } from "../sync-erp/maxdata-client.ts";
-import { syncVendas, syncProdutosIncremental, LojaRow } from "../sync-erp/syncers.ts";
+import { syncVendas, syncProdutosIncremental, syncVendedores, LojaRow } from "../sync-erp/syncers.ts";
 
 // Estende LojaRow com campos necessários para autenticação
 interface LojaCompleta extends LojaRow {
@@ -39,6 +39,7 @@ Deno.serve(async () => {
     status: "concluido" | "erro";
     vendas?: number;
     produtos?: number;
+    vendedores?: number;
     erro?: string;
   }> = [];
 
@@ -63,8 +64,11 @@ Deno.serve(async () => {
       // Sync produtos — atualiza preços, custos e estoque
       const totalProdutos = await syncProdutosIncremental(supabase, token, loja);
 
+      // Sync vendedores — atualiza lista de atendentes para o dashboard
+      const totalVendedores = await syncVendedores(supabase, token, loja);
+
       console.log(
-        `[sync-daily] Loja ${loja.id}: ${totalVendas} vendas, ${totalProdutos} produtos`
+        `[sync-daily] Loja ${loja.id}: ${totalVendas} vendas, ${totalProdutos} produtos, ${totalVendedores} vendedores`
       );
 
       resultados.push({
@@ -72,6 +76,7 @@ Deno.serve(async () => {
         status: "concluido",
         vendas: totalVendas,
         produtos: totalProdutos,
+        vendedores: totalVendedores,
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
