@@ -44,6 +44,7 @@ interface MaxDataVenda {
   vlrPago?: number;
   valorTotalDesconto?: number;
   status?: string;
+  atendenteId?: number;
 }
 
 interface LojaRow {
@@ -176,6 +177,9 @@ async function processarJob(
         break;
       case "itens":
         await processarItens(supabase, job, lojaRow, token);
+        break;
+      case "atendente":
+        await processarAtendente(supabase, job, lojaRow, token);
         break;
       default:
         throw new Error(`Tipo desconhecido: ${job.tipo}`);
@@ -646,6 +650,95 @@ async function processarItens(
   console.log(
     `[sync-queue] Itens job ${job.id}: offset ${offset}→${proximoOffset}` +
     ` | itens: ${itensSalvos} | pgtos: ${pagamentosSalvos}` +
+    ` | ${temMais ? "continua" : "CONCLUÍDO"}`
+  );
+}
+
+// ── Processador: atendente_id histórico ───────────────────────────────────────
+
+// Busca GET /v2/sale/{id} para vendas sem atendente_id e atualiza o campo.
+// Processa em lotes de 50 — retoma pelo offset salvo no metadata.
+async function processarAtendente(
+  supabase: ReturnType<typeof createClient>,
+  job: SyncJob,
+  loja: LojaRow,
+  token: string
+) {
+  const BATCH_SIZE = 50;
+  const DELAY_ENTRE_VENDAS = 150;
+
+  const offset = (job.metadata?.offset as number) ?? 0;
+
+  // Buscar lote de vendas SEM atendente_id
+  const { data: vendas } = await supabase
+    .from("vendas")
+    .select("external_id")
+    .eq("loja_id", job.loja_id)
+    .eq("source", "sale")
+    .is("atendente_id", null)
+    .order("external_id", { ascending: true })
+    .range(offset, offset + BATCH_SIZE - 1);
+
+  if (!vendas?.length) {
+    await atualizarJob(supabase, job.id, true, {
+      totalRegistros: job.registros_salvos,
+    });
+    console.log(`[sync-queue] Atendente job ${job.id}: CONCLUÍDO`);
+    return;
+  }
+
+  let atualizados = 0;
+
+  for (const venda of vendas) {
+    const externalId = venda.external_id as number;
+
+    try {
+      const res = await fetch(
+        `${loja.erp_base_url}/v2/sale/${externalId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: AbortSignal.timeout(10_000),
+        }
+      );
+
+      if (!res.ok) continue;
+
+      // deno-lint-ignore no-explicit-any
+      const data = await res.json() as any;
+      const atendenteId = data.atendenteId as number | undefined;
+
+      if (atendenteId && atendenteId > 0) {
+        const { error } = await supabase
+          .from("vendas")
+          .update({ atendente_id: atendenteId })
+          .eq("loja_id", job.loja_id)
+          .eq("external_id", externalId)
+          .eq("source", "sale");
+
+        if (!error) atualizados++;
+      }
+    } catch (err) {
+      console.error(`[sync-queue] Erro atendente venda ${externalId}:`, err);
+    }
+
+    await sleep(DELAY_ENTRE_VENDAS);
+  }
+
+  const proximoOffset = offset + vendas.length;
+  const totalRegistros = job.registros_salvos + atualizados;
+  const temMais = vendas.length >= BATCH_SIZE;
+
+  await atualizarJob(supabase, job.id, !temMais, {
+    proximaPagina: temMais
+      ? Math.floor(proximoOffset / BATCH_SIZE) + 1
+      : job.pagina_atual,
+    totalRegistros,
+    metadata: { offset: proximoOffset },
+  });
+
+  console.log(
+    `[sync-queue] Atendente job ${job.id}: offset ${offset}→${proximoOffset}` +
+    ` | atualizados: ${atualizados}` +
     ` | ${temMais ? "continua" : "CONCLUÍDO"}`
   );
 }

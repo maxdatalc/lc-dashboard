@@ -124,7 +124,17 @@ export async function POST(req: NextRequest) {
         metadata: { offset: 0 },
       }];
 
-      const todosJobs = [...jobsVendas, ...jobsOS, ...jobProdutos, ...jobItens];
+      const jobAtendente: SyncQueueInsert[] = [{
+        loja_id: lojaId,
+        tipo: "atendente",
+        data_ini: dataInicial,
+        data_fim: dataFinal,
+        pagina_atual: 1,
+        status: "pendente",
+        metadata: { offset: 0 },
+      }];
+
+      const todosJobs = [...jobsVendas, ...jobsOS, ...jobProdutos, ...jobItens, ...jobAtendente];
 
       const { error: insertErr } = await adminClient
         .from("sync_queue")
@@ -140,7 +150,39 @@ export async function POST(req: NextRequest) {
         mensagem:
           `Sync completo enfileirado: ${jobsVendas.length} meses de vendas` +
           (jobsOS.length > 0 ? ` + ${jobsOS.length} meses de OS` : "") +
-          " + produtos + itens",
+          " + produtos + itens + atendentes",
+      });
+    }
+
+    // Caso especial: atendente — job único, não por mês
+    if (tipo === "atendente") {
+      await adminClient
+        .from("sync_queue")
+        .update({ status: "cancelado", atualizado_em: new Date().toISOString() })
+        .eq("loja_id", lojaId)
+        .eq("tipo", "atendente")
+        .in("status", ["pendente"]);
+
+      const { error } = await adminClient
+        .from("sync_queue")
+        .insert([{
+          loja_id: lojaId,
+          tipo: "atendente",
+          data_ini: dataInicial,
+          data_fim: dataFinal,
+          pagina_atual: 1,
+          status: "pendente",
+          metadata: { offset: 0 },
+        }]);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({
+        sucesso: true,
+        jobs_criados: 1,
+        mensagem: "Job de atendentes enfileirado. Processamento iniciará em até 1 minuto.",
       });
     }
 
