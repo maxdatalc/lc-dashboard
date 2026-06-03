@@ -221,6 +221,8 @@ async function processarVendas(
   let totalPages = job.total_paginas ?? 999999;
   let registrosSalvos = 0;
   let paginasProcessadas = 0;
+  let tentativas = 0;
+  const MAX_TENTATIVAS = 3;
 
   while (page <= totalPages && paginasProcessadas < PAGE_LIMIT) {
     const url = new URL(`${loja.erp_base_url}/v2/sale`);
@@ -229,71 +231,88 @@ async function processarVendas(
     url.searchParams.set("dataInicial", dataInicialISO);
     url.searchParams.set("dataFinal", dataFinalISO);
 
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
-    });
+    try {
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(30_000),
+      });
 
-    if (!res.ok) {
-      console.error(`[sync-queue] Vendas job ${job.id} página ${page}: HTTP ${res.status}`);
+      if (!res.ok) {
+        tentativas++;
+        if (tentativas >= MAX_TENTATIVAS) {
+          console.error(`[sync-queue] Vendas job ${job.id} página ${page}: HTTP ${res.status} após ${MAX_TENTATIVAS} tentativas, pulando`);
+          page++; paginasProcessadas++; tentativas = 0;
+        } else {
+          console.warn(`[sync-queue] Vendas job ${job.id} página ${page}: HTTP ${res.status}, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+          await sleep(3000 * tentativas);
+        }
+        continue;
+      }
+
+      tentativas = 0;
+      const data = await res.json() as { docs: MaxDataVenda[]; pages: number };
+      const docs: MaxDataVenda[] = data.docs ?? [];
+      totalPages = data.pages ?? totalPages;
+
+      if (docs.length === 0) break;
+
+      const rows = docs.map((v) => {
+        const cl = v.cfop ? cfopMap.get(v.cfop) : undefined;
+        const raw = v.fechamento ?? v.abertura;
+        const dataVenda = raw && raw.trim() !== "" ? raw.split("T")[0] : job.data_ini;
+        return {
+          loja_id: job.loja_id,
+          external_id: v.id,
+          source: "sale",
+          numero_venda: String(v.id),
+          data_venda: dataVenda,
+          cliente_external_id: v.clienteId ?? null,
+          cliente_nome: v.clienteNome ?? null,
+          cpf_cnpj: v.cpfCnpj ?? null,
+          valor_bruto: v.valorTotalLiquidoProduto ?? v.valorTotal ?? 0,
+          valor_desconto: v.valorTotalDesconto ?? 0,
+          valor_total: v.totalNf ?? v.vlrPago ?? 0,
+          status: (v.status ?? "finalizada").toLowerCase(),
+          cfop: v.cfop ?? null,
+          tipo: cl?.tipo ?? "outro",
+          subtipo: cl?.subtipo ?? null,
+          sincronizado_em: agora,
+        };
+      });
+
+      const seen = new Set<number>();
+      const unicos = rows.filter((r) => {
+        if (seen.has(r.external_id)) return false;
+        seen.add(r.external_id);
+        return true;
+      });
+
+      const { error: upsertErr } = await supabase
+        .from("vendas")
+        .upsert(unicos, { onConflict: "loja_id,external_id,source" });
+
+      if (upsertErr) {
+        console.error(`[sync-queue] Upsert vendas:`, upsertErr.message);
+      } else {
+        registrosSalvos += unicos.length;
+      }
+
+      console.log(`[sync-queue] Vendas job ${job.id}: página ${page}/${totalPages}`);
+
+      if (page >= totalPages) break;
       page++;
       paginasProcessadas++;
-      continue;
+      await sleep(80);
+    } catch {
+      tentativas++;
+      if (tentativas >= MAX_TENTATIVAS) {
+        console.error(`[sync-queue] Vendas job ${job.id} página ${page}: timeout após ${MAX_TENTATIVAS} tentativas, pulando`);
+        page++; paginasProcessadas++; tentativas = 0;
+      } else {
+        console.warn(`[sync-queue] Vendas job ${job.id} página ${page}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+        await sleep(3000 * tentativas);
+      }
     }
-
-    const data = await res.json() as { docs: MaxDataVenda[]; pages: number };
-    const docs: MaxDataVenda[] = data.docs ?? [];
-    totalPages = data.pages ?? totalPages;
-
-    if (docs.length === 0) break;
-
-    const rows = docs.map((v) => {
-      const cl = v.cfop ? cfopMap.get(v.cfop) : undefined;
-      const raw = v.fechamento ?? v.abertura;
-      const dataVenda = raw && raw.trim() !== "" ? raw.split("T")[0] : job.data_ini;
-      return {
-        loja_id: job.loja_id,
-        external_id: v.id,
-        source: "sale",
-        numero_venda: String(v.id),
-        data_venda: dataVenda,
-        cliente_external_id: v.clienteId ?? null,
-        cliente_nome: v.clienteNome ?? null,
-        cpf_cnpj: v.cpfCnpj ?? null,
-        valor_bruto: v.valorTotalLiquidoProduto ?? v.valorTotal ?? 0,
-        valor_desconto: v.valorTotalDesconto ?? 0,
-        valor_total: v.totalNf ?? v.vlrPago ?? 0,
-        status: (v.status ?? "finalizada").toLowerCase(),
-        cfop: v.cfop ?? null,
-        tipo: cl?.tipo ?? "outro",
-        subtipo: cl?.subtipo ?? null,
-        sincronizado_em: agora,
-      };
-    });
-
-    const seen = new Set<number>();
-    const unicos = rows.filter((r) => {
-      if (seen.has(r.external_id)) return false;
-      seen.add(r.external_id);
-      return true;
-    });
-
-    const { error: upsertErr } = await supabase
-      .from("vendas")
-      .upsert(unicos, { onConflict: "loja_id,external_id,source" });
-
-    if (upsertErr) {
-      console.error(`[sync-queue] Upsert vendas:`, upsertErr.message);
-    } else {
-      registrosSalvos += unicos.length;
-    }
-
-    console.log(`[sync-queue] Vendas job ${job.id}: página ${page}/${totalPages}`);
-
-    if (page >= totalPages) break;
-    page++;
-    paginasProcessadas++;
-    await sleep(80);
   }
 
   const concluido = page >= totalPages;
@@ -348,6 +367,8 @@ async function processarOS(
   let totalPages = job.total_paginas ?? 999999;
   let registrosSalvos = 0;
   let paginasProcessadas = 0;
+  let tentativas = 0;
+  const MAX_TENTATIVAS = 3;
 
   while (page <= totalPages && paginasProcessadas < PAGE_LIMIT) {
     const url = new URL(`${loja.erp_base_url}/v2/serviceorder`);
@@ -356,12 +377,36 @@ async function processarOS(
     url.searchParams.set("dataInicial", dataInicialISO);
     url.searchParams.set("dataFinal", dataFinalISO);
 
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      tentativas++;
+      if (tentativas >= MAX_TENTATIVAS) {
+        console.error(`[sync-queue] OS job ${job.id} página ${page}: timeout após ${MAX_TENTATIVAS} tentativas, pulando`);
+        page++; paginasProcessadas++; tentativas = 0;
+      } else {
+        console.warn(`[sync-queue] OS job ${job.id} página ${page}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+        await sleep(3000 * tentativas);
+      }
+      continue;
+    }
 
-    if (!res.ok) { page++; paginasProcessadas++; continue; }
+    if (!res.ok) {
+      tentativas++;
+      if (tentativas >= MAX_TENTATIVAS) {
+        console.error(`[sync-queue] OS job ${job.id} página ${page}: HTTP ${res.status} após ${MAX_TENTATIVAS} tentativas, pulando`);
+        page++; paginasProcessadas++; tentativas = 0;
+      } else {
+        console.warn(`[sync-queue] OS job ${job.id} página ${page}: HTTP ${res.status}, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+        await sleep(3000 * tentativas);
+      }
+      continue;
+    }
+    tentativas = 0;
 
     // deno-lint-ignore no-explicit-any
     const data = await res.json() as { docs: any[]; pages: number };
@@ -464,6 +509,8 @@ async function processarProdutos(
   let totalPages = job.total_paginas ?? 999999;
   let registrosSalvos = 0;
   let paginasProcessadas = 0;
+  let tentativas = 0;
+  const MAX_TENTATIVAS = 3;
   const agora = new Date().toISOString();
 
   while (page <= totalPages && paginasProcessadas < PAGE_LIMIT) {
@@ -471,12 +518,36 @@ async function processarProdutos(
     url.searchParams.set("page", String(page));
     url.searchParams.set("limit", String(LIMIT));
 
-    const res = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(30_000),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch {
+      tentativas++;
+      if (tentativas >= MAX_TENTATIVAS) {
+        console.error(`[sync-queue] Produtos job ${job.id} página ${page}: timeout após ${MAX_TENTATIVAS} tentativas, pulando`);
+        page++; paginasProcessadas++; tentativas = 0;
+      } else {
+        console.warn(`[sync-queue] Produtos job ${job.id} página ${page}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+        await sleep(3000 * tentativas);
+      }
+      continue;
+    }
 
-    if (!res.ok) { page++; paginasProcessadas++; continue; }
+    if (!res.ok) {
+      tentativas++;
+      if (tentativas >= MAX_TENTATIVAS) {
+        console.error(`[sync-queue] Produtos job ${job.id} página ${page}: HTTP ${res.status} após ${MAX_TENTATIVAS} tentativas, pulando`);
+        page++; paginasProcessadas++; tentativas = 0;
+      } else {
+        console.warn(`[sync-queue] Produtos job ${job.id} página ${page}: HTTP ${res.status}, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+        await sleep(3000 * tentativas);
+      }
+      continue;
+    }
+    tentativas = 0;
 
     // deno-lint-ignore no-explicit-any
     const data = await res.json() as { docs: any[]; pages: number };
@@ -563,83 +634,96 @@ async function processarItens(
   let itensSalvos = 0;
   let pagamentosSalvos = 0;
 
+  const MAX_TENTATIVAS = 3;
+
   for (const venda of vendas) {
     const externalId = venda.external_id as number;
+    let tentativasVenda = 0;
 
-    try {
-      // Buscar itens
-      const itensRes = await fetch(
-        `${loja.erp_base_url}/v2/sale/${externalId}/items`,
-        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
-      );
+    while (tentativasVenda < MAX_TENTATIVAS) {
+      try {
+        // Buscar itens com retry
+        const itensRes = await fetch(
+          `${loja.erp_base_url}/v2/sale/${externalId}/items`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
+        );
 
-      if (itensRes.ok) {
-        // deno-lint-ignore no-explicit-any
-        const raw = await itensRes.json() as any;
-        const docs = raw.docs ?? raw.data ?? [];
-
-        if (docs.length > 0) {
+        if (itensRes.ok) {
           // deno-lint-ignore no-explicit-any
-          const itens = docs.map((item: any) => {
-            const qtde = (item.qtde ?? item.vdiQtde ?? 0) as number;
-            const valor = (item.valor ?? item.vdiValor ?? 0) as number;
-            const desconto = (item.valorDesconto ?? item.vdiValorDesconto ?? 0) as number;
-            return {
-              loja_id: job.loja_id,
-              venda_external_id: externalId,
-              produto_external_id: (item.produtoId as number) ?? null,
-              produto_nome: (item.descricaoProduto ?? item.vdiProNome ?? null) as string | null,
-              quantidade: qtde,
-              valor_unitario: valor,
-              valor_desconto: desconto,
-              valor_total: qtde * valor - desconto,
-            };
-          // deno-lint-ignore no-explicit-any
-          }).filter((i: any) => i.produto_nome !== null && i.produto_nome !== "");
+          const raw = await itensRes.json() as any;
+          const docs = raw.docs ?? raw.data ?? [];
 
-          if (itens.length > 0) {
-            await supabase.from("venda_itens").delete()
-              .eq("loja_id", job.loja_id).eq("venda_external_id", externalId);
-            const { error } = await supabase.from("venda_itens").insert(itens);
-            if (!error) itensSalvos += itens.length;
-          }
-        }
-      }
-
-      // Buscar pagamentos
-      const pgtoRes = await fetch(
-        `${loja.erp_base_url}/v2/sale/${externalId}/payment`,
-        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
-      );
-
-      if (pgtoRes.ok) {
-        // deno-lint-ignore no-explicit-any
-        const raw = await pgtoRes.json() as any;
-        const docs = raw.docs ?? raw.data ?? [];
-
-        if (docs.length > 0) {
-          // deno-lint-ignore no-explicit-any
-          const pgtos = docs
-            .filter((p: any) => ((p.valor ?? 0) as number) > 0)
+          if (docs.length > 0) {
             // deno-lint-ignore no-explicit-any
-            .map((p: any) => ({
-              loja_id: job.loja_id,
-              venda_external_id: externalId,
-              forma_pagamento: (p.formaPgto ?? p.forma_pagamento ?? "Outra") as string,
-              valor: (p.valor ?? 0) as number,
-              parcelas: (p.qtdParcela ?? p.parcelas ?? 1) as number,
-            }));
+            const itens = docs.map((item: any) => {
+              const qtde = (item.qtde ?? item.vdiQtde ?? 0) as number;
+              const valor = (item.valor ?? item.vdiValor ?? 0) as number;
+              const desconto = (item.valorDesconto ?? item.vdiValorDesconto ?? 0) as number;
+              return {
+                loja_id: job.loja_id,
+                venda_external_id: externalId,
+                produto_external_id: (item.produtoId as number) ?? null,
+                produto_nome: (item.descricaoProduto ?? item.vdiProNome ?? null) as string | null,
+                quantidade: qtde,
+                valor_unitario: valor,
+                valor_desconto: desconto,
+                valor_total: qtde * valor - desconto,
+              };
+            // deno-lint-ignore no-explicit-any
+            }).filter((i: any) => i.produto_nome !== null && i.produto_nome !== "");
 
-          if (pgtos.length > 0) {
-            await supabase.from("venda_pagamentos").delete()
-              .eq("loja_id", job.loja_id).eq("venda_external_id", externalId);
-            const { error } = await supabase.from("venda_pagamentos").insert(pgtos);
-            if (!error) pagamentosSalvos += pgtos.length;
+            if (itens.length > 0) {
+              await supabase.from("venda_itens").delete()
+                .eq("loja_id", job.loja_id).eq("venda_external_id", externalId);
+              const { error } = await supabase.from("venda_itens").insert(itens);
+              if (!error) itensSalvos += itens.length;
+            }
           }
         }
+
+        // Buscar pagamentos
+        const pgtoRes = await fetch(
+          `${loja.erp_base_url}/v2/sale/${externalId}/payment`,
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
+        );
+
+        if (pgtoRes.ok) {
+          // deno-lint-ignore no-explicit-any
+          const raw = await pgtoRes.json() as any;
+          const docs = raw.docs ?? raw.data ?? [];
+
+          if (docs.length > 0) {
+            // deno-lint-ignore no-explicit-any
+            const pgtos = docs
+              .filter((p: any) => ((p.valor ?? 0) as number) > 0)
+              // deno-lint-ignore no-explicit-any
+              .map((p: any) => ({
+                loja_id: job.loja_id,
+                venda_external_id: externalId,
+                forma_pagamento: (p.formaPgto ?? p.forma_pagamento ?? "Outra") as string,
+                valor: (p.valor ?? 0) as number,
+                parcelas: (p.qtdParcela ?? p.parcelas ?? 1) as number,
+              }));
+
+            if (pgtos.length > 0) {
+              await supabase.from("venda_pagamentos").delete()
+                .eq("loja_id", job.loja_id).eq("venda_external_id", externalId);
+              const { error } = await supabase.from("venda_pagamentos").insert(pgtos);
+              if (!error) pagamentosSalvos += pgtos.length;
+            }
+          }
+        }
+
+        break; // sucesso — sair do loop de tentativas
+      } catch {
+        tentativasVenda++;
+        if (tentativasVenda >= MAX_TENTATIVAS) {
+          console.error(`[sync-queue] Itens venda ${externalId}: falhou após ${MAX_TENTATIVAS} tentativas, pulando`);
+        } else {
+          console.warn(`[sync-queue] Itens venda ${externalId}: timeout, tentativa ${tentativasVenda}/${MAX_TENTATIVAS}`);
+          await sleep(2000 * tentativasVenda);
+        }
       }
-    } catch (err) {
-      console.error(`[sync-queue] Erro itens venda ${externalId}:`, err);
     }
 
     await sleep(DELAY_ENTRE_VENDAS);
