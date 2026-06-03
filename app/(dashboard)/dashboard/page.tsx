@@ -205,9 +205,9 @@ export default function DashboardPage() {
       />
 
       {/* ── Linha 2: Top Produtos | PF vs PJ | Faturamento Mensal ─────────────── */}
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-        <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[480px]">
-          {chartsLoading ? <ChartSkeleton height={380} /> : <TopProdutosChart data={topProdutos} />}
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
+        <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[360px]">
+          {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>
 
         <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={100}>
@@ -220,9 +220,9 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 3: Top Clientes | Formas de Pagamento ─────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={160} className="min-h-[480px]">
-          {chartsLoading ? <ChartSkeleton height={380} /> : <TopClientesChart data={topClientes} />}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={160} className="min-h-[360px]">
+          {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
         </ChartCard>
         <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={200}>
           {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
@@ -230,8 +230,8 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 4: Top Vendedores ──────────────────────────────────────────── */}
-      <ChartCard title="Top 10 Vendedores" subtitle="por faturamento — período selecionado" animationDelay={220} className="min-h-[480px]">
-        {chartsLoading ? <ChartSkeleton height={380} /> : (
+      <ChartCard title="Top 10 Vendedores" animationDelay={220} className="min-h-[360px]">
+        {chartsLoading ? <ChartSkeleton height={280} /> : (
           <TopVendedoresChart
             data={topVendedores}
             selectedId={activeFilter?.type === "vendedor" ? activeFilter.id as number : null}

@@ -60,7 +60,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
             type="button"
             onClick={() => setModo(m)}
             style={{
-              padding: '4px 12px', borderRadius: '20px',
+              padding: '3px 10px', borderRadius: '20px',
               fontSize: '12px', fontWeight: 500,
               border: '1px solid', cursor: 'pointer',
               background: modo === m ? 'var(--accent-cyan)' : 'transparent',
@@ -75,7 +75,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
       </div>
 
       {/* Lista */}
-      <div className="custom-scroll" style={{ height: '380px', overflowY: 'auto', paddingRight: '4px' }}>
+      <div className="custom-scroll" style={{ height: '280px', overflowY: 'auto', paddingRight: '4px' }}>
         {lista.map((v, i) => {
           const isSelected = selectedId === v.vendedorId
           const cor = CORES[i] ?? '#475569'
@@ -90,7 +90,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
               style={{
                 borderRadius: '6px',
                 padding: '6px 8px',
-                marginBottom: '6px',
+                marginBottom: '4px',
                 cursor: onSelect ? 'pointer' : 'default',
                 background: isSelected ? 'rgba(0,229,255,0.08)' : 'transparent',
                 border: isSelected
@@ -111,7 +111,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
 
                 {/* Avatar com inicial */}
                 <div style={{
-                  width: '28px', height: '28px', borderRadius: '50%',
+                  width: '24px', height: '24px', borderRadius: '50%',
                   flexShrink: 0, display: 'flex', alignItems: 'center',
                   justifyContent: 'center',
                   background: `${cor}22`, color: cor,

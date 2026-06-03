@@ -43,17 +43,17 @@ export function VendasTipoChart({ data }: Props) {
   ];
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-2">
       {/* Donut */}
-      <div className="relative" style={{ width: 160, height: 160 }}>
-        <ResponsiveContainer width={160} height={160}>
+      <div className="relative" style={{ width: 140, height: 140 }}>
+        <ResponsiveContainer width={140} height={140}>
           <PieChart>
             <Pie
               data={chartData}
-              cx={75}
-              cy={75}
-              innerRadius={52}
-              outerRadius={75}
+              cx={65}
+              cy={65}
+              innerRadius={44}
+              outerRadius={64}
               paddingAngle={3}
               dataKey="value"
               strokeWidth={0}
@@ -74,7 +74,7 @@ export function VendasTipoChart({ data }: Props) {
             className="tabular-nums leading-none"
             style={{
               fontFamily: "var(--font-display, 'DM Serif Display', serif)",
-              fontSize: "1.5rem",
+              fontSize: "1.25rem",
               color: CORES[dominantName as keyof typeof CORES],
             }}
           >

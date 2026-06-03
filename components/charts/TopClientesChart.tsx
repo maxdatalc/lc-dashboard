@@ -80,7 +80,7 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
   const maxTotal = clientes[0]?.total ?? 1;
 
   return (
-    <div className="custom-scroll" style={{ height: "400px", overflowY: "auto", paddingRight: "4px" }}>
+    <div className="custom-scroll" style={{ height: "280px", overflowY: "auto", paddingRight: "4px" }}>
       {clientes.map((cliente, i) => {
         const isExpanded = expandido === i;
         const progresso = maxTotal > 0 ? Math.min((cliente.total / maxTotal) * 100, 100) : 0;
@@ -95,8 +95,8 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
             onMouseLeave={() => setExpandido(null)}
             style={{
               borderBottom: "1px solid rgba(255,255,255,0.05)",
-              paddingBottom: "8px",
-              marginBottom: "8px",
+              paddingBottom: "6px",
+              marginBottom: "5px",
               cursor: "default",
             }}
           >
@@ -115,15 +115,15 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
 
               <div
                 style={{
-                  width: "30px",
-                  height: "30px",
+                  width: "24px",
+                  height: "24px",
                   borderRadius: "50%",
                   flexShrink: 0,
                   background: getAvatarColor(cliente.nome),
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "11px",
+                  fontSize: "10px",
                   fontWeight: 600,
                   color: "#fff",
                 }}
@@ -136,7 +136,7 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
                   <span
                     title={cliente.nome}
                     style={{
-                      fontSize: "12px",
+                      fontSize: "11px",
                       fontWeight: 500,
                       color: "var(--text-primary)",
                       overflow: "hidden",
@@ -178,11 +178,11 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
 
               <span
                 style={{
-                  fontSize: "clamp(11px, 3vw, 13px)",
+                  fontSize: "12px",
                   fontWeight: 600,
                   color: "var(--text-primary)",
                   flexShrink: 0,
-                  fontFamily: "DM Serif Display, serif",
+                  fontFamily: "var(--font-inter, Inter, sans-serif)",
                   whiteSpace: "nowrap",
                 }}
               >

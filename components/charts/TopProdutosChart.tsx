@@ -78,7 +78,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
             type="button"
             onClick={() => setModo(m)}
             style={{
-              padding: "4px 12px",
+              padding: "3px 10px",
               borderRadius: "20px",
               fontSize: "12px",
               fontWeight: 500,
@@ -98,7 +98,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
       {/* Lista com scroll */}
       <div
         className="custom-scroll"
-        style={{ height: "380px", overflowY: "auto", paddingRight: "4px" }}
+        style={{ height: "280px", overflowY: "auto", paddingRight: "4px" }}
       >
         {lista.map((produto, i) => {
           const isExpanded = expandido === i;
@@ -113,8 +113,8 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
               onClick={() => setExpandido(expandido === i ? null : i)}
               style={{
                 borderBottom: "1px solid rgba(255,255,255,0.05)",
-                paddingBottom: "8px",
-                marginBottom: "8px",
+                paddingBottom: "5px",
+                marginBottom: "4px",
                 cursor: "pointer",
               }}
             >
@@ -136,7 +136,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                   <div style={{ marginBottom: "4px" }}>
                     <span
                       style={{
-                        fontSize: "12px",
+                        fontSize: "11px",
                         fontWeight: 500,
                         color: "var(--text-primary)",
                         overflow: "hidden",
@@ -152,7 +152,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                   </div>
                   <div
                     style={{
-                      height: "2px",
+                      height: "1.5px",
                       background: "rgba(255,255,255,0.06)",
                       borderRadius: "1px",
                     }}
@@ -172,7 +172,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
 
                 <span
                   style={{
-                    fontSize: "clamp(11px, 3vw, 13px)",
+                    fontSize: "12px",
                     fontWeight: 600,
                     color: "var(--text-primary)",
                     flexShrink: 0,
