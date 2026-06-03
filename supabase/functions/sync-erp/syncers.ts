@@ -78,11 +78,12 @@ interface MaxDataPagamento {
 
 // ── Utilitários de data ────────────────────────────────────────────────────
 
-// Janela de 25 horas em horário de Brasília para sync incremental
-// Cancelamentos são possíveis em até 24h após a venda (regra fiscal) +1h de margem
-function toBrazilDateRange(): { dataInicial: string; dataFinal: string } {
+// Janela configurável em horário de Brasília para sync incremental
+// Default: 40 minutos (sync rápido a cada 15min + margem)
+// Para sync diário passar 1440 (24h)
+function toBrazilDateRange(minutosAtras = 40): { dataInicial: string; dataFinal: string } {
   const agora = new Date();
-  const vinteECincoHorasAtras = new Date(agora.getTime() - 25 * 60 * 60 * 1000);
+  const inicio = new Date(agora.getTime() - minutosAtras * 60 * 1000);
 
   const formatBrasilia = (date: Date): string => {
     const offset = -3 * 60;
@@ -91,7 +92,7 @@ function toBrazilDateRange(): { dataInicial: string; dataFinal: string } {
   };
 
   return {
-    dataInicial: formatBrasilia(vinteECincoHorasAtras),
+    dataInicial: formatBrasilia(inicio),
     dataFinal: formatBrasilia(agora),
   };
 }
@@ -177,11 +178,12 @@ export async function syncVendas(
   loja: LojaRow,
   dataInicial: string,
   _dataFinal: string, // não usado — range calculado internamente via toBrazilDateRange()
-  isInicial: boolean
+  isInicial: boolean,
+  minutosJanela = 40  // sync rápido: 40min | sync diário: 1440 (24h)
 ): Promise<number> {
   // Sync inicial: sem filtro para capturar histórico completo
-  // Sync incremental: janela de 25h cobre cancelamentos (regra fiscal: máx 24h)
-  const params = isInicial ? {} : toBrazilDateRange();
+  // Sync incremental: janela configurável via minutosJanela
+  const params = isInicial ? {} : toBrazilDateRange(minutosJanela);
   console.log(`[syncers] Loja ${loja.id} params:`, JSON.stringify(params));
 
   let vendas = await fetchAllPages<MaxDataVenda>(
@@ -445,4 +447,74 @@ export async function syncVendaPagamentos(
   } catch {
     // Erros de pagamentos não interrompem o sync da venda
   }
+}
+
+// ── Sync incremental de produtos ───────────────────────────────────────────
+
+// Atualiza preços, custos e estoque de todos os produtos da loja.
+// Chamado apenas pelo sync diário — não pelo sync rápido.
+// deno-lint-ignore no-explicit-any
+export async function syncProdutosIncremental(
+  supabase: SupabaseClient,
+  token: string,
+  loja: LojaRow
+): Promise<number> {
+  console.log(`[syncers] Sync incremental de produtos loja ${loja.id}`);
+
+  const LIMIT = 100;
+  let page = 1;
+  let totalPages = 1;
+  let totalSalvos = 0;
+  const agora = new Date().toISOString();
+
+  while (page <= totalPages) {
+    const url = new URL(`${loja.erp_base_url}/v2/product`);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("limit", String(LIMIT));
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!res.ok) { page++; continue; }
+
+    // deno-lint-ignore no-explicit-any
+    const data = await res.json() as { docs: any[]; pages: number };
+    const docs = data.docs ?? [];
+    totalPages = data.pages ?? totalPages;
+
+    if (docs.length === 0) break;
+
+    // deno-lint-ignore no-explicit-any
+    const rows = docs.map((p: any) => ({
+      loja_id: loja.id,
+      external_id: p.id,
+      codigo: p.codigoFab ?? null,
+      nome: p.descricao ?? "Produto",
+      grupo_id: p.grupoId ?? null,
+      grupo_nome: p.grupo ?? null,
+      sub_grupo_nome: p.subGrupo ?? null,
+      fabricante: p.fabricante ?? null,
+      preco_venda: p.valorVenda ?? null,
+      valor_custo: p.valorCusto ?? null,
+      estoque_atual: p.estoque ?? 0,
+      ativo: !p.desativado,
+      sincronizado_em: agora,
+    }));
+
+    const { error } = await supabase
+      .from("produtos")
+      .upsert(rows, { onConflict: "loja_id,external_id" });
+
+    if (!error) totalSalvos += rows.length;
+
+    console.log(`[syncers] Produtos página ${page}/${totalPages} — loja ${loja.id}`);
+
+    if (page >= totalPages) break;
+    page++;
+    await sleep(80);
+  }
+
+  return totalSalvos;
 }
