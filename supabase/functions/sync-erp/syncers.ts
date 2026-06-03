@@ -57,6 +57,7 @@ interface MaxDataVenda {
   vlrPago?: number;
   valorTotalDesconto?: number;
   status?: string;
+  atendenteId?: number;
 }
 
 interface MaxDataItem {
@@ -215,6 +216,7 @@ export async function syncVendas(
     valor_desconto: v.valorTotalDesconto ?? 0,
     valor_total: v.totalNf ?? v.vlrPago ?? 0,
     status: (v.status ?? "finalizada").toLowerCase(),
+    atendente_id: v.atendenteId ?? null,
     sincronizado_em: agora,
   }));
 
@@ -517,4 +519,71 @@ export async function syncProdutosIncremental(
   }
 
   return totalSalvos;
+}
+
+// ── Sync de vendedores (usuários do ERP) ───────────────────────────────────
+
+// Sincroniza a lista de vendedores/atendentes para enriquecer o dashboard.
+// Chamado pelo sync diário — tabela destino: vendedores.
+export async function syncVendedores(
+  supabase: SupabaseClient,
+  token: string,
+  loja: LojaRow
+): Promise<number> {
+  console.log(`[syncers] Sync vendedores loja ${loja.id}`);
+
+  const agora = new Date().toISOString();
+  // deno-lint-ignore no-explicit-any
+  const results: any[] = [];
+  let page = 1;
+  let totalPages = 1;
+
+  while (page <= totalPages) {
+    const url = new URL(`${loja.erp_base_url}/v2/users`);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("limit", "50");
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!res.ok) break;
+
+    // deno-lint-ignore no-explicit-any
+    const data = await res.json() as { docs: any[]; pages: number };
+    totalPages = data.pages ?? 1;
+
+    // deno-lint-ignore no-explicit-any
+    const rows = (data.docs ?? []).map((u: any) => ({
+      loja_id: loja.id,
+      external_id: u.id as number,
+      nome: (u.nome as string) ?? "Usuário",
+      apelido: (u.apelido as string) ?? null,
+      email: (u.email as string) ?? null,
+      perfil: (u.perfil as number) ?? null,
+      ativo: true,
+      sincronizado_em: agora,
+    }));
+
+    results.push(...rows);
+
+    if (page >= totalPages) break;
+    page++;
+    await sleep(80);
+  }
+
+  if (results.length === 0) return 0;
+
+  const { error } = await supabase
+    .from("vendedores")
+    .upsert(results, { onConflict: "loja_id,external_id" });
+
+  if (error) {
+    console.error(`[syncers] Erro sync vendedores:`, error.message);
+    return 0;
+  }
+
+  console.log(`[syncers] ${results.length} vendedores sincronizados loja ${loja.id}`);
+  return results.length;
 }

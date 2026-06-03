@@ -11,11 +11,15 @@ import { TopProdutosChart } from "@/components/charts/TopProdutosChart";
 import { TopClientesChart } from "@/components/charts/TopClientesChart";
 import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TabelaVendas } from "@/components/dashboard/TabelaVendas";
+import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
+import { ActiveFilterBar } from "@/components/ui/ActiveFilterBar";
+import { useFilter } from "@/lib/contexts/filter-context";
 import type { FaturamentoMensalData } from "@/components/charts/FaturamentoMensalChart";
 import type { FormasPagamentoData } from "@/components/charts/FormasPagamentoChart";
 import type { TopProdutoData } from "@/components/charts/TopProdutosChart";
 import type { TopClienteData } from "@/components/charts/TopClientesChart";
 import type { VendasTipoData } from "@/components/charts/VendasTipoChart";
+import type { VendedorItem } from "@/components/charts/TopVendedoresChart";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -80,10 +84,13 @@ export default function DashboardPage() {
   const [formasPagamento, setFormasPagamento] = useState<FormasPagamentoData[]>([]);
   const [topProdutos, setTopProdutos] = useState<TopProdutoData[]>([]);
   const [topClientes, setTopClientes] = useState<TopClienteData[]>([]);
+  const [topVendedores, setTopVendedores] = useState<VendedorItem[]>([]);
   const [vendasTipo, setVendasTipo] = useState<VendasTipoData>({
     pf: { total: 0, clientes: 0 },
     pj: { total: 0, clientes: 0 },
   });
+
+  const { activeFilter, setFilter } = useFilter();
 
   // lojaIds: usa multi-select se houver seleção explícita; senão, todas as lojas disponíveis
   const lojaIds =
@@ -115,9 +122,14 @@ export default function DashboardPage() {
       end = range.end;
     }
 
-    const params = new URLSearchParams({ lojaIds: lojaIds.join(","), period, start, end });
+    // Incluir vendedorId nos params quando filtro de vendedor estiver ativo
+    const paramsObj: Record<string, string> = { lojaIds: lojaIds.join(","), period, start, end };
+    if (activeFilter?.type === "vendedor") {
+      paramsObj.vendedorId = String(activeFilter.id);
+    }
+    const params = new URLSearchParams(paramsObj);
 
-    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes] =
+    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes] =
       await Promise.allSettled([
         fetch(`/api/dashboard/kpis?${params}`).then((r) =>
           r.ok ? (r.json() as Promise<KpiResponse>) : null
@@ -137,6 +149,9 @@ export default function DashboardPage() {
         fetch(`/api/dashboard/charts?${params}&type=vendas-tipo-cliente`).then((r) =>
           r.ok ? (r.json() as Promise<VendasTipoData>) : { pf: { total: 0, clientes: 0 }, pj: { total: 0, clientes: 0 } }
         ),
+        fetch(`/api/dashboard/charts?${params}&type=top-vendedores`).then((r) =>
+          r.ok ? (r.json() as Promise<VendedorItem[]>) : []
+        ),
       ]);
 
     setKpiLoading(false);
@@ -148,8 +163,9 @@ export default function DashboardPage() {
     if (produtosRes.status === "fulfilled") setTopProdutos(produtosRes.value as TopProdutoData[]);
     if (clientesRes.status === "fulfilled") setTopClientes(clientesRes.value as TopClienteData[]);
     if (tipoRes.status === "fulfilled") setVendasTipo(tipoRes.value as VendasTipoData);
+    if (vendedoresRes.status === "fulfilled") setTopVendedores(vendedoresRes.value as VendedorItem[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lojaIds.join(","), period, customRange]);
+  }, [lojaIds.join(","), period, customRange, activeFilter]);
 
   useEffect(() => {
     void fetchDados();
@@ -171,6 +187,9 @@ export default function DashboardPage() {
 
   return (
     <div className="px-3 py-4 sm:px-4 md:p-6 flex flex-col gap-5">
+      {/* ── Filtro ativo — aparece quando um vendedor/produto está selecionado ── */}
+      <ActiveFilterBar />
+
       {/* ── KPIs — barra horizontal unificada ──────────────────────────────── */}
       <KpiBar
         faturamento={kpis?.faturamento?.value ?? 0}
@@ -209,6 +228,23 @@ export default function DashboardPage() {
           {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
         </ChartCard>
       </div>
+
+      {/* ── Linha 4: Top Vendedores ──────────────────────────────────────────── */}
+      <ChartCard title="Top 10 Vendedores" subtitle="por faturamento — período selecionado" animationDelay={220} className="min-h-[480px]">
+        {chartsLoading ? <ChartSkeleton height={380} /> : (
+          <TopVendedoresChart
+            data={topVendedores}
+            selectedId={activeFilter?.type === "vendedor" ? activeFilter.id as number : null}
+            onSelect={(id, nome) => {
+              if (id === null) {
+                setFilter(null);
+              } else {
+                setFilter({ type: "vendedor", id, label: nome ?? "" });
+              }
+            }}
+          />
+        )}
+      </ChartCard>
 
       {/* ── Tabela de Vendas ─────────────────────────────────────────────────── */}
       {tabelaStart && tabelaEnd && (
