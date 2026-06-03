@@ -90,7 +90,17 @@ Deno.serve(async () => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
-  // 1. Buscar próximos jobs pendentes ou em processamento
+  // 1. Resetar jobs travados em 'processando' há mais de 10 minutos
+  // Ocorre quando a Edge Function é interrompida — o pg_cron retoma de onde parou
+  const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  await supabase
+    .from("sync_queue")
+    .update({ status: "pendente", atualizado_em: new Date().toISOString() })
+    .eq("status", "processando")
+    .lt("atualizado_em", dezMinAtras);
+  console.log("[sync-queue] Jobs travados resetados para pendente");
+
+  // 2. Buscar próximos jobs pendentes ou em processamento
   const { data: jobs, error } = await supabase
     .from("sync_queue")
     .select("*")
