@@ -28,7 +28,7 @@ export function ChartCard({
       }}
     >
       {/* Header */}
-      <div className="px-6 pt-5 pb-4">
+      <div className="px-4 pt-3 pb-2">
         <h3
           className="text-sm font-semibold"
           style={{ color: "var(--text-primary)" }}
@@ -46,7 +46,7 @@ export function ChartCard({
       <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
 
       {/* Conteúdo */}
-      <div className="px-6 py-5">{children}</div>
+      <div className="px-4 py-3">{children}</div>
     </div>
   );
 }
