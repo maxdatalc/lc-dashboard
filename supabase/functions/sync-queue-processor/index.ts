@@ -231,7 +231,7 @@ async function processarVendas(
 
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) {
@@ -358,7 +358,7 @@ async function processarOS(
 
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) { page++; paginasProcessadas++; continue; }
@@ -473,7 +473,7 @@ async function processarProdutos(
 
     const res = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(30_000),
     });
 
     if (!res.ok) { page++; paginasProcessadas++; continue; }
