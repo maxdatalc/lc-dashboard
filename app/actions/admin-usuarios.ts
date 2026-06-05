@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { isSystemAdmin } from "@/lib/db/admin";
 
 async function verificarAdmin(): Promise<void> {
@@ -95,6 +96,55 @@ export async function desvincularEmpresaUsuario(
     return {
       error:
         err instanceof Error ? err.message : "Erro ao desvincular empresa",
+    };
+  }
+}
+
+export async function excluirUsuario(
+  userId: string
+): Promise<{ error?: string }> {
+  try {
+    await verificarAdmin();
+    const supabase = await createClient();
+    const adminClient = createAdminClient();
+
+    // Verificar que não está excluindo a si mesmo
+    const {
+      data: { user: currentUser },
+    } = await supabase.auth.getUser();
+    if (currentUser?.id === userId) {
+      return { error: "Você não pode excluir sua própria conta" };
+    }
+
+    // Verificar que não é system admin
+    const { data: profile } = await adminClient
+      .from("profiles")
+      .select("is_system_admin")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (
+      (profile as { is_system_admin?: boolean } | null)?.is_system_admin
+    ) {
+      return { error: "Não é possível excluir um System Admin" };
+    }
+
+    // Remover vínculos com tenants
+    await adminClient.from("tenant_users").delete().eq("user_id", userId);
+
+    // Remover profile
+    await adminClient.from("profiles").delete().eq("id", userId);
+
+    // Excluir do Supabase Auth — deve ser o último passo
+    const { error } = await adminClient.auth.admin.deleteUser(userId);
+    if (error) return { error: error.message };
+
+    revalidatePath("/admin/usuarios");
+    return {};
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error ? err.message : "Erro ao excluir usuário",
     };
   }
 }
