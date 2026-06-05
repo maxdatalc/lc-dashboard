@@ -2,11 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
 
-function toNumber(value: unknown): number {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
   // lojaIds (multi-loja, comma-sep) tem prioridade; lojaId mantido para compatibilidade
@@ -36,10 +31,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ? { start: startParam, end: endParam }
     : getDateRange(period);
 
-  // Log de diagnóstico — útil para depurar gráficos vazios
-  console.log(`[charts] type=${type} period=${period}`);
-  console.log(`[charts] lojaIds:`, lojaIds);
-  console.log(`[charts] start=${start} end=${end}`);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rpc = (supabase as any).rpc.bind(supabase);
 
   try {
     switch (type) {
@@ -49,49 +42,42 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const startDate = new Date(endDate);
         startDate.setMonth(startDate.getMonth() - 11);
         startDate.setDate(1);
-
         const inicio12m = startDate.toISOString().split("T")[0];
-        const fim12m = end;
 
-        const { data, error } = await supabase
-          .from("vendas")
-          .select("data_venda, valor_total, tipo")
-          .in("loja_id", lojaIds)
-          .in("status", ["finalizada", "concluida", "fechada", "pago", "aprovada"])
-          .gte("data_venda", inicio12m)
-          .lte("data_venda", fim12m);
+        const { data: dadosMensais, error } = await rpc("get_vendas_mensal", {
+          p_loja_ids: lojaIds,
+          p_start: inicio12m,
+          p_end: end,
+        });
 
         if (error) {
-          console.error("[charts/faturamento-mensal] erro:", error.message);
+          console.error("[charts/faturamento-mensal] erro RPC:", error.message);
           return NextResponse.json([]);
         }
 
-        // Gerar os 12 meses do intervalo (mesmo sem dados — zero fill)
-        const meses: Record<string, { vendas: number; devolucoes: number }> = {};
+        // Gerar os 12 meses com zero-fill para garantir todos os meses no gráfico
+        const mesesMap = new Map<string, { vendas: number; devolucoes: number }>();
         const cursor = new Date(startDate);
         while (cursor <= endDate) {
           const key = cursor.toISOString().slice(0, 7);
-          meses[key] = { vendas: 0, devolucoes: 0 };
+          mesesMap.set(key, { vendas: 0, devolucoes: 0 });
           cursor.setMonth(cursor.getMonth() + 1);
         }
 
-        // Acumular valores por tipo
-        for (const v of data ?? []) {
-          const key = (v.data_venda as string).slice(0, 7);
-          if (!meses[key]) continue;
-          const valor = (v.valor_total as number) ?? 0;
-          const tipo = v.tipo as string | null;
-          if (tipo === "devolucao") {
-            meses[key].devolucoes += valor;
-          } else if (tipo === "venda" || tipo == null) {
-            meses[key].vendas += valor;
+        for (const row of (dadosMensais ?? []) as Record<string, unknown>[]) {
+          const key = row.mes_ano as string;
+          if (mesesMap.has(key)) {
+            mesesMap.set(key, {
+              vendas: Number(row.vendas ?? 0),
+              devolucoes: Number(row.devolucoes ?? 0),
+            });
           }
         }
 
         const NOMES = ["Jan","Fev","Mar","Abr","Mai","Jun",
                        "Jul","Ago","Set","Out","Nov","Dez"];
 
-        const resultado = Object.entries(meses)
+        const resultado = Array.from(mesesMap.entries())
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([mesKey, d]) => {
             const [ano, mes] = mesKey.split("-");
@@ -109,34 +95,27 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "vendas-tipo-cliente": {
-        // Filtra por tipo='venda' para incluir OS (cfop=5933 seria excluído pelo filtro de CFOP)
-        const { data, error } = await supabase
-          .from("vendas")
-          .select("cpf_cnpj, valor_total")
-          .in("loja_id", lojaIds)
-          .eq("status", "finalizada")
-          .eq("tipo", "venda")
-          .gte("data_venda", start)
-          .lte("data_venda", end);
+        const { data, error } = await rpc("get_vendas_tipo_pessoa", {
+          p_loja_ids: lojaIds,
+          p_start: start,
+          p_end: end,
+        });
 
-        console.log(`[charts/vendas-tipo-cliente] rows encontrados:`, data?.length ?? 0, "erro:", error?.message);
         if (error) {
-          console.error("[charts/vendas-tipo-cliente] erro:", error.message);
+          console.error("[charts/vendas-tipo-cliente] erro RPC:", error.message);
           return NextResponse.json({ pf: { total: 0, clientes: 0 }, pj: { total: 0, clientes: 0 } });
         }
 
         let pfTotal = 0, pfCount = 0;
         let pjTotal = 0, pjCount = 0;
 
-        for (const v of data ?? []) {
-          const doc = ((v.cpf_cnpj as string) ?? "").replace(/\D/g, "");
-          const valor = (v.valor_total as number) ?? 0;
-          if (doc.length === 14) {
-            pjTotal += valor;
-            pjCount += 1;
+        for (const row of (data ?? []) as Record<string, unknown>[]) {
+          if (row.tipo_pessoa === "PJ") {
+            pjTotal = Number(row.total_valor ?? 0);
+            pjCount = Number(row.total_vendas ?? 0);
           } else {
-            pfTotal += valor;
-            pfCount += 1;
+            pfTotal = Number(row.total_valor ?? 0);
+            pfCount = Number(row.total_vendas ?? 0);
           }
         }
 
@@ -147,72 +126,40 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "formas-pagamento": {
-        // Buscar external_ids das vendas finalizadas no período
-        // Usa tipo='venda' em vez de filtro CFOP para incluir OS
-        const { data: vendasPeriodo, error: errVendas } = await supabase
-          .from("vendas")
-          .select("external_id")
-          .in("loja_id", lojaIds)
-          .eq("status", "finalizada")
-          .eq("tipo", "venda")
-          .gte("data_venda", start)
-          .lte("data_venda", end)
-          .not("external_id", "is", null)
-          .limit(500);
+        const { data, error } = await rpc("get_formas_pagamento", {
+          p_loja_ids: lojaIds,
+          p_start: start,
+          p_end: end,
+        });
 
-        console.log(`[charts/formas-pagamento] vendas no período:`, vendasPeriodo?.length ?? 0, "erro:", errVendas?.message);
-        if (errVendas) {
-          console.error("[charts/formas-pagamento] erro ao buscar vendas:", errVendas.message);
+        if (error) {
+          console.error("[charts/formas-pagamento] erro RPC:", error.message);
           return NextResponse.json([]);
         }
-        if (!vendasPeriodo?.length) return NextResponse.json([]);
 
-        // Chave do join: venda_pagamentos.venda_external_id → vendas.external_id
-        const externalIds = vendasPeriodo.map((v) => v.external_id as string | number);
+        if (!data?.length) return NextResponse.json([]);
 
-        const { data: pagamentos, error: errPag } = await supabase
-          .from("venda_pagamentos")
-          .select("forma_pagamento, valor")
-          .in("loja_id", lojaIds)
-          .in("venda_external_id", externalIds.map(String));
+        const rows = data as Record<string, unknown>[];
+        const totalGeral = rows.reduce((acc, r) => acc + Number(r.total_valor ?? 0), 0);
 
-        console.log(`[charts/formas-pagamento] pagamentos encontrados:`, pagamentos?.length ?? 0, "erro:", errPag?.message);
-        if (errPag) {
-          console.error("[charts/formas-pagamento] erro ao buscar pagamentos:", errPag.message);
-          return NextResponse.json([]);
-        }
-        if (!pagamentos?.length) return NextResponse.json([]);
-
-        const agrupado: Record<string, number> = {};
-        let totalGeral = 0;
-        for (const item of pagamentos) {
-          const forma = (item.forma_pagamento as string) ?? "Outros";
-          const valor = (item.valor as number) ?? 0;
-          agrupado[forma] = (agrupado[forma] ?? 0) + valor;
-          totalGeral += valor;
-        }
-
-        const resultado = Object.entries(agrupado)
-          .sort(([, a], [, b]) => b - a)
-          .map(([nome, valor]) => ({
-            nome,
-            valor,
-            percentual: totalGeral > 0 ? parseFloat(((valor / totalGeral) * 100).toFixed(1)) : 0,
-          }));
+        const resultado = rows.map((r) => ({
+          nome: (r.forma_pagamento as string) ?? "Outros",
+          valor: Number(r.total_valor ?? 0),
+          percentual: totalGeral > 0
+            ? parseFloat(((Number(r.total_valor) / totalGeral) * 100).toFixed(1))
+            : 0,
+        }));
 
         return NextResponse.json(resultado);
       }
 
       case "top-produtos": {
-        // Query agregada via RPC — elimina 143 queries sequenciais em JS
-        // deno-lint-ignore no-explicit-any
-        const { data: itensAgregados, error: errItens } = await (supabase as any)
-          .rpc("get_top_produtos", {
-            p_loja_ids: lojaIds,
-            p_start: start,
-            p_end: end,
-            p_limit: 50,
-          });
+        const { data: itensAgregados, error: errItens } = await rpc("get_top_produtos", {
+          p_loja_ids: lojaIds,
+          p_start: start,
+          p_end: end,
+          p_limit: 50,
+        });
 
         if (errItens) {
           console.error("[charts/top-produtos] erro RPC:", errItens.message);
@@ -221,7 +168,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         if (!itensAgregados?.length) return NextResponse.json([]);
 
-        // Buscar detalhes dos top 50 produtos (1 query)
         const produtoIds = (itensAgregados as Record<string, unknown>[])
           .map((i) => i.produto_external_id)
           .filter(Boolean);
@@ -264,15 +210,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-clientes": {
-        // Query agregada via RPC — elimina busca de 143k rows no JS
-        // deno-lint-ignore no-explicit-any
-        const { data: clientesAgregados, error: errClientes } = await (supabase as any)
-          .rpc("get_top_clientes", {
-            p_loja_ids: lojaIds,
-            p_start: start,
-            p_end: end,
-            p_limit: 50,
-          });
+        const { data: clientesAgregados, error: errClientes } = await rpc("get_top_clientes", {
+          p_loja_ids: lojaIds,
+          p_start: start,
+          p_end: end,
+          p_limit: 50,
+        });
 
         if (errClientes) {
           console.error("[charts/top-clientes] erro RPC:", errClientes.message);
@@ -281,7 +224,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         if (!clientesAgregados?.length) return NextResponse.json([]);
 
-        // Buscar detalhes adicionais (1 query)
         const clienteIds = (clientesAgregados as Record<string, unknown>[])
           .map((c) => c.cliente_external_id)
           .filter(Boolean);
@@ -321,34 +263,24 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-vendedores": {
-        // Buscar vendas do período com atendente_id preenchido
-        const { data: vendasVendedor } = await supabase
-          .from("vendas")
-          .select("atendente_id, valor_total")
-          .in("loja_id", lojaIds)
-          .gte("data_venda", start)
-          .lte("data_venda", end)
-          .eq("tipo", "venda")
-          .in("status", ["finalizada", "concluida", "fechada", "pago"])
-          .not("atendente_id", "is", null);
+        const { data: vendasAgregadas, error } = await rpc("get_top_vendedores", {
+          p_loja_ids: lojaIds,
+          p_start: start,
+          p_end: end,
+          p_limit: 10,
+        });
 
-        if (!vendasVendedor?.length) return NextResponse.json([]);
-
-        // Agrupar por atendente_id
-        const porVendedor = new Map<number, { total: number; qtd: number }>();
-        for (const v of vendasVendedor) {
-          const id = v.atendente_id as number;
-          const existing = porVendedor.get(id);
-          if (!existing) {
-            porVendedor.set(id, { total: toNumber(v.valor_total), qtd: 1 });
-          } else {
-            existing.total += toNumber(v.valor_total);
-            existing.qtd++;
-          }
+        if (error) {
+          console.error("[charts/top-vendedores] erro RPC:", error.message);
+          return NextResponse.json([]);
         }
 
-        // Buscar nomes dos vendedores na tabela vendedores
-        const vendedorIds = Array.from(porVendedor.keys());
+        if (!vendasAgregadas?.length) return NextResponse.json([]);
+
+        const vendedorIds = (vendasAgregadas as Record<string, unknown>[])
+          .map((v) => v.atendente_id)
+          .filter(Boolean);
+
         const { data: vendedores } = await supabase
           .from("vendedores")
           .select("external_id, nome, apelido")
@@ -357,22 +289,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
         const nomeMap = new Map(
           (vendedores ?? []).map((v) => [
-            toNumber(v.external_id),
+            Number(v.external_id),
             (v.nome as string) ?? `Vendedor ${v.external_id}`,
           ])
         );
 
-        // Top 10 por valor total
-        const resultado = Array.from(porVendedor.entries())
-          .map(([id, dados]) => ({
-            vendedorId: id,
-            nome: nomeMap.get(id) ?? `Vendedor ${id}`,
-            valor: dados.total,
-            quantidade: dados.qtd,
-            ticketMedio: dados.qtd > 0 ? dados.total / dados.qtd : 0,
-          }))
-          .sort((a, b) => b.valor - a.valor)
-          .slice(0, 10);
+        const resultado = (vendasAgregadas as Record<string, unknown>[]).map((v) => ({
+          vendedorId: Number(v.atendente_id),
+          nome: nomeMap.get(Number(v.atendente_id)) ?? `Vendedor ${v.atendente_id}`,
+          valor: Number(v.total_valor),
+          quantidade: Number(v.total_vendas),
+          ticketMedio: Number(v.ticket_medio),
+        }));
 
         return NextResponse.json(resultado);
       }
