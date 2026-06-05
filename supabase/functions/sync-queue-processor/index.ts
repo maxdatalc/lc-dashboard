@@ -130,10 +130,20 @@ Deno.serve(async () => {
     ])
   );
 
-  // 3. Processar cada job em paralelo
-  await Promise.all(
-    (jobs as SyncJob[]).map((job) => processarJob(supabase, job, cfopMap))
-  );
+  // 3. Jobs de itens/atendente rodam sequencialmente (ERP local não suporta simultâneos)
+  // Jobs de outros tipos (vendas, produtos, os) podem rodar em paralelo
+  const jobsSequenciais = (jobs as SyncJob[]).filter(j => j.tipo === "itens" || j.tipo === "atendente");
+  const jobsParalelos = (jobs as SyncJob[]).filter(j => j.tipo !== "itens" && j.tipo !== "atendente");
+
+  // Paralelos primeiro (vendas, produtos, os — não conflitam entre si)
+  if (jobsParalelos.length > 0) {
+    await Promise.all(jobsParalelos.map((job) => processarJob(supabase, job, cfopMap)));
+  }
+
+  // Sequenciais um por vez (itens e atendente — mesmo ERP, mesmos endpoints)
+  for (const job of jobsSequenciais) {
+    await processarJob(supabase, job, cfopMap);
+  }
 
   return new Response(
     JSON.stringify({ processados: jobs.length }),
