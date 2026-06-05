@@ -5,7 +5,7 @@ import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 import { KpiBar } from "@/components/ui/KpiBar";
 import { ChartCard } from "@/components/ui/ChartCard";
-import { FaturamentoMensalChart } from "@/components/charts/FaturamentoMensalChart";
+import { VendasMensalChart } from "@/components/charts/VendasMensalChart";
 import { FormasPagamentoChart } from "@/components/charts/FormasPagamentoChart";
 import { TopProdutosChart } from "@/components/charts/TopProdutosChart";
 import { TopClientesChart } from "@/components/charts/TopClientesChart";
@@ -14,7 +14,7 @@ import { TabelaVendas } from "@/components/dashboard/TabelaVendas";
 import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
 import { ActiveFilterBar } from "@/components/ui/ActiveFilterBar";
 import { useFilter } from "@/lib/contexts/filter-context";
-import type { FaturamentoMensalData } from "@/components/charts/FaturamentoMensalChart";
+import type { VendasMensalData } from "@/components/charts/VendasMensalChart";
 import type { FormasPagamentoData } from "@/components/charts/FormasPagamentoChart";
 import type { TopProdutoData } from "@/components/charts/TopProdutosChart";
 import type { TopClienteData } from "@/components/charts/TopClientesChart";
@@ -80,7 +80,7 @@ export default function DashboardPage() {
   const [chartsLoading, setChartsLoading] = useState(true);
 
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
-  const [faturamentoMensal, setFaturamentoMensal] = useState<FaturamentoMensalData[]>([]);
+  const [vendasMensal, setVendasMensal] = useState<VendasMensalData[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<FormasPagamentoData[]>([]);
   const [topProdutos, setTopProdutos] = useState<TopProdutoData[]>([]);
   const [topClientes, setTopClientes] = useState<TopClienteData[]>([]);
@@ -135,7 +135,7 @@ export default function DashboardPage() {
           r.ok ? (r.json() as Promise<KpiResponse>) : null
         ),
         fetch(`/api/dashboard/charts?${params}&type=faturamento-mensal`).then((r) =>
-          r.ok ? (r.json() as Promise<FaturamentoMensalData[]>) : []
+          r.ok ? (r.json() as Promise<VendasMensalData[]>) : []
         ),
         fetch(`/api/dashboard/charts?${params}&type=formas-pagamento`).then((r) =>
           r.ok ? (r.json() as Promise<FormasPagamentoData[]>) : []
@@ -158,7 +158,7 @@ export default function DashboardPage() {
     setChartsLoading(false);
 
     if (kpisRes.status === "fulfilled" && kpisRes.value) setKpis(kpisRes.value);
-    if (faturamentoRes.status === "fulfilled") setFaturamentoMensal(faturamentoRes.value as FaturamentoMensalData[]);
+    if (faturamentoRes.status === "fulfilled") setVendasMensal(faturamentoRes.value as VendasMensalData[]);
     if (pagamentosRes.status === "fulfilled") setFormasPagamento(pagamentosRes.value as FormasPagamentoData[]);
     if (produtosRes.status === "fulfilled") setTopProdutos(produtosRes.value as TopProdutoData[]);
     if (clientesRes.status === "fulfilled") setTopClientes(clientesRes.value as TopClienteData[]);
@@ -204,7 +204,7 @@ export default function DashboardPage() {
         isLoading={kpiLoading}
       />
 
-      {/* ── Linha 2: Top Produtos | PF vs PJ | Faturamento Mensal ─────────────── */}
+      {/* ── Linha 1: Top Produtos | PF vs PJ | Formas de Pagamento ─────────── */}
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
         <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[360px]">
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
@@ -214,22 +214,26 @@ export default function DashboardPage() {
           {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
         </ChartCard>
 
-        <ChartCard title="Faturamento Mensal" subtitle="últimos 6 meses com dados" animationDelay={120}>
-          {chartsLoading ? <ChartSkeleton /> : <FaturamentoMensalChart data={faturamentoMensal} />}
-        </ChartCard>
-      </div>
-
-      {/* ── Linha 3: Top Clientes | Formas de Pagamento ─────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={160} className="min-h-[360px]">
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
-        </ChartCard>
-        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={200}>
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={120}>
           {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
         </ChartCard>
       </div>
 
-      {/* ── Linha 4: Top Vendedores ──────────────────────────────────────────── */}
+      {/* ── Linha 2: Top Clientes (40%) | Vendas Mensal (60%) ───────────────── */}
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-5">
+        <div className="lg:col-span-2">
+          <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={160} className="min-h-[360px] h-full">
+            {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
+          </ChartCard>
+        </div>
+        <div className="lg:col-span-3">
+          <ChartCard title="Vendas | Devolução por Mês/Ano" subtitle="últimos 12 meses a partir do período selecionado" animationDelay={180} className="h-full">
+            {chartsLoading ? <ChartSkeleton height={200} /> : <VendasMensalChart data={vendasMensal} />}
+          </ChartCard>
+        </div>
+      </div>
+
+      {/* ── Linha 3: Top Vendedores ──────────────────────────────────────────── */}
       <ChartCard title="Top 10 Vendedores" animationDelay={220} className="min-h-[360px]">
         {chartsLoading ? <ChartSkeleton height={280} /> : (
           <TopVendedoresChart
