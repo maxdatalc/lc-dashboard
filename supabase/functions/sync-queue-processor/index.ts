@@ -781,6 +781,35 @@ async function processarItens(
     ` | itens: ${itensSalvos} | pgtos: ${pagamentosSalvos}` +
     ` | ${temMais ? "continua" : "CONCLUÍDO"}`
   );
+
+  // Quando itens concluir, reativar automaticamente job de atendente da mesma loja
+  if (!temMais) {
+    const { data: jobAtendente } = await supabase
+      .from("sync_queue")
+      .select("id, status")
+      .eq("loja_id", job.loja_id)
+      .eq("tipo", "atendente")
+      .in("status", ["pausado_otimizacao", "erro", "pendente"])
+      .order("criado_em", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (jobAtendente) {
+      await supabase
+        .from("sync_queue")
+        .update({
+          status: "pendente",
+          metadata: JSON.stringify({ offset: 0 }),
+          pagina_atual: 1,
+          registros_salvos: 0,
+          erro: null,
+          atualizado_em: new Date().toISOString(),
+        })
+        .eq("id", jobAtendente.id);
+
+      console.log(`[sync-queue] Itens concluído — job de atendente ${jobAtendente.id} reativado automaticamente`);
+    }
+  }
 }
 
 // ── Processador: atendente_id histórico ───────────────────────────────────────
