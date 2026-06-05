@@ -22,6 +22,7 @@ import {
   vincularEmpresaUsuario,
   desvincularEmpresaUsuario,
   alterarRoleUsuario,
+  excluirUsuario,
 } from "@/app/actions/admin-usuarios";
 
 interface EmpresaVinculada {
@@ -111,6 +112,8 @@ export function UsuarioDetalheClient({
     tipo: "ok" | "erro";
     msg: string;
   } | null>(null);
+  const [modalExcluir, setModalExcluir] = useState(false);
+  const [confirmacaoNome, setConfirmacaoNome] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const empresasDisponiveis = todasEmpresas.filter(
@@ -204,6 +207,19 @@ export function UsuarioDetalheClient({
     });
   }
 
+  function handleExcluir() {
+    startTransition(async () => {
+      const result = await excluirUsuario(usuario.id);
+      if (result.error) {
+        mostrarFeedback("erro", result.error);
+        setModalExcluir(false);
+        setConfirmacaoNome("");
+      } else {
+        router.push("/admin/usuarios");
+      }
+    });
+  }
+
   const iniciais = (usuario.full_name || usuario.email)
     .split(" ")
     .slice(0, 2)
@@ -261,13 +277,24 @@ export function UsuarioDetalheClient({
           </div>
         </div>
 
-        <button
-          onClick={() => setModalSenha(true)}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all"
-        >
-          <KeyRound className="w-4 h-4" />
-          Resetar senha
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setModalSenha(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all"
+          >
+            <KeyRound className="w-4 h-4" />
+            Resetar senha
+          </button>
+          {!usuario.is_system_admin && (
+            <button
+              onClick={() => setModalExcluir(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all"
+            >
+              <Trash2 className="w-4 h-4" />
+              Excluir usuário
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cards de info */}
@@ -553,6 +580,71 @@ export function UsuarioDetalheClient({
                 className="flex-1 py-2.5 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
               >
                 {isPending ? "Vinculando..." : "Vincular"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal — Excluir usuário */}
+      {modalExcluir && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Excluir usuário</h3>
+                <p className="text-xs text-slate-400">Esta ação não pode ser desfeita</p>
+              </div>
+            </div>
+
+            <div className="bg-red-50 border border-red-100 rounded-lg px-3.5 py-3 mb-5 mt-4">
+              <p className="text-sm text-red-700">
+                O usuário{" "}
+                <span className="font-semibold">
+                  {usuario.full_name || usuario.email}
+                </span>{" "}
+                será removido permanentemente do sistema, incluindo todos os
+                acessos às empresas vinculadas.
+              </p>
+            </div>
+
+            <div className="space-y-1.5 mb-5">
+              <label className="text-xs font-medium text-slate-500">
+                Digite{" "}
+                <span className="font-semibold text-slate-700">
+                  {usuario.email}
+                </span>{" "}
+                para confirmar
+              </label>
+              <input
+                type="text"
+                placeholder={usuario.email}
+                value={confirmacaoNome}
+                onChange={(e) => setConfirmacaoNome(e.target.value)}
+                autoFocus
+                className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setModalExcluir(false);
+                  setConfirmacaoNome("");
+                }}
+                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleExcluir}
+                disabled={isPending || confirmacaoNome !== usuario.email}
+                className="flex-1 py-2.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isPending ? "Excluindo..." : "Excluir permanentemente"}
               </button>
             </div>
           </div>
