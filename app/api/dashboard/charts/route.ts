@@ -2,26 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
 
-const IN_FILTER_BATCH_SIZE = 1000;
-const QUERY_PAGE_SIZE = 1000;
-
-function chunkArray<T>(items: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < items.length; i += size) {
-    chunks.push(items.slice(i, i + size));
-  }
-  return chunks;
-}
-
 function toNumber(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function toNullableNumber(value: unknown): number | null {
-  if (value == null) return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : null;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -207,138 +190,57 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-produtos": {
-        const vendasIds: Record<string, unknown>[] = [];
+        // Query agregada via RPC — elimina 143 queries sequenciais em JS
+        // deno-lint-ignore no-explicit-any
+        const { data: itensAgregados, error: errItens } = await (supabase as any)
+          .rpc("get_top_produtos", {
+            p_loja_ids: lojaIds,
+            p_start: start,
+            p_end: end,
+            p_limit: 50,
+          });
 
-        for (let offset = 0; ; offset += QUERY_PAGE_SIZE) {
-          const { data: vendasLote, error: errVendas } = await supabase
-            .from("vendas")
-            .select("external_id")
-            .in("loja_id", lojaIds)
-            .eq("tipo", "venda")
-            .eq("status", "finalizada")
-            .gte("data_venda", start)
-            .lte("data_venda", end)
-            .not("external_id", "is", null)
-            .range(offset, offset + QUERY_PAGE_SIZE - 1);
-
-          if (errVendas) {
-            console.error("[charts/top-produtos] erro:", errVendas.message);
-            return NextResponse.json([]);
-          }
-
-          vendasIds.push(...((vendasLote ?? []) as Record<string, unknown>[]));
-          if ((vendasLote?.length ?? 0) < QUERY_PAGE_SIZE) break;
+        if (errItens) {
+          console.error("[charts/top-produtos] erro RPC:", errItens.message);
+          return NextResponse.json([]);
         }
 
-        console.log(`[charts/top-produtos] vendas no período:`, vendasIds.length);
-        if (!vendasIds.length) return NextResponse.json([]);
+        if (!itensAgregados?.length) return NextResponse.json([]);
 
-        const ids = vendasIds.map((v) => v.external_id as string | number).filter(Boolean);
-        if (!ids.length) return NextResponse.json([]);
+        // Buscar detalhes dos top 50 produtos (1 query)
+        const produtoIds = (itensAgregados as Record<string, unknown>[])
+          .map((i) => i.produto_external_id)
+          .filter(Boolean);
 
-        const itens: Record<string, unknown>[] = [];
+        const { data: produtos } = await supabase
+          .from("produtos")
+          .select("external_id, codigo, grupo_nome, sub_grupo_nome, fabricante, preco_venda, valor_custo")
+          .in("loja_id", lojaIds)
+          .in("external_id", produtoIds.map(String));
 
-        console.log(`[charts/top-produtos] total de IDs de vendas:`, ids.length);
-
-        for (const loteIds of chunkArray(ids, IN_FILTER_BATCH_SIZE)) {
-          const { data: itensLote, error: errItens } = await supabase
-            .from("venda_itens")
-            .select("produto_nome, produto_external_id, quantidade, valor_total, valor_unitario")
-            .in("loja_id", lojaIds)
-            .in("venda_external_id", loteIds.map(String))
-            .limit(10000);
-
-          if (errItens) {
-            console.error("[charts/top-produtos] erro itens:", errItens.message);
-            return NextResponse.json([]);
-          }
-
-          console.log(`[charts/top-produtos] lote ${loteIds.length} IDs → ${itensLote?.length ?? 0} itens`);
-          itens.push(...((itensLote ?? []) as Record<string, unknown>[]));
-        }
-
-        console.log(`[charts/top-produtos] total itens acumulados:`, itens.length);
-        if (!itens.length) return NextResponse.json([]);
-
-        const porProduto = new Map<string, {
-          nome: string;
-          produtoExternalId: number | null;
-          valorTotal: number;
-          quantidade: number;
-          valorUnitario: number;
-        }>();
-
-        for (const i of itens) {
-          const nome = ((i.produto_nome as string) ?? "Produto").trim();
-          const produtoExternalId = toNullableNumber(i.produto_external_id);
-          const key = produtoExternalId != null ? `id:${produtoExternalId}` : `nome:${nome}`;
-          const existing = porProduto.get(key);
-          if (!existing) {
-            porProduto.set(key, {
-              nome,
-              produtoExternalId,
-              valorTotal: toNumber(i.valor_total),
-              quantidade: toNumber(i.quantidade),
-              valorUnitario: toNumber(i.valor_unitario),
-            });
-          } else {
-            existing.valorTotal += toNumber(i.valor_total);
-            existing.quantidade += toNumber(i.quantidade);
-            if (!existing.valorUnitario) existing.valorUnitario = toNumber(i.valor_unitario);
-          }
-        }
-
-        const top50 = Array.from(porProduto.values())
-          .sort((a, b) => b.valorTotal - a.valorTotal)
-          .slice(0, 50);
-
-        const produtoIds = Array.from(
-          new Set(top50.map((p) => p.produtoExternalId).filter((id): id is number => id != null))
+        const detalhesMap = new Map(
+          (produtos ?? []).map((p) => [Number(p.external_id), p])
         );
 
-        let detalhesMap = new Map<number, Record<string, unknown>>();
-        if (produtoIds.length > 0) {
-          const produtosDetalhes: Record<string, unknown>[] = [];
-          for (const loteProdutoIds of chunkArray(produtoIds, IN_FILTER_BATCH_SIZE)) {
-            const { data: produtosLote, error: errProdutos } = await supabase
-              .from("produtos")
-              .select("external_id, codigo, grupo_nome, sub_grupo_nome, fabricante, preco_venda, valor_custo, estoque_atual")
-              .in("loja_id", lojaIds)
-              .in("external_id", loteProdutoIds.map(String));
-
-            if (errProdutos) {
-              console.error("[charts/top-produtos] erro detalhes:", errProdutos.message);
-              return NextResponse.json([]);
-            }
-
-            produtosDetalhes.push(...((produtosLote ?? []) as Record<string, unknown>[]));
-          }
-
-          detalhesMap = new Map(
-            produtosDetalhes.map((p) => [toNumber(p.external_id), p as Record<string, unknown>])
-          );
-        }
-
-        const resultado = top50.map((p) => {
-          const det = p.produtoExternalId ? detalhesMap.get(p.produtoExternalId) : null;
-          const precoVenda = toNullableNumber(det?.preco_venda) ?? p.valorUnitario;
-          const valorCusto = toNullableNumber(det?.valor_custo);
-          const margem =
-            valorCusto != null && precoVenda > 0
-              ? Number((((precoVenda - valorCusto) / precoVenda) * 100).toFixed(1))
-              : null;
+        const resultado = (itensAgregados as Record<string, unknown>[]).map((item) => {
+          const det = detalhesMap.get(Number(item.produto_external_id)) ?? null;
+          const precoVenda = Number(det?.preco_venda ?? 0);
+          const valorCusto = Number(det?.valor_custo ?? 0);
+          const margem = precoVenda > 0
+            ? Number((((precoVenda - valorCusto) / precoVenda) * 100).toFixed(1))
+            : null;
 
           return {
-            nome: p.nome,
-            valor: p.valorTotal,
-            quantidade: p.quantidade,
-            externalId: p.produtoExternalId ?? null,
+            nome: (item.produto_nome as string) ?? "Produto",
+            valor: Number(item.valor_total),
+            quantidade: Number(item.quantidade_total),
+            externalId: Number(item.produto_external_id),
             codigo: (det?.codigo as string) ?? null,
             grupoNome: (det?.grupo_nome as string) ?? null,
             subGrupo: (det?.sub_grupo_nome as string) ?? null,
             fabricante: (det?.fabricante as string) ?? null,
-            precoVenda,
-            valorCusto,
+            precoVenda: precoVenda || null,
+            valorCusto: valorCusto || null,
             margem,
             estoqueAtual: null,
           };
@@ -348,92 +250,50 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-clientes": {
-        const vendasData: Record<string, unknown>[] = [];
+        // Query agregada via RPC — elimina busca de 143k rows no JS
+        // deno-lint-ignore no-explicit-any
+        const { data: clientesAgregados, error: errClientes } = await (supabase as any)
+          .rpc("get_top_clientes", {
+            p_loja_ids: lojaIds,
+            p_start: start,
+            p_end: end,
+            p_limit: 50,
+          });
 
-        for (let offset = 0; ; offset += QUERY_PAGE_SIZE) {
-          const { data: vendasLote, error: errVendas } = await supabase
-            .from("vendas")
-            .select("cliente_nome, cliente_external_id, cpf_cnpj, valor_total, data_venda")
-            .in("loja_id", lojaIds)
-            .eq("tipo", "venda")
-            .eq("status", "finalizada")
-            .gte("data_venda", start)
-            .lte("data_venda", end)
-            .not("cliente_nome", "is", null)
-            .neq("cliente_nome", "")
-            .range(offset, offset + QUERY_PAGE_SIZE - 1);
-
-          if (errVendas) {
-            console.error("[charts/top-clientes] erro:", errVendas.message);
-            return NextResponse.json([]);
-          }
-
-          vendasData.push(...((vendasLote ?? []) as Record<string, unknown>[]));
-          if ((vendasLote?.length ?? 0) < QUERY_PAGE_SIZE) break;
+        if (errClientes) {
+          console.error("[charts/top-clientes] erro RPC:", errClientes.message);
+          return NextResponse.json([]);
         }
 
-        console.log(`[charts/top-clientes] rows encontrados:`, vendasData.length);
-        if (!vendasData.length) return NextResponse.json([]);
+        if (!clientesAgregados?.length) return NextResponse.json([]);
 
-        const porCliente = new Map<string, {
-          nome: string;
-          clienteExternalId: number | null;
-          cpfCnpj: string;
-          total: number;
-          compras: number;
-          ultimaCompra: string;
-        }>();
-
-        for (const v of vendasData) {
-          const key = (v.cliente_nome as string).trim();
-          if (!key) continue;
-          const existing = porCliente.get(key);
-          if (!existing) {
-            porCliente.set(key, {
-              nome: key,
-              clienteExternalId: (v.cliente_external_id as number) ?? null,
-              cpfCnpj: (v.cpf_cnpj as string) ?? "",
-              total: (v.valor_total as number) ?? 0,
-              compras: 1,
-              ultimaCompra: v.data_venda as string,
-            });
-          } else {
-            existing.total += (v.valor_total as number) ?? 0;
-            existing.compras += 1;
-            if ((v.data_venda as string) > existing.ultimaCompra) {
-              existing.ultimaCompra = v.data_venda as string;
-            }
-          }
-        }
-
-        const top50 = Array.from(porCliente.values())
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 50);
-
-        const externalIds = top50.map((c) => c.clienteExternalId).filter(Boolean) as number[];
+        // Buscar detalhes adicionais (1 query)
+        const clienteIds = (clientesAgregados as Record<string, unknown>[])
+          .map((c) => c.cliente_external_id)
+          .filter(Boolean);
 
         let detalhesMap = new Map<number, Record<string, unknown>>();
-        if (externalIds.length > 0) {
-          const { data: clientesDetalhes } = await supabase
+        if (clienteIds.length > 0) {
+          const { data: detalhes } = await supabase
             .from("clientes")
             .select("external_id, email, telefone, cidade, estado, cnpj_cpf")
             .in("loja_id", lojaIds)
-            .in("external_id", externalIds.map(String));
+            .in("external_id", clienteIds.map(String));
           detalhesMap = new Map(
-            (clientesDetalhes ?? []).map((c) => [c.external_id as number, c as Record<string, unknown>])
+            (detalhes ?? []).map((c) => [Number(c.external_id), c as Record<string, unknown>])
           );
         }
 
-        const resultado = top50.map((c) => {
-          const det = c.clienteExternalId ? detalhesMap.get(c.clienteExternalId) : null;
-          const cnpjCpf = (det?.cnpj_cpf as string) ?? c.cpfCnpj ?? null;
+        const resultado = (clientesAgregados as Record<string, unknown>[]).map((c) => {
+          const det = detalhesMap.get(Number(c.cliente_external_id)) ?? null;
+          const cnpjCpf = (det?.cnpj_cpf as string) ?? (c.cpf_cnpj as string) ?? null;
           const tipoPessoa = (cnpjCpf ?? "").replace(/\D/g, "").length === 14 ? "PJ" : "PF";
           return {
-            nome: c.nome,
-            total: c.total,
-            compras: c.compras,
-            ticketMedio: c.total / c.compras,
-            ultimaCompra: c.ultimaCompra,
+            nome: (c.cliente_nome as string) ?? "Cliente",
+            total: Number(c.valor_total),
+            compras: Number(c.total_compras),
+            ticketMedio: Number(c.ticket_medio),
+            ultimaCompra: (c.ultima_compra as string) ?? "",
             tipoPessoa,
             cidade: (det?.cidade as string) ?? null,
             estado: (det?.estado as string) ?? null,
