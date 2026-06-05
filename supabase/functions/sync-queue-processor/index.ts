@@ -11,8 +11,8 @@ const PAGE_LIMIT = 12;        // páginas por execução de vendas/OS/produtos (
 const MAX_JOBS_PARALELOS = 3; // máx clientes simultâneos
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const CONCORRENCIA_ITENS = 8;      // vendas em paralelo no processarItens
-const CONCORRENCIA_ATENDENTE = 10; // vendas em paralelo no processarAtendente
+const CONCORRENCIA_ITENS = 3;      // vendas em paralelo no processarItens
+const CONCORRENCIA_ATENDENTE = 3; // vendas em paralelo no processarAtendente
 const BATCH_ATENDENTE = 100;       // dobrar o batch de atendente (era 50)
 
 interface SyncJob {
