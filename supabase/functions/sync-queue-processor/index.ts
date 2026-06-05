@@ -623,7 +623,7 @@ async function processarItens(
 ) {
   const BATCH_SIZE = 150;
   const MAX_TENTATIVAS = 3;
-  const DELAY_ENTRE_VENDAS = 200; // 200ms entre vendas — respeitoso ao ERP local
+  const DELAY_ENTRE_VENDAS = 100; // 100ms entre vendas — ERP estável com 1 job sequencial
 
   const offset = (job.metadata?.offset as number) ?? ((job.pagina_atual - 1) * BATCH_SIZE);
 
@@ -791,7 +791,7 @@ async function processarAtendente(
   loja: LojaRow,
   token: string
 ) {
-  const DELAY_ENTRE_VENDAS = 200;
+  const DELAY_ENTRE_VENDAS = 100;
   const offset = (job.metadata?.offset as number) ?? 0;
 
   const { data: vendas } = await supabase
