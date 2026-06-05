@@ -238,13 +238,8 @@ export async function syncVendas(
     if (error) throw new Error(`Erro ao sincronizar vendas: ${error.message}`);
   }
 
-  // Sincronizar itens e pagamentos de cada venda para alimentar os gráficos do dashboard
-  // Em syncs iniciais com muitas vendas isso pode ser lento — considerar batch assíncrono se necessário
-  for (const row of rowsUnicos) {
-    await syncVendaItens(supabase, token, loja, row.external_id);
-    await syncVendaPagamentos(supabase, token, loja, row.external_id);
-    await sleep(200); // 200ms entre vendas = máx 5 vendas/segundo
-  }
+  // Itens e pagamentos são sincronizados pelo sync-queue-processor via jobs dedicados.
+  // O sync-erp sincroniza apenas cabeçalhos de venda para manter baixa latência.
 
   return rowsUnicos.length;
 }
