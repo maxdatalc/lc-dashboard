@@ -98,3 +98,28 @@ export async function desvincularEmpresaUsuario(
     };
   }
 }
+
+export async function alterarRoleUsuario(
+  userId: string,
+  tenantId: string,
+  novaRole: "admin" | "viewer"
+): Promise<{ error?: string }> {
+  try {
+    await verificarAdmin();
+    const adminClient = createAdminClient();
+
+    const { error } = await adminClient
+      .from("tenant_users")
+      .update({ role: novaRole })
+      .eq("user_id", userId)
+      .eq("tenant_id", tenantId);
+
+    if (error) return { error: error.message };
+    revalidatePath(`/admin/usuarios/${userId}`);
+    return {};
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Erro ao alterar permissão",
+    };
+  }
+}

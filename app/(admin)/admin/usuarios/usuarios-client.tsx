@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   Users,
   Search,
@@ -78,6 +79,7 @@ function RoleBadge({ role }: { role: string }) {
 }
 
 export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Props) {
+  const router = useRouter();
   const [usuarios] = useState(initialUsuarios);
   const [busca, setBusca] = useState("");
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
@@ -213,7 +215,8 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
             {filtrados.map((usuario) => (
               <tr
                 key={usuario.id}
-                className="hover:bg-slate-50/50 transition-colors"
+                onClick={() => router.push(`/admin/usuarios/${usuario.id}`)}
+                className="hover:bg-slate-50/50 transition-colors cursor-pointer"
               >
                 {/* Usuário */}
                 <td className="px-5 py-4">
