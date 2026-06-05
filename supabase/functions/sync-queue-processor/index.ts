@@ -9,9 +9,7 @@ import { getMaxDataToken } from "../sync-erp/maxdata-client.ts";
 
 const PAGE_LIMIT = 12;
 const MAX_JOBS_PARALELOS = 3;
-const CONCORRENCIA_ITENS = 1;      // sequencial — ERP local não suporta paralelismo
-const CONCORRENCIA_ATENDENTE = 1;  // sequencial — ERP local não suporta paralelismo
-const BATCH_ATENDENTE = 200;       // dobrar batch por ciclo
+const BATCH_ATENDENTE = 150;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface SyncJob {
@@ -613,8 +611,9 @@ async function processarItens(
   loja: LojaRow,
   token: string
 ) {
-  const BATCH_SIZE = 200;
+  const BATCH_SIZE = 150;
   const MAX_TENTATIVAS = 3;
+  const DELAY_ENTRE_VENDAS = 200; // 200ms entre vendas — respeitoso ao ERP local
 
   const offset = (job.metadata?.offset as number) ?? ((job.pagina_atual - 1) * BATCH_SIZE);
 
@@ -643,9 +642,10 @@ async function processarItens(
 
     while (tentativas < MAX_TENTATIVAS) {
       try {
+        // Buscar itens
         const itensRes = await fetch(
           `${loja.erp_base_url}/v2/sale/${externalId}/items`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) }
         );
         if (itensRes.ok) {
           // deno-lint-ignore no-explicit-any
@@ -674,11 +674,17 @@ async function processarItens(
               todosItens.push(...itens);
             }
           }
+        } else {
+          // ERP retornou erro HTTP — aguardar antes de tentar novamente
+          await sleep(500 * (tentativas + 1));
+          tentativas++;
+          continue;
         }
 
+        // Buscar pagamentos
         const pgtoRes = await fetch(
           `${loja.erp_base_url}/v2/sale/${externalId}/payment`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) }
         );
         if (pgtoRes.ok) {
           // deno-lint-ignore no-explicit-any
@@ -701,24 +707,28 @@ async function processarItens(
               todosPagamentos.push(...pgtos);
             }
           }
+        } else {
+          await sleep(500 * (tentativas + 1));
+          tentativas++;
+          continue;
         }
 
-        break;
+        break; // sucesso — sair do while
       } catch {
         tentativas++;
         if (tentativas >= MAX_TENTATIVAS) {
           console.error(`[sync-queue] Itens venda ${externalId}: falhou após ${MAX_TENTATIVAS} tentativas, pulando`);
         } else {
-          console.warn(`[sync-queue] Itens venda ${externalId}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
-          await sleep(2000 * tentativas);
+          console.warn(`[sync-queue] Itens venda ${externalId}: erro, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+          await sleep(3000 * tentativas);
         }
       }
     }
-    // Delay mínimo entre vendas para não sobrecarregar ERP local
-    await sleep(30);
+
+    await sleep(DELAY_ENTRE_VENDAS);
   }
 
-  // Salvar em lote no Supabase — não afeta ERP
+  // Salvar em lote no Supabase (não afeta ERP)
   let itensSalvos = 0;
   let pagamentosSalvos = 0;
 
@@ -771,6 +781,7 @@ async function processarAtendente(
   loja: LojaRow,
   token: string
 ) {
+  const DELAY_ENTRE_VENDAS = 200;
   const offset = (job.metadata?.offset as number) ?? 0;
 
   const { data: vendas } = await supabase
@@ -795,10 +806,10 @@ async function processarAtendente(
     try {
       const res = await fetch(
         `${loja.erp_base_url}/v2/sale/${externalId}`,
-        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) }
       );
       if (!res.ok) {
-        await sleep(30);
+        await sleep(DELAY_ENTRE_VENDAS);
         continue;
       }
       // deno-lint-ignore no-explicit-any
@@ -808,10 +819,10 @@ async function processarAtendente(
     } catch (err) {
       console.error(`[sync-queue] Erro atendente venda ${externalId}:`, err);
     }
-    await sleep(30);
+    await sleep(DELAY_ENTRE_VENDAS);
   }
 
-  // Atualizar em lote agrupado por atendente_id
+  // Atualizar agrupado por atendente_id — minimiza queries no banco
   let atualizados = 0;
   if (resultados.size > 0) {
     const porAtendente = new Map<number, number[]>();
