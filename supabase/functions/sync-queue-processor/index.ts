@@ -7,13 +7,12 @@ import { createClient } from "npm:@supabase/supabase-js";
 import { decrypt } from "../sync-erp/crypto.ts";
 import { getMaxDataToken } from "../sync-erp/maxdata-client.ts";
 
-const PAGE_LIMIT = 12;        // páginas por execução de vendas/OS/produtos (~48s)
-const MAX_JOBS_PARALELOS = 3; // máx clientes simultâneos
+const PAGE_LIMIT = 12;
+const MAX_JOBS_PARALELOS = 3;
+const CONCORRENCIA_ITENS = 1;      // sequencial — ERP local não suporta paralelismo
+const CONCORRENCIA_ATENDENTE = 1;  // sequencial — ERP local não suporta paralelismo
+const BATCH_ATENDENTE = 200;       // dobrar batch por ciclo
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const CONCORRENCIA_ITENS = 3;      // vendas em paralelo no processarItens
-const CONCORRENCIA_ATENDENTE = 3; // vendas em paralelo no processarAtendente
-const BATCH_ATENDENTE = 100;       // dobrar o batch de atendente (era 50)
 
 interface SyncJob {
   id: string;
@@ -614,7 +613,7 @@ async function processarItens(
   loja: LojaRow,
   token: string
 ) {
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 200;
   const MAX_TENTATIVAS = 3;
 
   const offset = (job.metadata?.offset as number) ?? ((job.pagina_atual - 1) * BATCH_SIZE);
@@ -638,8 +637,10 @@ async function processarItens(
   const vendasComItens = new Set<number>();
   const vendasComPagamentos = new Set<number>();
 
-  async function processarUmaVenda(externalId: number): Promise<void> {
+  for (const venda of vendas) {
+    const externalId = venda.external_id as number;
     let tentativas = 0;
+
     while (tentativas < MAX_TENTATIVAS) {
       try {
         const itensRes = await fetch(
@@ -701,27 +702,23 @@ async function processarItens(
             }
           }
         }
-        return;
+
+        break;
       } catch {
         tentativas++;
         if (tentativas >= MAX_TENTATIVAS) {
           console.error(`[sync-queue] Itens venda ${externalId}: falhou após ${MAX_TENTATIVAS} tentativas, pulando`);
-          return;
+        } else {
+          console.warn(`[sync-queue] Itens venda ${externalId}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+          await sleep(2000 * tentativas);
         }
-        console.warn(`[sync-queue] Itens venda ${externalId}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
-        await sleep(2000 * tentativas);
       }
     }
+    // Delay mínimo entre vendas para não sobrecarregar ERP local
+    await sleep(30);
   }
 
-  // Processar em mini-lotes paralelos de CONCORRENCIA_ITENS
-  for (let i = 0; i < vendas.length; i += CONCORRENCIA_ITENS) {
-    const grupo = vendas.slice(i, i + CONCORRENCIA_ITENS);
-    await Promise.all(grupo.map((v) => processarUmaVenda(v.external_id as number)));
-    if (i + CONCORRENCIA_ITENS < vendas.length) await sleep(50);
-  }
-
-  // Salvar itens em lote — 1 delete + 1 insert por batch inteiro (era 1 por venda)
+  // Salvar em lote no Supabase — não afeta ERP
   let itensSalvos = 0;
   let pagamentosSalvos = 0;
 
@@ -791,16 +788,19 @@ async function processarAtendente(
     return;
   }
 
-  // Buscar atendente_id em paralelo — sem sleep individual
-  const resultados = new Map<number, number>(); // external_id → atendente_id
+  const resultados = new Map<number, number>();
 
-  async function buscarAtendente(externalId: number): Promise<void> {
+  for (const venda of vendas) {
+    const externalId = venda.external_id as number;
     try {
       const res = await fetch(
         `${loja.erp_base_url}/v2/sale/${externalId}`,
         { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
       );
-      if (!res.ok) return;
+      if (!res.ok) {
+        await sleep(30);
+        continue;
+      }
       // deno-lint-ignore no-explicit-any
       const data = await res.json() as any;
       const atendenteId = data.atendenteId as number | undefined;
@@ -808,26 +808,18 @@ async function processarAtendente(
     } catch (err) {
       console.error(`[sync-queue] Erro atendente venda ${externalId}:`, err);
     }
+    await sleep(30);
   }
 
-  // Processar em mini-lotes de CONCORRENCIA_ATENDENTE
-  for (let i = 0; i < vendas.length; i += CONCORRENCIA_ATENDENTE) {
-    const grupo = vendas.slice(i, i + CONCORRENCIA_ATENDENTE);
-    await Promise.all(grupo.map((v) => buscarAtendente(v.external_id as number)));
-    if (i + CONCORRENCIA_ATENDENTE < vendas.length) await sleep(50);
-  }
-
-  // Atualizar em lote — 1 update por atendente_id distinto (agrupa vendas do mesmo atendente)
+  // Atualizar em lote agrupado por atendente_id
   let atualizados = 0;
   if (resultados.size > 0) {
-    // Agrupar external_ids pelo mesmo atendente_id para minimizar queries
     const porAtendente = new Map<number, number[]>();
     for (const [externalId, atendenteId] of resultados) {
       const lista = porAtendente.get(atendenteId) ?? [];
       lista.push(externalId);
       porAtendente.set(atendenteId, lista);
     }
-
     for (const [atendenteId, ids] of porAtendente) {
       const { error } = await supabase
         .from("vendas")
