@@ -11,6 +11,10 @@ const PAGE_LIMIT = 12;        // páginas por execução de vendas/OS/produtos (
 const MAX_JOBS_PARALELOS = 3; // máx clientes simultâneos
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const CONCORRENCIA_ITENS = 8;      // vendas em paralelo no processarItens
+const CONCORRENCIA_ATENDENTE = 10; // vendas em paralelo no processarAtendente
+const BATCH_ATENDENTE = 100;       // dobrar o batch de atendente (era 50)
+
 interface SyncJob {
   id: string;
   loja_id: string;
@@ -611,12 +615,10 @@ async function processarItens(
   token: string
 ) {
   const BATCH_SIZE = 100;
-  const DELAY_ENTRE_VENDAS = 100;
+  const MAX_TENTATIVAS = 3;
 
-  // Retomar do offset salvo no metadata
   const offset = (job.metadata?.offset as number) ?? ((job.pagina_atual - 1) * BATCH_SIZE);
 
-  // Buscar lote de vendas para processar
   const { data: vendas } = await supabase
     .from("vendas")
     .select("external_id, source")
@@ -631,28 +633,23 @@ async function processarItens(
     return;
   }
 
-  let itensSalvos = 0;
-  let pagamentosSalvos = 0;
+  const todosItens: Record<string, unknown>[] = [];
+  const todosPagamentos: Record<string, unknown>[] = [];
+  const vendasComItens = new Set<number>();
+  const vendasComPagamentos = new Set<number>();
 
-  const MAX_TENTATIVAS = 3;
-
-  for (const venda of vendas) {
-    const externalId = venda.external_id as number;
-    let tentativasVenda = 0;
-
-    while (tentativasVenda < MAX_TENTATIVAS) {
+  async function processarUmaVenda(externalId: number): Promise<void> {
+    let tentativas = 0;
+    while (tentativas < MAX_TENTATIVAS) {
       try {
-        // Buscar itens com retry
         const itensRes = await fetch(
           `${loja.erp_base_url}/v2/sale/${externalId}/items`,
           { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
         );
-
         if (itensRes.ok) {
           // deno-lint-ignore no-explicit-any
           const raw = await itensRes.json() as any;
           const docs = raw.docs ?? raw.data ?? [];
-
           if (docs.length > 0) {
             // deno-lint-ignore no-explicit-any
             const itens = docs.map((item: any) => {
@@ -671,30 +668,24 @@ async function processarItens(
               };
             // deno-lint-ignore no-explicit-any
             }).filter((i: any) => i.produto_nome !== null && i.produto_nome !== "");
-
             if (itens.length > 0) {
-              await supabase.from("venda_itens").delete()
-                .eq("loja_id", job.loja_id).eq("venda_external_id", externalId);
-              const { error } = await supabase.from("venda_itens").insert(itens);
-              if (!error) itensSalvos += itens.length;
+              vendasComItens.add(externalId);
+              todosItens.push(...itens);
             }
           }
         }
 
-        // Buscar pagamentos
         const pgtoRes = await fetch(
           `${loja.erp_base_url}/v2/sale/${externalId}/payment`,
           { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
         );
-
         if (pgtoRes.ok) {
           // deno-lint-ignore no-explicit-any
           const raw = await pgtoRes.json() as any;
           const docs = raw.docs ?? raw.data ?? [];
-
           if (docs.length > 0) {
-            // deno-lint-ignore no-explicit-any
             const pgtos = docs
+              // deno-lint-ignore no-explicit-any
               .filter((p: any) => ((p.valor ?? 0) as number) > 0)
               // deno-lint-ignore no-explicit-any
               .map((p: any) => ({
@@ -704,35 +695,62 @@ async function processarItens(
                 valor: (p.valor ?? 0) as number,
                 parcelas: (p.qtdParcela ?? p.parcelas ?? 1) as number,
               }));
-
             if (pgtos.length > 0) {
-              await supabase.from("venda_pagamentos").delete()
-                .eq("loja_id", job.loja_id).eq("venda_external_id", externalId);
-              const { error } = await supabase.from("venda_pagamentos").insert(pgtos);
-              if (!error) pagamentosSalvos += pgtos.length;
+              vendasComPagamentos.add(externalId);
+              todosPagamentos.push(...pgtos);
             }
           }
         }
-
-        break; // sucesso — sair do loop de tentativas
+        return;
       } catch {
-        tentativasVenda++;
-        if (tentativasVenda >= MAX_TENTATIVAS) {
+        tentativas++;
+        if (tentativas >= MAX_TENTATIVAS) {
           console.error(`[sync-queue] Itens venda ${externalId}: falhou após ${MAX_TENTATIVAS} tentativas, pulando`);
-        } else {
-          console.warn(`[sync-queue] Itens venda ${externalId}: timeout, tentativa ${tentativasVenda}/${MAX_TENTATIVAS}`);
-          await sleep(2000 * tentativasVenda);
+          return;
         }
+        console.warn(`[sync-queue] Itens venda ${externalId}: timeout, tentativa ${tentativas}/${MAX_TENTATIVAS}`);
+        await sleep(2000 * tentativas);
       }
     }
+  }
 
-    await sleep(DELAY_ENTRE_VENDAS);
+  // Processar em mini-lotes paralelos de CONCORRENCIA_ITENS
+  for (let i = 0; i < vendas.length; i += CONCORRENCIA_ITENS) {
+    const grupo = vendas.slice(i, i + CONCORRENCIA_ITENS);
+    await Promise.all(grupo.map((v) => processarUmaVenda(v.external_id as number)));
+    if (i + CONCORRENCIA_ITENS < vendas.length) await sleep(50);
+  }
+
+  // Salvar itens em lote — 1 delete + 1 insert por batch inteiro (era 1 por venda)
+  let itensSalvos = 0;
+  let pagamentosSalvos = 0;
+
+  if (vendasComItens.size > 0) {
+    const idsItens = Array.from(vendasComItens);
+    await supabase.from("venda_itens").delete()
+      .eq("loja_id", job.loja_id).in("venda_external_id", idsItens);
+    const CHUNK = 500;
+    for (let i = 0; i < todosItens.length; i += CHUNK) {
+      const { error } = await supabase.from("venda_itens").insert(todosItens.slice(i, i + CHUNK));
+      if (!error) itensSalvos += Math.min(CHUNK, todosItens.length - i);
+      else console.error(`[sync-queue] Erro insert itens chunk ${i}:`, error.message);
+    }
+  }
+
+  if (vendasComPagamentos.size > 0) {
+    const idsPgtos = Array.from(vendasComPagamentos);
+    await supabase.from("venda_pagamentos").delete()
+      .eq("loja_id", job.loja_id).in("venda_external_id", idsPgtos);
+    const CHUNK = 500;
+    for (let i = 0; i < todosPagamentos.length; i += CHUNK) {
+      const { error } = await supabase.from("venda_pagamentos").insert(todosPagamentos.slice(i, i + CHUNK));
+      if (!error) pagamentosSalvos += Math.min(CHUNK, todosPagamentos.length - i);
+      else console.error(`[sync-queue] Erro insert pagamentos chunk ${i}:`, error.message);
+    }
   }
 
   const proximoOffset = offset + vendas.length;
   const totalRegistros = job.registros_salvos + itensSalvos + pagamentosSalvos;
-
-  // Se o lote veio cheio, há mais registros — senão chegou ao fim
   const temMais = vendas.length >= BATCH_SIZE;
 
   await atualizarJob(supabase, job.id, !temMais, {
@@ -750,20 +768,14 @@ async function processarItens(
 
 // ── Processador: atendente_id histórico ───────────────────────────────────────
 
-// Busca GET /v2/sale/{id} para vendas sem atendente_id e atualiza o campo.
-// Processa em lotes de 50 — retoma pelo offset salvo no metadata.
 async function processarAtendente(
   supabase: ReturnType<typeof createClient>,
   job: SyncJob,
   loja: LojaRow,
   token: string
 ) {
-  const BATCH_SIZE = 50;
-  const DELAY_ENTRE_VENDAS = 150;
-
   const offset = (job.metadata?.offset as number) ?? 0;
 
-  // Buscar lote de vendas SEM atendente_id
   const { data: vendas } = await supabase
     .from("vendas")
     .select("external_id")
@@ -771,61 +783,69 @@ async function processarAtendente(
     .eq("source", "sale")
     .is("atendente_id", null)
     .order("external_id", { ascending: true })
-    .range(offset, offset + BATCH_SIZE - 1);
+    .range(offset, offset + BATCH_ATENDENTE - 1);
 
   if (!vendas?.length) {
-    await atualizarJob(supabase, job.id, true, {
-      totalRegistros: job.registros_salvos,
-    });
+    await atualizarJob(supabase, job.id, true, { totalRegistros: job.registros_salvos });
     console.log(`[sync-queue] Atendente job ${job.id}: CONCLUÍDO`);
     return;
   }
 
-  let atualizados = 0;
+  // Buscar atendente_id em paralelo — sem sleep individual
+  const resultados = new Map<number, number>(); // external_id → atendente_id
 
-  for (const venda of vendas) {
-    const externalId = venda.external_id as number;
-
+  async function buscarAtendente(externalId: number): Promise<void> {
     try {
       const res = await fetch(
         `${loja.erp_base_url}/v2/sale/${externalId}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-          signal: AbortSignal.timeout(10_000),
-        }
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10_000) }
       );
-
-      if (!res.ok) continue;
-
+      if (!res.ok) return;
       // deno-lint-ignore no-explicit-any
       const data = await res.json() as any;
       const atendenteId = data.atendenteId as number | undefined;
-
-      if (atendenteId && atendenteId > 0) {
-        const { error } = await supabase
-          .from("vendas")
-          .update({ atendente_id: atendenteId })
-          .eq("loja_id", job.loja_id)
-          .eq("external_id", externalId)
-          .eq("source", "sale");
-
-        if (!error) atualizados++;
-      }
+      if (atendenteId && atendenteId > 0) resultados.set(externalId, atendenteId);
     } catch (err) {
       console.error(`[sync-queue] Erro atendente venda ${externalId}:`, err);
     }
+  }
 
-    await sleep(DELAY_ENTRE_VENDAS);
+  // Processar em mini-lotes de CONCORRENCIA_ATENDENTE
+  for (let i = 0; i < vendas.length; i += CONCORRENCIA_ATENDENTE) {
+    const grupo = vendas.slice(i, i + CONCORRENCIA_ATENDENTE);
+    await Promise.all(grupo.map((v) => buscarAtendente(v.external_id as number)));
+    if (i + CONCORRENCIA_ATENDENTE < vendas.length) await sleep(50);
+  }
+
+  // Atualizar em lote — 1 update por atendente_id distinto (agrupa vendas do mesmo atendente)
+  let atualizados = 0;
+  if (resultados.size > 0) {
+    // Agrupar external_ids pelo mesmo atendente_id para minimizar queries
+    const porAtendente = new Map<number, number[]>();
+    for (const [externalId, atendenteId] of resultados) {
+      const lista = porAtendente.get(atendenteId) ?? [];
+      lista.push(externalId);
+      porAtendente.set(atendenteId, lista);
+    }
+
+    for (const [atendenteId, ids] of porAtendente) {
+      const { error } = await supabase
+        .from("vendas")
+        .update({ atendente_id: atendenteId })
+        .eq("loja_id", job.loja_id)
+        .eq("source", "sale")
+        .in("external_id", ids);
+      if (!error) atualizados += ids.length;
+      else console.error(`[sync-queue] Erro update atendente ${atendenteId}:`, error.message);
+    }
   }
 
   const proximoOffset = offset + vendas.length;
   const totalRegistros = job.registros_salvos + atualizados;
-  const temMais = vendas.length >= BATCH_SIZE;
+  const temMais = vendas.length >= BATCH_ATENDENTE;
 
   await atualizarJob(supabase, job.id, !temMais, {
-    proximaPagina: temMais
-      ? Math.floor(proximoOffset / BATCH_SIZE) + 1
-      : job.pagina_atual,
+    proximaPagina: temMais ? Math.floor(proximoOffset / BATCH_ATENDENTE) + 1 : job.pagina_atual,
     totalRegistros,
     metadata: { offset: proximoOffset },
   });
