@@ -780,6 +780,7 @@ export function SyncInicialModal({
 
   const [statusAtendente, setStatusAtendente] = useState<StatusSync>("idle");
   const [erroAtual, setErroAtual] = useState<string | null>(null);
+  const [retryLoading, setRetryLoading] = useState(false);
 
   const canceladoRef = useRef(false);
 
@@ -957,6 +958,40 @@ export function SyncInicialModal({
       }));
     }
   }, [lojaId, dataInicio, dataFim]);
+
+  // ── Retry: reseta jobs com erro para pendente e retoma do ponto salvo ─────
+
+  const tentarNovamente = useCallback(async () => {
+    setRetryLoading(true);
+    try {
+      const res = await fetch("/api/admin/sync-queue/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lojaId }),
+      });
+
+      const data = (await res.json()) as { sucesso?: boolean; resetados?: number; error?: string };
+
+      if (!res.ok) {
+        console.error("Erro ao resetar jobs:", data.error);
+        return;
+      }
+
+      // Jobs resetados — atualizar status local e forçar polling imediato
+      if ((data.resetados ?? 0) > 0) {
+        setEstadoVendas((prev) => ({ ...prev, status: "rodando" }));
+        const statusRes = await fetch(`/api/admin/sync-queue?lojaId=${lojaId}`);
+        if (statusRes.ok) {
+          const statusData = (await statusRes.json()) as SyncQueueStatus;
+          setJobsStatus(statusData);
+        }
+      }
+    } catch (err) {
+      console.error("Erro no retry:", err);
+    } finally {
+      setRetryLoading(false);
+    }
+  }, [lojaId]);
 
   // ── Sync de atendentes — job único enfileirado em background ─────────────
 
@@ -1636,6 +1671,55 @@ export function SyncInicialModal({
                     );
                   })}
                 </div>
+
+                {/* Botão tentar novamente — aparece só quando há erros e nenhum job ativo */}
+                {jobsStatus &&
+                  jobsStatus.resumo.erros > 0 &&
+                  jobsStatus.resumo.pendentes === 0 &&
+                  jobsStatus.resumo.processando === 0 && (
+                    <div
+                      className="mt-4 pt-3"
+                      style={{ borderTop: "1px solid var(--border-subtle)" }}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium" style={{ color: "#f59e0b" }}>
+                            ⚠️ {jobsStatus.resumo.erros} job(s) com erro
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                            Provavelmente o servidor ficou offline. Retoma de onde parou.
+                          </p>
+                        </div>
+                        <button
+                          onClick={tentarNovamente}
+                          disabled={retryLoading}
+                          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50 flex-shrink-0"
+                          style={{
+                            background: "rgba(245,158,11,0.15)",
+                            border: "1px solid rgba(245,158,11,0.3)",
+                            color: "#f59e0b",
+                            whiteSpace: "nowrap",
+                            cursor: "pointer",
+                            transition: "background 0.15s",
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(245,158,11,0.25)"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(245,158,11,0.15)"; }}
+                        >
+                          {retryLoading ? (
+                            <>
+                              <div
+                                className="w-3 h-3 rounded-full border border-t-transparent animate-spin"
+                                style={{ borderColor: "#f59e0b" }}
+                              />
+                              Resetando...
+                            </>
+                          ) : (
+                            "↺ Tentar novamente"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                 <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)" }}>
                   ✅ Pode fechar esta janela — o sync continua em background
