@@ -2,9 +2,8 @@
 
 import {
   BarChart, Bar, XAxis, YAxis,
-  Tooltip, ResponsiveContainer, Cell,
+  Tooltip, ResponsiveContainer,
 } from "recharts";
-import { useState, useRef, useCallback } from "react";
 
 export interface VendasMensalData {
   mes: string;
@@ -31,88 +30,8 @@ function formatYAxis(value: number): string {
   return `R$ ${value.toFixed(0)}`;
 }
 
-interface TooltipPayload {
-  name: string;
-  value: number;
-  color: string;
-}
-
-interface CustomTooltipProps {
-  active?: boolean;
-  payload?: TooltipPayload[];
-  mesCompleto?: string;
-}
-
-function CustomTooltip({ active, payload, mesCompleto }: CustomTooltipProps) {
-  if (!active || !payload?.length || !mesCompleto) return null;
-
-  const vendas = payload.find((p) => p.name === "vendas")?.value ?? 0;
-  const devolucoes = payload.find((p) => p.name === "devolucoes")?.value ?? 0;
-  const liquido = vendas - devolucoes;
-
-  return (
-    <div
-      className="rounded-xl px-4 py-3 shadow-xl text-xs"
-      style={{
-        background: "var(--bg-card)",
-        border: "1px solid var(--border-subtle)",
-        minWidth: "210px",
-      }}
-    >
-      <p className="font-semibold mb-2" style={{ color: "var(--text-primary)", fontSize: "13px" }}>
-        {mesCompleto}
-      </p>
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-        <div className="flex justify-between gap-4">
-          <span style={{ color: "var(--text-secondary)" }}>Vendas</span>
-          <span className="font-semibold tabular-nums" style={{ color: "#00e5ff" }}>
-            {fmt(vendas)}
-          </span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span style={{ color: "var(--text-secondary)" }}>Devolução</span>
-          <span className="font-semibold tabular-nums" style={{ color: "#ef4444" }}>
-            {fmt(devolucoes)}
-          </span>
-        </div>
-        <div
-          className="flex justify-between gap-4 pt-1.5 mt-0.5"
-          style={{ borderTop: "1px solid var(--border-subtle)" }}
-        >
-          <span style={{ color: "var(--text-secondary)" }}>Venda (−) Devolução</span>
-          <span
-            className="font-bold tabular-nums"
-            style={{ color: liquido >= 0 ? "#10b981" : "#ef4444" }}
-          >
-            {fmt(liquido)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function VendasMensalChart({ data }: Props) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [tooltipMes, setTooltipMes] = useState("");
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const temDevolucoes = data.some((d) => d.devolucoes > 0);
-
-  // Tooltip com delay de 800ms para não flicker ao passar o mouse rapidamente
-  // Usa o índice para acessar os dados — evita incompatibilidade com BarRectangleItem do Recharts
-  const handleBarMouseEnter = useCallback((_: unknown, index: number) => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => {
-      setHoveredIndex(index);
-      setTooltipMes(data[index]?.mesCompleto ?? "");
-    }, 800);
-  }, [data]);
-
-  const handleBarMouseLeave = useCallback(() => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    setHoveredIndex(null);
-  }, []);
 
   if (!data.length) {
     return (
@@ -169,10 +88,6 @@ export function VendasMensalChart({ data }: Props) {
                   <stop offset="0%" stopColor="#00e5ff" stopOpacity={1} />
                   <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.35} />
                 </linearGradient>
-                <linearGradient id="vendasGradHover" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00e5ff" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.65} />
-                </linearGradient>
               </defs>
 
               <XAxis
@@ -189,50 +104,74 @@ export function VendasMensalChart({ data }: Props) {
                 width={52}
               />
 
+              {/* Tooltip nativo do Recharts sem delay */}
               <Tooltip
-                content={
-                  <CustomTooltip
-                    active={hoveredIndex !== null}
-                    payload={
-                      hoveredIndex !== null
-                        ? [
-                            { name: "vendas", value: data[hoveredIndex]?.vendas ?? 0, color: "#00e5ff" },
-                            { name: "devolucoes", value: data[hoveredIndex]?.devolucoes ?? 0, color: "#ef4444" },
-                          ]
-                        : []
-                    }
-                    mesCompleto={tooltipMes}
-                  />
-                }
+                content={({ active, payload, label }) => {
+                  if (!active || !payload?.length) return null;
+                  const vendas = (payload.find((p) => p.dataKey === "vendas")?.value as number) ?? 0;
+                  const devolucoes = (payload.find((p) => p.dataKey === "devolucoes")?.value as number) ?? 0;
+                  const liquido = vendas - devolucoes;
+                  const item = data.find((d) => d.mes === label);
+                  return (
+                    <div
+                      className="rounded-xl px-4 py-3 shadow-xl text-xs"
+                      style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-subtle)",
+                        minWidth: "200px",
+                      }}
+                    >
+                      <p className="font-semibold mb-2" style={{ color: "var(--text-primary)", fontSize: "13px" }}>
+                        {item?.mesCompleto ?? label}
+                      </p>
+                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        <div className="flex justify-between gap-4">
+                          <span style={{ color: "var(--text-secondary)" }}>Vendas</span>
+                          <span className="font-semibold tabular-nums" style={{ color: "#00e5ff" }}>
+                            {fmt(vendas)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span style={{ color: "var(--text-secondary)" }}>Devolução</span>
+                          <span className="font-semibold tabular-nums" style={{ color: "#ef4444" }}>
+                            {fmt(devolucoes)}
+                          </span>
+                        </div>
+                        <div
+                          className="flex justify-between gap-4 pt-1.5 mt-0.5"
+                          style={{ borderTop: "1px solid var(--border-subtle)" }}
+                        >
+                          <span style={{ color: "var(--text-secondary)" }}>Venda (−) Devolução</span>
+                          <span
+                            className="font-bold tabular-nums"
+                            style={{ color: liquido >= 0 ? "#10b981" : "#ef4444" }}
+                          >
+                            {fmt(liquido)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }}
                 cursor={{ fill: "rgba(255,255,255,0.04)", radius: 4 }}
               />
 
-              {/* Barras de vendas com highlight no hover */}
+              {/* Barras de vendas */}
               <Bar
                 dataKey="vendas"
+                fill="url(#vendasGrad)"
                 radius={[4, 4, 0, 0]}
                 maxBarSize={temDevolucoes ? 32 : 44}
-                onMouseEnter={handleBarMouseEnter}
-                onMouseLeave={handleBarMouseLeave}
-              >
-                {data.map((_, index) => (
-                  <Cell
-                    key={`vendas-${index}`}
-                    fill={hoveredIndex === index ? "url(#vendasGradHover)" : "url(#vendasGrad)"}
-                  />
-                ))}
-              </Bar>
+              />
 
               {/* Barras de devoluções — só exibe se houver dados */}
               {temDevolucoes && (
                 <Bar
                   dataKey="devolucoes"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={32}
                   fill="#ef4444"
                   fillOpacity={0.75}
-                  onMouseEnter={handleBarMouseEnter}
-                  onMouseLeave={handleBarMouseLeave}
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={32}
                 />
               )}
             </BarChart>
