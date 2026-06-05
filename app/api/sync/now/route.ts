@@ -65,7 +65,9 @@ export async function POST(_req: NextRequest) {
       fetch(`${supabaseUrl}/functions/v1/sync-erp`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ lojaId }),
+        // minutosJanela: 90 = última 1h30 — cobre vendas recentes sem risco de histórico completo
+        // isManual: true — sinaliza que não é pg_cron, impede fallback sem filtro
+        body: JSON.stringify({ lojaId, minutosJanela: 90, isManual: true }),
         signal: AbortSignal.timeout(120_000),
       }).then((r) => r.json()),
       fetch(`${supabaseUrl}/functions/v1/sync-financeiro`, {

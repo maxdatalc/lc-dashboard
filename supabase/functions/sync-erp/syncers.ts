@@ -194,10 +194,10 @@ export async function syncVendas(
     params
   );
 
-  // Se API retornou 0 com filtro de data, tentar sem filtro como fallback
+  // Se API retornou 0 com filtro de data, NÃO fazer fallback sem filtro
+  // Fallback sem filtro causaria sync completo do histórico e estouraria a Edge Function
   if (vendas.length === 0 && !isInicial) {
-    console.warn(`[syncers] Loja ${loja.id} — filtro de data retornou 0, usando fallback sem filtro`);
-    vendas = await fetchAllPages<MaxDataVenda>(token, loja.erp_base_url, "/sale", {});
+    console.warn(`[syncers] Loja ${loja.id} — filtro de data retornou 0 vendas, nenhuma ação necessária`);
   }
 
   if (vendas.length === 0) return 0;
