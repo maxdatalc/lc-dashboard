@@ -69,11 +69,11 @@ export default async function AdminLayout({
                 Visão Geral
               </Link>
               <Link
-                href="/admin/clientes"
+                href="/admin/empresas"
                 className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
               >
                 <Building2 className="h-4 w-4 shrink-0" />
-                Clientes
+                Empresas
               </Link>
             </div>
           </div>
@@ -84,13 +84,13 @@ export default async function AdminLayout({
               Sistema
             </p>
             <div className="space-y-0.5">
-              <div className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-600 text-sm cursor-default">
+              <Link
+                href="/admin/usuarios"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
+              >
                 <Users className="h-4 w-4 shrink-0" />
-                <span>Usuários</span>
-                <span className="ml-auto text-xs bg-slate-800 text-slate-500 px-1.5 rounded">
-                  em breve
-                </span>
-              </div>
+                Usuários
+              </Link>
               <div className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-600 text-sm cursor-default">
                 <CreditCard className="h-4 w-4 shrink-0" />
                 <span>Planos</span>
