@@ -44,52 +44,66 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   try {
     switch (type) {
       case "faturamento-mensal": {
-        // Buscar últimos 18 meses para garantir que encontramos 6 meses com dados
-        const d18m = new Date();
-        d18m.setMonth(d18m.getMonth() - 17);
-        d18m.setDate(1);
-        const inicio18m = d18m.toISOString().split("T")[0];
-        const hoje = new Date().toISOString().split("T")[0];
+        // 12 meses fixos a partir do mês final do período selecionado
+        const endDate = new Date(end + "T12:00:00");
+        const startDate = new Date(endDate);
+        startDate.setMonth(startDate.getMonth() - 11);
+        startDate.setDate(1);
+
+        const inicio12m = startDate.toISOString().split("T")[0];
+        const fim12m = end;
 
         const { data, error } = await supabase
           .from("vendas")
           .select("data_venda, valor_total, tipo")
           .in("loja_id", lojaIds)
           .in("status", ["finalizada", "concluida", "fechada", "pago", "aprovada"])
-          .gte("data_venda", inicio18m)
-          .lte("data_venda", hoje);
+          .gte("data_venda", inicio12m)
+          .lte("data_venda", fim12m);
 
-        console.log(`[charts/faturamento-mensal] rows encontrados:`, data?.length ?? 0);
         if (error) {
           console.error("[charts/faturamento-mensal] erro:", error.message);
           return NextResponse.json([]);
         }
 
-        // Agrupar por mês — faturamento (tipo='venda') vs devoluções (tipo='devolucao')
-        // tipo='outro' é ignorado no gráfico mensal
-        const agrupado: Record<string, { faturamento: number; devolucoes: number }> = {};
+        // Gerar os 12 meses do intervalo (mesmo sem dados — zero fill)
+        const meses: Record<string, { vendas: number; devolucoes: number }> = {};
+        const cursor = new Date(startDate);
+        while (cursor <= endDate) {
+          const key = cursor.toISOString().slice(0, 7);
+          meses[key] = { vendas: 0, devolucoes: 0 };
+          cursor.setMonth(cursor.getMonth() + 1);
+        }
+
+        // Acumular valores por tipo
         for (const v of data ?? []) {
           const key = (v.data_venda as string).slice(0, 7);
-          if (!agrupado[key]) agrupado[key] = { faturamento: 0, devolucoes: 0 };
+          if (!meses[key]) continue;
           const valor = (v.valor_total as number) ?? 0;
           const tipo = v.tipo as string | null;
           if (tipo === "devolucao") {
-            agrupado[key].devolucoes += valor;
+            meses[key].devolucoes += valor;
           } else if (tipo === "venda" || tipo == null) {
-            agrupado[key].faturamento += valor;
+            meses[key].vendas += valor;
           }
         }
 
-        // Retorna os 6 meses mais recentes que tenham dados (faturamento > 0)
-        const resultado = Object.entries(agrupado)
-          .filter(([, d]) => d.faturamento > 0 || d.devolucoes > 0)
+        const NOMES = ["Jan","Fev","Mar","Abr","Mai","Jun",
+                       "Jul","Ago","Set","Out","Nov","Dez"];
+
+        const resultado = Object.entries(meses)
           .sort(([a], [b]) => a.localeCompare(b))
-          .slice(-6)
-          .map(([mes, d]) => ({
-            mes: new Date(mes + "-15").toLocaleDateString("pt-BR", { month: "short" }),
-            faturamento: d.faturamento,
-            devolucoes: d.devolucoes,
-          }));
+          .map(([mesKey, d]) => {
+            const [ano, mes] = mesKey.split("-");
+            const label = `${NOMES[parseInt(mes) - 1]}/${ano.slice(2)}`;
+            return {
+              mes: label,
+              mesCompleto: `${NOMES[parseInt(mes) - 1]}/${ano}`,
+              vendas: d.vendas,
+              devolucoes: d.devolucoes,
+              vendaLiquidaDevolucao: d.vendas - d.devolucoes,
+            };
+          });
 
         return NextResponse.json(resultado);
       }
