@@ -57,95 +57,8 @@ function periodoAnterior(
   }
 }
 
-// Linha de venda usando o campo tipo diretamente (populado pelo sync)
-type VendaRow = {
-  valor_total: number | null;
-  status: string | null;
-  tipo: string | null;
-  external_id: string | null;
-  cpf_cnpj: string | null;
-  loja_id: string | null;
-};
-
-// Busca vendas do período usando o campo tipo — sem join com cfop_classificacoes
-async function queryVendasPeriodo(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  lojaIds: string[],
-  startDate: string,
-  endDate: string
-): Promise<VendaRow[]> {
-  const { data, error } = await supabase
-    .from("vendas")
-    .select("valor_total, status, tipo, external_id, cpf_cnpj, loja_id")
-    .in("loja_id", lojaIds)
-    .gte("data_venda", startDate)
-    .lte("data_venda", endDate);
-
-  if (error) {
-    console.error("[kpis] erro ao buscar vendas:", error.message);
-    return [];
-  }
-
-  return (data ?? []) as VendaRow[];
-}
-
-// Calcula custo total processando vendas em lotes de 500 para suportar grandes volumes
-async function calcCustoTotal(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  lojaIds: string[],
-  vendas: VendaRow[]
-): Promise<number> {
-  const vendasIds = vendas.map((v) => v.external_id).filter(Boolean) as string[];
-  if (vendasIds.length === 0) return 0;
-
-  const LOTE = 500;
-  let custoTotal = 0;
-
-  for (let i = 0; i < vendasIds.length; i += LOTE) {
-    const lote = vendasIds.slice(i, i + LOTE);
-
-    const { data: itens } = await supabase
-      .from("venda_itens")
-      .select("produto_external_id, quantidade, loja_id")
-      .in("loja_id", lojaIds)
-      .in("venda_external_id", lote.map(String));
-
-    if (!itens?.length) continue;
-
-    const produtoIds = [...new Set(
-      itens.map((it: { produto_external_id: string | null }) => it.produto_external_id).filter(Boolean)
-    )];
-
-    if (!produtoIds.length) continue;
-
-    const { data: produtos } = await supabase
-      .from("produtos")
-      .select("external_id, valor_custo, loja_id")
-      .in("loja_id", lojaIds)
-      .in("external_id", produtoIds.map(String))
-      .gt("valor_custo", 0);
-
-    if (!produtos?.length) continue;
-
-    const custoPorProduto = new Map(
-      produtos.map((p: { loja_id: string; external_id: string; valor_custo: number | null }) =>
-        [`${p.loja_id}:${p.external_id}`, p.valor_custo ?? 0]
-      )
-    );
-
-    custoTotal += itens.reduce((acc: number, item: { loja_id: string; produto_external_id: string | null; quantidade: number | null }) => {
-      const key = `${item.loja_id}:${item.produto_external_id}`;
-      const custo = custoPorProduto.get(key) ?? 0;
-      return acc + (item.quantidade ?? 0) * custo;
-    }, 0);
-  }
-
-  return custoTotal;
-}
-
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
-  // lojaIds (multi-loja, comma-sep) tem prioridade; lojaId mantido para compatibilidade
   const lojaIdsParam = searchParams.get("lojaIds");
   const lojaId = searchParams.get("lojaId");
   const period = searchParams.get("period") ?? "month";
@@ -157,14 +70,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     : [];
 
   if (lojaIds.length === 0) {
-    return NextResponse.json({ error: "lojaId ou lojaIds é obrigatório" }, { status: 400 });
+    return NextResponse.json(
+      { error: "lojaId ou lojaIds é obrigatório" },
+      { status: 400 }
+    );
   }
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  if (!user) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
 
-  // Usar start/end enviados pelo cliente (inclui customRange calculado no browser)
+  // Usar start/end enviados pelo cliente — respeita período selecionado
   const startParam = searchParams.get("start");
   const endParam = searchParams.get("end");
   const { start, end } = startParam && endParam
@@ -173,74 +91,49 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const anterior = periodoAnterior(period, start, end);
 
-  // Buscar período atual e anterior em paralelo
-  const [vendasPeriodo, vendasAnt] = await Promise.all([
-    queryVendasPeriodo(supabase, lojaIds, start, end),
-    queryVendasPeriodo(supabase, lojaIds, anterior.start, anterior.end),
+  // Buscar período atual + anterior + custos em paralelo via RPC
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rpc = (supabase as any).rpc.bind(supabase);
+
+  const [kpisAtual, kpisAnt, custoAtual] = await Promise.all([
+    rpc("get_kpis_periodo", { p_loja_ids: lojaIds, p_start: start, p_end: end }),
+    rpc("get_kpis_periodo", { p_loja_ids: lojaIds, p_start: anterior.start, p_end: anterior.end }),
+    rpc("get_custo_periodo", { p_loja_ids: lojaIds, p_start: start, p_end: end }),
   ]);
 
-  // ── Classificar período atual ──────────────────────────────────────────────
-  // Status estendidos para cobrir OS: finalizada, concluida, fechada, pago, aprovada
-  const STATUS_FINALIZADOS = ["finalizada", "concluida", "fechada", "pago", "aprovada"];
-  const finalizadas = vendasPeriodo.filter((v) =>
-    STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
-  );
-  const canceladas = vendasPeriodo.filter((v) => v.status === "cancelada");
+  if (kpisAtual.error) {
+    console.error("[kpis] erro RPC get_kpis_periodo:", kpisAtual.error.message);
+    return NextResponse.json({ error: kpisAtual.error.message }, { status: 500 });
+  }
 
-  // Classificar usando campo tipo (já populado pelo sync — inclui OS com tipo='venda')
-  const vendasTipo = finalizadas.filter((v) => v.tipo === "venda" || v.tipo == null);
+  // Helper para extrair linha por tipo
+  const getRow = (data: Record<string, unknown>[], tipo: string) =>
+    (data ?? []).find((r) => r.tipo === tipo);
 
-  // Diagnóstico: amostra dos primeiros registros para validar valores
-  console.log("[kpis] sample vendas:", vendasTipo.slice(0, 3).map((v) => ({
-    valor_total: v.valor_total,
-    status: v.status,
-    tipo: v.tipo,
-  })));
-  const devolucoesTipo = finalizadas.filter((v) => v.tipo === "devolucao");
-  const outrosTipo = finalizadas.filter((v) => v.tipo === "outro");
+  // ── Período atual ──────────────────────────────────────────────────────────
+  const rowVenda  = getRow(kpisAtual.data as Record<string, unknown>[], "venda");
+  const rowDevol  = getRow(kpisAtual.data as Record<string, unknown>[], "devolucao");
+  const rowOutros = getRow(kpisAtual.data as Record<string, unknown>[], "outro");
 
-  const totalVendas = vendasTipo.length;
-  const totalDevolucoes = devolucoesTipo.length;
-  const totalCancelamentos = canceladas.length;
-  const totalOutros = outrosTipo.length;
+  const vendaTotal      = Number(rowVenda?.total_valor     ?? 0);
+  const totalVendas     = Number(rowVenda?.total_registros ?? 0);
+  const valorDevolvido  = Number(rowDevol?.total_valor     ?? 0);
+  const totalDevolucoes = Number(rowDevol?.total_registros ?? 0);
+  const clientesUnicos  = Number(rowVenda?.clientes_unicos ?? 0);
+  const totalOutros     = Number(rowOutros?.total_registros ?? 0);
+  const valorOutros     = Number(rowOutros?.total_valor     ?? 0);
 
-  const vendaTotal = vendasTipo.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const valorDevolvido = devolucoesTipo.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const valorOutros = outrosTipo.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  // Faturamento bruto — não subtrai devoluções (exibidas separadamente no dashboard)
-  const faturamento = vendaTotal;
-  const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
-
-  // Clientes únicos por CPF/CNPJ — inclui quem devolveu, pois também foi cliente
-  const clientesUnicos = new Set(
-    [...vendasTipo, ...devolucoesTipo]
-      .map((v) => (v.cpf_cnpj ?? "").replace(/\D/g, ""))
-      .filter(Boolean)
-  ).size;
-
-  // Custo e lucro calculados em paralelo com período anterior
-  const [custoTotal, finalizadasAnt] = await Promise.all([
-    calcCustoTotal(supabase, lojaIds, vendasTipo),
-    Promise.resolve(
-      vendasAnt.filter((v) =>
-        STATUS_FINALIZADOS.some((s) => v.status?.toLowerCase().includes(s))
-      )
-    ),
-  ]);
-
-  // Lucro líquido: faturamento de vendas menos custo e menos devoluções
-  const lucroTotal = faturamento - custoTotal - valorDevolvido;
+  const faturamento   = vendaTotal;
+  const custoTotal    = Number(custoAtual.data ?? 0);
+  const lucroTotal    = faturamento - custoTotal - valorDevolvido;
   const margemPercent = faturamento > 0 ? (lucroTotal / faturamento) * 100 : 0;
+  const ticketMedio   = totalVendas > 0 ? faturamento / totalVendas : 0;
 
-  // ── Classificar período anterior ───────────────────────────────────────────
-  const vendasTipoAnt = finalizadasAnt.filter((v) => v.tipo === "venda" || v.tipo == null);
-  const devolucoesTipoAnt = finalizadasAnt.filter((v) => v.tipo === "devolucao");
-
-  const vendaTotalAnt = vendasTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const _valorDevolvidoAnt = devolucoesTipoAnt.reduce((acc, v) => acc + (v.valor_total ?? 0), 0);
-  const faturamentoAnt = vendaTotalAnt;
-  const ticketMedioAnt =
-    vendasTipoAnt.length > 0 ? faturamentoAnt / vendasTipoAnt.length : 0;
+  // ── Período anterior ───────────────────────────────────────────────────────
+  const rowVendaAnt    = getRow(kpisAnt.data as Record<string, unknown>[], "venda");
+  const faturamentoAnt = Number(rowVendaAnt?.total_valor     ?? 0);
+  const totalVendasAnt = Number(rowVendaAnt?.total_registros ?? 0);
+  const ticketMedioAnt = totalVendasAnt > 0 ? faturamentoAnt / totalVendasAnt : 0;
 
   return NextResponse.json({
     faturamento: {
@@ -251,12 +144,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       totalVendas,
       totalDevolucoes,
     },
-    custo: { value: custoTotal },
-    lucro: { value: lucroTotal, margem: margemPercent },
+    custo:  { value: custoTotal },
+    lucro:  { value: lucroTotal, margem: margemPercent },
     clientes: { value: clientesUnicos },
     vendas: {
       value: totalVendas,
-      change: calcVariacao(totalVendas, vendasTipoAnt.length),
+      change: calcVariacao(totalVendas, totalVendasAnt),
     },
     ticketMedio: {
       value: ticketMedio,
@@ -268,7 +161,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     },
     totalVendas,
     totalDevolucoes,
-    totalCancelamentos,
+    totalCancelamentos: 0,
     valorDevolvido,
   });
 }
