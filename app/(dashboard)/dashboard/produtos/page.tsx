@@ -16,8 +16,7 @@ import {
   getProdutos,
   type FiltroProduto,
 } from "@/lib/db/produtos";
-import { SyncButton } from "@/components/dashboard/sync-button";
-import { SyncButtonProdutos } from "@/components/dashboard/sync-button-produtos";
+import { SyncButtonUnified } from "@/components/dashboard/sync-button-unified";
 
 // ── Helpers de formatação ──────────────────────────────────────────────────
 
@@ -77,8 +76,7 @@ export default async function ProdutosPage({
           <p className="text-slate-500 text-sm mt-1">Gestão de catálogo e níveis de estoque</p>
         </div>
         <div className="flex items-center gap-2">
-          <SyncButtonProdutos />
-          <SyncButton />
+          <SyncButtonUnified />
         </div>
       </div>
 

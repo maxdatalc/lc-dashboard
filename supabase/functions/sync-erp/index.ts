@@ -44,6 +44,8 @@ Deno.serve(async (req) => {
   // Quando ausente (pg_cron), sincroniza todas as lojas ativas
   const body = await req.json().catch(() => ({}));
   const lojaIdFiltro: string | null = body.lojaId ?? null;
+  const minutosJanela: number = body.minutosJanela ?? 40;
+  const isManual: boolean = body.isManual ?? false;
 
   // Buscar lojas ativas — filtrar por lojaId quando fornecido
   let lojasQuery = supabase.from("lojas").select("*").eq("is_active", true);
@@ -120,8 +122,14 @@ Deno.serve(async (req) => {
         `período: ${dataInicial} → ${dataFinal}`
       );
 
-      // Sincronizar apenas vendas (produtos e clientes são sincronizados via rota dedicada)
-      const totalVendas = await syncVendas(supabase, token, loja, dataInicial, dataFinal, isInicial);
+      // Sync manual usa janela fixa passada pelo frontend — nunca cai em histórico completo
+      const janela = isManual ? minutosJanela : (isInicial ? 0 : 40);
+      const totalVendas = await syncVendas(
+        supabase, token, loja,
+        dataInicial, dataFinal,
+        isInicial && !isManual,  // isInicial só vale para pg_cron, nunca para manual
+        janela
+      );
 
       // Sincronizar OS se habilitado para esta loja — erros internos não propagam
       const totalOs = await syncOrdemServico(supabase, token, loja);

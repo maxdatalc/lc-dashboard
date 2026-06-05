@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { AlertCircle, Clock, CalendarClock, Wallet, CheckCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { SyncButton } from "@/components/dashboard/sync-button";
+import { SyncButtonUnified } from "@/components/dashboard/sync-button-unified";
 import { getSelectedLojaId } from "@/app/actions/lojas";
 import {
   getResumoFinanceiro,
@@ -84,7 +84,7 @@ export default async function FinanceiroPage({
             Sincronizado da API MaxData · Atualiza automaticamente
           </p>
         </div>
-        <SyncButton key={lojaId ?? "sem-loja"} />
+        <SyncButtonUnified key={lojaId ?? "sem-loja"} />
       </div>
 
       {/* Grid de 4 KPI cards */}
