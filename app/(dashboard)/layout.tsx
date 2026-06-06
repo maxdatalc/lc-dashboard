@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { getSelectedLojaId } from "@/app/actions/lojas";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
@@ -22,9 +23,19 @@ export default async function DashboardLayout({
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Buscar lojas e checar permissão admin em paralelo
-  const [tenantUsersRes, profileRes] = await Promise.all([
-    adminClient.from("tenant_users").select("tenant_id").eq("user_id", user.id),
+  // Buscar tenant ativo do cookie — isolamento entre grupos
+  const cookieStore = await cookies();
+  const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
+
+  const [tenantAccessRes, profileRes] = await Promise.all([
+    selectedTenantId
+      ? adminClient
+          .from("tenant_users")
+          .select("tenant_id")
+          .eq("user_id", user.id)
+          .eq("tenant_id", selectedTenantId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
     adminClient
       .from("profiles")
       .select("is_system_admin")
@@ -32,18 +43,16 @@ export default async function DashboardLayout({
       .maybeSingle(),
   ]);
 
-  const tenantIds = (tenantUsersRes.data ?? []).map(
-    (row: { tenant_id: string }) => row.tenant_id
-  );
+  if (!selectedTenantId || !tenantAccessRes.data) {
+    redirect("/login");
+  }
 
-  const { data: lojasData } = tenantIds.length
-    ? await adminClient
-        .from("lojas")
-        .select("id, name")
-        .in("tenant_id", tenantIds)
-        .eq("is_active", true)
-        .order("name", { ascending: true })
-    : { data: [] };
+  const { data: lojasData } = await adminClient
+    .from("lojas")
+    .select("id, name")
+    .eq("tenant_id", selectedTenantId)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
 
   const lojas = (lojasData ?? []) as { id: string; name: string }[];
 
