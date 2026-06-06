@@ -101,13 +101,24 @@ Deno.serve(async () => {
     .lt("atualizado_em", dezMinAtras);
   console.log("[sync-queue] Jobs travados resetados para pendente");
 
-  // 2. Buscar próximos jobs pendentes ou em processamento
+  // 2. Verificar se há jobs de itens ou atendente pendentes
+  // Se houver, buscar APENAS 1 job no total para evitar requests simultâneos ao ERP local
+  const { data: temJobERP } = await supabase
+    .from("sync_queue")
+    .select("id")
+    .in("status", ["pendente", "processando"])
+    .in("tipo", ["itens", "atendente"])
+    .limit(1)
+    .maybeSingle();
+
+  const limite = temJobERP ? 1 : MAX_JOBS_PARALELOS;
+
   const { data: jobs, error } = await supabase
     .from("sync_queue")
     .select("*")
     .in("status", ["pendente", "processando"])
     .order("criado_em", { ascending: true })
-    .limit(MAX_JOBS_PARALELOS);
+    .limit(limite);
 
   if (error || !jobs?.length) {
     console.log("[sync-queue] Nenhum job pendente");
@@ -116,9 +127,9 @@ Deno.serve(async () => {
     });
   }
 
-  console.log(`[sync-queue] Processando ${jobs.length} job(s)`);
+  console.log(`[sync-queue] Processando ${jobs.length} job(s) (limite=${limite})`);
 
-  // 2. Buscar mapa de CFOPs uma vez (pequeno, cabe em memória)
+  // Buscar mapa de CFOPs uma vez (pequeno, cabe em memória)
   const { data: cfopRows } = await supabase
     .from("cfop_classificacoes")
     .select("cfop, tipo, subtipo");
@@ -130,19 +141,14 @@ Deno.serve(async () => {
     ])
   );
 
-  // 3. Jobs de itens/atendente rodam sequencialmente (ERP local não suporta simultâneos)
-  // Jobs de outros tipos (vendas, produtos, os) podem rodar em paralelo
-  const jobsSequenciais = (jobs as SyncJob[]).filter(j => j.tipo === "itens" || j.tipo === "atendente");
-  const jobsParalelos = (jobs as SyncJob[]).filter(j => j.tipo !== "itens" && j.tipo !== "atendente");
-
-  // Paralelos primeiro (vendas, produtos, os — não conflitam entre si)
-  if (jobsParalelos.length > 0) {
-    await Promise.all(jobsParalelos.map((job) => processarJob(supabase, job, cfopMap)));
-  }
-
-  // Sequenciais um por vez (itens e atendente — mesmo ERP, mesmos endpoints)
-  for (const job of jobsSequenciais) {
+  // Processar — com limite=1 nunca há mais de 1 job de ERP simultâneo
+  const job = (jobs as SyncJob[])[0];
+  if (limite === 1) {
+    // Modo seguro: 1 job por vez (há itens/atendente na fila)
     await processarJob(supabase, job, cfopMap);
+  } else {
+    // Modo paralelo: só vendas/produtos/os — sem conflito no ERP
+    await Promise.all((jobs as SyncJob[]).map((j) => processarJob(supabase, j, cfopMap)));
   }
 
   return new Response(
