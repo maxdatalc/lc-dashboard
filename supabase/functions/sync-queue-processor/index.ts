@@ -623,7 +623,7 @@ async function processarItens(
 ) {
   const BATCH_SIZE = 150;
   const MAX_TENTATIVAS = 3;
-  const DELAY_ENTRE_VENDAS = 100; // 100ms entre vendas — ERP estável com 1 job sequencial
+  const DELAY_ENTRE_VENDAS = 150; // 150ms entre vendas — reduz pressão em ERPs lentos
 
   const offset = (job.metadata?.offset as number) ?? ((job.pagina_atual - 1) * BATCH_SIZE);
 
@@ -655,7 +655,7 @@ async function processarItens(
         // Buscar itens
         const itensRes = await fetch(
           `${loja.erp_base_url}/v2/sale/${externalId}/items`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) }
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(25_000) }
         );
         if (itensRes.ok) {
           // deno-lint-ignore no-explicit-any
@@ -694,7 +694,7 @@ async function processarItens(
         // Buscar pagamentos
         const pgtoRes = await fetch(
           `${loja.erp_base_url}/v2/sale/${externalId}/payment`,
-          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) }
+          { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(25_000) }
         );
         if (pgtoRes.ok) {
           // deno-lint-ignore no-explicit-any
@@ -845,7 +845,7 @@ async function processarAtendente(
     try {
       const res = await fetch(
         `${loja.erp_base_url}/v2/sale/${externalId}`,
-        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) }
+        { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(25_000) }
       );
       if (!res.ok) {
         await sleep(DELAY_ENTRE_VENDAS);
