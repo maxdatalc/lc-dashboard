@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 import { isSystemAdmin } from "@/lib/db/admin";
 
 async function verificarAdmin(): Promise<void> {
