@@ -9,6 +9,7 @@ import {
   Users,
   CreditCard,
   ArrowLeft,
+  Activity,
 } from "lucide-react";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 
@@ -90,6 +91,13 @@ export default async function AdminLayout({
               >
                 <Users className="h-4 w-4 shrink-0" />
                 Usuários
+              </Link>
+              <Link
+                href="/admin/sincronizacao"
+                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
+              >
+                <Activity className="h-4 w-4 shrink-0" />
+                Sincronização
               </Link>
               <div className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-600 text-sm cursor-default">
                 <CreditCard className="h-4 w-4 shrink-0" />

@@ -63,6 +63,7 @@ interface LojaRow {
   erp_base_url: string;
   terminal_encrypted: string;
   sync_services_enabled: boolean;
+  sync_paused: boolean;
 }
 
 // ── Helper: atualizar job como concluído ou pendente (para continuar) ─────────
@@ -236,11 +237,20 @@ async function processarJob(
   try {
     const { data: loja } = await supabase
       .from("lojas")
-      .select("id, emp_id, erp_base_url, terminal_encrypted, sync_services_enabled")
+      .select("id, emp_id, erp_base_url, terminal_encrypted, sync_services_enabled, sync_paused")
       .eq("id", job.loja_id)
       .single();
 
     if (!loja) throw new Error("Loja não encontrada");
+
+    if ((loja as LojaRow).sync_paused) {
+      console.log(`[sync-queue] Loja ${job.loja_id} está pausada — job ${job.id} devolvido para pendente`);
+      await supabase
+        .from("sync_queue")
+        .update({ status: "pendente", atualizado_em: new Date().toISOString() })
+        .eq("id", job.id);
+      return;
+    }
 
     const lojaRow = loja as LojaRow;
     const terminal = await decrypt(lojaRow.terminal_encrypted);
