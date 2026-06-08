@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Deletar em ordem respeitando FKs
-    // venda_pagamentos → venda_itens → vendas → financeiro → clientes → sync_log → sync_inicial
+    // venda_pagamentos → venda_itens → vendas → financeiro → clientes → sync_log → sync_inicial → sync_queue → produtos
     const resultados: Record<string, number> = {
       venda_pagamentos: 0,
       venda_itens: 0,
@@ -52,6 +52,8 @@ export async function POST(req: NextRequest) {
       clientes: 0,
       sync_log: 0,
       sync_inicial: 0,
+      sync_queue: 0,
+      produtos: 0,
     };
 
     const deletar = async (tabela: string) => {
@@ -73,6 +75,22 @@ export async function POST(req: NextRequest) {
 
     await deletar("sync_log");
     await deletar("sync_inicial");
+
+    // Deletar todos os jobs da fila desta loja — permite novo sync do zero
+    const { error: queueError, count: queueCount } = await adminClient
+      .from("sync_queue")
+      .delete()
+      .eq("loja_id", lojaId);
+    if (queueError) throw new Error(`sync_queue: ${queueError.message}`);
+    resultados["sync_queue"] = queueCount ?? 0;
+
+    // Resetar produtos também para forçar resync completo
+    const { error: prodError, count: prodCount } = await adminClient
+      .from("produtos")
+      .delete()
+      .eq("loja_id", lojaId);
+    if (prodError) throw new Error(`produtos: ${prodError.message}`);
+    resultados["produtos"] = prodCount ?? 0;
 
     // Log de auditoria (sem PII — apenas IDs e contagens)
     const lojaRow = loja as { id: string; name: string };

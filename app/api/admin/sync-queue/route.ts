@@ -228,12 +228,20 @@ export async function GET(req: NextRequest) {
     if (!lojaId) return NextResponse.json({ error: "lojaId obrigatório" }, { status: 400 });
 
     const adminClient = createAdminClient();
-    const { data } = await adminClient
-      .from("sync_queue")
-      .select("*")
-      .eq("loja_id", lojaId)
-      .not("status", "eq", "cancelado")
-      .order("data_ini", { ascending: true });
+
+    const [{ data }, { data: lojaData }] = await Promise.all([
+      adminClient
+        .from("sync_queue")
+        .select("*")
+        .eq("loja_id", lojaId)
+        .not("status", "eq", "cancelado")
+        .order("data_ini", { ascending: true }),
+      adminClient
+        .from("lojas")
+        .select("sync_paused")
+        .eq("id", lojaId)
+        .maybeSingle(),
+    ]);
 
     const jobs = data ?? [];
     const total = jobs.length;
@@ -249,6 +257,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       jobs,
       resumo: { total, concluidos, erros, pendentes, processando, registros },
+      sync_paused: (lojaData as { sync_paused?: boolean } | null)?.sync_paused ?? false,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";
