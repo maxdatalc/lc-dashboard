@@ -1,15 +1,22 @@
 "use client";
 
-// Seção de lojas do painel admin — Client Component para gerenciar estado do modal de sync
-// e botão toggle ativa/inativa por linha.
-
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, Loader2, Wrench } from "lucide-react";
+import {
+  Building2,
+  Loader2,
+  Wrench,
+  Activity,
+  Pause,
+  Play,
+  Clock,
+  CheckCircle2,
+} from "lucide-react";
 import { SyncInicialModal } from "@/components/admin/SyncPeriodoModal";
 import { BotaoLimparDados } from "@/components/admin/BotaoLimparDados";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
+import { pausarSync, retomarSync } from "@/app/actions/admin-sync";
 
 type Loja = {
   id: string;
@@ -79,9 +86,7 @@ interface Props {
 export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
   const router = useRouter();
 
-  // Estado local das lojas para updates otimistas (toggle de serviços sem router.refresh)
   const [lojas, setLojas] = useState(lojasProp);
-  // Sincronizar quando o Server Component pai re-render (ex: após router.refresh)
   useEffect(() => { setLojas(lojasProp); }, [lojasProp]);
 
   const [syncLojaId, setSyncLojaId] = useState<string | null>(null);
@@ -89,22 +94,26 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
   const [syncServicesEnabled, setSyncServicesEnabled] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
 
-  // IDs de lojas com sync ativo na fila (pg_cron)
   const [lojasComSync, setLojasComSync] = useState<Set<string>>(new Set());
+  const [lojaPausada, setLojaPausada] = useState<Record<string, boolean>>({});
+  const [modalPausar, setModalPausar] = useState<string | null>(null);
+  const [motivoPausa, setMotivoPausa] = useState("");
+  const [syncPauseLoading, setSyncPauseLoading] = useState<string | null>(null);
+  const [feedbackSync, setFeedbackSync] = useState<string | null>(null);
 
   // Verificar status de sync para cada loja ao montar e a cada 15s
   useEffect(() => {
     const verificar = async () => {
       const novosAtivos = new Set<string>();
+      const pausadas: Record<string, boolean> = {};
       await Promise.all(
         lojas.map(async (loja) => {
           try {
-            const res = await fetch(
-              `/api/admin/sync-queue?lojaId=${loja.id}`
-            );
+            const res = await fetch(`/api/admin/sync-queue?lojaId=${loja.id}`);
             if (!res.ok) return;
             const data = await res.json() as {
               resumo: { pendentes: number; processando: number; erros: number };
+              sync_paused?: boolean;
             };
             if (
               data.resumo.pendentes > 0 ||
@@ -113,12 +122,14 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
             ) {
               novosAtivos.add(loja.id);
             }
+            pausadas[loja.id] = data.sync_paused ?? false;
           } catch {
             // silencioso
           }
         })
       );
       setLojasComSync(novosAtivos);
+      setLojaPausada(pausadas);
     };
 
     void verificar();
@@ -129,13 +140,11 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
 
   const handleSyncConcluido = () => {
     setSyncLojaId(null);
-    router.refresh(); // recarrega dados do Server Component pai
+    router.refresh();
   };
 
-  // Toggle sync_services_enabled com update otimista — sem precisar de router.refresh()
   const handleToggleServicos = async (lojaId: string, valor: boolean) => {
     setToggling(lojaId);
-    // Atualizar UI imediatamente (otimista)
     setLojas((prev) =>
       prev.map((l) => l.id === lojaId ? { ...l, syncServicesEnabled: valor } : l)
     );
@@ -146,14 +155,12 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
         body: JSON.stringify({ lojaId, valor }),
       });
       if (!res.ok) {
-        // Reverter se falhou
         setLojas((prev) =>
           prev.map((l) => l.id === lojaId ? { ...l, syncServicesEnabled: !valor } : l)
         );
         alert("Erro ao atualizar configuração de serviços");
       }
     } catch {
-      // Reverter em caso de erro de rede
       setLojas((prev) =>
         prev.map((l) => l.id === lojaId ? { ...l, syncServicesEnabled: !valor } : l)
       );
@@ -161,6 +168,34 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
     } finally {
       setToggling(null);
     }
+  };
+
+  const handlePausarSync = async (lojaId: string) => {
+    setSyncPauseLoading(lojaId);
+    const result = await pausarSync(lojaId, motivoPausa || undefined);
+    if (result.error) {
+      setFeedbackSync(`Erro: ${result.error}`);
+    } else {
+      setLojaPausada((prev) => ({ ...prev, [lojaId]: true }));
+      setFeedbackSync("Sincronização pausada");
+      setModalPausar(null);
+      setMotivoPausa("");
+    }
+    setSyncPauseLoading(null);
+    setTimeout(() => setFeedbackSync(null), 3000);
+  };
+
+  const handleRetomarSync = async (lojaId: string) => {
+    setSyncPauseLoading(lojaId);
+    const result = await retomarSync(lojaId);
+    if (result.error) {
+      setFeedbackSync(`Erro: ${result.error}`);
+    } else {
+      setLojaPausada((prev) => ({ ...prev, [lojaId]: false }));
+      setFeedbackSync("Sincronização retomada");
+    }
+    setSyncPauseLoading(null);
+    setTimeout(() => setFeedbackSync(null), 3000);
   };
 
   return (
@@ -190,7 +225,7 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
           <table className="w-full text-sm">
             <thead className="bg-slate-50">
               <tr>
-                {["Nome", "EmpId", "URL do Túnel", "Status", "Serviços", "Ações"].map(
+                {["Nome", "EmpId", "URL do Túnel", "Status", "Serviços", "Sync", "Ações"].map(
                   (col) => (
                     <th
                       key={col}
@@ -253,25 +288,48 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                       {loja.syncServicesEnabled ? "O.S. ativa" : "O.S. inativa"}
                     </button>
                   </td>
+                  {/* Coluna Sync — status + controles de pausa */}
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {/* Badge de sync em andamento */}
-                      {lojasComSync.has(loja.id) && (
-                        <span className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full"
-                          style={{
-                            background: "rgba(0,229,255,0.1)",
-                            color: "var(--accent-cyan, #06b6d4)",
-                            border: "1px solid rgba(0,229,255,0.25)",
-                          }}
-                        >
-                          <span
-                            className="w-1.5 h-1.5 rounded-full animate-pulse"
-                            style={{ background: "var(--accent-cyan, #06b6d4)" }}
-                          />
-                          Sync ativo
+                    <div className="flex items-center gap-2">
+                      {lojaPausada[loja.id] ? (
+                        <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                          <Pause className="w-3 h-3" />
+                          Pausado
+                        </span>
+                      ) : lojasComSync.has(loja.id) ? (
+                        <span className="inline-flex items-center gap-1 text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                          <Activity className="w-3 h-3 animate-pulse" />
+                          Ativo
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">
+                          <Clock className="w-3 h-3" />
+                          Ocioso
                         </span>
                       )}
-
+                      {lojaPausada[loja.id] ? (
+                        <button
+                          onClick={() => handleRetomarSync(loja.id)}
+                          disabled={syncPauseLoading === loja.id}
+                          className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 font-medium disabled:opacity-50 transition-colors"
+                        >
+                          <Play className="w-3 h-3" />
+                          Retomar
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setModalPausar(loja.id)}
+                          disabled={syncPauseLoading === loja.id}
+                          className="inline-flex items-center gap-1 text-xs text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50 transition-colors"
+                        >
+                          <Pause className="w-3 h-3" />
+                          Pausar
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <ToggleLojaButton
                         lojaId={loja.id}
                         isActive={loja.isActive}
@@ -306,7 +364,7 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
         </div>
       )}
 
-      {/* Modal de sync inicial com 3 abas — montado quando syncLojaId está definido */}
+      {/* Modal de sync inicial */}
       {syncLojaId && (
         <SyncInicialModal
           lojaId={syncLojaId}
@@ -315,6 +373,66 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
           onConcluido={handleSyncConcluido}
           onCancelar={() => setSyncLojaId(null)}
         />
+      )}
+
+      {/* Toast feedback pausa/retomada */}
+      {feedbackSync && (
+        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-3 bg-slate-900 text-white text-sm rounded-xl shadow-lg">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          {feedbackSync}
+        </div>
+      )}
+
+      {/* Modal pausar sync */}
+      {modalPausar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                <Pause className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Pausar sincronização</h3>
+                <p className="text-xs text-slate-400">
+                  {lojas.find((l) => l.id === modalPausar)?.name}
+                </p>
+              </div>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-lg px-3.5 py-3 mb-4">
+              <p className="text-xs text-amber-700">
+                Novos jobs não serão iniciados. Jobs em andamento terminam normalmente.
+              </p>
+            </div>
+            <div className="space-y-1.5 mb-5">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                Motivo (opcional)
+              </label>
+              <input
+                type="text"
+                placeholder="Ex: manutenção programada"
+                value={motivoPausa}
+                onChange={(e) => setMotivoPausa(e.target.value)}
+                autoFocus
+                className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setModalPausar(null); setMotivoPausa(""); }}
+                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => handlePausarSync(modalPausar)}
+                disabled={syncPauseLoading === modalPausar}
+                className="flex-1 py-2.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-500 disabled:opacity-50 transition-colors"
+              >
+                {syncPauseLoading === modalPausar ? "Pausando..." : "Pausar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
