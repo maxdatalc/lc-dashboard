@@ -72,50 +72,38 @@ export default function LoginPage() {
   const mostrarSeletorEmpresa = tenants.length > 1;
 
   return (
-    <div className="min-h-screen bg-[#f0f4ff] flex items-center justify-center p-4">
+    <div className="relative min-h-screen overflow-hidden bg-[#f0f4ff] flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 opacity-[0.04]"
+        className="absolute inset-0 z-0 opacity-[0.04]"
         style={{
           backgroundImage: `linear-gradient(#2563eb 1px, transparent 1px), linear-gradient(90deg, #2563eb 1px, transparent 1px)`,
           backgroundSize: "48px 48px",
         }}
       />
 
-      <div className="relative w-full max-w-sm">
+      <div className="login-bg-animated pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
+        <div className="login-bg-glow" />
+        <span className="login-bg-panel login-bg-panel-1" />
+        <span className="login-bg-panel login-bg-panel-2" />
+        <span className="login-bg-panel login-bg-panel-3" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
         {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-200">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 5.5L8 3L16 7.5V12.5L12 15L4 10.5V5.5Z"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M4 5.5L12 10L16 7.5M12 10V15"
-                  stroke="white"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
-            <div className="text-left">
-              <span className="text-slate-900 font-bold text-xl tracking-tight block leading-tight">
-                LC Gestor
-              </span>
-              <span className="text-blue-500 text-xs font-medium tracking-wide">
-                LC Tecnologia
-              </span>
-            </div>
-          </div>
-          <p className="text-slate-500 text-sm mt-1">Entre na sua conta</p>
+        <div className="text-center mb-6">
+          <span className="text-slate-900 font-bold text-xl tracking-tight">
+            LC Gestor
+          </span>
         </div>
 
         {/* Card */}
         <div className="bg-white border border-blue-100 rounded-2xl p-8 shadow-xl shadow-blue-100/50">
+          <div className="mb-6">
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
+              Acesse agora seu dashboard
+            </h1>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email */}
             <div className="space-y-1.5">
@@ -283,6 +271,118 @@ export default function LoginPage() {
           </form>
         </div>
       </div>
+
+      <style jsx>{`
+        .login-bg-animated {
+          perspective: 900px;
+        }
+
+        .login-bg-glow {
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 520px;
+          height: 520px;
+          transform: translate3d(-50%, -50%, 0);
+          background: radial-gradient(circle, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0) 62%);
+        }
+
+        .login-bg-panel {
+          position: absolute;
+          display: block;
+          border: 1px solid rgba(37, 99, 235, 0.12);
+          border-radius: 18px;
+          background: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08));
+          opacity: 0.62;
+          transform-style: preserve-3d;
+          will-change: transform, opacity;
+        }
+
+        .login-bg-panel-1 {
+          width: 168px;
+          height: 104px;
+          left: max(24px, calc(50% - 430px));
+          top: 24%;
+          animation: login-panel-drift-1 22s ease-in-out infinite;
+        }
+
+        .login-bg-panel-2 {
+          width: 132px;
+          height: 82px;
+          right: max(22px, calc(50% - 390px));
+          top: 18%;
+          animation: login-panel-drift-2 26s ease-in-out infinite;
+        }
+
+        .login-bg-panel-3 {
+          width: 190px;
+          height: 118px;
+          right: max(28px, calc(50% - 460px));
+          bottom: 18%;
+          animation: login-panel-drift-3 24s ease-in-out infinite;
+        }
+
+        @keyframes login-panel-drift-1 {
+          0%,
+          100% {
+            opacity: 0.5;
+            transform: translate3d(0, 0, 0) rotateX(58deg) rotateZ(-18deg) scale(0.98);
+          }
+          50% {
+            opacity: 0.72;
+            transform: translate3d(16px, -18px, 24px) rotateX(58deg) rotateZ(-13deg) scale(1.03);
+          }
+        }
+
+        @keyframes login-panel-drift-2 {
+          0%,
+          100% {
+            opacity: 0.44;
+            transform: translate3d(0, 0, 0) rotateX(62deg) rotateZ(19deg) scale(0.96);
+          }
+          50% {
+            opacity: 0.66;
+            transform: translate3d(-14px, 20px, 20px) rotateX(62deg) rotateZ(14deg) scale(1.02);
+          }
+        }
+
+        @keyframes login-panel-drift-3 {
+          0%,
+          100% {
+            opacity: 0.38;
+            transform: translate3d(0, 0, 0) rotateX(56deg) rotateZ(12deg) scale(0.98);
+          }
+          50% {
+            opacity: 0.58;
+            transform: translate3d(-18px, -16px, 18px) rotateX(56deg) rotateZ(16deg) scale(1.03);
+          }
+        }
+
+        @media (max-width: 640px) {
+          .login-bg-glow {
+            width: 360px;
+            height: 360px;
+            opacity: 0.7;
+          }
+
+          .login-bg-panel-2,
+          .login-bg-panel-3 {
+            display: none;
+          }
+
+          .login-bg-panel-1 {
+            left: -48px;
+            top: 18%;
+            opacity: 0.34;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .login-bg-animated * {
+            animation: none !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
