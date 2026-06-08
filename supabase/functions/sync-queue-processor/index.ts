@@ -8,8 +8,17 @@ import { decrypt } from "../sync-erp/crypto.ts";
 import { getMaxDataToken } from "../sync-erp/maxdata-client.ts";
 
 const PAGE_LIMIT = 12;
-const MAX_JOBS_PARALELOS = 3;
-const BATCH_ATENDENTE = 150;
+const MAX_JOBS_PARALELOS = 2;
+
+// Jobs pesados: fazem requests venda-a-venda contra a API local do ERP
+const TIPOS_PESADOS = ["itens", "atendente"];
+
+// Batch sizes conservadores — reduz pressão na API local
+const BATCH_SIZE         = 30;   // era 150
+const BATCH_ATENDENTE    = 30;   // era 150
+const DELAY_ENTRE_VENDAS = 400;  // ms entre vendas em processarItens (era 150ms)
+const DELAY_ATENDENTE    = 300;  // ms entre vendas em processarAtendente (era 100ms)
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 interface SyncJob {
@@ -101,24 +110,31 @@ Deno.serve(async () => {
     .lt("atualizado_em", dezMinAtras);
   console.log("[sync-queue] Jobs travados resetados para pendente");
 
-  // 2. Verificar se há jobs de itens ou atendente pendentes
-  // Se houver, buscar APENAS 1 job no total para evitar requests simultâneos ao ERP local
-  const { data: temJobERP } = await supabase
+  // 2. Verificar jobs em processamento para controle de concorrência por loja
+  const { data: processando } = await supabase
     .from("sync_queue")
-    .select("id")
-    .in("status", ["pendente", "processando"])
-    .in("tipo", ["itens", "atendente"])
-    .limit(1)
-    .maybeSingle();
+    .select("loja_id, tipo")
+    .eq("status", "processando");
 
-  const limite = temJobERP ? 1 : MAX_JOBS_PARALELOS;
+  const lojasProcessando = new Set(
+    // deno-lint-ignore no-explicit-any
+    (processando ?? []).map((j: any) => j.loja_id as string)
+  );
+  const temJobPesado = (processando ?? []).some(
+    // deno-lint-ignore no-explicit-any
+    (j: any) => TIPOS_PESADOS.includes(j.tipo as string)
+  );
 
+  // Se há job pesado rodando → processar apenas 1 job no próximo ciclo
+  const limite = temJobPesado ? 1 : MAX_JOBS_PARALELOS;
+
+  // Buscar mais jobs do que o limite para poder filtrar por loja
   const { data: jobs, error } = await supabase
     .from("sync_queue")
     .select("*")
-    .in("status", ["pendente", "processando"])
+    .eq("status", "pendente")
     .order("criado_em", { ascending: true })
-    .limit(limite);
+    .limit(20);
 
   if (error || !jobs?.length) {
     console.log("[sync-queue] Nenhum job pendente");
@@ -127,7 +143,43 @@ Deno.serve(async () => {
     });
   }
 
-  console.log(`[sync-queue] Processando ${jobs.length} job(s) (limite=${limite})`);
+  // Filtrar jobs — máximo 1 por loja, respeitar limite global
+  const jobsParaProcessar: SyncJob[] = [];
+  const lojasEscolhidas = new Set<string>();
+
+  for (const job of jobs as SyncJob[]) {
+    if (jobsParaProcessar.length >= limite) break;
+
+    // Pular se a loja já tem job processando ou já foi escolhida neste ciclo
+    if (lojasProcessando.has(job.loja_id)) {
+      console.log(`[sync-queue] Loja ${job.loja_id} já tem job processando — pulando`);
+      supabase
+        .from("sync_log")
+        .insert({
+          loja_id: job.loja_id,
+          tabela: `queue_${job.tipo}`,
+          status: "ignorado",
+          inicio: new Date().toISOString(),
+          fim: new Date().toISOString(),
+          erro: "Job ignorado: loja já tem job processando",
+        })
+        .then(() => {}); // fire-and-forget
+      continue;
+    }
+    if (lojasEscolhidas.has(job.loja_id)) continue;
+
+    jobsParaProcessar.push(job);
+    lojasEscolhidas.add(job.loja_id);
+  }
+
+  if (jobsParaProcessar.length === 0) {
+    console.log("[sync-queue] Nenhum job elegível neste ciclo");
+    return new Response(JSON.stringify({ processados: 0 }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  console.log(`[sync-queue] Processando ${jobsParaProcessar.length} job(s)`);
 
   // Buscar mapa de CFOPs uma vez (pequeno, cabe em memória)
   const { data: cfopRows } = await supabase
@@ -141,18 +193,24 @@ Deno.serve(async () => {
     ])
   );
 
-  // Processar — com limite=1 nunca há mais de 1 job de ERP simultâneo
-  const job = (jobs as SyncJob[])[0];
-  if (limite === 1) {
-    // Modo seguro: 1 job por vez (há itens/atendente na fila)
-    await processarJob(supabase, job, cfopMap);
+  // Sequencial para jobs pesados ou quando há só 1 — paralelo apenas para jobs leves
+  const temPesadoEscolhido = jobsParaProcessar.some(
+    j => TIPOS_PESADOS.includes(j.tipo)
+  );
+
+  if (temPesadoEscolhido || jobsParaProcessar.length === 1) {
+    for (const job of jobsParaProcessar) {
+      await processarJob(supabase, job, cfopMap);
+    }
   } else {
-    // Modo paralelo: só vendas/produtos/os — sem conflito no ERP
-    await Promise.all((jobs as SyncJob[]).map((j) => processarJob(supabase, j, cfopMap)));
+    // Paralelo apenas para vendas/produtos/os de lojas diferentes
+    await Promise.all(
+      jobsParaProcessar.map(j => processarJob(supabase, j, cfopMap))
+    );
   }
 
   return new Response(
-    JSON.stringify({ processados: jobs.length }),
+    JSON.stringify({ processados: jobsParaProcessar.length }),
     { headers: { "Content-Type": "application/json" } }
   );
 });
@@ -627,9 +685,8 @@ async function processarItens(
   loja: LojaRow,
   token: string
 ) {
-  const BATCH_SIZE = 150;
+  // BATCH_SIZE (30) e DELAY_ENTRE_VENDAS (400ms) — constantes globais
   const MAX_TENTATIVAS = 3;
-  const DELAY_ENTRE_VENDAS = 150; // 150ms entre vendas — reduz pressão em ERPs lentos
 
   const offset = (job.metadata?.offset as number) ?? ((job.pagina_atual - 1) * BATCH_SIZE);
 
@@ -788,34 +845,6 @@ async function processarItens(
     ` | ${temMais ? "continua" : "CONCLUÍDO"}`
   );
 
-  // Quando itens concluir, reativar automaticamente job de atendente da mesma loja
-  if (!temMais) {
-    const { data: jobAtendente } = await supabase
-      .from("sync_queue")
-      .select("id, status")
-      .eq("loja_id", job.loja_id)
-      .eq("tipo", "atendente")
-      .in("status", ["pausado_otimizacao", "erro", "pendente"])
-      .order("criado_em", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (jobAtendente) {
-      await supabase
-        .from("sync_queue")
-        .update({
-          status: "pendente",
-          metadata: JSON.stringify({ offset: 0 }),
-          pagina_atual: 1,
-          registros_salvos: 0,
-          erro: null,
-          atualizado_em: new Date().toISOString(),
-        })
-        .eq("id", jobAtendente.id);
-
-      console.log(`[sync-queue] Itens concluído — job de atendente ${jobAtendente.id} reativado automaticamente`);
-    }
-  }
 }
 
 // ── Processador: atendente_id histórico ───────────────────────────────────────
@@ -826,7 +855,7 @@ async function processarAtendente(
   loja: LojaRow,
   token: string
 ) {
-  const DELAY_ENTRE_VENDAS = 100;
+  // BATCH_ATENDENTE (30) e DELAY_ATENDENTE (300ms) — constantes globais
   const offset = (job.metadata?.offset as number) ?? 0;
 
   const { data: vendas } = await supabase
@@ -854,7 +883,7 @@ async function processarAtendente(
         { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(25_000) }
       );
       if (!res.ok) {
-        await sleep(DELAY_ENTRE_VENDAS);
+        await sleep(DELAY_ATENDENTE);
         continue;
       }
       // deno-lint-ignore no-explicit-any
@@ -864,7 +893,7 @@ async function processarAtendente(
     } catch (err) {
       console.error(`[sync-queue] Erro atendente venda ${externalId}:`, err);
     }
-    await sleep(DELAY_ENTRE_VENDAS);
+    await sleep(DELAY_ATENDENTE);
   }
 
   // Atualizar agrupado por atendente_id — minimiza queries no banco
