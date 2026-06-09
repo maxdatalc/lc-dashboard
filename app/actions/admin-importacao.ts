@@ -520,6 +520,12 @@ export async function confirmarPagina(
         .range(offset, offset + PAGE_SIZE - 1);
 
       if (linhas && linhas.length > 0) {
+        // Buscar CFOPs válidos para evitar violação de FK com cfop_classificacoes
+        const { data: cfopsValidos } = await adminClient
+          .from("cfop_classificacoes")
+          .select("cfop");
+        const cfopsSet = new Set((cfopsValidos ?? []).map((c: { cfop: number }) => c.cfop));
+
         const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           external_id: r.external_id,
@@ -533,7 +539,7 @@ export async function confirmarPagina(
           valor_desconto: r.valor_desconto,
           valor_total: r.valor_total,
           status: r.status,
-          cfop: r.cfop,
+          cfop: r.cfop && cfopsSet.has(r.cfop as number) ? r.cfop : null,
           atendente_id: r.atendente_id,
           sincronizado_em: agora,
           import_batch_id: batchId,
@@ -770,6 +776,11 @@ export async function confirmarImportacao(
 
         if (!linhas || linhas.length === 0) break;
 
+        const { data: cfopsValidos } = await adminClient
+          .from("cfop_classificacoes")
+          .select("cfop");
+        const cfopsSet = new Set((cfopsValidos ?? []).map((c: { cfop: number }) => c.cfop));
+
         const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           external_id: r.external_id,
@@ -783,7 +794,7 @@ export async function confirmarImportacao(
           valor_desconto: r.valor_desconto,
           valor_total: r.valor_total,
           status: r.status,
-          cfop: r.cfop,
+          cfop: r.cfop && cfopsSet.has(r.cfop as number) ? r.cfop : null,
           atendente_id: r.atendente_id,
           sincronizado_em: agora,
           import_batch_id: batchId,
