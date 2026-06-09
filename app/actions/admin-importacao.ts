@@ -1074,6 +1074,60 @@ export async function reverterImportacao(
   }
 }
 
+// ── Excluir registro de importação do staging ─────────────────────────────
+
+export async function excluirImportacao(
+  importacaoId: string
+): Promise<{ error?: string }> {
+  try {
+    await verificarAdmin();
+    const adminClient = createAdminClient();
+
+    const { data: importacao } = await adminClient
+      .from("staging_importacoes")
+      .select("id, status, entidade, loja_id")
+      .eq("id", importacaoId)
+      .maybeSingle();
+
+    if (!importacao) return { error: "Importação não encontrada" };
+
+    if (importacao.status === "concluido") {
+      return { error: "Use 'Reverter' antes de excluir uma importação concluída" };
+    }
+
+    if (importacao.status === "importando") {
+      return { error: "Aguarde a importação terminar antes de excluir" };
+    }
+
+    const tabelasStaging: Record<string, string> = {
+      vendas:            "staging_vendas",
+      venda_itens:       "staging_venda_itens",
+      venda_pagamentos:  "staging_venda_pagamentos",
+      produtos:          "staging_produtos",
+      vendedores:        "staging_vendedores",
+      clientes:          "staging_clientes",
+    };
+
+    const tabelaStaging = tabelasStaging[importacao.entidade as string];
+    if (tabelaStaging) {
+      await adminClient
+        .from(tabelaStaging)
+        .delete()
+        .eq("importacao_id", importacaoId);
+    }
+
+    await adminClient
+      .from("staging_importacoes")
+      .delete()
+      .eq("id", importacaoId);
+
+    revalidatePath("/admin/empresas");
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erro ao excluir" };
+  }
+}
+
 // ── Listar importações de uma loja ────────────────────────────────────────
 
 export async function listarImportacoes(lojaId: string) {

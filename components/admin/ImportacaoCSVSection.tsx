@@ -8,12 +8,14 @@ import {
   AlertTriangle,
   Loader2,
   RotateCcw,
+  Trash2,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import {
   confirmarPagina,
   reverterImportacao,
+  excluirImportacao,
   listarImportacoes,
 } from "@/app/actions/admin-importacao";
 
@@ -114,17 +116,33 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
     totalPaginas: number;
     importados: number;
   } | null>(null);
+  const [_importacoesCarregadas, setImportacoesCarregadas] = useState(false);
   const [isPending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function handleSelecionarLoja(novoLojaId: string) {
     setLojaId(novoLojaId);
+    setImportacoesCarregadas(false);
     setResultado(null);
     setErro(null);
     setArquivo(null);
     if (!novoLojaId) return;
     const historico = await listarImportacoes(novoLojaId);
-    setImportacoes(historico as Importacao[]);
+
+    const agora = new Date();
+    const corrigidas = (historico as Importacao[]).map((imp) => {
+      if (imp.status === "validando") {
+        const iniciado = new Date(imp.iniciado_em);
+        const minutosDecorridos = (agora.getTime() - iniciado.getTime()) / 60000;
+        if (minutosDecorridos > 10) {
+          return { ...imp, status: "erro" };
+        }
+      }
+      return imp;
+    });
+
+    setImportacoes(corrigidas);
+    setImportacoesCarregadas(true);
   }
 
   async function handleUpload() {
@@ -133,6 +151,20 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
     setErro(null);
     setResultado(null);
     setProgresso({ atual: 0, total: 0, fase: "Lendo arquivo..." });
+
+    const jaImportado = importacoes.some(
+      (i) => i.entidade === entidade && i.status === "concluido"
+    );
+    if (jaImportado) {
+      const confirmar = window.confirm(
+        `Já existe uma importação concluída de "${entidade.replace(/_/g, " ")}" para esta loja.\n\nDeseja importar novamente? Os dados serão mesclados via upsert.`
+      );
+      if (!confirmar) {
+        setUploading(false);
+        setProgresso(null);
+        return;
+      }
+    }
 
     try {
       // 1. Ler CSV como texto no frontend
@@ -287,6 +319,18 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
       } else {
         const novas = await listarImportacoes(lojaId);
         setImportacoes(novas as Importacao[]);
+      }
+    });
+  }
+
+  function handleExcluir(importacaoId: string) {
+    if (!confirm("Excluir este registro do histórico? Os dados do staging serão removidos.")) return;
+    startTransition(async () => {
+      const r = await excluirImportacao(importacaoId);
+      if (r.error) {
+        setErro(r.error);
+      } else {
+        setImportacoes((prev) => prev.filter((i) => i.id !== importacaoId));
       }
     });
   }
@@ -643,12 +687,23 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
                       {imp.status === "concluido" && (
                         <button
                           onClick={() => handleReverter(imp.id)}
-                          disabled={isPending}
-                          className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1 disabled:opacity-50"
+                          disabled={isPending || !!confirmando}
+                          className="text-xs text-amber-600 hover:text-amber-800 font-medium flex items-center gap-1 disabled:opacity-50"
                           title="Reverter importação"
                         >
                           <RotateCcw className="w-3 h-3" />
                           Reverter
+                        </button>
+                      )}
+                      {["erro", "validando", "validado", "revertido"].includes(imp.status) && (
+                        <button
+                          onClick={() => handleExcluir(imp.id)}
+                          disabled={isPending || !!confirmando}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1 disabled:opacity-50"
+                          title="Excluir do histórico"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          Excluir
                         </button>
                       )}
                     </div>
