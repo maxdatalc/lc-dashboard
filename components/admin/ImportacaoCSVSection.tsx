@@ -34,6 +34,11 @@ const ENTIDADES: { value: Entidade; label: string; arquivo: string }[] = [
   { value: "clientes", label: "Clientes", arquivo: "clientes.csv" },
 ];
 
+interface LojaOption {
+  id: string;
+  name: string;
+}
+
 interface Importacao {
   id: string;
   entidade: string;
@@ -48,7 +53,7 @@ interface Importacao {
 }
 
 interface Props {
-  lojaId: string;
+  lojas: LojaOption[];
   importacoesIniciais: Importacao[];
 }
 
@@ -83,8 +88,9 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
+export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
   const [importacoes, setImportacoes] = useState<Importacao[]>(importacoesIniciais);
+  const [lojaId, setLojaId] = useState<string>("");
   const [entidade, setEntidade] = useState<Entidade>("vendas");
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -104,8 +110,18 @@ export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
   const [isPending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  async function handleSelecionarLoja(novoLojaId: string) {
+    setLojaId(novoLojaId);
+    setResultado(null);
+    setErro(null);
+    setArquivo(null);
+    if (!novoLojaId) return;
+    const historico = await listarImportacoes(novoLojaId);
+    setImportacoes(historico as Importacao[]);
+  }
+
   async function handleUpload() {
-    if (!arquivo) return;
+    if (!arquivo || !lojaId) return;
     setUploading(true);
     setErro(null);
     setResultado(null);
@@ -255,191 +271,250 @@ export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
           Importar CSV
         </h3>
 
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          {/* Seletor de entidade */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Tipo de dados
-            </label>
-            <select
-              value={entidade}
-              onChange={(e) => {
-                setEntidade(e.target.value as Entidade);
-                setArquivo(null);
-                setResultado(null);
-                setErro(null);
-              }}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white"
-            >
-              {ENTIDADES.map((e) => (
-                <option key={e.value} value={e.value}>
-                  {e.label}
-                </option>
-              ))}
-            </select>
-            <p className="text-xs text-slate-400">
-              Arquivo esperado:{" "}
-              <code className="bg-slate-100 px-1 rounded">
-                {ENTIDADES.find((e) => e.value === entidade)?.arquivo}
-              </code>
-            </p>
-          </div>
-
-          {/* Seletor de arquivo */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-              Arquivo CSV
-            </label>
-            <div
-              onClick={() => fileRef.current?.click()}
-              className={`w-full border-2 border-dashed rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
-                arquivo
-                  ? "border-blue-400 bg-blue-50"
-                  : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
-              }`}
-            >
-              {arquivo ? (
-                <span className="flex items-center gap-2 text-blue-700">
-                  <FileText className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{arquivo.name}</span>
-                </span>
-              ) : (
-                <span className="text-slate-400">Clique para selecionar...</span>
-              )}
-            </div>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={(e) => {
-                setArquivo(e.target.files?.[0] ?? null);
-                setResultado(null);
-                setErro(null);
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Resultado da validação */}
-        {resultado && (
-          <div
-            className={`mb-4 p-3.5 rounded-lg border ${
-              (resultado.invalidas ?? 0) > 0
-                ? "bg-amber-50 border-amber-200"
-                : "bg-emerald-50 border-emerald-200"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p
-                  className={`text-sm font-semibold ${
-                    (resultado.invalidas ?? 0) > 0 ? "text-amber-800" : "text-emerald-800"
+        {/* Seletor de loja — obrigatório antes de qualquer ação */}
+        <div className="mb-5 p-4 bg-slate-50 border border-slate-200 rounded-xl">
+          <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider block mb-2">
+            Selecione a loja de destino
+          </label>
+          <p className="text-xs text-slate-500 mb-3">
+            Os dados do CSV serão importados exclusivamente para a loja selecionada.
+            Confirme com atenção antes de prosseguir.
+          </p>
+          {lojas.length === 0 ? (
+            <p className="text-sm text-red-600">Esta empresa não possui lojas cadastradas.</p>
+          ) : (
+            <div className="space-y-2">
+              {lojas.map((loja) => (
+                <label
+                  key={loja.id}
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                    lojaId === loja.id
+                      ? "border-blue-500 bg-blue-50"
+                      : "border-slate-200 bg-white hover:border-blue-300 hover:bg-blue-50/30"
                   }`}
                 >
-                  {(resultado.invalidas ?? 0) > 0
-                    ? "Validado com erros"
-                    : "Validado com sucesso"}
-                </p>
-                <p className="text-xs text-slate-600 mt-0.5">
-                  {resultado.validas?.toLocaleString("pt-BR")} válidas
-                  {(resultado.invalidas ?? 0) > 0 &&
-                    ` · ${resultado.invalidas?.toLocaleString("pt-BR")} com erro`}
+                  <input
+                    type="radio"
+                    name="loja_destino"
+                    value={loja.id}
+                    checked={lojaId === loja.id}
+                    onChange={() => handleSelecionarLoja(loja.id)}
+                    className="sr-only"
+                  />
+                  <div
+                    className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-all ${
+                      lojaId === loja.id ? "border-blue-500 bg-blue-500" : "border-slate-300"
+                    }`}
+                  >
+                    {lojaId === loja.id && (
+                      <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">{loja.name}</p>
+                    <p className="text-xs text-slate-400 font-mono truncate">{loja.id}</p>
+                  </div>
+                  {lojaId === loja.id && (
+                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-md shrink-0">
+                      SELECIONADA
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Campos de upload — só aparecem após selecionar loja */}
+        {lojaId && (
+          <>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              {/* Seletor de entidade */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Tipo de dados
+                </label>
+                <select
+                  value={entidade}
+                  onChange={(e) => {
+                    setEntidade(e.target.value as Entidade);
+                    setArquivo(null);
+                    setResultado(null);
+                    setErro(null);
+                  }}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white"
+                >
+                  {ENTIDADES.map((e) => (
+                    <option key={e.value} value={e.value}>
+                      {e.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400">
+                  Arquivo esperado:{" "}
+                  <code className="bg-slate-100 px-1 rounded">
+                    {ENTIDADES.find((e) => e.value === entidade)?.arquivo}
+                  </code>
                 </p>
               </div>
-              {resultado.importacaoId && (resultado.validas ?? 0) > 0 && (
-                <button
-                  onClick={() => handleConfirmar(resultado.importacaoId!)}
-                  disabled={isPending}
-                  className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors shrink-0"
+
+              {/* Seletor de arquivo */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Arquivo CSV
+                </label>
+                <div
+                  onClick={() => fileRef.current?.click()}
+                  className={`w-full border-2 border-dashed rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                    arquivo
+                      ? "border-blue-400 bg-blue-50"
+                      : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                  }`}
                 >
-                  {isPending ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  {arquivo ? (
+                    <span className="flex items-center gap-2 text-blue-700">
+                      <FileText className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{arquivo.name}</span>
+                    </span>
                   ) : (
-                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span className="text-slate-400">Clique para selecionar...</span>
                   )}
-                  Confirmar importação
-                </button>
-              )}
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  onChange={(e) => {
+                    setArquivo(e.target.files?.[0] ?? null);
+                    setResultado(null);
+                    setErro(null);
+                  }}
+                />
+              </div>
             </div>
-            {(resultado.errosAmostra?.length ?? 0) > 0 && (
-              <div className="mt-2">
-                <button
-                  onClick={() => setExpandidoErros(!expandidoErros)}
-                  className="text-xs text-amber-700 flex items-center gap-1"
-                >
-                  {expandidoErros ? (
-                    <ChevronUp className="w-3 h-3" />
-                  ) : (
-                    <ChevronDown className="w-3 h-3" />
+
+            {/* Resultado da validação */}
+            {resultado && (
+              <div
+                className={`mb-4 p-3.5 rounded-lg border ${
+                  (resultado.invalidas ?? 0) > 0
+                    ? "bg-amber-50 border-amber-200"
+                    : "bg-emerald-50 border-emerald-200"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p
+                      className={`text-sm font-semibold ${
+                        (resultado.invalidas ?? 0) > 0 ? "text-amber-800" : "text-emerald-800"
+                      }`}
+                    >
+                      {(resultado.invalidas ?? 0) > 0
+                        ? "Validado com erros"
+                        : "Validado com sucesso"}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-0.5">
+                      {resultado.validas?.toLocaleString("pt-BR")} válidas
+                      {(resultado.invalidas ?? 0) > 0 &&
+                        ` · ${resultado.invalidas?.toLocaleString("pt-BR")} com erro`}
+                    </p>
+                  </div>
+                  {resultado.importacaoId && (resultado.validas ?? 0) > 0 && (
+                    <button
+                      onClick={() => handleConfirmar(resultado.importacaoId!)}
+                      disabled={isPending}
+                      className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      {isPending ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      )}
+                      Confirmar importação
+                    </button>
                   )}
-                  Ver erros ({resultado.errosAmostra?.length} amostras)
-                </button>
-                {expandidoErros && (
-                  <div className="mt-2 space-y-0.5">
-                    {resultado.errosAmostra?.map((e, i) => (
-                      <p key={i} className="text-xs text-red-700 font-mono">
-                        {e}
-                      </p>
-                    ))}
+                </div>
+                {(resultado.errosAmostra?.length ?? 0) > 0 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => setExpandidoErros(!expandidoErros)}
+                      className="text-xs text-amber-700 flex items-center gap-1"
+                    >
+                      {expandidoErros ? (
+                        <ChevronUp className="w-3 h-3" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3" />
+                      )}
+                      Ver erros ({resultado.errosAmostra?.length} amostras)
+                    </button>
+                    {expandidoErros && (
+                      <div className="mt-2 space-y-0.5">
+                        {resultado.errosAmostra?.map((e, i) => (
+                          <p key={i} className="text-xs text-red-700 font-mono">
+                            {e}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )}
-          </div>
-        )}
 
-        {erro && (
-          <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5">
-            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-            <p className="text-xs text-red-700">{erro}</p>
-          </div>
-        )}
+            {erro && (
+              <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5">
+                <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                <p className="text-xs text-red-700">{erro}</p>
+              </div>
+            )}
 
-        {/* Barra de progresso */}
-        {progresso && (
-          <div className="mb-4 space-y-2">
-            <div className="flex justify-between text-xs text-slate-500">
-              <span>{progresso.fase}</span>
-              <span>
-                {progresso.total > 0
-                  ? Math.round((progresso.atual / progresso.total) * 100)
-                  : 0}%
-              </span>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-2">
-              <div
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                style={{
-                  width:
-                    progresso.total > 0
-                      ? `${(progresso.atual / progresso.total) * 100}%`
-                      : "0%",
-                }}
-              />
-            </div>
-            <p className="text-xs text-slate-400">
-              {progresso.atual.toLocaleString("pt-BR")} de{" "}
-              {progresso.total.toLocaleString("pt-BR")} linhas
-            </p>
-          </div>
-        )}
+            {/* Barra de progresso */}
+            {progresso && (
+              <div className="mb-4 space-y-2">
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>{progresso.fase}</span>
+                  <span>
+                    {progresso.total > 0
+                      ? Math.round((progresso.atual / progresso.total) * 100)
+                      : 0}%
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-2">
+                  <div
+                    className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width:
+                        progresso.total > 0
+                          ? `${(progresso.atual / progresso.total) * 100}%`
+                          : "0%",
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400">
+                  {progresso.atual.toLocaleString("pt-BR")} de{" "}
+                  {progresso.total.toLocaleString("pt-BR")} linhas
+                </p>
+              </div>
+            )}
 
-        <button
-          onClick={handleUpload}
-          disabled={!arquivo || uploading}
-          className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
-        >
-          {uploading ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Processando...
-            </>
-          ) : (
-            <>
-              <Upload className="w-4 h-4" /> Enviar e validar
-            </>
-          )}
-        </button>
+            <button
+              onClick={handleUpload}
+              disabled={!arquivo || uploading || !lojaId}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Processando...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4" /> Enviar e validar
+                </>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Histórico de importações */}
