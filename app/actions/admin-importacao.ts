@@ -334,6 +334,139 @@ export async function uploadCSV(
   }
 }
 
+// ── Funções de upload em chunks ───────────────────────────────────────────
+
+export async function criarImportacao(
+  lojaId: string,
+  entidade: Entidade,
+  nomeArquivo: string,
+  totalLinhas: number,
+  userId: string
+): Promise<{ error?: string; importacaoId?: string; batchId?: string }> {
+  const adminClient = createAdminClient();
+
+  const { data: loja } = await adminClient
+    .from("lojas")
+    .select("id")
+    .eq("id", lojaId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!loja) return { error: "Loja não encontrada ou inativa" };
+
+  const { data: importacao, error } = await adminClient
+    .from("staging_importacoes")
+    .insert({
+      loja_id: lojaId,
+      entidade,
+      arquivo_nome: nomeArquivo,
+      total_linhas: totalLinhas,
+      status: "validando",
+      importado_por: userId,
+    })
+    .select("id, import_batch_id")
+    .single();
+
+  if (error || !importacao) {
+    return { error: error?.message ?? "Erro ao criar importação" };
+  }
+
+  return {
+    importacaoId: importacao.id as string,
+    batchId: importacao.import_batch_id as string,
+  };
+}
+
+export async function processarChunk(
+  importacaoId: string,
+  lojaId: string,
+  entidade: Entidade,
+  rows: Record<string, string>[],
+  offsetInicio: number
+): Promise<{ error?: string; validas: number; invalidas: number; erros: string[] }> {
+  try {
+    await verificarAdmin();
+    const adminClient = createAdminClient();
+
+    const { data: importacao } = await adminClient
+      .from("staging_importacoes")
+      .select("id, loja_id, status")
+      .eq("id", importacaoId)
+      .eq("loja_id", lojaId)
+      .maybeSingle();
+
+    if (!importacao) return { error: "Importação não encontrada", validas: 0, invalidas: 0, erros: [] };
+    if (importacao.status === "concluido") return { error: "Importação já concluída", validas: 0, invalidas: 0, erros: [] };
+
+    const config = ENTIDADES_CONFIG[entidade];
+    const linhasValidas: Record<string, unknown>[] = [];
+    const linhasInvalidas: Record<string, unknown>[] = [];
+    const erros: string[] = [];
+
+    rows.forEach((row, idx) => {
+      const linhaNum = offsetInicio + idx + 2;
+      const resultado = validarLinha(row, entidade, linhaNum);
+      const base = {
+        importacao_id: importacaoId,
+        loja_id: lojaId,
+        ...resultado.dado,
+        valido: resultado.valido,
+        erro_validacao: resultado.erro ?? null,
+      };
+      if (resultado.valido) {
+        linhasValidas.push(base);
+      } else {
+        linhasInvalidas.push(base);
+        if (erros.length < 5) erros.push(`Linha ${linhaNum}: ${resultado.erro}`);
+      }
+    });
+
+    const todas = [...linhasValidas, ...linhasInvalidas];
+    if (todas.length > 0) {
+      const { error: insertErr } = await adminClient
+        .from(config.tabela_staging)
+        .insert(todas);
+      if (insertErr) return { error: insertErr.message, validas: 0, invalidas: 0, erros: [] };
+    }
+
+    return { validas: linhasValidas.length, invalidas: linhasInvalidas.length, erros };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Erro",
+      validas: 0,
+      invalidas: 0,
+      erros: [],
+    };
+  }
+}
+
+export async function finalizarUpload(
+  importacaoId: string,
+  totalValidas: number,
+  totalInvalidas: number,
+  errosAmostra: string[]
+): Promise<{ error?: string }> {
+  try {
+    await verificarAdmin();
+    const adminClient = createAdminClient();
+
+    await adminClient
+      .from("staging_importacoes")
+      .update({
+        status: totalInvalidas === totalValidas + totalInvalidas ? "erro" : "validado",
+        linhas_validas: totalValidas,
+        linhas_invalidas: totalInvalidas,
+        erros_amostra: errosAmostra,
+        concluido_em: new Date().toISOString(),
+      })
+      .eq("id", importacaoId);
+
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erro" };
+  }
+}
+
 // ── Confirmar importação: staging → tabelas finais ────────────────────────
 
 export async function confirmarImportacao(
