@@ -96,6 +96,11 @@ export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
   } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [expandidoErros, setExpandidoErros] = useState(false);
+  const [progresso, setProgresso] = useState<{
+    atual: number;
+    total: number;
+    fase: string;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -104,45 +109,114 @@ export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
     setUploading(true);
     setErro(null);
     setResultado(null);
+    setProgresso({ atual: 0, total: 0, fase: "Lendo arquivo..." });
 
     try {
-      const base64 = await new Promise<string>((res, rej) => {
+      // 1. Ler CSV como texto no frontend
+      const texto = await new Promise<string>((res, rej) => {
         const reader = new FileReader();
-        reader.onload = () => res((reader.result as string).split(",")[1]);
+        reader.onload = () => res(reader.result as string);
         reader.onerror = () => rej(new Error("Erro ao ler arquivo"));
-        reader.readAsDataURL(arquivo);
+        reader.readAsText(arquivo, "utf-8");
       });
 
-      const resp = await fetch("/api/admin/importar-csv", {
+      const linhas = texto
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .split("\n")
+        .filter((l) => l.trim() !== "");
+
+      if (linhas.length < 2) {
+        setErro("Arquivo CSV vazio ou sem dados");
+        return;
+      }
+
+      const headers = linhas[0].split(";").map((h) => h.trim().toLowerCase().replace(/"/g, ""));
+      const dataLines = linhas.slice(1);
+      const totalLinhas = dataLines.length;
+
+      setProgresso({ atual: 0, total: totalLinhas, fase: "Criando importação..." });
+
+      // 2. Criar registro de importação
+      const criarResp = await fetch("/api/admin/importar-csv", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lojaId,
-          entidade,
-          nomeArquivo: arquivo.name,
-          conteudoBase64: base64,
-        }),
+        body: JSON.stringify({ acao: "criar", lojaId, entidade, nomeArquivo: arquivo.name, totalLinhas }),
       });
-
-      const data = (await resp.json()) as {
-        error?: string;
-        importacaoId?: string;
-        validas?: number;
-        invalidas?: number;
-        errosAmostra?: string[];
-      };
-
-      if (!resp.ok || data.error) {
-        setErro(data.error ?? "Erro ao processar CSV");
-      } else {
-        setResultado(data);
-        const novas = await listarImportacoes(lojaId);
-        setImportacoes(novas as Importacao[]);
+      const criarData = (await criarResp.json()) as { error?: string; importacaoId?: string };
+      if (!criarResp.ok || criarData.error) {
+        setErro(criarData.error ?? "Erro ao criar importação");
+        return;
       }
+      const importacaoId = criarData.importacaoId!;
+
+      // 3. Enviar em chunks de 1000 linhas (~100KB por request)
+      const CHUNK_SIZE = 1000;
+      let totalValidas = 0;
+      let totalInvalidas = 0;
+      const errosAmostra: string[] = [];
+
+      for (let i = 0; i < dataLines.length; i += CHUNK_SIZE) {
+        const chunkLines = dataLines.slice(i, i + CHUNK_SIZE);
+        const rows = chunkLines.map((linha) => {
+          const valores = linha.split(";").map((v) => v.trim().replace(/^"|"$/g, ""));
+          const row: Record<string, string> = {};
+          headers.forEach((h, idx) => { row[h] = valores[idx] ?? ""; });
+          return row;
+        });
+
+        setProgresso({
+          atual: Math.min(i + CHUNK_SIZE, totalLinhas),
+          total: totalLinhas,
+          fase: `Validando linhas ${i + 1}–${Math.min(i + CHUNK_SIZE, totalLinhas)}...`,
+        });
+
+        const chunkResp = await fetch("/api/admin/importar-csv", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ acao: "chunk", importacaoId, lojaId, entidade, rows, offsetInicio: i }),
+        });
+        const chunkData = (await chunkResp.json()) as {
+          error?: string;
+          validas?: number;
+          invalidas?: number;
+          erros?: string[];
+        };
+
+        if (!chunkResp.ok || chunkData.error) {
+          setErro(chunkData.error ?? "Erro ao processar chunk");
+          return;
+        }
+
+        totalValidas += chunkData.validas ?? 0;
+        totalInvalidas += chunkData.invalidas ?? 0;
+        if ((chunkData.erros?.length ?? 0) > 0 && errosAmostra.length < 5) {
+          errosAmostra.push(...(chunkData.erros ?? []).slice(0, 5 - errosAmostra.length));
+        }
+      }
+
+      // 4. Finalizar
+      setProgresso({ atual: totalLinhas, total: totalLinhas, fase: "Finalizando..." });
+
+      const finResp = await fetch("/api/admin/importar-csv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ acao: "finalizar", importacaoId, totalValidas, totalInvalidas, errosAmostra }),
+      });
+      const finData = (await finResp.json()) as { error?: string };
+      if (!finResp.ok || finData.error) {
+        setErro(finData.error ?? "Erro ao finalizar");
+        return;
+      }
+
+      setResultado({ importacaoId, validas: totalValidas, invalidas: totalInvalidas, errosAmostra });
+      const novas = await listarImportacoes(lojaId);
+      setImportacoes(novas as Importacao[]);
     } catch (err) {
       setErro(err instanceof Error ? err.message : "Erro de conexão");
     } finally {
       setUploading(false);
+      setProgresso(null);
     }
   }
 
@@ -319,6 +393,35 @@ export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
           <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5">
             <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
             <p className="text-xs text-red-700">{erro}</p>
+          </div>
+        )}
+
+        {/* Barra de progresso */}
+        {progresso && (
+          <div className="mb-4 space-y-2">
+            <div className="flex justify-between text-xs text-slate-500">
+              <span>{progresso.fase}</span>
+              <span>
+                {progresso.total > 0
+                  ? Math.round((progresso.atual / progresso.total) * 100)
+                  : 0}%
+              </span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-2">
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                style={{
+                  width:
+                    progresso.total > 0
+                      ? `${(progresso.atual / progresso.total) * 100}%`
+                      : "0%",
+                }}
+              />
+            </div>
+            <p className="text-xs text-slate-400">
+              {progresso.atual.toLocaleString("pt-BR")} de{" "}
+              {progresso.total.toLocaleString("pt-BR")} linhas
+            </p>
           </div>
         )}
 
