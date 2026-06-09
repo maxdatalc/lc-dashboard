@@ -25,18 +25,19 @@ type Entidade =
   | "vendedores"
   | "clientes";
 
-const ENTIDADES: { value: Entidade; label: string; arquivo: string }[] = [
-  { value: "vendas", label: "Vendas", arquivo: "vendas.csv" },
-  { value: "venda_itens", label: "Itens de Venda", arquivo: "venda_itens.csv" },
-  { value: "venda_pagamentos", label: "Pagamentos", arquivo: "venda_pagamentos.csv" },
-  { value: "produtos", label: "Produtos", arquivo: "produtos.csv" },
-  { value: "vendedores", label: "Vendedores", arquivo: "vendedores.csv" },
-  { value: "clientes", label: "Clientes", arquivo: "clientes.csv" },
+const ENTIDADES: { value: Entidade; label: string; arquivo: string; ordem: number }[] = [
+  { value: "vendas",           label: "1. Vendas",           arquivo: "vendas.csv",           ordem: 1 },
+  { value: "produtos",         label: "2. Produtos",         arquivo: "produtos.csv",         ordem: 2 },
+  { value: "vendedores",       label: "3. Vendedores",       arquivo: "vendedores.csv",       ordem: 3 },
+  { value: "clientes",         label: "4. Clientes",         arquivo: "clientes.csv",         ordem: 4 },
+  { value: "venda_itens",      label: "5. Itens de Venda",   arquivo: "venda_itens.csv",      ordem: 5 },
+  { value: "venda_pagamentos", label: "6. Pagamentos",       arquivo: "venda_pagamentos.csv", ordem: 6 },
 ];
 
 interface LojaOption {
   id: string;
   name: string;
+  empId?: number;
 }
 
 interface Importacao {
@@ -367,7 +368,14 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{loja.name}</p>
-                    <p className="text-xs text-slate-400 font-mono truncate">{loja.id}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-xs text-slate-400 font-mono truncate">{loja.id}</p>
+                      {loja.empId !== undefined && (
+                        <span className="text-xs font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
+                          empId: {loja.empId}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {lojaId === loja.id && (
                     <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-md shrink-0">
