@@ -15,8 +15,10 @@ import {
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
+import { ImportacaoCSVSection } from "@/components/admin/ImportacaoCSVSection";
+import { listarImportacoes } from "@/app/actions/admin-importacao";
 
-type Aba = "lojas" | "features" | "usuarios";
+type Aba = "lojas" | "features" | "usuarios" | "importacao";
 
 // ── Server Action para atualizar módulos ────────────────────────────────────
 
@@ -39,7 +41,7 @@ export default async function GerenciarEmpresaPage({
 }) {
   const { id } = await params;
   const { aba: abaParam } = await searchParams;
-  const abaAtiva: Aba = (["lojas", "features", "usuarios"].includes(abaParam ?? "")
+  const abaAtiva: Aba = (["lojas", "features", "usuarios", "importacao"].includes(abaParam ?? "")
     ? abaParam
     : "lojas") as Aba;
 
@@ -47,6 +49,9 @@ export default async function GerenciarEmpresaPage({
   if (!tenant) notFound();
 
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenant(id) : [];
+  const importacoes = abaAtiva === "importacao" && tenant.lojas?.[0]?.id
+    ? await listarImportacoes(tenant.lojas[0].id)
+    : [];
 
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
   const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
@@ -55,6 +60,7 @@ export default async function GerenciarEmpresaPage({
     { valor: "lojas", label: "Lojas" },
     { valor: "features", label: "Módulos" },
     { valor: "usuarios", label: "Usuários" },
+    { valor: "importacao", label: "Importação CSV" },
   ];
 
   return (
@@ -184,6 +190,17 @@ export default async function GerenciarEmpresaPage({
       {/* ── Aba Usuários ──────────────────────────────────────────────────── */}
       {abaAtiva === "usuarios" && (
         <UsuariosSectionClient tenantId={id} usuarios={usuarios} />
+      )}
+
+      {/* ── Aba Importação CSV ────────────────────────────────────────────── */}
+      {abaAtiva === "importacao" && tenant.lojas?.[0]?.id && (
+        <ImportacaoCSVSection
+          lojaId={tenant.lojas[0].id}
+          importacoesIniciais={importacoes as Parameters<typeof ImportacaoCSVSection>[0]["importacoesIniciais"]}
+        />
+      )}
+      {abaAtiva === "importacao" && !tenant.lojas?.[0]?.id && (
+        <p className="text-sm text-slate-500">Esta empresa não possui lojas cadastradas.</p>
       )}
     </div>
   );

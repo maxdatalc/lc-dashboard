@@ -1,0 +1,423 @@
+"use client";
+
+import { useState, useRef, useTransition } from "react";
+import {
+  Upload,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Loader2,
+  RotateCcw,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
+import {
+  confirmarImportacao,
+  reverterImportacao,
+  listarImportacoes,
+} from "@/app/actions/admin-importacao";
+
+type Entidade =
+  | "vendas"
+  | "venda_itens"
+  | "venda_pagamentos"
+  | "produtos"
+  | "vendedores"
+  | "clientes";
+
+const ENTIDADES: { value: Entidade; label: string; arquivo: string }[] = [
+  { value: "vendas", label: "Vendas", arquivo: "vendas.csv" },
+  { value: "venda_itens", label: "Itens de Venda", arquivo: "venda_itens.csv" },
+  { value: "venda_pagamentos", label: "Pagamentos", arquivo: "venda_pagamentos.csv" },
+  { value: "produtos", label: "Produtos", arquivo: "produtos.csv" },
+  { value: "vendedores", label: "Vendedores", arquivo: "vendedores.csv" },
+  { value: "clientes", label: "Clientes", arquivo: "clientes.csv" },
+];
+
+interface Importacao {
+  id: string;
+  entidade: string;
+  arquivo_nome: string;
+  total_linhas: number | null;
+  linhas_validas: number | null;
+  linhas_invalidas: number | null;
+  status: string;
+  erros_amostra: string[] | null;
+  iniciado_em: string;
+  concluido_em: string | null;
+}
+
+interface Props {
+  lojaId: string;
+  importacoesIniciais: Importacao[];
+}
+
+function formatarData(iso: string | null) {
+  if (!iso) return "—";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(iso));
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    pendente: { label: "Pendente", cls: "bg-slate-100 text-slate-500" },
+    validando: { label: "Validando", cls: "bg-blue-100 text-blue-600" },
+    validado: { label: "Validado", cls: "bg-amber-100 text-amber-700" },
+    importando: { label: "Importando", cls: "bg-violet-100 text-violet-700" },
+    concluido: { label: "Concluído", cls: "bg-emerald-100 text-emerald-700" },
+    erro: { label: "Erro", cls: "bg-red-100 text-red-700" },
+    revertido: { label: "Revertido", cls: "bg-slate-100 text-slate-500" },
+  };
+  const cfg = map[status] ?? { label: status, cls: "bg-slate-100 text-slate-500" };
+  return (
+    <span
+      className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md ${cfg.cls}`}
+    >
+      {cfg.label}
+    </span>
+  );
+}
+
+export function ImportacaoCSVSection({ lojaId, importacoesIniciais }: Props) {
+  const [importacoes, setImportacoes] = useState<Importacao[]>(importacoesIniciais);
+  const [entidade, setEntidade] = useState<Entidade>("vendas");
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [resultado, setResultado] = useState<{
+    importacaoId?: string;
+    validas?: number;
+    invalidas?: number;
+    errosAmostra?: string[];
+  } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [expandidoErros, setExpandidoErros] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function handleUpload() {
+    if (!arquivo) return;
+    setUploading(true);
+    setErro(null);
+    setResultado(null);
+
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = () => res((reader.result as string).split(",")[1]);
+        reader.onerror = () => rej(new Error("Erro ao ler arquivo"));
+        reader.readAsDataURL(arquivo);
+      });
+
+      const resp = await fetch("/api/admin/importar-csv", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lojaId,
+          entidade,
+          nomeArquivo: arquivo.name,
+          conteudoBase64: base64,
+        }),
+      });
+
+      const data = (await resp.json()) as {
+        error?: string;
+        importacaoId?: string;
+        validas?: number;
+        invalidas?: number;
+        errosAmostra?: string[];
+      };
+
+      if (!resp.ok || data.error) {
+        setErro(data.error ?? "Erro ao processar CSV");
+      } else {
+        setResultado(data);
+        const novas = await listarImportacoes(lojaId);
+        setImportacoes(novas as Importacao[]);
+      }
+    } catch (err) {
+      setErro(err instanceof Error ? err.message : "Erro de conexão");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  function handleConfirmar(importacaoId: string) {
+    startTransition(async () => {
+      const r = await confirmarImportacao(importacaoId);
+      if (r.error) {
+        setErro(r.error);
+      } else {
+        setResultado(null);
+        const novas = await listarImportacoes(lojaId);
+        setImportacoes(novas as Importacao[]);
+      }
+    });
+  }
+
+  function handleReverter(importacaoId: string) {
+    if (!confirm("Reverter esta importação? Os dados importados serão removidos.")) return;
+    startTransition(async () => {
+      const r = await reverterImportacao(importacaoId);
+      if (r.error) {
+        setErro(r.error);
+      } else {
+        const novas = await listarImportacoes(lojaId);
+        setImportacoes(novas as Importacao[]);
+      }
+    });
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Upload */}
+      <div className="bg-white border border-slate-200 rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
+          <Upload className="w-4 h-4 text-slate-400" />
+          Importar CSV
+        </h3>
+
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          {/* Seletor de entidade */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Tipo de dados
+            </label>
+            <select
+              value={entidade}
+              onChange={(e) => {
+                setEntidade(e.target.value as Entidade);
+                setArquivo(null);
+                setResultado(null);
+                setErro(null);
+              }}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white"
+            >
+              {ENTIDADES.map((e) => (
+                <option key={e.value} value={e.value}>
+                  {e.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400">
+              Arquivo esperado:{" "}
+              <code className="bg-slate-100 px-1 rounded">
+                {ENTIDADES.find((e) => e.value === entidade)?.arquivo}
+              </code>
+            </p>
+          </div>
+
+          {/* Seletor de arquivo */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+              Arquivo CSV
+            </label>
+            <div
+              onClick={() => fileRef.current?.click()}
+              className={`w-full border-2 border-dashed rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                arquivo
+                  ? "border-blue-400 bg-blue-50"
+                  : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+              }`}
+            >
+              {arquivo ? (
+                <span className="flex items-center gap-2 text-blue-700">
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{arquivo.name}</span>
+                </span>
+              ) : (
+                <span className="text-slate-400">Clique para selecionar...</span>
+              )}
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={(e) => {
+                setArquivo(e.target.files?.[0] ?? null);
+                setResultado(null);
+                setErro(null);
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Resultado da validação */}
+        {resultado && (
+          <div
+            className={`mb-4 p-3.5 rounded-lg border ${
+              (resultado.invalidas ?? 0) > 0
+                ? "bg-amber-50 border-amber-200"
+                : "bg-emerald-50 border-emerald-200"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p
+                  className={`text-sm font-semibold ${
+                    (resultado.invalidas ?? 0) > 0 ? "text-amber-800" : "text-emerald-800"
+                  }`}
+                >
+                  {(resultado.invalidas ?? 0) > 0
+                    ? "Validado com erros"
+                    : "Validado com sucesso"}
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  {resultado.validas?.toLocaleString("pt-BR")} válidas
+                  {(resultado.invalidas ?? 0) > 0 &&
+                    ` · ${resultado.invalidas?.toLocaleString("pt-BR")} com erro`}
+                </p>
+              </div>
+              {resultado.importacaoId && (resultado.validas ?? 0) > 0 && (
+                <button
+                  onClick={() => handleConfirmar(resultado.importacaoId!)}
+                  disabled={isPending}
+                  className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors shrink-0"
+                >
+                  {isPending ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                  )}
+                  Confirmar importação
+                </button>
+              )}
+            </div>
+            {(resultado.errosAmostra?.length ?? 0) > 0 && (
+              <div className="mt-2">
+                <button
+                  onClick={() => setExpandidoErros(!expandidoErros)}
+                  className="text-xs text-amber-700 flex items-center gap-1"
+                >
+                  {expandidoErros ? (
+                    <ChevronUp className="w-3 h-3" />
+                  ) : (
+                    <ChevronDown className="w-3 h-3" />
+                  )}
+                  Ver erros ({resultado.errosAmostra?.length} amostras)
+                </button>
+                {expandidoErros && (
+                  <div className="mt-2 space-y-0.5">
+                    {resultado.errosAmostra?.map((e, i) => (
+                      <p key={i} className="text-xs text-red-700 font-mono">
+                        {e}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {erro && (
+          <div className="mb-4 flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5">
+            <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+            <p className="text-xs text-red-700">{erro}</p>
+          </div>
+        )}
+
+        <button
+          onClick={handleUpload}
+          disabled={!arquivo || uploading}
+          className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" /> Processando...
+            </>
+          ) : (
+            <>
+              <Upload className="w-4 h-4" /> Enviar e validar
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Histórico de importações */}
+      {importacoes.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100">
+            <h3 className="text-sm font-semibold text-slate-800">Histórico de importações</h3>
+          </div>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100">
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Entidade
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Arquivo
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Linhas
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  Data
+                </th>
+                <th className="px-4 py-2.5" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {importacoes.map((imp) => (
+                <tr key={imp.id} className="hover:bg-slate-50/50">
+                  <td className="px-4 py-3 font-medium text-slate-700 capitalize">
+                    {imp.entidade.replace(/_/g, " ")}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500 font-mono truncate max-w-32">
+                    {imp.arquivo_nome}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {imp.total_linhas?.toLocaleString("pt-BR")}
+                    {(imp.linhas_invalidas ?? 0) > 0 && (
+                      <span className="text-red-500 ml-1">({imp.linhas_invalidas} erros)</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <StatusBadge status={imp.status} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500">
+                    {formatarData(imp.iniciado_em)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2 justify-end">
+                      {imp.status === "validado" && (
+                        <button
+                          onClick={() => handleConfirmar(imp.id)}
+                          disabled={isPending}
+                          className="text-xs text-emerald-600 hover:text-emerald-800 font-medium flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          Confirmar
+                        </button>
+                      )}
+                      {imp.status === "concluido" && (
+                        <button
+                          onClick={() => handleReverter(imp.id)}
+                          disabled={isPending}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1 disabled:opacity-50"
+                          title="Reverter importação"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                          Reverter
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
