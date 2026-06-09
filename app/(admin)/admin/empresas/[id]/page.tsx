@@ -193,9 +193,10 @@ export default async function GerenciarEmpresaPage({
       {/* ── Aba Importação CSV ────────────────────────────────────────────── */}
       {abaAtiva === "importacao" && (
         <ImportacaoCSVSection
-          lojas={tenant.lojas.map((l: { id: string; name: string }) => ({
+          lojas={tenant.lojas.map((l: { id: string; name: string; empId?: number; emp_id?: number }) => ({
             id: l.id,
             name: l.name,
+            empId: l.empId ?? l.emp_id,
           }))}
           importacoesIniciais={importacoes}
         />
