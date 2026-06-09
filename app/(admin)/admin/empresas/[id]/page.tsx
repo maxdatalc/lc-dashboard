@@ -16,7 +16,6 @@ import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
 import { ImportacaoCSVSection } from "@/components/admin/ImportacaoCSVSection";
-import { listarImportacoes } from "@/app/actions/admin-importacao";
 
 type Aba = "lojas" | "features" | "usuarios" | "importacao";
 
@@ -49,9 +48,8 @@ export default async function GerenciarEmpresaPage({
   if (!tenant) notFound();
 
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenant(id) : [];
-  const importacoes = abaAtiva === "importacao" && tenant.lojas?.[0]?.id
-    ? await listarImportacoes(tenant.lojas[0].id)
-    : [];
+  // Importações carregadas pelo componente client após seleção da loja
+  const importacoes: never[] = [];
 
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
   const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
@@ -193,14 +191,14 @@ export default async function GerenciarEmpresaPage({
       )}
 
       {/* ── Aba Importação CSV ────────────────────────────────────────────── */}
-      {abaAtiva === "importacao" && tenant.lojas?.[0]?.id && (
+      {abaAtiva === "importacao" && (
         <ImportacaoCSVSection
-          lojaId={tenant.lojas[0].id}
-          importacoesIniciais={importacoes as Parameters<typeof ImportacaoCSVSection>[0]["importacoesIniciais"]}
+          lojas={tenant.lojas.map((l: { id: string; name: string }) => ({
+            id: l.id,
+            name: l.name,
+          }))}
+          importacoesIniciais={importacoes}
         />
-      )}
-      {abaAtiva === "importacao" && !tenant.lojas?.[0]?.id && (
-        <p className="text-sm text-slate-500">Esta empresa não possui lojas cadastradas.</p>
       )}
     </div>
   );
