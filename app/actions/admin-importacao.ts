@@ -496,18 +496,21 @@ export async function confirmarImportacao(
       .eq("id", importacaoId);
 
     let totalImportados = 0;
-    const CHUNK = 500;
+    const PAGE_SIZE = 1000;
 
     if (entidade === "vendas") {
-      const { data: linhas } = await adminClient
-        .from("staging_vendas")
-        .select("*")
-        .eq("importacao_id", importacaoId)
-        .eq("valido", true);
+      let paginaVendas = 0;
+      while (true) {
+        const { data: linhas } = await adminClient
+          .from("staging_vendas")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .eq("valido", true)
+          .range(paginaVendas * PAGE_SIZE, (paginaVendas + 1) * PAGE_SIZE - 1);
 
-      for (let i = 0; i < (linhas ?? []).length; i += CHUNK) {
-        const chunk = (linhas ?? []).slice(i, i + CHUNK);
-        const rows = chunk.map((r: Record<string, unknown>) => ({
+        if (!linhas || linhas.length === 0) break;
+
+        const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           external_id: r.external_id,
           source: r.source ?? "sale",
@@ -530,19 +533,25 @@ export async function confirmarImportacao(
           .upsert(rows, { onConflict: "loja_id,external_id,source" });
         if (error) throw new Error(`Erro upsert vendas: ${error.message}`);
         totalImportados += rows.length;
+
+        if (linhas.length < PAGE_SIZE) break;
+        paginaVendas++;
       }
     }
 
     if (entidade === "venda_itens") {
-      const { data: linhas } = await adminClient
-        .from("staging_venda_itens")
-        .select("*")
-        .eq("importacao_id", importacaoId)
-        .eq("valido", true);
+      let paginaItens = 0;
+      while (true) {
+        const { data: linhas } = await adminClient
+          .from("staging_venda_itens")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .eq("valido", true)
+          .range(paginaItens * PAGE_SIZE, (paginaItens + 1) * PAGE_SIZE - 1);
 
-      for (let i = 0; i < (linhas ?? []).length; i += CHUNK) {
-        const chunk = (linhas ?? []).slice(i, i + CHUNK);
-        const rows = chunk.map((r: Record<string, unknown>) => ({
+        if (!linhas || linhas.length === 0) break;
+
+        const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           venda_external_id: r.venda_external_id,
           produto_external_id: r.produto_external_id,
@@ -554,7 +563,7 @@ export async function confirmarImportacao(
           custo_produto: r.custo_produto,
           import_batch_id: batchId,
         }));
-        const vendaIds = [...new Set(chunk.map((r: Record<string, unknown>) => r.venda_external_id as number))];
+        const vendaIds = [...new Set(linhas.map((r: Record<string, unknown>) => r.venda_external_id as number))];
         await adminClient
           .from("venda_itens")
           .delete()
@@ -563,19 +572,25 @@ export async function confirmarImportacao(
         const { error } = await adminClient.from("venda_itens").insert(rows);
         if (error) throw new Error(`Erro insert venda_itens: ${error.message}`);
         totalImportados += rows.length;
+
+        if (linhas.length < PAGE_SIZE) break;
+        paginaItens++;
       }
     }
 
     if (entidade === "venda_pagamentos") {
-      const { data: linhas } = await adminClient
-        .from("staging_venda_pagamentos")
-        .select("*")
-        .eq("importacao_id", importacaoId)
-        .eq("valido", true);
+      let paginaPagamentos = 0;
+      while (true) {
+        const { data: linhas } = await adminClient
+          .from("staging_venda_pagamentos")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .eq("valido", true)
+          .range(paginaPagamentos * PAGE_SIZE, (paginaPagamentos + 1) * PAGE_SIZE - 1);
 
-      for (let i = 0; i < (linhas ?? []).length; i += CHUNK) {
-        const chunk = (linhas ?? []).slice(i, i + CHUNK);
-        const rows = chunk.map((r: Record<string, unknown>) => ({
+        if (!linhas || linhas.length === 0) break;
+
+        const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           venda_external_id: r.venda_external_id,
           forma_pagamento: r.forma_pagamento,
@@ -588,19 +603,25 @@ export async function confirmarImportacao(
           .upsert(rows, { onConflict: "loja_id,venda_external_id,forma_pagamento" });
         if (error) throw new Error(`Erro upsert venda_pagamentos: ${error.message}`);
         totalImportados += rows.length;
+
+        if (linhas.length < PAGE_SIZE) break;
+        paginaPagamentos++;
       }
     }
 
     if (entidade === "produtos") {
-      const { data: linhas } = await adminClient
-        .from("staging_produtos")
-        .select("*")
-        .eq("importacao_id", importacaoId)
-        .eq("valido", true);
+      let paginaProdutos = 0;
+      while (true) {
+        const { data: linhas } = await adminClient
+          .from("staging_produtos")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .eq("valido", true)
+          .range(paginaProdutos * PAGE_SIZE, (paginaProdutos + 1) * PAGE_SIZE - 1);
 
-      for (let i = 0; i < (linhas ?? []).length; i += CHUNK) {
-        const chunk = (linhas ?? []).slice(i, i + CHUNK);
-        const rows = chunk.map((r: Record<string, unknown>) => ({
+        if (!linhas || linhas.length === 0) break;
+
+        const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           external_id: r.external_id,
           codigo: r.codigo,
@@ -628,19 +649,25 @@ export async function confirmarImportacao(
           .upsert(rows, { onConflict: "loja_id,external_id" });
         if (error) throw new Error(`Erro upsert produtos: ${error.message}`);
         totalImportados += rows.length;
+
+        if (linhas.length < PAGE_SIZE) break;
+        paginaProdutos++;
       }
     }
 
     if (entidade === "vendedores") {
-      const { data: linhas } = await adminClient
-        .from("staging_vendedores")
-        .select("*")
-        .eq("importacao_id", importacaoId)
-        .eq("valido", true);
+      let paginaVendedores = 0;
+      while (true) {
+        const { data: linhas } = await adminClient
+          .from("staging_vendedores")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .eq("valido", true)
+          .range(paginaVendedores * PAGE_SIZE, (paginaVendedores + 1) * PAGE_SIZE - 1);
 
-      for (let i = 0; i < (linhas ?? []).length; i += CHUNK) {
-        const chunk = (linhas ?? []).slice(i, i + CHUNK);
-        const rows = chunk.map((r: Record<string, unknown>) => ({
+        if (!linhas || linhas.length === 0) break;
+
+        const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           external_id: r.external_id,
           nome: r.nome,
@@ -656,19 +683,25 @@ export async function confirmarImportacao(
           .upsert(rows, { onConflict: "loja_id,external_id" });
         if (error) throw new Error(`Erro upsert vendedores: ${error.message}`);
         totalImportados += rows.length;
+
+        if (linhas.length < PAGE_SIZE) break;
+        paginaVendedores++;
       }
     }
 
     if (entidade === "clientes") {
-      const { data: linhas } = await adminClient
-        .from("staging_clientes")
-        .select("*")
-        .eq("importacao_id", importacaoId)
-        .eq("valido", true);
+      let paginaClientes = 0;
+      while (true) {
+        const { data: linhas } = await adminClient
+          .from("staging_clientes")
+          .select("*")
+          .eq("importacao_id", importacaoId)
+          .eq("valido", true)
+          .range(paginaClientes * PAGE_SIZE, (paginaClientes + 1) * PAGE_SIZE - 1);
 
-      for (let i = 0; i < (linhas ?? []).length; i += CHUNK) {
-        const chunk = (linhas ?? []).slice(i, i + CHUNK);
-        const rows = chunk.map((r: Record<string, unknown>) => ({
+        if (!linhas || linhas.length === 0) break;
+
+        const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
           external_id: r.external_id,
           nome: r.nome,
@@ -686,6 +719,9 @@ export async function confirmarImportacao(
           .upsert(rows, { onConflict: "loja_id,external_id" });
         if (error) throw new Error(`Erro upsert clientes: ${error.message}`);
         totalImportados += rows.length;
+
+        if (linhas.length < PAGE_SIZE) break;
+        paginaClientes++;
       }
     }
 
