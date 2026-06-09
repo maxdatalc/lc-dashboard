@@ -467,7 +467,267 @@ export async function finalizarUpload(
   }
 }
 
-// ── Confirmar importação: staging → tabelas finais ────────────────────────
+// ── Confirmar UMA PÁGINA do staging → tabelas finais (sem timeout) ──────────
+// Chamada em loop pelo frontend, 1000 linhas por request.
+
+export async function confirmarPagina(
+  importacaoId: string,
+  pagina: number
+): Promise<{
+  error?: string;
+  importados: number;
+  pagina: number;
+  totalPaginas: number;
+  concluido: boolean;
+}> {
+  try {
+    await verificarAdmin();
+    const adminClient = createAdminClient();
+    const PAGE_SIZE = 1000;
+
+    const { data: importacao } = await adminClient
+      .from("staging_importacoes")
+      .select("*")
+      .eq("id", importacaoId)
+      .in("status", ["validado", "importando"])
+      .maybeSingle();
+
+    if (!importacao) return { error: "Importação não encontrada ou não está validada", importados: 0, pagina, totalPaginas: 0, concluido: false };
+
+    const lojaId = importacao.loja_id as string;
+    const entidade = importacao.entidade as Entidade;
+    const batchId = importacao.import_batch_id as string;
+    const totalValidas = (importacao.linhas_validas as number) ?? 0;
+    const totalPaginas = Math.ceil(totalValidas / PAGE_SIZE);
+    const agora = new Date().toISOString();
+
+    if (pagina === 0) {
+      await adminClient
+        .from("staging_importacoes")
+        .update({ status: "importando" })
+        .eq("id", importacaoId);
+    }
+
+    const offset = pagina * PAGE_SIZE;
+    let importados = 0;
+
+    if (entidade === "vendas") {
+      const { data: linhas } = await adminClient
+        .from("staging_vendas")
+        .select("*")
+        .eq("importacao_id", importacaoId)
+        .eq("valido", true)
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (linhas && linhas.length > 0) {
+        const rows = linhas.map((r: Record<string, unknown>) => ({
+          loja_id: lojaId,
+          external_id: r.external_id,
+          source: r.source ?? "sale",
+          numero_venda: String(r.external_id),
+          data_venda: r.data_venda,
+          cliente_external_id: r.cliente_external_id,
+          cliente_nome: r.cliente_nome,
+          cpf_cnpj: r.cpf_cnpj,
+          valor_bruto: r.valor_bruto,
+          valor_desconto: r.valor_desconto,
+          valor_total: r.valor_total,
+          status: r.status,
+          cfop: r.cfop,
+          atendente_id: r.atendente_id,
+          sincronizado_em: agora,
+          import_batch_id: batchId,
+        }));
+        const { error } = await adminClient
+          .from("vendas")
+          .upsert(rows, { onConflict: "loja_id,external_id,source" });
+        if (error) throw new Error(`Erro upsert vendas p${pagina}: ${error.message}`);
+        importados = rows.length;
+      }
+    }
+
+    if (entidade === "venda_itens") {
+      const { data: linhas } = await adminClient
+        .from("staging_venda_itens")
+        .select("*")
+        .eq("importacao_id", importacaoId)
+        .eq("valido", true)
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (linhas && linhas.length > 0) {
+        const vendaIds = [...new Set(linhas.map((r: Record<string, unknown>) => r.venda_external_id as number))];
+        await adminClient.from("venda_itens").delete().eq("loja_id", lojaId).in("venda_external_id", vendaIds);
+        const rows = linhas.map((r: Record<string, unknown>) => ({
+          loja_id: lojaId,
+          venda_external_id: r.venda_external_id,
+          produto_external_id: r.produto_external_id,
+          produto_nome: r.produto_nome,
+          quantidade: r.quantidade,
+          valor_unitario: r.valor_unitario,
+          valor_desconto: r.valor_desconto,
+          valor_total: r.valor_total,
+          custo_produto: r.custo_produto,
+          import_batch_id: batchId,
+        }));
+        const { error } = await adminClient.from("venda_itens").insert(rows);
+        if (error) throw new Error(`Erro insert venda_itens p${pagina}: ${error.message}`);
+        importados = rows.length;
+      }
+    }
+
+    if (entidade === "venda_pagamentos") {
+      const { data: linhas } = await adminClient
+        .from("staging_venda_pagamentos")
+        .select("*")
+        .eq("importacao_id", importacaoId)
+        .eq("valido", true)
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (linhas && linhas.length > 0) {
+        const rows = linhas.map((r: Record<string, unknown>) => ({
+          loja_id: lojaId,
+          venda_external_id: r.venda_external_id,
+          forma_pagamento: r.forma_pagamento,
+          valor: r.valor,
+          parcelas: r.parcelas,
+          import_batch_id: batchId,
+        }));
+        const { error } = await adminClient
+          .from("venda_pagamentos")
+          .upsert(rows, { onConflict: "loja_id,venda_external_id,forma_pagamento" });
+        if (error) throw new Error(`Erro upsert venda_pagamentos p${pagina}: ${error.message}`);
+        importados = rows.length;
+      }
+    }
+
+    if (entidade === "produtos") {
+      const { data: linhas } = await adminClient
+        .from("staging_produtos")
+        .select("*")
+        .eq("importacao_id", importacaoId)
+        .eq("valido", true)
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (linhas && linhas.length > 0) {
+        const rows = linhas.map((r: Record<string, unknown>) => ({
+          loja_id: lojaId,
+          external_id: r.external_id,
+          codigo: r.codigo,
+          nome: r.nome,
+          grupo_id: r.grupo_id,
+          grupo_nome: r.grupo_nome,
+          sub_grupo_id: r.sub_grupo_id,
+          sub_grupo_nome: r.sub_grupo_nome,
+          preco_venda: r.preco_venda,
+          valor_custo: r.valor_custo,
+          estoque_atual: r.estoque_atual,
+          estoque_minimo: r.estoque_minimo,
+          ativo: r.ativo,
+          usa_ecommerce: r.usa_ecommerce,
+          peso: r.peso,
+          peso_liq: r.peso_liq,
+          largura: r.largura,
+          altura: r.altura,
+          comprimento: r.comprimento,
+          sincronizado_em: agora,
+          import_batch_id: batchId,
+        }));
+        const { error } = await adminClient
+          .from("produtos")
+          .upsert(rows, { onConflict: "loja_id,external_id" });
+        if (error) throw new Error(`Erro upsert produtos p${pagina}: ${error.message}`);
+        importados = rows.length;
+      }
+    }
+
+    if (entidade === "vendedores") {
+      const { data: linhas } = await adminClient
+        .from("staging_vendedores")
+        .select("*")
+        .eq("importacao_id", importacaoId)
+        .eq("valido", true)
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (linhas && linhas.length > 0) {
+        const rows = linhas.map((r: Record<string, unknown>) => ({
+          loja_id: lojaId,
+          external_id: r.external_id,
+          nome: r.nome,
+          apelido: r.apelido,
+          email: r.email,
+          perfil: r.perfil,
+          ativo: r.ativo,
+          sincronizado_em: agora,
+          import_batch_id: batchId,
+        }));
+        const { error } = await adminClient
+          .from("vendedores")
+          .upsert(rows, { onConflict: "loja_id,external_id" });
+        if (error) throw new Error(`Erro upsert vendedores p${pagina}: ${error.message}`);
+        importados = rows.length;
+      }
+    }
+
+    if (entidade === "clientes") {
+      const { data: linhas } = await adminClient
+        .from("staging_clientes")
+        .select("*")
+        .eq("importacao_id", importacaoId)
+        .eq("valido", true)
+        .range(offset, offset + PAGE_SIZE - 1);
+
+      if (linhas && linhas.length > 0) {
+        const rows = linhas.map((r: Record<string, unknown>) => ({
+          loja_id: lojaId,
+          external_id: r.external_id,
+          nome: r.nome,
+          cnpj_cpf: r.cnpj_cpf,
+          email: r.email,
+          telefone: r.telefone,
+          cidade: r.cidade,
+          estado: r.estado,
+          ativo: r.ativo,
+          sincronizado_em: agora,
+          import_batch_id: batchId,
+        }));
+        const { error } = await adminClient
+          .from("clientes")
+          .upsert(rows, { onConflict: "loja_id,external_id" });
+        if (error) throw new Error(`Erro upsert clientes p${pagina}: ${error.message}`);
+        importados = rows.length;
+      }
+    }
+
+    const concluido = pagina >= totalPaginas - 1;
+
+    if (concluido) {
+      await adminClient.from("sync_log").insert({
+        loja_id: lojaId,
+        tabela: "csv_import",
+        status: "concluido",
+        inicio: agora,
+        fim: agora,
+        total_registros: totalValidas,
+      });
+      await adminClient
+        .from("staging_importacoes")
+        .update({ status: "concluido", concluido_em: agora })
+        .eq("id", importacaoId);
+    }
+
+    revalidatePath("/admin/empresas");
+    return { importados, pagina, totalPaginas, concluido };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Erro desconhecido";
+    await createAdminClient()
+      .from("staging_importacoes")
+      .update({ status: "erro", concluido_em: new Date().toISOString() })
+      .eq("id", importacaoId);
+    return { error: msg, importados: 0, pagina, totalPaginas: 0, concluido: false };
+  }
+}
+
+// ── Confirmar importação: staging → tabelas finais (mantido por compatibilidade) ──
 
 export async function confirmarImportacao(
   importacaoId: string

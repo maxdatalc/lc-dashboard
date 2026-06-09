@@ -12,7 +12,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import {
-  confirmarImportacao,
+  confirmarPagina,
   reverterImportacao,
   listarImportacoes,
 } from "@/app/actions/admin-importacao";
@@ -106,6 +106,12 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
     atual: number;
     total: number;
     fase: string;
+  } | null>(null);
+  const [confirmando, setConfirmando] = useState<{
+    importacaoId: string;
+    pagina: number;
+    totalPaginas: number;
+    importados: number;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -236,17 +242,39 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
     }
   }
 
-  function handleConfirmar(importacaoId: string) {
-    startTransition(async () => {
-      const r = await confirmarImportacao(importacaoId);
-      if (r.error) {
-        setErro(r.error);
-      } else {
-        setResultado(null);
-        const novas = await listarImportacoes(lojaId);
-        setImportacoes(novas as Importacao[]);
+  async function handleConfirmar(importacaoId: string, totalValidas: number) {
+    const totalPaginas = Math.max(1, Math.ceil(totalValidas / 1000));
+    setConfirmando({ importacaoId, pagina: 0, totalPaginas, importados: 0 });
+    setErro(null);
+
+    let paginaAtual = 0;
+    let totalImportados = 0;
+
+    while (true) {
+      const resultado = await confirmarPagina(importacaoId, paginaAtual);
+
+      if (resultado.error) {
+        setErro(resultado.error);
+        setConfirmando(null);
+        return;
       }
-    });
+
+      totalImportados += resultado.importados;
+      setConfirmando({
+        importacaoId,
+        pagina: paginaAtual + 1,
+        totalPaginas,
+        importados: totalImportados,
+      });
+
+      if (resultado.concluido) break;
+      paginaAtual++;
+    }
+
+    setConfirmando(null);
+    setResultado(null);
+    const novas = await listarImportacoes(lojaId);
+    setImportacoes(novas as Importacao[]);
   }
 
   function handleReverter(importacaoId: string) {
@@ -264,6 +292,33 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Barra de progresso de confirmação — fixada na parte inferior */}
+      {confirmando && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl px-6 py-4 w-full max-w-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <Loader2 className="w-5 h-5 text-blue-600 animate-spin shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Importando dados...</p>
+              <p className="text-xs text-slate-500">
+                Página {confirmando.pagina} de {confirmando.totalPaginas}
+              </p>
+            </div>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2 mb-2">
+            <div
+              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              style={{
+                width: confirmando.totalPaginas > 0
+                  ? `${Math.round((confirmando.pagina / confirmando.totalPaginas) * 100)}%`
+                  : "0%",
+              }}
+            />
+          </div>
+          <p className="text-xs text-slate-400 text-right">
+            {confirmando.importados.toLocaleString("pt-BR")} registros importados
+          </p>
+        </div>
+      )}
       {/* Upload */}
       <div className="bg-white border border-slate-200 rounded-xl p-5">
         <h3 className="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2">
@@ -422,8 +477,8 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
                   </div>
                   {resultado.importacaoId && (resultado.validas ?? 0) > 0 && (
                     <button
-                      onClick={() => handleConfirmar(resultado.importacaoId!)}
-                      disabled={isPending}
+                      onClick={() => handleConfirmar(resultado.importacaoId!, resultado.validas ?? 0)}
+                      disabled={isPending || !!confirmando}
                       className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium bg-emerald-600 text-white rounded-lg hover:bg-emerald-500 disabled:opacity-50 transition-colors shrink-0"
                     >
                       {isPending ? (
@@ -569,8 +624,8 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
                     <div className="flex items-center gap-2 justify-end">
                       {imp.status === "validado" && (
                         <button
-                          onClick={() => handleConfirmar(imp.id)}
-                          disabled={isPending}
+                          onClick={() => handleConfirmar(imp.id, imp.linhas_validas ?? 0)}
+                          disabled={isPending || !!confirmando}
                           className="text-xs text-emerald-600 hover:text-emerald-800 font-medium flex items-center gap-1 disabled:opacity-50"
                         >
                           <CheckCircle2 className="w-3 h-3" />
