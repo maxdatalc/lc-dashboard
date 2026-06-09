@@ -110,10 +110,12 @@ function validarLinha(
     if (entidade === "venda_itens") {
       const vendaId = parseInt(row.venda_external_id);
       if (isNaN(vendaId) || vendaId <= 0) throw new Error("venda_external_id inválido");
+      const vdiId = row.vdi_id ? parseInt(row.vdi_id) : null;
       return {
         valido: true,
         dado: {
           linha: linhaNum,
+          vdi_id: vdiId,
           venda_external_id: vendaId,
           produto_external_id: row.produto_external_id ? parseInt(row.produto_external_id) || null : null,
           produto_nome: row.produto_nome || "Produto",
@@ -561,10 +563,9 @@ export async function confirmarPagina(
         .range(offset, offset + PAGE_SIZE - 1);
 
       if (linhas && linhas.length > 0) {
-        const vendaIds = [...new Set(linhas.map((r: Record<string, unknown>) => r.venda_external_id as number))];
-        await adminClient.from("venda_itens").delete().eq("loja_id", lojaId).in("venda_external_id", vendaIds);
         const rows = linhas.map((r: Record<string, unknown>) => ({
           loja_id: lojaId,
+          vdi_id: r.vdi_id ?? null,
           venda_external_id: r.venda_external_id,
           produto_external_id: r.produto_external_id,
           produto_nome: r.produto_nome,
@@ -575,8 +576,24 @@ export async function confirmarPagina(
           custo_produto: r.custo_produto,
           import_batch_id: batchId,
         }));
-        const { error } = await adminClient.from("venda_itens").insert(rows);
-        if (error) throw new Error(`Erro insert venda_itens p${pagina}: ${error.message}`);
+
+        const comVdiId = rows.filter((r) => r.vdi_id !== null);
+        const semVdiId = rows.filter((r) => r.vdi_id === null);
+
+        if (comVdiId.length > 0) {
+          const { error } = await adminClient
+            .from("venda_itens")
+            .upsert(comVdiId, { onConflict: "loja_id,vdi_id" });
+          if (error) throw new Error(`Erro upsert venda_itens p${pagina}: ${error.message}`);
+        }
+
+        if (semVdiId.length > 0) {
+          const { error } = await adminClient
+            .from("venda_itens")
+            .insert(semVdiId);
+          if (error) throw new Error(`Erro insert venda_itens sem vdi_id p${pagina}: ${error.message}`);
+        }
+
         importados = rows.length;
       }
     }
