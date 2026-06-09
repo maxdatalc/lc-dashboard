@@ -372,7 +372,7 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
                       <p className="text-xs text-slate-400 font-mono truncate">{loja.id}</p>
                       {loja.empId !== undefined && (
                         <span className="text-xs font-bold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded shrink-0">
-                          empId: {loja.empId}
+                          empId: {loja.empId !== undefined ? String(loja.empId) : "—"}
                         </span>
                       )}
                     </div>
