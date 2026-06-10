@@ -284,11 +284,14 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
     let paginaInicial = 0;
     try {
       const historico = await listarImportacoes(lojaId);
-      const imp = (historico as Importacao[]).find((i) => i.id === importacaoId);
-      if (imp && imp.pagina_atual) {
+      const imp = (historico as Array<Importacao & { pagina_atual?: number }>)
+        .find((i) => i.id === importacaoId);
+      if (imp?.pagina_atual && imp.pagina_atual > 0) {
         paginaInicial = imp.pagina_atual;
+        console.log(`[confirmar] Retomando da página ${paginaInicial}`);
       }
-    } catch {
+    } catch (e) {
+      console.error("[confirmar] Erro ao buscar página atual:", e);
       paginaInicial = 0;
     }
 
