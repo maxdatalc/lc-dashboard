@@ -53,6 +53,7 @@ interface Importacao {
   erros_amostra: string[] | null;
   iniciado_em: string;
   concluido_em: string | null;
+  pagina_atual: number;
 }
 
 interface Props {
@@ -276,19 +277,39 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
   }
 
   async function handleConfirmar(importacaoId: string, totalValidas: number) {
-    const totalPaginas = Math.max(1, Math.ceil(totalValidas / 1000));
-    setConfirmando({ importacaoId, pagina: 0, totalPaginas, importados: 0 });
+    const totalPaginas = Math.ceil(totalValidas / 1000);
     setErro(null);
 
-    let paginaAtual = 0;
-    let totalImportados = 0;
+    // Buscar página atual salva no banco para retomar de onde parou
+    let paginaInicial = 0;
+    try {
+      const historico = await listarImportacoes(lojaId);
+      const imp = (historico as Importacao[]).find((i) => i.id === importacaoId);
+      if (imp && imp.pagina_atual) {
+        paginaInicial = imp.pagina_atual;
+      }
+    } catch {
+      paginaInicial = 0;
+    }
+
+    setConfirmando({
+      importacaoId,
+      pagina: paginaInicial,
+      totalPaginas,
+      importados: paginaInicial * 1000,
+    });
+
+    let paginaAtual = paginaInicial;
+    let totalImportados = paginaInicial * 1000;
 
     while (true) {
       const resultado = await confirmarPagina(importacaoId, paginaAtual);
 
       if (resultado.error) {
-        setErro(resultado.error);
+        setErro(`Erro na página ${paginaAtual}: ${resultado.error}. Clique Confirmar para retomar.`);
         setConfirmando(null);
+        const novas = await listarImportacoes(lojaId);
+        setImportacoes(novas as Importacao[]);
         return;
       }
 
@@ -305,7 +326,6 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
     }
 
     setConfirmando(null);
-    setResultado(null);
     const novas = await listarImportacoes(lojaId);
     setImportacoes(novas as Importacao[]);
   }
@@ -668,6 +688,11 @@ export function ImportacaoCSVSection({ lojas, importacoesIniciais }: Props) {
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge status={imp.status} />
+                    {imp.status === "importando" && imp.pagina_atual > 0 && (
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        página {imp.pagina_atual} de {Math.ceil((imp.linhas_validas ?? 0) / 1000)}
+                      </p>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
                     {formatarData(imp.iniciado_em)}
