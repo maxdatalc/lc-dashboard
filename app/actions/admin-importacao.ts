@@ -721,6 +721,12 @@ export async function confirmarPagina(
       }
     }
 
+    // Salvar página atual no banco — permite retomar se o loop travar
+    await adminClient
+      .from("staging_importacoes")
+      .update({ pagina_atual: pagina })
+      .eq("id", importacaoId);
+
     const concluido = pagina >= totalPaginas - 1;
 
     if (concluido) {
@@ -1154,7 +1160,7 @@ export async function listarImportacoes(lojaId: string) {
   const { data } = await adminClient
     .from("staging_importacoes")
     .select(
-      "id, entidade, arquivo_nome, total_linhas, linhas_validas, linhas_invalidas, status, erros_amostra, iniciado_em, concluido_em"
+      "id, entidade, arquivo_nome, total_linhas, linhas_validas, linhas_invalidas, status, erros_amostra, iniciado_em, concluido_em, pagina_atual"
     )
     .eq("loja_id", lojaId)
     .order("iniciado_em", { ascending: false })
