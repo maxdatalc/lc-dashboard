@@ -23,7 +23,6 @@ export default async function DashboardLayout({
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 
-  // Buscar tenant ativo do cookie — isolamento entre grupos
   const cookieStore = await cookies();
   const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
 
@@ -74,7 +73,7 @@ export default async function DashboardLayout({
           className="min-h-screen"
           style={{ backgroundColor: "var(--bg-primary)" }}
         >
-          <Sidebar isAdmin={isAdmin} lojas={lojas} selectedLojaId={selectedLojaId} />
+          <Sidebar isAdmin={isAdmin} />
 
           <div
             style={{ marginLeft: "var(--sidebar-width)" }}
