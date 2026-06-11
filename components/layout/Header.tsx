@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard/clientes": "Clientes",
   "/dashboard/produtos": "Produtos & Estoque",
   "/dashboard/vendas": "Vendas",
+  "/batauto": "Batauto",
 };
 
 const PERIODS: { value: Period; label: string }[] = [
