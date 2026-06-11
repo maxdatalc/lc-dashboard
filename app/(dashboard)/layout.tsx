@@ -43,16 +43,21 @@ export default async function DashboardLayout({
       .maybeSingle(),
   ]);
 
-  if (!selectedTenantId || !tenantAccessRes.data) {
+  const isAdmin =
+    (profileRes.data as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+
+  if (!isAdmin && (!selectedTenantId || !tenantAccessRes.data)) {
     redirect("/login");
   }
 
-  const { data: lojasData } = await adminClient
-    .from("lojas")
-    .select("id, name")
-    .eq("tenant_id", selectedTenantId)
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+  const { data: lojasData } = selectedTenantId
+    ? await adminClient
+        .from("lojas")
+        .select("id, name")
+        .eq("tenant_id", selectedTenantId)
+        .eq("is_active", true)
+        .order("name", { ascending: true })
+    : { data: [] };
 
   const lojas = (lojasData ?? []) as { id: string; name: string }[];
 
@@ -60,9 +65,6 @@ export default async function DashboardLayout({
   if (selectedLojaId === null && lojas.length > 0) {
     selectedLojaId = lojas[0].id;
   }
-
-  const isAdmin =
-    (profileRes.data as { is_system_admin?: boolean } | null)?.is_system_admin === true;
 
   return (
     <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>

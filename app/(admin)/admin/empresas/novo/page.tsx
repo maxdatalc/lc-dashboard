@@ -36,6 +36,13 @@ type LojaForm = {
   testStatus: TestStatus;
   testErro: string;
   verTerminal: boolean;
+  // Bridge SQL
+  sqlEnabled: boolean;
+  sqlBridgeUrl: string;
+  sqlBridgeToken: string;
+  verToken: boolean;
+  sqlTestStatus: TestStatus;
+  sqlTestErro: string;
 };
 
 interface FormState {
@@ -60,6 +67,12 @@ function novaLoja(base?: Partial<LojaForm>): LojaForm {
     testStatus: "idle",
     testErro: "",
     verTerminal: false,
+    sqlEnabled: false,
+    sqlBridgeUrl: "",
+    sqlBridgeToken: "",
+    verToken: false,
+    sqlTestStatus: "idle",
+    sqlTestErro: "",
   };
 }
 
@@ -111,6 +124,31 @@ export default function NovaEmpresaPage() {
       prev.map((l) => (l.id === id ? { ...l, [campo]: valor } : l))
     );
   }
+
+  const testarBridge = useCallback(
+    async (id: string) => {
+      const loja = lojas.find((l) => l.id === id);
+      if (!loja) return;
+
+      atualizarLoja(id, "sqlTestStatus", "testing");
+      atualizarLoja(id, "sqlTestErro", "");
+
+      try {
+        const res = await fetch("/api/admin/testar-bridge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bridgeUrl: loja.sqlBridgeUrl, token: loja.sqlBridgeToken }),
+        });
+        const data = (await res.json()) as { success: boolean; erro?: string };
+        atualizarLoja(id, "sqlTestStatus", data.success ? "ok" : "erro");
+        if (!data.success) atualizarLoja(id, "sqlTestErro", data.erro ?? "Falha na conexão");
+      } catch {
+        atualizarLoja(id, "sqlTestStatus", "erro");
+        atualizarLoja(id, "sqlTestErro", "Erro de rede ao testar bridge");
+      }
+    },
+    [lojas]
+  );
 
   const testarConexaoLoja = useCallback(
     async (id: string) => {
@@ -208,6 +246,9 @@ export default function NovaEmpresaPage() {
             erpBaseUrl: l.erpBaseUrl,
             terminal: l.terminal,
             syncServicesEnabled: l.syncServicesEnabled,
+            sqlEnabled: l.sqlEnabled,
+            sqlBridgeUrl: l.sqlEnabled ? l.sqlBridgeUrl : undefined,
+            sqlBridgeToken: l.sqlEnabled ? l.sqlBridgeToken : undefined,
           })),
           features: form.featuresAtivas,
           usuario: {
@@ -456,6 +497,91 @@ export default function NovaEmpresaPage() {
                       </p>
                     </label>
                   </div>
+
+                  {/* ── Bridge SQL (opcional) ─────────────────────────── */}
+                  <div
+                    className="flex items-start gap-3 p-3 rounded-lg"
+                    style={{ background: "rgba(0,0,0,0.02)", border: "1px solid #e2e8f0" }}
+                  >
+                    <input
+                      type="checkbox"
+                      id={`sql-${loja.id}`}
+                      checked={loja.sqlEnabled}
+                      onChange={(e) => atualizarLoja(loja.id, "sqlEnabled", e.target.checked)}
+                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <label htmlFor={`sql-${loja.id}`} className="cursor-pointer flex-1">
+                      <p className="text-sm font-medium text-slate-700">
+                        Dashboard SQL (LC Gestor)
+                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Habilita consultas diretas ao SQL Server via bridge instalada na máquina do cliente.
+                      </p>
+                    </label>
+                  </div>
+
+                  {loja.sqlEnabled && (
+                    <div className="space-y-3 pl-1">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          URL da Bridge <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="url"
+                          value={loja.sqlBridgeUrl}
+                          onChange={(e) => atualizarLoja(loja.id, "sqlBridgeUrl", e.target.value)}
+                          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                          placeholder="https://sql-nomecliente.lctecnologias.com.br"
+                        />
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          URL do Cloudflare Tunnel apontando para a porta 3055 da bridge.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-slate-600 mb-1">
+                          Token de segurança <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={loja.verToken ? "text" : "password"}
+                            value={loja.sqlBridgeToken}
+                            onChange={(e) => atualizarLoja(loja.id, "sqlBridgeToken", e.target.value)}
+                            className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+                            placeholder="Token gerado pelo instalador da bridge"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => atualizarLoja(loja.id, "verToken", !loja.verToken)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                          >
+                            {loja.verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          </button>
+                        </div>
+                        <p className="text-xs text-red-500 mt-0.5">
+                          Gerado pelo instalar-bridge.ps1. Armazenado criptografado.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => testarBridge(loja.id)}
+                        disabled={loja.sqlTestStatus === "testing" || !loja.sqlBridgeUrl || !loja.sqlBridgeToken}
+                        className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {loja.sqlTestStatus === "idle" && <Plug className="h-3.5 w-3.5" />}
+                        {loja.sqlTestStatus === "testing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        {loja.sqlTestStatus === "ok" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+                        {loja.sqlTestStatus === "erro" && <XCircle className="h-3.5 w-3.5 text-red-500" />}
+                        <span className={loja.sqlTestStatus === "ok" ? "text-green-600" : loja.sqlTestStatus === "erro" ? "text-red-600" : ""}>
+                          {loja.sqlTestStatus === "idle" && "Testar conexão da bridge"}
+                          {loja.sqlTestStatus === "testing" && "Testando..."}
+                          {loja.sqlTestStatus === "ok" && "Bridge OK"}
+                          {loja.sqlTestStatus === "erro" && (loja.sqlTestErro || "Falha na bridge")}
+                        </span>
+                      </button>
+                    </div>
+                  )}
 
                   <button
                     type="button"

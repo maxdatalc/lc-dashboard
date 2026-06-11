@@ -2,7 +2,7 @@
 // Usa createAdminClient() em todas as operações (bypassa RLS)
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { createTenant, createLoja } from "@/lib/db/tenants";
+import { createTenant, createLoja, updateLojaSqlConfig } from "@/lib/db/tenants";
 import { FEATURES_CATALOG } from "@/lib/features";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────
@@ -28,7 +28,16 @@ export type TenantComLojas = {
 
 export type NovoClienteInput = {
   tenant: { name: string; slug: string; plan: "free" | "premium" };
-  lojas: { name: string; empId: number; erpBaseUrl: string; terminal: string; syncServicesEnabled?: boolean }[];
+  lojas: {
+    name: string;
+    empId: number;
+    erpBaseUrl: string;
+    terminal: string;
+    syncServicesEnabled?: boolean;
+    sqlEnabled?: boolean;
+    sqlBridgeUrl?: string;
+    sqlBridgeToken?: string;
+  }[];
   features: string[];
   usuario: {
     email: string;
@@ -183,6 +192,15 @@ export async function createNovoCliente(input: NovoClienteInput): Promise<{
         syncServicesEnabled: lojaInput.syncServicesEnabled ?? false,
       });
       lojaIds.push(loja.id);
+
+      // Salvar config da bridge SQL se fornecida (token criptografado internamente)
+      if (lojaInput.sqlEnabled && lojaInput.sqlBridgeUrl && lojaInput.sqlBridgeToken) {
+        await updateLojaSqlConfig(loja.id, {
+          bridgeUrl: lojaInput.sqlBridgeUrl,
+          token: lojaInput.sqlBridgeToken,
+          enabled: true,
+        });
+      }
     }
 
     // 3. Ativar features contratadas
