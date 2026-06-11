@@ -19,6 +19,10 @@ export type Loja = {
   isActive: boolean;
   syncServicesEnabled: boolean;
   createdAt: string;
+  // Módulo Dashboard SQL (bridge)
+  sqlEnabled: boolean;
+  sqlBridgeUrl: string | null;
+  sqlBridgeToken: string | null; // sempre criptografado — nunca expor
 };
 
 export type User = {

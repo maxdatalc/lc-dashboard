@@ -44,6 +44,9 @@ function rowToLoja(row: Record<string, unknown>): Loja {
     isActive: row.is_active as boolean,
     syncServicesEnabled: (row.sync_services_enabled as boolean) ?? false,
     createdAt: row.created_at as string,
+    sqlEnabled: (row.sql_enabled as boolean) ?? false,
+    sqlBridgeUrl: (row.sql_bridge_url as string) ?? null,
+    sqlBridgeToken: (row.sql_bridge_token as string) ?? null,
   };
 }
 
@@ -117,6 +120,52 @@ export async function getLojasByTenantId(tenantId: string): Promise<Loja[]> {
   if (error) throw new Error(error.message);
 
   return (data as Record<string, unknown>[]).map(rowToLoja);
+}
+
+// Retorna URL + token da bridge SQL prontos para uso — token descriptografado em memória
+export async function getLojaDbConfig(
+  lojaId: string
+): Promise<{ bridgeUrl: string; token: string } | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("lojas")
+    .select("sql_enabled, sql_bridge_url, sql_bridge_token")
+    .eq("id", lojaId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+
+  if (!row.sql_enabled || !row.sql_bridge_url || !row.sql_bridge_token) {
+    return null;
+  }
+
+  return {
+    bridgeUrl: row.sql_bridge_url as string,
+    token: decrypt(row.sql_bridge_token as string),
+  };
+}
+
+// Salva ou atualiza as credenciais da bridge SQL de uma loja (criptografa o token)
+export async function updateLojaSqlConfig(
+  lojaId: string,
+  config: { bridgeUrl: string; token: string; enabled: boolean }
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from("lojas")
+    .update({
+      sql_bridge_url:   config.bridgeUrl,
+      sql_bridge_token: encrypt(config.token),
+      sql_enabled:      config.enabled,
+    })
+    .eq("id", lojaId);
+
+  if (error) throw new Error(error.message);
 }
 
 // Retorna as credenciais de acesso ao ERP prontas para uso no MaxData client

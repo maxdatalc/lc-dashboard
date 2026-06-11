@@ -9,6 +9,7 @@ import {
   Landmark,
   Users,
   LogOut,
+  Wrench,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import type { Loja } from "@/lib/contexts/loja-context";
@@ -34,6 +35,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark, exact: false },
   { href: "/dashboard/clientes", label: "Clientes", icon: Users, exact: false },
+  { href: "/batauto", label: "Batauto", icon: Wrench, exact: false },
 ];
 
 export function Sidebar({ isAdmin }: Props) {
