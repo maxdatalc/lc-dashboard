@@ -12,12 +12,9 @@ import {
   Wrench,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
-import type { Loja } from "@/lib/contexts/loja-context";
 
 interface Props {
   isAdmin: boolean;
-  lojas: Loja[];
-  selectedLojaId: string | null;
 }
 
 const ACTIVE_STYLE = {
