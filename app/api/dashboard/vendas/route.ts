@@ -1,9 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
-import { requireFeatureWithLojas } from "@/lib/api/plan-guard";
+import { requireTenantAccess } from "@/lib/api/tenant-guard";
+import { getLojaDbConfig } from "@/lib/db/tenants";
+import { queryBridge, BridgeError } from "@/lib/mssql/client";
+
+export const dynamic = "force-dynamic";
 
 const PAGE_LIMIT = 20;
+
+function mapStatus(vedStatus: string): string {
+  switch (vedStatus) {
+    case "F": return "finalizada";
+    case "C": return "cancelada";
+    case "O": return "pendente";
+    default:  return vedStatus;
+  }
+}
+
+interface VendaDbRow {
+  vedId: number;
+  vedTotalNf: number;
+  vedFechamento: string;
+  vedStatus: string;
+  vedNfCfop: number | null;
+  vedCfop: number | null;
+  vedCliNome: string | null;
+  total: number;
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
@@ -20,8 +43,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "lojaId ou lojaIds é obrigatório" }, { status: 400 });
   }
 
-  const denied = await requireFeatureWithLojas("modulo_vendas", lojaIds);
-  if (denied) return denied;
+  const guard = await requireTenantAccess(lojaIds);
+  if (guard instanceof NextResponse) return guard;
 
   const period = searchParams.get("period") ?? "month";
   const startParam = searchParams.get("start");
@@ -30,51 +53,95 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ? { start: startParam, end: endParam }
     : getDateRange(period);
 
-  const status = searchParams.get("status");        // ex: "finalizada"
-  const tipo = searchParams.get("tipo");            // ex: "venda" | "devolucao"
-  const search = searchParams.get("search") ?? "";  // busca por cliente_nome
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-  const limit = parseInt(searchParams.get("limit") ?? String(PAGE_LIMIT), 10);
-  const offset = (page - 1) * limit;
+  const statusFiltro = searchParams.get("status");
+  const tipoFiltro   = searchParams.get("tipo");
+  const search       = (searchParams.get("search") ?? "").trim();
+  const page         = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
+  const limit        = parseInt(searchParams.get("limit") ?? String(PAGE_LIMIT), 10);
+  const offset       = (page - 1) * limit;
 
-  const supabase = await createClient();
-
-  let query = supabase
-    .from("vendas")
-    .select(
-      "id, external_id, loja_id, data_venda, valor_total, status, cfop, cliente_nome",
-      { count: "exact" }
-    )
-    .in("loja_id", lojaIds)
-    .gte("data_venda", start)
-    .lte("data_venda", end)
-    .order("data_venda", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (status) query = query.eq("status", status);
-
-  // Filtro por tipo: venda (5xxx/6xxx ou null) vs devolucao (1xxx/2xxx/3xxx)
-  if (tipo === "venda") {
-    query = query.or("cfop.is.null,cfop.gte.5000");
-  } else if (tipo === "devolucao") {
-    query = query.lt("cfop", 4000).not("cfop", "is", null);
+  // Usa o primeiro bridge configurado entre as lojas disponíveis
+  let config: Awaited<ReturnType<typeof getLojaDbConfig>> = null;
+  let usedLojaId = lojaIds[0];
+  for (const id of lojaIds) {
+    config = await getLojaDbConfig(id).catch(() => null);
+    if (config) { usedLojaId = id; break; }
   }
 
-  if (search.trim()) {
-    query = query.ilike("cliente_nome", `%${search.trim()}%`);
+  if (!config) {
+    return NextResponse.json(
+      { error: "Bridge SQL não configurada para esta loja." },
+      { status: 503 }
+    );
   }
 
-  const { data, error, count } = await query;
+  // Condições WHERE dinâmicas
+  const conditions: string[] = [
+    "CONVERT(date, vedFechamento) BETWEEN @start AND @end",
+  ];
+  const params: Record<string, unknown> = { start, end, offset, limit };
 
-  if (error) {
-    console.error("[vendas] erro:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (statusFiltro === "finalizada") conditions.push("vedStatus = 'F'");
+  else if (statusFiltro === "cancelada") conditions.push("vedStatus = 'C'");
+  else if (statusFiltro === "pendente") conditions.push("vedStatus = 'O'");
+  else conditions.push("vedStatus IN ('F','C','O')");
+
+  if (tipoFiltro === "venda") conditions.push("vedTipo = 'VE'");
+  else if (tipoFiltro === "devolucao") conditions.push("vedTipo = 'DV'");
+  else conditions.push("vedTipo IN ('OS','VE','DV')");
+
+  if (search) {
+    conditions.push("vedCliNome LIKE @search");
+    params.search = `%${search}%`;
   }
 
-  return NextResponse.json({
-    vendas: data ?? [],
-    total: count ?? 0,
-    page,
-    totalPages: Math.ceil((count ?? 0) / limit),
-  });
+  const where = "WHERE " + conditions.join(" AND ");
+
+  try {
+    const [dataRows, countRows] = await Promise.all([
+      queryBridge<VendaDbRow>(
+        config,
+        `SELECT
+          vedId, vedTotalNf, vedFechamento, vedStatus,
+          ISNULL(vedNfCfop, vedCfop) AS vedNfCfop,
+          vedCliNome
+        FROM venda
+        ${where}
+        ORDER BY vedFechamento DESC
+        OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`,
+        params
+      ),
+      queryBridge<{ total: number }>(
+        config,
+        `SELECT COUNT(*) AS total FROM venda ${where}`,
+        params
+      ),
+    ]);
+
+    const totalCount = Number(countRows[0]?.total ?? 0);
+
+    const vendas = dataRows.map((r) => ({
+      id: String(r.vedId),
+      external_id: r.vedId,
+      loja_id: usedLojaId,
+      data_venda: r.vedFechamento
+        ? new Date(r.vedFechamento).toISOString().split("T")[0]
+        : "",
+      valor_total: r.vedTotalNf != null ? Number(r.vedTotalNf) : null,
+      status: mapStatus(r.vedStatus ?? ""),
+      cfop: r.vedNfCfop != null ? Number(r.vedNfCfop) : null,
+      cliente_nome: r.vedCliNome ?? null,
+    }));
+
+    return NextResponse.json({
+      vendas,
+      total: totalCount,
+      page,
+      totalPages: Math.ceil(totalCount / limit),
+    });
+  } catch (e) {
+    const msg = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
+    console.error("[vendas] bridge error:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 }
