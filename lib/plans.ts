@@ -6,7 +6,9 @@ export type UserRole = "owner" | "admin" | "viewer"
 // ── Features disponíveis por plano ────────────────────────────────────────────
 export const PLAN_FEATURES: Record<Plan, ReadonlySet<string>> = {
   free: new Set([
-    "dashboard_visao_geral",   // KPIs + top produtos + top clientes (básico)
+    "dashboard_visao_geral",
+    "modulo_clientes",
+    "modulo_produtos",
   ]),
   premium: new Set([
     "dashboard_visao_geral",
