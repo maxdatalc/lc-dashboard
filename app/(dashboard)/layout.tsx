@@ -56,7 +56,9 @@ export default async function DashboardLayout({
   const isAdmin =
     (profileRes.data as { is_system_admin?: boolean } | null)?.is_system_admin === true;
 
-  if (!isAdmin && (!selectedTenantId || !tenantAccessRes.data)) {
+  // Redireciona somente quando a empresa está selecionada mas o usuário não tem acesso a ela.
+  // Quando não há cookie de empresa (expirado/novo login), deixa passar e mostra estado vazio.
+  if (!isAdmin && selectedTenantId && !tenantAccessRes.data) {
     redirect("/login");
   }
 
