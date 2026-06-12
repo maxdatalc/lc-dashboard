@@ -60,20 +60,18 @@ function formatarData(iso: string | null): string {
 }
 
 function RoleBadge({ role }: { role: string }) {
+  const cfg =
+    role === "owner"
+      ? { className: "bg-amber-100 text-amber-700", label: "Owner", Icon: Shield }
+      : role === "admin"
+      ? { className: "bg-violet-100 text-violet-700", label: "Admin", Icon: Shield }
+      : { className: "bg-slate-100 text-slate-500", label: "Viewer", Icon: Eye };
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-        role === "admin"
-          ? "bg-violet-100 text-violet-700"
-          : "bg-slate-100 text-slate-500"
-      }`}
+      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider ${cfg.className}`}
     >
-      {role === "admin" ? (
-        <Shield className="w-2.5 h-2.5" />
-      ) : (
-        <Eye className="w-2.5 h-2.5" />
-      )}
-      {role}
+      <cfg.Icon className="w-2.5 h-2.5" />
+      {cfg.label}
     </span>
   );
 }
@@ -87,7 +85,7 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
   const [modalSenha, setModalSenha] = useState<string | null>(null);
   const [novaSenha, setNovaSenha] = useState("");
   const [empresaVincular, setEmpresaVincular] = useState("");
-  const [roleVincular, setRoleVincular] = useState<"admin" | "viewer">("viewer");
+  const [roleVincular, setRoleVincular] = useState<"owner" | "admin" | "viewer">("viewer");
   const [feedback, setFeedback] = useState<{
     tipo: "ok" | "erro";
     msg: string;

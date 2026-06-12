@@ -25,13 +25,15 @@ import {
   excluirUsuario,
 } from "@/app/actions/admin-usuarios";
 
+type UserRole = "owner" | "admin" | "viewer";
+
 interface EmpresaVinculada {
   tenant_id: string;
   tenant_name: string;
   tenant_slug: string;
   tenant_plan: string;
   tenant_ativo: boolean;
-  role: "admin" | "viewer";
+  role: UserRole;
 }
 
 interface EmpresaOption {
@@ -68,29 +70,23 @@ function formatarData(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-function RoleBadge({
-  role,
-  onClick,
-}: {
-  role: "admin" | "viewer";
-  onClick?: () => void;
-}) {
+const ROLE_CONFIG: Record<UserRole, { label: string; className: string; icon: React.ElementType }> = {
+  owner: { label: "Proprietário", className: "bg-amber-100 text-amber-700 hover:bg-amber-200", icon: Crown },
+  admin: { label: "Admin",        className: "bg-violet-100 text-violet-700 hover:bg-violet-200", icon: Shield },
+  viewer:{ label: "Viewer",       className: "bg-slate-100 text-slate-500 hover:bg-slate-200",   icon: Eye   },
+};
+
+function RoleBadge({ role, onClick }: { role: UserRole; onClick?: () => void }) {
+  const cfg = ROLE_CONFIG[role];
+  const Icon = cfg.icon;
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors ${
-        role === "admin"
-          ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
-          : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-      } ${onClick ? "cursor-pointer" : "cursor-default"}`}
+      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors ${cfg.className} ${onClick ? "cursor-pointer" : "cursor-default"}`}
       title={onClick ? "Clique para alternar permissão" : undefined}
     >
-      {role === "admin" ? (
-        <Shield className="w-3 h-3" />
-      ) : (
-        <Eye className="w-3 h-3" />
-      )}
-      {role === "admin" ? "Admin" : "Viewer"}
+      <Icon className="w-3 h-3" />
+      {cfg.label}
     </button>
   );
 }
@@ -107,7 +103,7 @@ export function UsuarioDetalheClient({
   const [novaSenha, setNovaSenha] = useState("");
   const [senhaVisivel, setSenhaVisivel] = useState(false);
   const [empresaVincular, setEmpresaVincular] = useState("");
-  const [roleVincular, setRoleVincular] = useState<"admin" | "viewer">("viewer");
+  const [roleVincular, setRoleVincular] = useState<UserRole>("viewer");
   const [feedback, setFeedback] = useState<{
     tipo: "ok" | "erro";
     msg: string;
@@ -167,7 +163,7 @@ export function UsuarioDetalheClient({
         mostrarFeedback("ok", "Empresa vinculada com sucesso");
         setModalVincular(false);
         setEmpresaVincular("");
-        setRoleVincular("viewer");
+        setRoleVincular("viewer" as UserRole);
       }
     });
   }
@@ -190,8 +186,10 @@ export function UsuarioDetalheClient({
     });
   }
 
-  function handleAlterarRole(tenantId: string, roleAtual: "admin" | "viewer") {
-    const novaRole = roleAtual === "admin" ? "viewer" : "admin";
+  function handleAlterarRole(tenantId: string, roleAtual: UserRole) {
+    // Ciclo: owner → admin → viewer → owner
+    const ciclo: UserRole[] = ["owner", "admin", "viewer"];
+    const novaRole = ciclo[(ciclo.indexOf(roleAtual) + 1) % ciclo.length];
     startTransition(async () => {
       const result = await alterarRoleUsuario(usuario.id, tenantId, novaRole);
       if (result.error) {
@@ -534,31 +532,33 @@ export function UsuarioDetalheClient({
                 <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
                   Permissão
                 </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {(["viewer", "admin"] as const).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setRoleVincular(r)}
-                      className={`flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                        roleVincular === r
-                          ? "border-violet-500 bg-violet-50 text-violet-700"
-                          : "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      {r === "admin" ? (
-                        <Shield className="w-3.5 h-3.5" />
-                      ) : (
-                        <Eye className="w-3.5 h-3.5" />
-                      )}
-                      {r === "admin" ? "Admin" : "Viewer"}
-                    </button>
-                  ))}
+                <div className="grid grid-cols-3 gap-2">
+                  {(["owner", "admin", "viewer"] as const).map((r) => {
+                    const cfg = ROLE_CONFIG[r];
+                    const Icon = cfg.icon;
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRoleVincular(r)}
+                        className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium border transition-all ${
+                          roleVincular === r
+                            ? "border-violet-500 bg-violet-50 text-violet-700"
+                            : "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <Icon className="w-3 h-3" />
+                        {cfg.label}
+                      </button>
+                    );
+                  })}
                 </div>
                 <p className="text-xs text-slate-400">
-                  {roleVincular === "admin"
-                    ? "Admin pode ver todos os dados e sincronizar"
-                    : "Viewer só pode visualizar o dashboard"}
+                  {roleVincular === "owner"
+                    ? "Proprietário: acesso total, pode gerenciar usuários"
+                    : roleVincular === "admin"
+                    ? "Admin: pode editar configurações e ver dados"
+                    : "Viewer: somente leitura do dashboard"}
                 </p>
               </div>
             </div>

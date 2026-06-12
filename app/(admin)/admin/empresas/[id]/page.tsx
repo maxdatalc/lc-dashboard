@@ -15,17 +15,32 @@ import {
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
-import { ImportacaoCSVSection } from "@/components/admin/ImportacaoCSVSection";
 
-type Aba = "lojas" | "features" | "usuarios" | "importacao";
+type Aba = "lojas" | "features" | "usuarios";
 
-// ── Server Action para atualizar módulos ────────────────────────────────────
+// ── Server Actions ───────────────────────────────────────────────────────────
 
 async function salvarFeatures(tenantId: string, formData: FormData) {
   "use server";
   const features = formData.getAll("feature").map(String);
   const featuresFinais = Array.from(new Set([...getCoreFeatures(), ...features]));
   await updateTenantFeatures(tenantId, featuresFinais);
+  redirect(`/admin/empresas/${tenantId}?aba=features`);
+}
+
+async function ativarPremium(tenantId: string) {
+  "use server";
+  const todasPremium = FEATURES_CATALOG
+    .filter((f) => f.disponivel)
+    .map((f) => f.key);
+  const featuresFinais = Array.from(new Set([...getCoreFeatures(), ...todasPremium]));
+  await updateTenantFeatures(tenantId, featuresFinais);
+  redirect(`/admin/empresas/${tenantId}?aba=features`);
+}
+
+async function downgradeFree(tenantId: string) {
+  "use server";
+  await updateTenantFeatures(tenantId, getCoreFeatures());
   redirect(`/admin/empresas/${tenantId}?aba=features`);
 }
 
@@ -40,7 +55,7 @@ export default async function GerenciarEmpresaPage({
 }) {
   const { id } = await params;
   const { aba: abaParam } = await searchParams;
-  const abaAtiva: Aba = (["lojas", "features", "usuarios", "importacao"].includes(abaParam ?? "")
+  const abaAtiva: Aba = (["lojas", "features", "usuarios"].includes(abaParam ?? "")
     ? abaParam
     : "lojas") as Aba;
 
@@ -48,8 +63,6 @@ export default async function GerenciarEmpresaPage({
   if (!tenant) notFound();
 
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenant(id) : [];
-  // Importações carregadas pelo componente client após seleção da loja
-  const importacoes: never[] = [];
 
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
   const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
@@ -58,7 +71,6 @@ export default async function GerenciarEmpresaPage({
     { valor: "lojas", label: "Lojas" },
     { valor: "features", label: "Módulos" },
     { valor: "usuarios", label: "Usuários" },
-    { valor: "importacao", label: "Importação CSV" },
   ];
 
   return (
@@ -114,6 +126,49 @@ export default async function GerenciarEmpresaPage({
 
       {/* ── Aba Módulos ───────────────────────────────────────────────────── */}
       {abaAtiva === "features" && (
+        <div className="space-y-6">
+          {/* Seletor rápido de plano */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Plano atual</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Altere diretamente ou selecione módulos individualmente abaixo.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <form action={downgradeFree.bind(null, id)}>
+                  <button
+                    type="submit"
+                    disabled={tenant.plan === "free"}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={
+                      tenant.plan === "free"
+                        ? { backgroundColor: "#1e293b", color: "#fff", borderColor: "#1e293b" }
+                        : { backgroundColor: "transparent", color: "#64748b", borderColor: "#e2e8f0" }
+                    }
+                  >
+                    Free
+                  </button>
+                </form>
+                <form action={ativarPremium.bind(null, id)}>
+                  <button
+                    type="submit"
+                    disabled={tenant.plan === "premium"}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={
+                      tenant.plan === "premium"
+                        ? { backgroundColor: "#d97706", color: "#fff", borderColor: "#d97706" }
+                        : { backgroundColor: "transparent", color: "#64748b", borderColor: "#e2e8f0" }
+                    }
+                  >
+                    ★ Premium
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+
         <form action={salvarFeatures.bind(null, id)} className="space-y-6">
           {/* Core — sempre ativas, sem toggle */}
           <div>
@@ -183,6 +238,7 @@ export default async function GerenciarEmpresaPage({
             Salvar módulos
           </button>
         </form>
+        </div>
       )}
 
       {/* ── Aba Usuários ──────────────────────────────────────────────────── */}
@@ -190,21 +246,6 @@ export default async function GerenciarEmpresaPage({
         <UsuariosSectionClient tenantId={id} usuarios={usuarios} />
       )}
 
-      {/* ── Aba Importação CSV ────────────────────────────────────────────── */}
-      {abaAtiva === "importacao" && (
-        <ImportacaoCSVSection
-          lojas={tenant.lojas.map((l: Record<string, unknown>) => ({
-            id: String(l.id ?? ""),
-            name: String(l.name ?? ""),
-            empId: l.empId !== undefined
-              ? Number(l.empId)
-              : l.emp_id !== undefined
-              ? Number(l.emp_id)
-              : undefined,
-          }))}
-          importacoesIniciais={importacoes}
-        />
-      )}
     </div>
   );
 }
