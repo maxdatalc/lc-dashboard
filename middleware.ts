@@ -61,18 +61,23 @@ export async function middleware(request: NextRequest) {
 
     const isSysAdmin = (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
 
-    if (IS_DEV) {
-      // Em dev: redireciona por path, sem troca de domínio
-      return NextResponse.redirect(new URL(isSysAdmin ? "/admin" : "/dashboard", request.url));
+    // Admin vai sempre para /admin
+    if (isSysAdmin) {
+      return IS_DEV
+        ? NextResponse.redirect(new URL("/admin", request.url))
+        : NextResponse.redirect(`${ADMIN_URL}/admin`);
     }
 
-    // Em produção: garante que admin vai para admpainel e cliente vai para app
-    if (isSysAdmin) {
-      return NextResponse.redirect(`${ADMIN_URL}/admin`);
-    } else {
-      // Se um não-admin tentou logar no admpainel, manda para o app
-      return NextResponse.redirect(`${APP_URL}/dashboard`);
+    // Não-admin: só redireciona para /dashboard se o cookie de empresa estiver presente.
+    // Se o cookie expirou, deixa o usuário chegar na tela de login para re-selecionar empresa.
+    const hasTenantCookie = !!request.cookies.get("selected_tenant_id")?.value;
+    if (hasTenantCookie) {
+      return IS_DEV
+        ? NextResponse.redirect(new URL("/dashboard", request.url))
+        : NextResponse.redirect(`${APP_URL}/dashboard`);
     }
+
+    return supabaseResponse;
   }
 
   // ── 4. Rotas /admin exigem is_system_admin ────────────────────────────────
