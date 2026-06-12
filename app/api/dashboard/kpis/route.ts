@@ -104,47 +104,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let faturamentoAnt = 0;
   let totalVendasAnt = 0;
 
+  const SQL_KPIS = `
+    SELECT
+      ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
+      COUNT(*)                                                                       AS totalVendas,
+      COUNT(DISTINCT NULLIF(vedClienteId, 0))                                       AS clientes,
+      ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0)  AS ticketMedio
+    FROM venda
+    WHERE vedStatus IN ('F','C')
+      AND vedTipo IN ('OS','VE')
+      AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+
   let bridgeFound = false;
+  let lastError = "";
 
   for (const id of lojaIds) {
-    let config: { bridgeUrl: string; token: string } | null = null;
-    try {
-      config = await getLojaDbConfig(id);
-    } catch {
-      continue;
-    }
+    const config = await getLojaDbConfig(id).catch(() => null);
     if (!config) continue;
 
     bridgeFound = true;
 
     try {
       const [atual, ant] = await Promise.all([
-        queryBridge<KpiRow>(
-          config,
-          `SELECT
-            ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
-            COUNT(*)                                                                       AS totalVendas,
-            COUNT(DISTINCT NULLIF(vedClienteId, 0))                                       AS clientes,
-            ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0)  AS ticketMedio
-          FROM venda
-          WHERE vedStatus IN ('F','C')
-            AND vedTipo IN ('OS','VE')
-            AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`,
-          { start, end }
-        ),
-        queryBridge<KpiRow>(
-          config,
-          `SELECT
-            ISNULL(SUM(vedTotalNf), 0) AS faturamento,
-            COUNT(*)                   AS totalVendas,
-            COUNT(DISTINCT NULLIF(vedClienteId, 0)) AS clientes,
-            ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0) AS ticketMedio
-          FROM venda
-          WHERE vedStatus IN ('F','C')
-            AND vedTipo IN ('OS','VE')
-            AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`,
-          { start: anterior.start, end: anterior.end }
-        ),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start, end }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end }),
       ]);
 
       faturamento += Number(atual[0]?.faturamento ?? 0);
@@ -153,16 +136,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       faturamentoAnt += Number(ant[0]?.faturamento ?? 0);
       totalVendasAnt += Number(ant[0]?.totalVendas ?? 0);
     } catch (e) {
-      const msg = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
-      console.error(`[kpis] bridge error for loja ${id}:`, msg);
+      lastError = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
+      console.error(`[kpis] bridge error loja ${id}:`, lastError);
     }
   }
 
   if (!bridgeFound) {
     return NextResponse.json(
-      { error: "Bridge SQL não configurada para esta loja. Configure em Admin > Empresas > Lojas > Bridge." },
+      { error: "Bridge SQL não configurada para esta loja. Acesse Admin → Empresas → Lojas → Bridge." },
       { status: 503 }
     );
+  }
+
+  // Se todas as lojas falharam com erro, expõe o erro real
+  if (lastError && faturamento === 0 && totalVendas === 0) {
+    return NextResponse.json({ error: lastError }, { status: 500 });
   }
 
   const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
