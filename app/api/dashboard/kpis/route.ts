@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
+import { requireTenantAccess } from "@/lib/api/tenant-guard";
 
 function calcVariacao(atual: number, anterior: number): number | null {
   if (anterior === 0) return null;
@@ -76,11 +77,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
+  const guard = await requireTenantAccess(lojaIds);
+  if (guard instanceof NextResponse) return guard;
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
 
   // Usar start/end enviados pelo cliente — respeita período selecionado
   const startParam = searchParams.get("start");

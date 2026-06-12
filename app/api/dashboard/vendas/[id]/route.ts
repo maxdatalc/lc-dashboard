@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { requireFeature } from "@/lib/api/plan-guard";
+import { requireFeatureWithLojas } from "@/lib/api/plan-guard";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse> {
-  const denied = await requireFeature("modulo_vendas");
-  if (denied) return denied;
   const externalId = params.id;
   const lojaId = req.nextUrl.searchParams.get("lojaId");
 
@@ -15,9 +13,10 @@ export async function GET(
     return NextResponse.json({ error: "lojaId é obrigatório" }, { status: 400 });
   }
 
+  const denied = await requireFeatureWithLojas("modulo_vendas", [lojaId]);
+  if (denied) return denied;
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   // Buscar itens e pagamentos em paralelo
   const [itensRes, pagamentosRes] = await Promise.all([

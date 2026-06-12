@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSelectedLojaId } from "@/app/actions/lojas";
 import { createClient } from "@/lib/supabase/server";
 import { redis } from "@/lib/redis";
+import { requireTenantAccess } from "@/lib/api/tenant-guard";
 
 interface ProdutoRanking {
   nome: string;
@@ -29,11 +30,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const lojaId = await getSelectedLojaId();
   if (!lojaId) {
-    return NextResponse.json(
-      { error: "Selecione uma loja no dashboard" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Selecione uma loja no dashboard" }, { status: 400 });
   }
+
+  const guard = await requireTenantAccess([lojaId]);
+  if (guard instanceof NextResponse) return guard;
 
   const chave = `dashboard:top-produtos:${lojaId}:${dataInicio}:${dataFim}`;
 

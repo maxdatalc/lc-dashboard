@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
+import { requireTenantAccess } from "@/lib/api/tenant-guard";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
@@ -20,9 +21,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "lojaId/lojaIds e type são obrigatórios" }, { status: 400 });
   }
 
+  const guard = await requireTenantAccess(lojaIds);
+  if (guard instanceof NextResponse) return guard;
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   // Usar start/end enviados pelo cliente se disponíveis (inclui customRange)
   const startParam = searchParams.get("start");
