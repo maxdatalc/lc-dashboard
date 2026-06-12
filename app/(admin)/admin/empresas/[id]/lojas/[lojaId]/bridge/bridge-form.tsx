@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Eye, EyeOff, Copy, Check } from "lucide-react";
+import {
+  Eye, EyeOff, Copy, Check, Plug, Loader2, CheckCircle2, XCircle,
+} from "lucide-react";
+
+type TestStatus = "idle" | "testing" | "ok" | "erro";
 
 interface Props {
   action: (formData: FormData) => Promise<void>;
@@ -11,41 +15,78 @@ interface Props {
 }
 
 export default function BridgeForm({ action, loja, tenantId }: Props) {
+  const [bridgeUrl, setBridgeUrl] = useState(loja.bridgeUrl);
+  const [token, setToken] = useState(loja.bridgeToken);
+  const [enabled, setEnabled] = useState(loja.sqlEnabled);
   const [verToken, setVerToken] = useState(false);
   const [copiado, setCopiado] = useState(false);
 
+  const [testStatus, setTestStatus] = useState<TestStatus>("idle");
+  const [testErro, setTestErro] = useState("");
+  const [testRow, setTestRow] = useState<Record<string, unknown> | null>(null);
+
   async function copiarToken() {
-    const input = document.getElementById("bridge-token") as HTMLInputElement | null;
-    if (!input) return;
-    await navigator.clipboard.writeText(input.value);
+    await navigator.clipboard.writeText(token);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   }
 
+  async function testarConexao() {
+    if (!bridgeUrl || !token) return;
+    setTestStatus("testing");
+    setTestErro("");
+    setTestRow(null);
+    try {
+      const res = await fetch("/api/admin/testar-bridge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bridgeUrl, token }),
+      });
+      const data = (await res.json()) as {
+        success: boolean;
+        erro?: string;
+        rows?: Record<string, unknown>[];
+      };
+      if (data.success) {
+        setTestStatus("ok");
+        setTestRow(data.rows?.[0] ?? null);
+      } else {
+        setTestStatus("erro");
+        setTestErro(data.erro ?? "Falha na conexão");
+      }
+    } catch {
+      setTestStatus("erro");
+      setTestErro("Erro de rede ao testar bridge");
+    }
+  }
+
   return (
     <form action={action} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+
+      {/* ── Habilitar ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
         <input
           type="checkbox"
           id="enabled"
           name="enabled"
-          defaultChecked={loja.sqlEnabled}
+          checked={enabled}
+          onChange={(e) => setEnabled(e.target.checked)}
           className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
         />
         <label htmlFor="enabled" className="cursor-pointer">
           <p className="text-sm font-medium text-slate-700">Bridge SQL habilitada</p>
-          <p className="text-xs text-slate-400">Desmarque para pausar sem perder as credenciais.</p>
+          <p className="text-xs text-slate-400">Desmarque para pausar sem apagar as credenciais.</p>
         </label>
       </div>
 
+      {/* ── URL ───────────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">
-          URL da Bridge
-        </label>
+        <label className="block text-xs font-medium text-slate-600 mb-1">URL da Bridge</label>
         <input
           type="url"
           name="bridgeUrl"
-          defaultValue={loja.bridgeUrl}
+          value={bridgeUrl}
+          onChange={(e) => setBridgeUrl(e.target.value)}
           placeholder="https://sql-cliente.lctecnologias.com.br"
           className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
         />
@@ -54,6 +95,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
         </p>
       </div>
 
+      {/* ── Token ─────────────────────────────────────────────────────── */}
       <div>
         <label className="block text-xs font-medium text-slate-600 mb-1">
           Token de segurança
@@ -64,8 +106,9 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
               id="bridge-token"
               type={verToken ? "text" : "password"}
               name="token"
-              defaultValue={loja.bridgeToken}
-              placeholder={loja.bridgeToken ? "••••••••••••••••" : "Token gerado pelo instalar-bridge.ps1"}
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Token gerado pelo instalar-bridge.ps1"
               className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
             <button
@@ -76,7 +119,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
               {verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
-          {loja.bridgeToken && (
+          {token && (
             <button
               type="button"
               onClick={copiarToken}
@@ -88,10 +131,54 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
           )}
         </div>
         <p className="text-xs text-slate-400 mt-0.5">
-          Deixe em branco para manter o token atual. Armazenado criptografado (AES-256-GCM).
+          Armazenado criptografado (AES-256-GCM). Deixe em branco para manter o token atual.
         </p>
       </div>
 
+      {/* ── Testar conexão ────────────────────────────────────────────── */}
+      <div className="space-y-3">
+        <button
+          type="button"
+          onClick={testarConexao}
+          disabled={testStatus === "testing" || !bridgeUrl || !token}
+          className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {testStatus === "idle"    && <Plug         className="h-3.5 w-3.5" />}
+          {testStatus === "testing" && <Loader2      className="h-3.5 w-3.5 animate-spin" />}
+          {testStatus === "ok"      && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
+          {testStatus === "erro"    && <XCircle      className="h-3.5 w-3.5 text-red-500" />}
+          <span className={
+            testStatus === "ok"   ? "text-green-600" :
+            testStatus === "erro" ? "text-red-600"   : ""
+          }>
+            {testStatus === "idle"    && "Testar conexão"}
+            {testStatus === "testing" && "Testando..."}
+            {testStatus === "ok"      && "Conexão OK"}
+            {testStatus === "erro"    && "Falha — clique para tentar de novo"}
+          </span>
+        </button>
+
+        {testStatus === "erro" && testErro && (
+          <p className="text-xs text-red-600 font-mono bg-red-50 border border-red-100 rounded px-3 py-2">
+            {testErro}
+          </p>
+        )}
+
+        {testStatus === "ok" && testRow && (
+          <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+            <p className="text-xs font-medium text-green-700 mb-2">Primeira linha retornada:</p>
+            <pre className="text-xs font-mono text-green-800 overflow-x-auto whitespace-pre-wrap break-all">
+              {JSON.stringify(testRow, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {testStatus === "ok" && !testRow && (
+          <p className="text-xs text-green-600">Bridge respondeu mas não há registros na tabela de teste.</p>
+        )}
+      </div>
+
+      {/* ── Ações ─────────────────────────────────────────────────────── */}
       <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
