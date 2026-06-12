@@ -62,40 +62,61 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         startDate.setDate(1);
         const inicio12m = startDate.toISOString().split("T")[0];
 
-        const rows = await queryBridge<{ mes: string; total: number; qtd: number }>(
-          config,
-          `SELECT
-            FORMAT(vedFechamento, 'yyyy-MM')   AS mes,
-            ISNULL(SUM(vedTotalNf), 0)         AS total,
-            COUNT(*)                           AS qtd
-          FROM venda
-          WHERE vedStatus = 'F'
-            AND vedTipo IN ('OS','VE')
-            AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
-            AND CONVERT(date, vedFechamento) <= @end
-          GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
-          ORDER BY mes`,
-          { start: inicio12m, end }
-        );
+        const [rowsVendas, rowsDev] = await Promise.all([
+          queryBridge<{ mes: string; total: number }>(
+            config,
+            `SELECT
+              FORMAT(vedFechamento, 'yyyy-MM')   AS mes,
+              ISNULL(SUM(vedTotalNf), 0)         AS total
+            FROM venda
+            WHERE vedStatus = 'F'
+              AND vedTipo IN ('OS','VE')
+              AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
+              AND CONVERT(date, vedFechamento) <= @end
+            GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
+            ORDER BY mes`,
+            { start: inicio12m, end }
+          ),
+          queryBridge<{ mes: string; total: number }>(
+            config,
+            `SELECT
+              FORMAT(vedFechamento, 'yyyy-MM')   AS mes,
+              ISNULL(SUM(vedTotalNf), 0)         AS total
+            FROM venda
+            WHERE vedStatus = 'F'
+              AND vedTipo = 'DV'
+              AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
+              AND CONVERT(date, vedFechamento) <= @end
+            GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
+            ORDER BY mes`,
+            { start: inicio12m, end }
+          ),
+        ]);
 
-        const mesesMap = new Map<string, number>();
+        const vendasMap = new Map<string, number>();
+        const devMap    = new Map<string, number>();
         const cursor = new Date(startDate);
         while (cursor <= endDate) {
-          mesesMap.set(cursor.toISOString().slice(0, 7), 0);
+          const key = cursor.toISOString().slice(0, 7);
+          vendasMap.set(key, 0);
+          devMap.set(key, 0);
           cursor.setMonth(cursor.getMonth() + 1);
         }
-        for (const r of rows) mesesMap.set(r.mes, Number(r.total));
+        for (const r of rowsVendas) vendasMap.set(r.mes, Number(r.total));
+        for (const r of rowsDev)    devMap.set(r.mes,    Number(r.total));
 
-        const resultado = Array.from(mesesMap.entries())
-          .sort(([a], [b]) => a.localeCompare(b))
-          .map(([mesKey, total]) => {
+        const resultado = Array.from(vendasMap.keys())
+          .sort()
+          .map((mesKey) => {
             const [ano, mes] = mesKey.split("-");
+            const vendas     = vendasMap.get(mesKey) ?? 0;
+            const devolucoes = devMap.get(mesKey)    ?? 0;
             return {
               mes: `${NOMES_MES[parseInt(mes) - 1]}/${ano.slice(2)}`,
               mesCompleto: `${NOMES_MES[parseInt(mes) - 1]}/${ano}`,
-              vendas: total,
-              devolucoes: 0,
-              vendaLiquidaDevolucao: total,
+              vendas,
+              devolucoes,
+              vendaLiquidaDevolucao: vendas - devolucoes,
             };
           });
 
