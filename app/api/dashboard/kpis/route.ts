@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
 import { requireTenantAccess } from "@/lib/api/tenant-guard";
+import { getLojaDbConfig } from "@/lib/db/tenants";
+import { queryBridge, BridgeError } from "@/lib/mssql/client";
+
+export const dynamic = "force-dynamic";
 
 function calcVariacao(atual: number, anterior: number): number | null {
   if (anterior === 0) return null;
   return ((atual - anterior) / anterior) * 100;
 }
 
-// Calcula o intervalo do período anterior para comparação de variação percentual
 function periodoAnterior(
   period: string,
   currentStart: string,
@@ -44,7 +46,6 @@ function periodoAnterior(
     case "prev-year":
       return { start: `${y - 2}-01-01`, end: `${y - 2}-12-31` };
     case "custom": {
-      // Período de mesma duração imediatamente anterior ao intervalo personalizado
       const startMs = new Date(currentStart).getTime();
       const endMs = new Date(currentEnd).getTime();
       const duration = endMs - startMs;
@@ -56,6 +57,13 @@ function periodoAnterior(
     default:
       return { start: toStr(new Date(y, m - 1, 1)), end: toStr(new Date(y, m, 0)) };
   }
+}
+
+interface KpiRow {
+  faturamento: number;
+  totalVendas: number;
+  clientes: number;
+  ticketMedio: number;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -80,73 +88,98 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = await requireTenantAccess(lojaIds);
   if (guard instanceof NextResponse) return guard;
 
-  const supabase = await createClient();
-
-  // Usar start/end enviados pelo cliente — respeita período selecionado
   const startParam = searchParams.get("start");
   const endParam = searchParams.get("end");
-  const { start, end } = startParam && endParam
-    ? { start: startParam, end: endParam }
-    : getDateRange(period);
+  const { start, end } =
+    startParam && endParam
+      ? { start: startParam, end: endParam }
+      : getDateRange(period);
 
   const anterior = periodoAnterior(period, start, end);
 
-  // Buscar período atual + anterior + custos em paralelo via RPC
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rpc = (supabase as any).rpc.bind(supabase);
+  // Acumula KPIs de cada loja com bridge configurada
+  let faturamento = 0;
+  let totalVendas = 0;
+  let clientes = 0;
+  let faturamentoAnt = 0;
+  let totalVendasAnt = 0;
 
-  const [kpisAtual, kpisAnt, custoAtual] = await Promise.all([
-    rpc("get_kpis_periodo", { p_loja_ids: lojaIds, p_start: start, p_end: end }),
-    rpc("get_kpis_periodo", { p_loja_ids: lojaIds, p_start: anterior.start, p_end: anterior.end }),
-    rpc("get_custo_periodo", { p_loja_ids: lojaIds, p_start: start, p_end: end }),
-  ]);
+  let bridgeFound = false;
 
-  if (kpisAtual.error) {
-    console.error("[kpis] erro RPC get_kpis_periodo:", kpisAtual.error.message);
-    return NextResponse.json({ error: kpisAtual.error.message }, { status: 500 });
+  for (const id of lojaIds) {
+    let config: { bridgeUrl: string; token: string } | null = null;
+    try {
+      config = await getLojaDbConfig(id);
+    } catch {
+      continue;
+    }
+    if (!config) continue;
+
+    bridgeFound = true;
+
+    try {
+      const [atual, ant] = await Promise.all([
+        queryBridge<KpiRow>(
+          config,
+          `SELECT
+            ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
+            COUNT(*)                                                                       AS totalVendas,
+            COUNT(DISTINCT NULLIF(vedClienteId, 0))                                       AS clientes,
+            ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0)  AS ticketMedio
+          FROM venda
+          WHERE vedStatus IN ('F','C')
+            AND vedTipo IN ('OS','VE')
+            AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`,
+          { start, end }
+        ),
+        queryBridge<KpiRow>(
+          config,
+          `SELECT
+            ISNULL(SUM(vedTotalNf), 0) AS faturamento,
+            COUNT(*)                   AS totalVendas,
+            COUNT(DISTINCT NULLIF(vedClienteId, 0)) AS clientes,
+            ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0) AS ticketMedio
+          FROM venda
+          WHERE vedStatus IN ('F','C')
+            AND vedTipo IN ('OS','VE')
+            AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`,
+          { start: anterior.start, end: anterior.end }
+        ),
+      ]);
+
+      faturamento += Number(atual[0]?.faturamento ?? 0);
+      totalVendas += Number(atual[0]?.totalVendas ?? 0);
+      clientes += Number(atual[0]?.clientes ?? 0);
+      faturamentoAnt += Number(ant[0]?.faturamento ?? 0);
+      totalVendasAnt += Number(ant[0]?.totalVendas ?? 0);
+    } catch (e) {
+      const msg = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
+      console.error(`[kpis] bridge error for loja ${id}:`, msg);
+    }
   }
 
-  // Helper para extrair linha por tipo
-  const getRow = (data: Record<string, unknown>[], tipo: string) =>
-    (data ?? []).find((r) => r.tipo === tipo);
+  if (!bridgeFound) {
+    return NextResponse.json(
+      { error: "Bridge SQL não configurada para esta loja. Configure em Admin > Empresas > Lojas > Bridge." },
+      { status: 503 }
+    );
+  }
 
-  // ── Período atual ──────────────────────────────────────────────────────────
-  const rowVenda  = getRow(kpisAtual.data as Record<string, unknown>[], "venda");
-  const rowDevol  = getRow(kpisAtual.data as Record<string, unknown>[], "devolucao");
-  const rowOutros = getRow(kpisAtual.data as Record<string, unknown>[], "outro");
-
-  const vendaTotal      = Number(rowVenda?.total_valor     ?? 0);
-  const totalVendas     = Number(rowVenda?.total_registros ?? 0);
-  const valorDevolvido  = Number(rowDevol?.total_valor     ?? 0);
-  const totalDevolucoes = Number(rowDevol?.total_registros ?? 0);
-  const clientesUnicos  = Number(rowVenda?.clientes_unicos ?? 0);
-  const totalOutros     = Number(rowOutros?.total_registros ?? 0);
-  const valorOutros     = Number(rowOutros?.total_valor     ?? 0);
-
-  const faturamento   = vendaTotal;
-  const custoTotal    = Number(custoAtual.data ?? 0);
-  const lucroTotal    = faturamento - custoTotal - valorDevolvido;
-  const margemPercent = faturamento > 0 ? (lucroTotal / faturamento) * 100 : 0;
-  const ticketMedio   = totalVendas > 0 ? faturamento / totalVendas : 0;
-
-  // ── Período anterior ───────────────────────────────────────────────────────
-  const rowVendaAnt    = getRow(kpisAnt.data as Record<string, unknown>[], "venda");
-  const faturamentoAnt = Number(rowVendaAnt?.total_valor     ?? 0);
-  const totalVendasAnt = Number(rowVendaAnt?.total_registros ?? 0);
+  const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
   const ticketMedioAnt = totalVendasAnt > 0 ? faturamentoAnt / totalVendasAnt : 0;
 
   return NextResponse.json({
     faturamento: {
       value: faturamento,
       change: calcVariacao(faturamento, faturamentoAnt),
-      vendaTotal,
-      devolucaoTotal: valorDevolvido,
+      vendaTotal: faturamento,
+      devolucaoTotal: 0,
       totalVendas,
-      totalDevolucoes,
+      totalDevolucoes: 0,
     },
-    custo:  { value: custoTotal },
-    lucro:  { value: lucroTotal, margem: margemPercent },
-    clientes: { value: clientesUnicos },
+    custo: { value: 0 },
+    lucro: { value: 0, margem: 0 },
+    clientes: { value: clientes },
     vendas: {
       value: totalVendas,
       change: calcVariacao(totalVendas, totalVendasAnt),
@@ -155,13 +188,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       value: ticketMedio,
       change: calcVariacao(ticketMedio, ticketMedioAnt),
     },
-    outros: {
-      value: totalOutros,
-      valorTotal: valorOutros,
-    },
+    outros: { value: 0, valorTotal: 0 },
     totalVendas,
-    totalDevolucoes,
+    totalDevolucoes: 0,
     totalCancelamentos: 0,
-    valorDevolvido,
+    valorDevolvido: 0,
   });
 }
