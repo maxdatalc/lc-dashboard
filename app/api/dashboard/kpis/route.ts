@@ -75,7 +75,8 @@ interface DevRow {
   valorDevolvido: number;
 }
 
-const SQL_KPIS = `
+function buildSqlKpis(vClause: string) {
+  return `
   SELECT
     ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
     COUNT(*)                                                                       AS totalVendas,
@@ -84,31 +85,46 @@ const SQL_KPIS = `
   FROM venda
   WHERE vedStatus = 'F'
     AND vedTipo IN ('OS','VE')
-    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+    AND vedTotalNf > 0
+    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+    ${vClause}`;
+}
 
-const SQL_CUSTO = `
+function buildSqlCusto(vClause: string) {
+  return `
   SELECT ISNULL(SUM(vi.vdiQtde * vi.vdiProCustoFinal), 0) AS custo
   FROM vendaItem vi
   JOIN venda v ON vi.vdiVedId = v.vedId
   WHERE v.vedStatus = 'F'
     AND v.vedTipo IN ('OS','VE')
+    AND v.vedTotalNf > 0
     AND vi.vdiCancel = 0
-    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
+    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+    ${vClause}`;
+}
 
-const SQL_DEV = `
+function buildSqlDev(vClause: string) {
+  return `
   SELECT
     COUNT(*)                       AS totalDevolucoes,
     ISNULL(SUM(vedTotalNf), 0)    AS valorDevolvido
   FROM venda
   WHERE vedStatus = 'F'
     AND vedTipo = 'DV'
-    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+    AND vedTotalNf > 0
+    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+    ${vClause}`;
+}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
   const lojaIdsParam = searchParams.get("lojaIds");
   const lojaId = searchParams.get("lojaId");
   const period = searchParams.get("period") ?? "month";
+  const vendedorIdRaw = searchParams.get("vendedorId");
+  const vendedorId = vendedorIdRaw ? parseInt(vendedorIdRaw) : null;
+  const vendedorClause  = vendedorId ? "AND vedAtendente = @vendedorId" : "";
+  const vendedorClauseJ = vendedorId ? "AND v.vedAtendente = @vendedorId" : "";
 
   const lojaIds = lojaIdsParam
     ? lojaIdsParam.split(",").filter(Boolean)
@@ -155,12 +171,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     bridgeFound = true;
 
     try {
+      const vp = vendedorId ? { vendedorId } : {};
+      const SQL_KPIS = buildSqlKpis(vendedorClause);
+      const SQL_CUSTO = buildSqlCusto(vendedorClauseJ);
+      const SQL_DEV   = buildSqlDev(vendedorClause);
+
       const [atual, ant, custoAtual, custoAnterior, dev] = await Promise.all([
-        queryBridge<KpiRow>(config, SQL_KPIS, { start, end }),
-        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end }),
-        queryBridge<DevRow>(config, SQL_DEV, { start, end }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start, end, ...vp }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end, ...vp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...vp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...vp }),
+        queryBridge<DevRow>(config, SQL_DEV, { start, end, ...vp }),
       ]);
 
       faturamento     += Number(atual[0]?.faturamento        ?? 0);
