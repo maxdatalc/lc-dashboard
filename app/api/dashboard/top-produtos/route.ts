@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSelectedLojaId } from "@/app/actions/lojas";
-import { createClient } from "@/lib/supabase/server";
-import { redis } from "@/lib/redis";
 import { requireTenantAccess } from "@/lib/api/tenant-guard";
+import { getLojaDbConfig } from "@/lib/db/tenants";
+import { queryBridge, BridgeError } from "@/lib/mssql/client";
 
-interface ProdutoRanking {
-  nome: string;
-  quantidade: number;
-  total: number;
-}
+export const dynamic = "force-dynamic";
 
 function limitesMesAtual(): { dataInicio: string; dataFim: string } {
   const hoje = new Date();
@@ -20,6 +16,12 @@ function limitesMesAtual(): { dataInicio: string; dataFim: string } {
     dataInicio: `${ano}-${pad(mes + 1)}-01`,
     dataFim: `${ano}-${pad(mes + 1)}-${pad(ultimo)}`,
   };
+}
+
+interface ProdutoRanking {
+  nome: string;
+  quantidade: number;
+  total: number;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -36,72 +38,37 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const guard = await requireTenantAccess([lojaId]);
   if (guard instanceof NextResponse) return guard;
 
-  const chave = `dashboard:top-produtos:${lojaId}:${dataInicio}:${dataFim}`;
-
-  // Tentar cache Redis antes de bater no banco
-  const cached = await redis.get(chave);
-  if (cached) {
-    return NextResponse.json(cached);
-  }
+  const config = await getLojaDbConfig(lojaId).catch(() => null);
+  if (!config) return NextResponse.json([]);
 
   try {
-    const supabase = await createClient();
+    const rows = await queryBridge<{ nome: string; quantidade: number; total: number }>(
+      config,
+      `SELECT TOP 10
+        vi.vdiProNome                              AS nome,
+        ISNULL(SUM(vi.vdiQtde), 0)               AS quantidade,
+        ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS total
+      FROM vendaItem vi
+      JOIN venda v ON vi.vdiVedId = v.vedId
+      WHERE v.vedStatus IN ('F','C')
+        AND v.vedTipo IN ('OS','VE')
+        AND vi.vdiCancel = 0
+        AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+      GROUP BY vi.vdiProNome
+      ORDER BY total DESC`,
+      { start: dataInicio, end: dataFim }
+    );
 
-    // Passo 1 — busca os IDs das vendas finalizadas no período
-    const { data: vendas, error: erroVendas } = await supabase
-      .from("vendas")
-      .select("external_id")
-      .eq("loja_id", lojaId)
-      .gte("data_venda", dataInicio)
-      .lte("data_venda", dataFim)
-      .neq("status", "cancelada");
-
-    if (erroVendas || !vendas || vendas.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    const vendaIds = vendas.map((v) => v.external_id);
-
-    // Passo 2 — busca os itens dessas vendas
-    const { data: itens, error: erroItens } = await supabase
-      .from("venda_itens")
-      .select("produto_external_id, produto_nome, quantidade, valor_total")
-      .eq("loja_id", lojaId)
-      .in("venda_external_id", vendaIds);
-
-    if (erroItens || !itens || itens.length === 0) {
-      return NextResponse.json([]);
-    }
-
-    // Passo 3 — agrega por produto
-    const agregado = new Map<number, ProdutoRanking>();
-
-    for (const item of itens) {
-      const id = item.produto_external_id as number;
-      if (!id) continue;
-
-      if (!agregado.has(id)) {
-        agregado.set(id, {
-          nome: item.produto_nome ?? "Produto",
-          quantidade: 0,
-          total: 0,
-        });
-      }
-
-      const entry = agregado.get(id)!;
-      entry.quantidade += Number(item.quantidade ?? 0);
-      entry.total += Number(item.valor_total ?? 0);
-    }
-
-    const resultado: ProdutoRanking[] = Array.from(agregado.values())
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-
-    // Cachear por 30 minutos
-    await redis.setex(chave, 1800, JSON.stringify(resultado));
+    const resultado: ProdutoRanking[] = rows.map((r) => ({
+      nome: r.nome ?? "Produto",
+      quantidade: Number(r.quantidade),
+      total: Number(r.total),
+    }));
 
     return NextResponse.json(resultado);
-  } catch {
+  } catch (e) {
+    const msg = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
+    console.error("[top-produtos] bridge error:", msg);
     return NextResponse.json([]);
   }
 }
