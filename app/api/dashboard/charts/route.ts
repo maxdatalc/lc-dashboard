@@ -325,6 +325,50 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         );
       }
 
+      case "clientes-retencao": {
+        const rows = await queryBridge<{
+          novos: number;
+          recorrentes: number;
+          faturamentoNovos: number;
+          faturamentoRecorrentes: number;
+        }>(
+          config,
+          `WITH compras_periodo AS (
+            SELECT vedClienteId, ISNULL(SUM(vedTotalNf), 0) AS valor
+            FROM venda
+            WHERE vedStatus = 'F'
+              AND vedTipo IN ('OS','VE')
+              AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+              AND vedClienteId != 0
+            GROUP BY vedClienteId
+          ),
+          primeira_compra AS (
+            SELECT vedClienteId, MIN(CONVERT(date, vedFechamento)) AS primeira
+            FROM venda
+            WHERE vedStatus = 'F'
+              AND vedTipo IN ('OS','VE')
+              AND vedClienteId != 0
+            GROUP BY vedClienteId
+          )
+          SELECT
+            SUM(CASE WHEN pc.primeira >= @start THEN 1 ELSE 0 END)        AS novos,
+            SUM(CASE WHEN pc.primeira < @start  THEN 1 ELSE 0 END)        AS recorrentes,
+            ISNULL(SUM(CASE WHEN pc.primeira >= @start THEN cp.valor ELSE 0 END), 0) AS faturamentoNovos,
+            ISNULL(SUM(CASE WHEN pc.primeira < @start  THEN cp.valor ELSE 0 END), 0) AS faturamentoRecorrentes
+          FROM compras_periodo cp
+          JOIN primeira_compra pc ON cp.vedClienteId = pc.vedClienteId`,
+          { start, end }
+        );
+
+        const r = rows[0] ?? { novos: 0, recorrentes: 0, faturamentoNovos: 0, faturamentoRecorrentes: 0 };
+        return NextResponse.json({
+          novos:                   Number(r.novos),
+          recorrentes:             Number(r.recorrentes),
+          faturamentoNovos:        Number(r.faturamentoNovos),
+          faturamentoRecorrentes:  Number(r.faturamentoRecorrentes),
+        });
+      }
+
       default:
         return NextResponse.json({ error: "type inválido" }, { status: 400 });
     }
