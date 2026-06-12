@@ -12,6 +12,7 @@ import { TopClientesChart } from "@/components/charts/TopClientesChart";
 import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TabelaVendas } from "@/components/dashboard/TabelaVendas";
 import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
+import { TopGruposChart } from "@/components/charts/TopGruposChart";
 import { ActiveFilterBar } from "@/components/ui/ActiveFilterBar";
 import { useFilter } from "@/lib/contexts/filter-context";
 import type { VendasMensalData } from "@/components/charts/VendasMensalChart";
@@ -20,6 +21,7 @@ import type { TopProdutoData } from "@/components/charts/TopProdutosChart";
 import type { TopClienteData } from "@/components/charts/TopClientesChart";
 import type { VendasTipoData } from "@/components/charts/VendasTipoChart";
 import type { VendedorItem } from "@/components/charts/TopVendedoresChart";
+import type { GrupoItem } from "@/components/charts/TopGruposChart";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +87,7 @@ export default function DashboardPage() {
   const [topProdutos, setTopProdutos] = useState<TopProdutoData[]>([]);
   const [topClientes, setTopClientes] = useState<TopClienteData[]>([]);
   const [topVendedores, setTopVendedores] = useState<VendedorItem[]>([]);
+  const [topGrupos, setTopGrupos] = useState<GrupoItem[]>([]);
   const [vendasTipo, setVendasTipo] = useState<VendasTipoData>({
     pf: { total: 0, clientes: 0 },
     pj: { total: 0, clientes: 0 },
@@ -129,7 +132,7 @@ export default function DashboardPage() {
     }
     const params = new URLSearchParams(paramsObj);
 
-    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes] =
+    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes] =
       await Promise.allSettled([
         fetch(`/api/dashboard/kpis?${params}`).then((r) =>
           r.ok ? (r.json() as Promise<KpiResponse>) : null
@@ -152,6 +155,9 @@ export default function DashboardPage() {
         fetch(`/api/dashboard/charts?${params}&type=top-vendedores`).then((r) =>
           r.ok ? (r.json() as Promise<VendedorItem[]>) : []
         ),
+        fetch(`/api/dashboard/charts?${params}&type=top-grupos`).then((r) =>
+          r.ok ? (r.json() as Promise<GrupoItem[]>) : []
+        ),
       ]);
 
     setKpiLoading(false);
@@ -164,6 +170,7 @@ export default function DashboardPage() {
     if (clientesRes.status === "fulfilled") setTopClientes(clientesRes.value as TopClienteData[]);
     if (tipoRes.status === "fulfilled") setVendasTipo(tipoRes.value as VendasTipoData);
     if (vendedoresRes.status === "fulfilled") setTopVendedores(vendedoresRes.value as VendedorItem[]);
+    if (gruposRes.status === "fulfilled") setTopGrupos(gruposRes.value as GrupoItem[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaIds.join(","), period, customRange, activeFilter]);
 
@@ -204,18 +211,25 @@ export default function DashboardPage() {
         isLoading={kpiLoading}
       />
 
-      {/* ── Linha 1: Top Produtos | PF vs PJ | Formas de Pagamento ─────────── */}
-      <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
+      {/* ── Linha 1: Top Produtos | Formas de Pagamento ──────────────────────── */}
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
         <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[360px]">
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>
 
-        <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={100}>
-          {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
-        </ChartCard>
-
         <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={120}>
           {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
+        </ChartCard>
+      </div>
+
+      {/* ── Linha 1.5: Top Grupos de Produto | PF vs PJ ─────────────────────── */}
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+        <ChartCard title="Top Grupos de Produto" subtitle="por faturamento — período selecionado" animationDelay={140} className="min-h-[360px]">
+          {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
+        </ChartCard>
+
+        <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={145}>
+          {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
         </ChartCard>
       </div>
 
