@@ -1,23 +1,9 @@
 "use client";
 
-// Formulário para adicionar uma loja a uma empresa existente
-// Client Component — precisa de estado para teste de conexão
-
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  Eye,
-  EyeOff,
-  Plug,
-  Loader2,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-} from "lucide-react";
-
-type TestStatus = "idle" | "testing" | "ok" | "erro";
+import { ArrowLeft, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 
 export default function NovaLojaPage() {
   const router = useRouter();
@@ -25,43 +11,24 @@ export default function NovaLojaPage() {
 
   const [nome, setNome] = useState("");
   const [empId, setEmpId] = useState("");
-  const [erpBaseUrl, setErpBaseUrl] = useState("");
-  const [terminal, setTerminal] = useState("");
-  const [verTerminal, setVerTerminal] = useState(false);
-
-  const [testStatus, setTestStatus] = useState<TestStatus>("idle");
-  const [testErro, setTestErro] = useState("");
+  const [sqlEnabled, setSqlEnabled] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState("");
+  const [bridgeToken, setBridgeToken] = useState("");
+  const [verToken, setVerToken] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-
-  const testarConexao = useCallback(async () => {
-    if (!erpBaseUrl || !empId || !terminal) return;
-
-    setTestStatus("testing");
-    setTestErro("");
-
-    try {
-      const res = await fetch("/api/admin/testar-conexao", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ erpBaseUrl, empId: Number(empId), terminal }),
-      });
-      const data = (await res.json()) as { success: boolean; erro?: string };
-      setTestStatus(data.success ? "ok" : "erro");
-      if (!data.success) setTestErro(data.erro ?? "Falha na conexão");
-    } catch {
-      setTestStatus("erro");
-      setTestErro("Erro de rede ao testar conexão");
-    }
-  }, [erpBaseUrl, empId, terminal]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErro(null);
 
-    if (!nome || !empId || !erpBaseUrl || !terminal) {
-      setErro("Preencha todos os campos obrigatórios.");
+    if (!nome || !empId) {
+      setErro("Nome e EmpId são obrigatórios.");
+      return;
+    }
+    if (sqlEnabled && (!bridgeUrl || !bridgeToken)) {
+      setErro("Informe URL e token da bridge para habilitar a conexão SQL.");
       return;
     }
 
@@ -70,7 +37,14 @@ export default function NovaLojaPage() {
       const res = await fetch("/api/admin/adicionar-loja", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tenantId, name: nome, empId: Number(empId), erpBaseUrl, terminal }),
+        body: JSON.stringify({
+          tenantId,
+          name: nome,
+          empId: Number(empId),
+          sqlEnabled,
+          sqlBridgeUrl: sqlEnabled ? bridgeUrl : undefined,
+          sqlBridgeToken: sqlEnabled ? bridgeToken : undefined,
+        }),
       });
 
       const data = (await res.json()) as { success?: boolean; error?: string };
@@ -90,7 +64,6 @@ export default function NovaLojaPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
-      {/* Cabeçalho */}
       <div className="flex items-center gap-3">
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
@@ -111,93 +84,100 @@ export default function NovaLojaPage() {
       )}
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Nome da Empresa no MaxData <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            required
-            placeholder="Ex: Comercial Aliança — Filial Centro"
-            className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            EmpId <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="number"
-            min={1}
-            value={empId}
-            onChange={(e) => setEmpId(e.target.value)}
-            required
-            placeholder="Ex: 2"
-            className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
-          <p className="text-xs text-slate-400 mt-0.5">Consulte MaxData → Empresas</p>
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            URL do Túnel Cloudflare <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="url"
-            value={erpBaseUrl}
-            onChange={(e) => setErpBaseUrl(e.target.value)}
-            required
-            placeholder="https://erp-cliente.lctecnologias.com.br"
-            className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">
-            Terminal MaxData <span className="text-red-500">*</span>
-          </label>
-          <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Nome da Loja <span className="text-red-500">*</span>
+            </label>
             <input
-              type={verTerminal ? "text" : "password"}
-              value={terminal}
-              onChange={(e) => setTerminal(e.target.value)}
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
               required
-              placeholder="Cole o terminal gerado no painel MaxData"
-              className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+              placeholder="Ex: Comercial Aliança — Centro"
+              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
             />
-            <button
-              type="button"
-              onClick={() => setVerTerminal((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-            >
-              {verTerminal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
           </div>
-          <p className="text-xs text-red-500 mt-0.5">
-            Nunca compartilhe este código. Armazenado criptografado.
-          </p>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              EmpId <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="number"
+              min={1}
+              value={empId}
+              onChange={(e) => setEmpId(e.target.value)}
+              required
+              placeholder="Ex: 2"
+              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+            />
+            <p className="text-xs text-slate-400 mt-0.5">ID da empresa no MaxManager</p>
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={testarConexao}
-          disabled={testStatus === "testing" || !erpBaseUrl || !empId || !terminal}
-          className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {testStatus === "idle" && <Plug className="h-3.5 w-3.5" />}
-          {testStatus === "testing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {testStatus === "ok" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-          {testStatus === "erro" && <XCircle className="h-3.5 w-3.5 text-red-500" />}
-          <span className={testStatus === "ok" ? "text-green-600" : testStatus === "erro" ? "text-red-600" : ""}>
-            {testStatus === "idle" && "Testar conexão"}
-            {testStatus === "testing" && "Testando..."}
-            {testStatus === "ok" && "Conexão OK"}
-            {testStatus === "erro" && (testErro || "Falha na conexão")}
-          </span>
-        </button>
+        <hr className="border-slate-100" />
+
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="sql-enabled"
+              checked={sqlEnabled}
+              onChange={(e) => setSqlEnabled(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+            />
+            <label htmlFor="sql-enabled" className="cursor-pointer">
+              <p className="text-sm font-medium text-slate-700">Habilitar Dashboard SQL (lc-sql-bridge)</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Conecta ao SQL Server desta loja via bridge instalada na máquina do cliente.
+              </p>
+            </label>
+          </div>
+
+          {sqlEnabled && (
+            <div className="space-y-4 pl-6 border-l-2 border-cyan-100">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  URL da Bridge <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="url"
+                  value={bridgeUrl}
+                  onChange={(e) => setBridgeUrl(e.target.value)}
+                  placeholder="https://sql-cliente.lctecnologias.com.br"
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                />
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Cloudflare Tunnel apontando para porta 3055 da bridge.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Token de segurança <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type={verToken ? "text" : "password"}
+                    value={bridgeToken}
+                    onChange={(e) => setBridgeToken(e.target.value)}
+                    placeholder="Token gerado pelo instalar-bridge.ps1"
+                    className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setVerToken((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  >
+                    {verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">Armazenado criptografado (AES-256-GCM).</p>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
           <Link

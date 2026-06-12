@@ -33,7 +33,7 @@ export async function adicionarUsuarioTenant(
     email: string;
     senha: string;
     nomeCompleto: string;
-    papel: "admin" | "viewer";
+    papel: "owner" | "admin" | "viewer";
   }
 ): Promise<{ error?: string }> {
   try {

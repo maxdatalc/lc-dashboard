@@ -17,9 +17,9 @@ export type CreateLojaInput = {
   tenantId: string;
   name: string;
   empId: number;
-  erpBaseUrl: string;
-  terminal: string; // texto puro — será criptografado antes de salvar
-  syncServicesEnabled?: boolean;
+  sqlBridgeUrl?: string;
+  sqlBridgeToken?: string; // plain text — will be encrypted
+  sqlEnabled?: boolean;
 };
 
 function rowToTenant(row: Record<string, unknown>): Tenant {
@@ -35,18 +35,15 @@ function rowToTenant(row: Record<string, unknown>): Tenant {
 
 function rowToLoja(row: Record<string, unknown>): Loja {
   return {
-    id: row.id as string,
-    tenantId: row.tenant_id as string,
-    name: row.name as string,
-    empId: row.emp_id as number,
-    erpBaseUrl: row.erp_base_url as string,
-    terminalEncrypted: row.terminal_encrypted as string,
-    isActive: row.is_active as boolean,
-    syncServicesEnabled: (row.sync_services_enabled as boolean) ?? false,
-    createdAt: row.created_at as string,
-    sqlEnabled: (row.sql_enabled as boolean) ?? false,
-    sqlBridgeUrl: (row.sql_bridge_url as string) ?? null,
-    sqlBridgeToken: (row.sql_bridge_token as string) ?? null,
+    id:            row.id as string,
+    tenantId:      row.tenant_id as string,
+    name:          row.name as string,
+    empId:         row.emp_id as number,
+    isActive:      row.is_active as boolean,
+    createdAt:     row.created_at as string,
+    sqlEnabled:    (row.sql_enabled as boolean) ?? false,
+    sqlBridgeUrl:  (row.sql_bridge_url as string) ?? null,
+    sqlBridgeToken:(row.sql_bridge_token as string) ?? null,
   };
 }
 
@@ -86,18 +83,15 @@ export async function getTenantById(id: string): Promise<Tenant | null> {
 export async function createLoja(input: CreateLojaInput): Promise<Loja> {
   const supabase = createAdminClient();
 
-  // Criptografar o terminal antes de persistir — nunca salvar em texto puro
-  const terminalEncrypted = encrypt(input.terminal);
-
   const { data, error } = await supabase
     .from("lojas")
     .insert({
       tenant_id: input.tenantId,
       name: input.name,
       emp_id: input.empId,
-      erp_base_url: input.erpBaseUrl,
-      terminal_encrypted: terminalEncrypted,
-      sync_services_enabled: input.syncServicesEnabled ?? false,
+      sql_bridge_url: input.sqlBridgeUrl ?? null,
+      sql_bridge_token: input.sqlBridgeToken ? encrypt(input.sqlBridgeToken) : null,
+      sql_enabled: input.sqlEnabled ?? false,
     })
     .select()
     .single();
@@ -149,6 +143,42 @@ export async function getLojaDbConfig(
   };
 }
 
+// Retorna dados de uma loja com token descriptografado — uso exclusivo do painel admin
+export async function getLojaAdmin(lojaId: string): Promise<{
+  id: string;
+  tenantId: string;
+  name: string;
+  empId: number;
+  isActive: boolean;
+  sqlEnabled: boolean;
+  bridgeUrl: string | null;
+  bridgeToken: string | null; // descriptografado
+} | null> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("lojas")
+    .select("id, tenant_id, name, emp_id, is_active, sql_enabled, sql_bridge_url, sql_bridge_token")
+    .eq("id", lojaId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    name: row.name as string,
+    empId: row.emp_id as number,
+    isActive: row.is_active as boolean,
+    sqlEnabled: (row.sql_enabled as boolean) ?? false,
+    bridgeUrl: (row.sql_bridge_url as string) ?? null,
+    bridgeToken: row.sql_bridge_token ? decrypt(row.sql_bridge_token as string) : null,
+  };
+}
+
 // Salva ou atualiza as credenciais da bridge SQL de uma loja (criptografa o token)
 export async function updateLojaSqlConfig(
   lojaId: string,
@@ -168,27 +198,3 @@ export async function updateLojaSqlConfig(
   if (error) throw new Error(error.message);
 }
 
-// Retorna as credenciais de acesso ao ERP prontas para uso no MaxData client
-// O terminal é descriptografado apenas em memória — nunca exposto em logs
-export async function getLojaConfig(
-  lojaId: string
-): Promise<{ baseUrl: string; empId: number; terminal: string }> {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("lojas")
-    .select("erp_base_url, emp_id, terminal_encrypted")
-    .eq("id", lojaId)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  if (!data) throw new Error("Loja não encontrada");
-
-  const row = data as Record<string, unknown>;
-
-  return {
-    baseUrl: row.erp_base_url as string,
-    empId: row.emp_id as number,
-    terminal: decrypt(row.terminal_encrypted as string),
-  };
-}

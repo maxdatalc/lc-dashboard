@@ -40,7 +40,7 @@ export async function resetarSenhaUsuario(
 export async function vincularEmpresaUsuario(
   userId: string,
   tenantId: string,
-  role: "admin" | "viewer"
+  role: "owner" | "admin" | "viewer"
 ): Promise<{ error?: string }> {
   try {
     await verificarAdmin();
@@ -151,7 +151,7 @@ export async function excluirUsuario(
 export async function alterarRoleUsuario(
   userId: string,
   tenantId: string,
-  novaRole: "admin" | "viewer"
+  novaRole: "owner" | "admin" | "viewer"
 ): Promise<{ error?: string }> {
   try {
     await verificarAdmin();

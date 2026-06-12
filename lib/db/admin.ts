@@ -2,8 +2,9 @@
 // Usa createAdminClient() em todas as operações (bypassa RLS)
 
 import { createAdminClient } from "@/lib/supabase/server";
-import { createTenant, createLoja, updateLojaSqlConfig } from "@/lib/db/tenants";
+import { createTenant, createLoja } from "@/lib/db/tenants";
 import { FEATURES_CATALOG } from "@/lib/features";
+import type { UserRole } from "@/lib/plans";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────
 
@@ -18,9 +19,8 @@ export type TenantComLojas = {
     id: string;
     name: string;
     empId: number;
-    erpBaseUrl: string;
     isActive: boolean;
-    syncServicesEnabled: boolean;
+    sqlEnabled: boolean;
   }[];
   features: string[];
   totalUsuarios: number;
@@ -31,9 +31,6 @@ export type NovoClienteInput = {
   lojas: {
     name: string;
     empId: number;
-    erpBaseUrl: string;
-    terminal: string;
-    syncServicesEnabled?: boolean;
     sqlEnabled?: boolean;
     sqlBridgeUrl?: string;
     sqlBridgeToken?: string;
@@ -43,7 +40,7 @@ export type NovoClienteInput = {
     email: string;
     senha: string;
     nomeCompleto: string;
-    papel: "admin" | "viewer";
+    papel?: UserRole; // padrão: "owner"
   };
 };
 
@@ -69,7 +66,7 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
   // Buscar tenants, lojas, features e usuários em paralelo
   const [tenantRes, lojasRes, featuresRes, usuariosRes] = await Promise.all([
     supabase.from("tenants").select("*").order("created_at", { ascending: false }),
-    supabase.from("lojas").select("id, tenant_id, name, emp_id, erp_base_url, is_active, sync_services_enabled"),
+    supabase.from("lojas").select("id, tenant_id, name, emp_id, is_active, sql_enabled"),
     supabase.from("tenant_features").select("tenant_id, feature_key"),
     supabase.from("tenant_users").select("tenant_id"),
   ]);
@@ -110,9 +107,8 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
       id: l.id as string,
       name: l.name as string,
       empId: l.emp_id as number,
-      erpBaseUrl: l.erp_base_url as string,
       isActive: l.is_active as boolean,
-      syncServicesEnabled: (l.sync_services_enabled as boolean) ?? false,
+      sqlEnabled: (l.sql_enabled as boolean) ?? false,
     })),
     features: featuresPorTenant[t.id as string] ?? [],
     totalUsuarios: usuariosPorTenant[t.id as string] ?? 0,
@@ -125,7 +121,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
 
   const [tenantRes, lojasRes, featuresRes, usuariosRes] = await Promise.all([
     supabase.from("tenants").select("*").eq("id", id).maybeSingle(),
-    supabase.from("lojas").select("id, name, emp_id, erp_base_url, is_active, sync_services_enabled").eq("tenant_id", id),
+    supabase.from("lojas").select("id, name, emp_id, is_active, sql_enabled").eq("tenant_id", id),
     supabase.from("tenant_features").select("feature_key").eq("tenant_id", id),
     supabase.from("tenant_users").select("tenant_id").eq("tenant_id", id),
   ]);
@@ -145,9 +141,8 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
       id: l.id as string,
       name: l.name as string,
       empId: l.emp_id as number,
-      erpBaseUrl: l.erp_base_url as string,
       isActive: l.is_active as boolean,
-      syncServicesEnabled: (l.sync_services_enabled as boolean) ?? false,
+      sqlEnabled: (l.sql_enabled as boolean) ?? false,
     })),
     features: ((featuresRes.data ?? []) as Record<string, unknown>[]).map(
       (f) => f.feature_key as string
@@ -181,26 +176,17 @@ export async function createNovoCliente(input: NovoClienteInput): Promise<{
     });
     tenantId = tenant.id;
 
-    // 2. Criar todas as lojas em sequência (terminal criptografado internamente)
+    // 2. Criar todas as lojas em sequência (token criptografado internamente)
     for (const lojaInput of input.lojas) {
       const loja = await createLoja({
         tenantId: tenant.id,
         name: lojaInput.name,
         empId: lojaInput.empId,
-        erpBaseUrl: lojaInput.erpBaseUrl,
-        terminal: lojaInput.terminal,
-        syncServicesEnabled: lojaInput.syncServicesEnabled ?? false,
+        sqlEnabled: lojaInput.sqlEnabled ?? false,
+        sqlBridgeUrl: lojaInput.sqlBridgeUrl,
+        sqlBridgeToken: lojaInput.sqlBridgeToken,
       });
       lojaIds.push(loja.id);
-
-      // Salvar config da bridge SQL se fornecida (token criptografado internamente)
-      if (lojaInput.sqlEnabled && lojaInput.sqlBridgeUrl && lojaInput.sqlBridgeToken) {
-        await updateLojaSqlConfig(loja.id, {
-          bridgeUrl: lojaInput.sqlBridgeUrl,
-          token: lojaInput.sqlBridgeToken,
-          enabled: true,
-        });
-      }
     }
 
     // 3. Ativar features contratadas
@@ -224,11 +210,11 @@ export async function createNovoCliente(input: NovoClienteInput): Promise<{
     }
     usuarioId = authData.user.id;
 
-    // 5. Vincular usuário ao tenant
+    // 5. Vincular usuário ao tenant — primeiro usuário sempre como owner
     const { error: linkError } = await supabase.from("tenant_users").insert({
       tenant_id: tenant.id,
       user_id: usuarioId,
-      role: input.usuario.papel,
+      role: input.usuario.papel ?? "owner",
     });
     if (linkError) throw new Error(`Erro ao vincular usuário: ${linkError.message}`);
 
@@ -283,14 +269,15 @@ export async function updateTenantFeatures(
 /** Adiciona uma nova loja a um tenant existente */
 export async function adicionarLoja(
   tenantId: string,
-  loja: { name: string; empId: number; erpBaseUrl: string; terminal: string }
+  loja: { name: string; empId: number; sqlBridgeUrl?: string; sqlBridgeToken?: string; sqlEnabled?: boolean }
 ): Promise<string> {
   const novaLoja = await createLoja({
     tenantId,
     name: loja.name,
     empId: loja.empId,
-    erpBaseUrl: loja.erpBaseUrl,
-    terminal: loja.terminal,
+    sqlEnabled: loja.sqlEnabled ?? false,
+    sqlBridgeUrl: loja.sqlBridgeUrl,
+    sqlBridgeToken: loja.sqlBridgeToken,
   });
   return novaLoja.id;
 }
@@ -300,7 +287,7 @@ export async function adicionarLoja(
 export type UsuarioTenant = {
   id: string;
   userId: string;
-  role: "admin" | "viewer";
+  role: UserRole;
   fullName: string;
   email: string;
 };
@@ -345,7 +332,7 @@ export async function getUsuariosTenant(tenantId: string): Promise<UsuarioTenant
       return {
         id: u.id,
         userId: u.user_id,
-        role: u.role as "admin" | "viewer",
+        role: u.role as UserRole,
         fullName: profileMap.get(u.user_id) ?? "",
         email,
       };

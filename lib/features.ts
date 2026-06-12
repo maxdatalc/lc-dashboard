@@ -11,7 +11,7 @@ export type Feature = {
 };
 
 export const FEATURES_CATALOG: Feature[] = [
-  // ── Core — sempre incluídas no plano free ─────────────────────────────
+  // ── Core — incluída no plano free ────────────────────────────────────────
   {
     key: "dashboard_visao_geral",
     label: "Dashboard Visão Geral",
@@ -20,11 +20,13 @@ export const FEATURES_CATALOG: Feature[] = [
     icone: "LayoutDashboard",
     disponivel: true,
   },
+
+  // ── Premium — módulos pagos ───────────────────────────────────────────────
   {
     key: "modulo_financeiro",
     label: "Financeiro",
     descricao: "Contas a receber, inadimplência e fluxo de caixa",
-    categoria: "core",
+    categoria: "premium",
     icone: "Landmark",
     disponivel: true,
   },
@@ -32,7 +34,7 @@ export const FEATURES_CATALOG: Feature[] = [
     key: "modulo_produtos",
     label: "Produtos & Estoque",
     descricao: "Catálogo, níveis de estoque e alertas de ruptura",
-    categoria: "core",
+    categoria: "premium",
     icone: "Package",
     disponivel: true,
   },
@@ -40,7 +42,7 @@ export const FEATURES_CATALOG: Feature[] = [
     key: "modulo_vendas",
     label: "Vendas",
     descricao: "Histórico, análise e drill-down de vendas",
-    categoria: "core",
+    categoria: "premium",
     icone: "ShoppingCart",
     disponivel: false,
   },
@@ -48,12 +50,18 @@ export const FEATURES_CATALOG: Feature[] = [
     key: "modulo_clientes",
     label: "Clientes",
     descricao: "Perfil 360º e histórico por cliente",
-    categoria: "core",
+    categoria: "premium",
     icone: "Users",
     disponivel: false,
   },
-
-  // ── Premium — módulos pagos ────────────────────────────────────────────
+  {
+    key: "consolidado_multilojas",
+    label: "Consolidado Multi-lojas",
+    descricao: "Visão unificada de todas as filiais em uma tela",
+    categoria: "premium",
+    icone: "Building2",
+    disponivel: false,
+  },
   {
     key: "cobrador_whatsapp",
     label: "Cobrador WhatsApp",
@@ -76,14 +84,6 @@ export const FEATURES_CATALOG: Feature[] = [
     descricao: "Insights e análises narrativas geradas por inteligência artificial",
     categoria: "premium",
     icone: "Sparkles",
-    disponivel: false,
-  },
-  {
-    key: "consolidado_multilojas",
-    label: "Consolidado Multi-lojas",
-    descricao: "Visão unificada de todas as filiais em uma tela",
-    categoria: "premium",
-    icone: "Building2",
     disponivel: false,
   },
   {
@@ -125,7 +125,7 @@ export function hasFeature(features: string[], featureKey: string): boolean {
   return features.includes(featureKey);
 }
 
-/** Retorna os keys de todas as features core (sempre incluídas) */
+/** Retorna os keys de todas as features core (sempre incluídas no free) */
 export function getCoreFeatures(): string[] {
   return FEATURES_CATALOG.filter((f) => f.categoria === "core").map((f) => f.key);
 }

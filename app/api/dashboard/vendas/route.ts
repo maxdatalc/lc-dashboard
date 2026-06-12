@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
+import { requireFeature } from "@/lib/api/plan-guard";
 
 const PAGE_LIMIT = 20;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
+  const denied = await requireFeature("modulo_vendas");
+  if (denied) return denied;
+
   const { searchParams } = req.nextUrl;
 
   const lojaIdsParam = searchParams.get("lojaIds");

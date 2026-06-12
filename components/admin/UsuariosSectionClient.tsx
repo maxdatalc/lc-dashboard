@@ -7,10 +7,12 @@ import { useRouter } from "next/navigation";
 import { Loader2, UserPlus, AlertCircle } from "lucide-react";
 import { adicionarUsuarioTenant } from "@/lib/actions/admin-lojas";
 
+type UserRole = "owner" | "admin" | "viewer";
+
 interface Usuario {
   id: string;
   userId: string;
-  role: "admin" | "viewer";
+  role: UserRole;
   fullName: string;
   email: string;
 }
@@ -29,7 +31,7 @@ export function UsuariosSectionClient({ tenantId, usuarios }: Props) {
     email: "",
     nomeCompleto: "",
     senha: "",
-    papel: "viewer" as "admin" | "viewer",
+    papel: "viewer" as UserRole,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,7 +47,7 @@ export function UsuariosSectionClient({ tenantId, usuarios }: Props) {
     }
 
     setShowForm(false);
-    setForm({ email: "", nomeCompleto: "", senha: "", papel: "viewer" });
+    setForm({ email: "", nomeCompleto: "", senha: "", papel: "viewer" as UserRole });
     router.refresh();
     setLoading(false);
   };
@@ -100,12 +102,14 @@ export function UsuariosSectionClient({ tenantId, usuarios }: Props) {
                   <td className="px-4 py-3">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        u.role === "admin"
+                        u.role === "owner"
+                          ? "bg-amber-100 text-amber-700"
+                          : u.role === "admin"
                           ? "bg-purple-100 text-purple-700"
                           : "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {u.role === "admin" ? "Admin" : "Viewer"}
+                      {u.role === "owner" ? "Proprietário" : u.role === "admin" ? "Admin" : "Viewer"}
                     </span>
                   </td>
                 </tr>
@@ -187,13 +191,14 @@ export function UsuariosSectionClient({ tenantId, usuarios }: Props) {
                 onChange={(e) =>
                   setForm((f) => ({
                     ...f,
-                    papel: e.target.value as "admin" | "viewer",
+                    papel: e.target.value as UserRole,
                   }))
                 }
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <option value="viewer">Viewer</option>
-                <option value="admin">Admin</option>
+                <option value="viewer">Visualizador</option>
+                <option value="admin">Administrador</option>
+                <option value="owner">Proprietário</option>
               </select>
             </div>
           </div>

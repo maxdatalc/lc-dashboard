@@ -2,11 +2,10 @@
 
 import { usePathname } from "next/navigation";
 import {
-  Sun, Moon, RefreshCw, AlertCircle, CalendarDays, Building2, ChevronDown, Check,
+  Sun, Moon, CalendarDays, Building2, ChevronDown, Check,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
 import { usePeriod, type Period } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 
@@ -16,7 +15,6 @@ const PAGE_TITLES: Record<string, string> = {
   "/dashboard/clientes": "Clientes",
   "/dashboard/produtos": "Produtos & Estoque",
   "/dashboard/vendas": "Vendas",
-  "/batauto": "Batauto",
 };
 
 const PERIODS: { value: Period; label: string }[] = [
@@ -178,88 +176,6 @@ function LojaMultiSelect() {
   );
 }
 
-function SyncBadge() {
-  const router = useRouter();
-  const [loading, setLoading] = useState(false);
-  const [cooldown, setCooldown] = useState(0);
-  const [status, setStatus] = useState<"idle" | "success" | "error">("idle");
-
-  useEffect(() => {
-    if (cooldown <= 0) return;
-    const interval = setInterval(() => {
-      setCooldown((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [cooldown]);
-
-  const handleSync = useCallback(async () => {
-    setLoading(true);
-    setStatus("idle");
-    try {
-      const res = await fetch("/api/sync/now", { method: "POST" });
-      if (res.status === 429) {
-        const data = (await res.json()) as { segundosRestantes?: number };
-        setCooldown(data.segundosRestantes ?? 300);
-        return;
-      }
-      if (!res.ok) { setStatus("error"); return; }
-      setStatus("success");
-      setCooldown(300);
-      router.refresh();
-    } catch {
-      setStatus("error");
-    } finally {
-      setLoading(false);
-    }
-  }, [router]);
-
-  if (cooldown > 0) {
-    const elapsedMin = Math.floor((300 - cooldown) / 60);
-    const tempoLabel = elapsedMin === 0 ? "agora" : `${elapsedMin}min atrás`;
-    return (
-      <div
-        className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-        style={{
-          backgroundColor: "rgba(16, 185, 129, 0.1)",
-          color: "var(--accent-green)",
-          border: "1px solid rgba(16, 185, 129, 0.2)",
-        }}
-      >
-        <span style={{ fontSize: 8 }}>●</span>
-        <span className="hidden sm:inline">Sincronizado {tempoLabel}</span>
-      </div>
-    );
-  }
-
-  return (
-    <button
-      onClick={handleSync}
-      disabled={loading}
-      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-colors"
-      style={{
-        backgroundColor:
-          status === "error"
-            ? "rgba(255, 68, 68, 0.12)"
-            : "var(--bg-primary)",
-        color:
-          status === "error"
-            ? "var(--accent-red)"
-            : "var(--text-secondary)",
-        border: `1px solid ${status === "error" ? "rgba(255,68,68,0.3)" : "var(--border-subtle)"}`,
-      }}
-    >
-      {status === "error" ? (
-        <AlertCircle className="h-3 w-3" />
-      ) : (
-        <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
-      )}
-      <span className="hidden sm:inline">{loading ? "Sincronizando..." : "Sincronizar"}</span>
-    </button>
-  );
-}
 
 export function Header() {
   const pathname = usePathname();
@@ -494,10 +410,8 @@ export function Header() {
         </div>
       </div>
 
-      {/* Direita — sync + tema */}
+      {/* Direita — tema */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        <SyncBadge />
-
         {/* Renderizar o toggle só após montar no cliente para evitar hydration mismatch */}
         {mounted ? (
           <button

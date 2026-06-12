@@ -34,10 +34,11 @@ export async function POST(req: NextRequest) {
     if (!Array.isArray(input.lojas) || input.lojas.length === 0) {
       return NextResponse.json({ error: "Informe ao menos uma loja" }, { status: 400 });
     }
-    for (let i = 0; i < input.lojas.length; i++) { const loja = input.lojas[i];
-      if (!loja.name || !loja.empId || !loja.erpBaseUrl || !loja.terminal) {
+    for (let i = 0; i < input.lojas.length; i++) {
+      const loja = input.lojas[i];
+      if (!loja.name || !loja.empId) {
         return NextResponse.json(
-          { error: `Dados incompletos na Loja ${i + 1}` },
+          { error: `Nome e EmpId obrigatórios na Loja ${i + 1}` },
           { status: 400 }
         );
       }
@@ -52,8 +53,7 @@ export async function POST(req: NextRequest) {
     // 5. Criar cliente completo
     const resultado = await createNovoCliente({ ...input, features: featuresFinais });
 
-    // Invalidar cache do Router para que a lista mostre o novo cliente imediatamente
-    revalidatePath("/admin/clientes", "layout");
+    revalidatePath("/admin/empresas", "layout");
 
     return NextResponse.json({
       success: true,
