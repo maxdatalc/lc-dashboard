@@ -74,7 +74,7 @@ export default async function UsuarioDetalhePage({
         tenant_slug: t.slug,
         tenant_plan: t.plan,
         tenant_ativo: t.is_active,
-        role: tu.role as "admin" | "viewer",
+        role: tu.role as "owner" | "admin" | "viewer",
       };
     })
     .filter(Boolean) as {
@@ -83,7 +83,7 @@ export default async function UsuarioDetalhePage({
       tenant_slug: string;
       tenant_plan: string;
       tenant_ativo: boolean;
-      role: "admin" | "viewer";
+      role: "owner" | "admin" | "viewer";
     }[];
 
   const usuario = {

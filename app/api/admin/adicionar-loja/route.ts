@@ -20,18 +20,18 @@ export async function POST(req: NextRequest) {
       tenantId: string;
       name: string;
       empId: number;
-      erpBaseUrl: string;
-      terminal: string;
+      sqlBridgeUrl?: string;
+      sqlBridgeToken?: string;
+      sqlEnabled?: boolean;
     };
 
-    const { tenantId, name, empId, erpBaseUrl, terminal } = body;
+    const { tenantId, name, empId, sqlBridgeUrl, sqlBridgeToken, sqlEnabled } = body;
 
-    if (!tenantId || !name || !empId || !erpBaseUrl || !terminal) {
-      return NextResponse.json({ error: "Todos os campos são obrigatórios" }, { status: 400 });
+    if (!tenantId || !name || !empId) {
+      return NextResponse.json({ error: "tenantId, name e empId são obrigatórios" }, { status: 400 });
     }
 
-    // 3. Adicionar loja (terminal é criptografado internamente por createLoja)
-    const lojaId = await adicionarLoja(tenantId, { name, empId, erpBaseUrl, terminal });
+    const lojaId = await adicionarLoja(tenantId, { name, empId, sqlBridgeUrl, sqlBridgeToken, sqlEnabled });
 
     return NextResponse.json({ success: true, lojaId });
   } catch (err) {

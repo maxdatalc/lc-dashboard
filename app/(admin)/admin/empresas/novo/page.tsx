@@ -1,48 +1,31 @@
 "use client";
 
-// Formulário multi-seção para cadastrar uma nova empresa com suporte a múltiplas lojas
-// Client Component — gerencia estado do formulário e chamadas à API
-
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   Eye, EyeOff, ArrowLeft, Loader2, CheckCircle2, AlertCircle,
-  Plus, X, Plug, XCircle,
+  Plus, X,
   LayoutDashboard, Landmark, Package, ShoppingCart, Users,
   MessageCircle, Bell, Sparkles, Building2, UserCheck,
   TrendingUp, Zap, BarChart3,
 } from "lucide-react";
 import { FEATURES_CATALOG } from "@/lib/features";
 
-// Mapa de ícones para renderização dinâmica dos cards de features
 const ICONE_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, Landmark, Package, ShoppingCart, Users,
   MessageCircle, Bell, Sparkles, Building2, UserCheck,
   TrendingUp, Zap, BarChart3,
 };
 
-// ── Tipos ──────────────────────────────────────────────────────────────────
-
-type TestStatus = "idle" | "testing" | "ok" | "erro";
-
 type LojaForm = {
   id: string;
   nome: string;
   empId: string;
-  erpBaseUrl: string;
-  terminal: string;
-  syncServicesEnabled: boolean;
-  testStatus: TestStatus;
-  testErro: string;
-  verTerminal: boolean;
-  // Bridge SQL
   sqlEnabled: boolean;
   sqlBridgeUrl: string;
   sqlBridgeToken: string;
   verToken: boolean;
-  sqlTestStatus: TestStatus;
-  sqlTestErro: string;
 };
 
 interface FormState {
@@ -53,26 +36,18 @@ interface FormState {
   usuarioNome: string;
   usuarioEmail: string;
   usuarioSenha: string;
-  usuarioPapel: "admin" | "viewer";
+  usuarioPapel: "owner" | "admin" | "viewer";
 }
 
-function novaLoja(base?: Partial<LojaForm>): LojaForm {
+function novaLoja(): LojaForm {
   return {
     id: Date.now().toString(),
     nome: "",
     empId: "",
-    erpBaseUrl: base?.erpBaseUrl ?? "",
-    terminal: base?.terminal ?? "",
-    syncServicesEnabled: false,
-    testStatus: "idle",
-    testErro: "",
-    verTerminal: false,
     sqlEnabled: false,
     sqlBridgeUrl: "",
     sqlBridgeToken: "",
     verToken: false,
-    sqlTestStatus: "idle",
-    sqlTestErro: "",
   };
 }
 
@@ -84,10 +59,8 @@ const FORM_INICIAL: FormState = {
   usuarioNome: "",
   usuarioEmail: "",
   usuarioSenha: "",
-  usuarioPapel: "admin",
+  usuarioPapel: "owner",
 };
-
-// ── Componente ─────────────────────────────────────────────────────────────
 
 export default function NovaEmpresaPage() {
   const router = useRouter();
@@ -106,11 +79,8 @@ export default function NovaEmpresaPage() {
     setForm((prev) => ({ ...prev, empresaNome: valor, empresaSlug: slug }));
   }
 
-  function adicionarLoja() {
-    setLojas((prev) => [
-      ...prev,
-      novaLoja({ erpBaseUrl: prev[0]?.erpBaseUrl, terminal: prev[0]?.terminal }),
-    ]);
+  function adicionarFilial() {
+    setLojas((prev) => [...prev, novaLoja()]);
   }
 
   function removerLoja(id: string) {
@@ -124,60 +94,6 @@ export default function NovaEmpresaPage() {
       prev.map((l) => (l.id === id ? { ...l, [campo]: valor } : l))
     );
   }
-
-  const testarBridge = useCallback(
-    async (id: string) => {
-      const loja = lojas.find((l) => l.id === id);
-      if (!loja) return;
-
-      atualizarLoja(id, "sqlTestStatus", "testing");
-      atualizarLoja(id, "sqlTestErro", "");
-
-      try {
-        const res = await fetch("/api/admin/testar-bridge", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bridgeUrl: loja.sqlBridgeUrl, token: loja.sqlBridgeToken }),
-        });
-        const data = (await res.json()) as { success: boolean; erro?: string };
-        atualizarLoja(id, "sqlTestStatus", data.success ? "ok" : "erro");
-        if (!data.success) atualizarLoja(id, "sqlTestErro", data.erro ?? "Falha na conexão");
-      } catch {
-        atualizarLoja(id, "sqlTestStatus", "erro");
-        atualizarLoja(id, "sqlTestErro", "Erro de rede ao testar bridge");
-      }
-    },
-    [lojas]
-  );
-
-  const testarConexaoLoja = useCallback(
-    async (id: string) => {
-      const loja = lojas.find((l) => l.id === id);
-      if (!loja) return;
-
-      atualizarLoja(id, "testStatus", "testing");
-      atualizarLoja(id, "testErro", "");
-
-      try {
-        const res = await fetch("/api/admin/testar-conexao", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            erpBaseUrl: loja.erpBaseUrl,
-            empId: Number(loja.empId),
-            terminal: loja.terminal,
-          }),
-        });
-        const data = (await res.json()) as { success: boolean; erro?: string };
-        atualizarLoja(id, "testStatus", data.success ? "ok" : "erro");
-        if (!data.success) atualizarLoja(id, "testErro", data.erro ?? "Falha na conexão");
-      } catch {
-        atualizarLoja(id, "testStatus", "erro");
-        atualizarLoja(id, "testErro", "Erro de rede ao testar conexão");
-      }
-    },
-    [lojas]
-  );
 
   function toggleFeature(key: string) {
     setForm((prev) => {
@@ -204,8 +120,12 @@ export default function NovaEmpresaPage() {
 
     for (let i = 0; i < lojas.length; i++) {
       const loja = lojas[i];
-      if (!loja.nome || !loja.empId || !loja.erpBaseUrl || !loja.terminal) {
-        setErroGeral(`Preencha todos os campos da Loja ${i + 1}.`);
+      if (!loja.nome || !loja.empId) {
+        setErroGeral(`Preencha nome e EmpId da Loja ${i + 1}.`);
+        return;
+      }
+      if (loja.sqlEnabled && (!loja.sqlBridgeUrl || !loja.sqlBridgeToken)) {
+        setErroGeral(`Informe URL e token da bridge na Loja ${i + 1}.`);
         return;
       }
     }
@@ -243,9 +163,6 @@ export default function NovaEmpresaPage() {
           lojas: lojas.map((l) => ({
             name: l.nome,
             empId: Number(l.empId),
-            erpBaseUrl: l.erpBaseUrl,
-            terminal: l.terminal,
-            syncServicesEnabled: l.syncServicesEnabled,
             sqlEnabled: l.sqlEnabled,
             sqlBridgeUrl: l.sqlEnabled ? l.sqlBridgeUrl : undefined,
             sqlBridgeToken: l.sqlEnabled ? l.sqlBridgeToken : undefined,
@@ -291,7 +208,6 @@ export default function NovaEmpresaPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
-      {/* Cabeçalho */}
       <div className="flex items-center gap-3">
         <Link
           href="/admin/empresas"
@@ -358,256 +274,133 @@ export default function NovaEmpresaPage() {
               <option value="premium">Premium</option>
             </select>
             <p className="text-xs text-slate-400 mt-1">
-              O plano é ajustado automaticamente ao ativar módulos premium.
+              Ajustado automaticamente ao ativar módulos premium.
             </p>
           </div>
         </section>
 
-        {/* ── Seção 2 — Lojas / Empresas ──────────────────────────────────── */}
+        {/* ── Seção 2 — Lojas ─────────────────────────────────────────────── */}
         <section className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
           <div>
             <h2 className="font-semibold text-slate-800">Lojas / Filiais</h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Cada EmpId do MaxData é uma loja separada.
+              Cada EmpId do MaxManager é uma loja separada. A bridge SQL pode ser configurada depois.
             </p>
           </div>
 
-          {lojas.map((loja, idx) => {
-            const primeiraLoja = lojas[0];
-            const mesmoServidor = idx > 0 && loja.erpBaseUrl !== "" && loja.erpBaseUrl === primeiraLoja.erpBaseUrl;
-            const mesmoTerminal = idx > 0 && loja.terminal !== "" && loja.terminal === primeiraLoja.terminal;
+          {lojas.map((loja, idx) => (
+            <div key={loja.id}>
+              {idx > 0 && <hr className="border-slate-100 -mx-5" />}
 
-            return (
-              <div key={loja.id}>
-                {idx > 0 && <hr className="border-slate-100 -mx-5" />}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
+                    Loja {idx + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removerLoja(loja.id)}
+                    disabled={lojas.length === 1}
+                    className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Remover
+                  </button>
+                </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
-                      Loja {idx + 1}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => removerLoja(loja.id)}
-                      disabled={lojas.length === 1}
-                      className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                      Remover
-                    </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      Nome <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={loja.nome}
+                      onChange={(e) => atualizarLoja(loja.id, "nome", e.target.value)}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      placeholder="Ex: Comercial Aliança — Centro"
+                    />
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                      EmpId <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      value={loja.empId}
+                      onChange={(e) => atualizarLoja(loja.id, "empId", e.target.value)}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      placeholder="Ex: 1"
+                    />
+                    <p className="text-xs text-slate-400 mt-0.5">ID da empresa no MaxManager</p>
+                  </div>
+                </div>
+
+                {/* Bridge SQL */}
+                <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                  <input
+                    type="checkbox"
+                    id={`sql-${loja.id}`}
+                    checked={loja.sqlEnabled}
+                    onChange={(e) => atualizarLoja(loja.id, "sqlEnabled", e.target.checked)}
+                    className="mt-0.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                  />
+                  <label htmlFor={`sql-${loja.id}`} className="cursor-pointer flex-1">
+                    <p className="text-sm font-medium text-slate-700">Habilitar Dashboard SQL (lc-sql-bridge)</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Conecta ao SQL Server via bridge instalada na máquina do cliente.
+                    </p>
+                  </label>
+                </div>
+
+                {loja.sqlEnabled && (
+                  <div className="space-y-3 pl-4 border-l-2 border-cyan-100">
                     <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1">
-                        Nome da Empresa no MaxData <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={loja.nome}
-                        onChange={(e) => atualizarLoja(loja.id, "nome", e.target.value)}
-                        className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-                        placeholder="Ex: Comercial Aliança, Elétrica Aliança..."
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
-                        EmpId <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={loja.empId}
-                        onChange={(e) => atualizarLoja(loja.id, "empId", e.target.value)}
-                        className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-                        placeholder="Ex: 1, 2, 3..."
-                      />
-                      <p className="text-xs text-slate-400 mt-0.5">Consulte MaxData → Empresas</p>
-                    </div>
-
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-slate-600 mb-1">
-                        <span>URL do Túnel Cloudflare</span>{" "}
-                        <span className="text-red-500">*</span>
-                        {mesmoServidor && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            Mesmo servidor
-                          </span>
-                        )}
+                        URL da Bridge <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="url"
-                        value={loja.erpBaseUrl}
-                        onChange={(e) => atualizarLoja(loja.id, "erpBaseUrl", e.target.value)}
+                        value={loja.sqlBridgeUrl}
+                        onChange={(e) => atualizarLoja(loja.id, "sqlBridgeUrl", e.target.value)}
                         className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-                        placeholder="https://erp-cliente.lctecnologias.com.br"
+                        placeholder="https://sql-cliente.lctecnologias.com.br"
                       />
                     </div>
 
-                    <div className="sm:col-span-2">
+                    <div>
                       <label className="block text-xs font-medium text-slate-600 mb-1">
-                        <span>Terminal MaxData</span>{" "}
-                        <span className="text-red-500">*</span>
-                        {mesmoTerminal && (
-                          <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                            Mesmo terminal
-                          </span>
-                        )}
+                        Token <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <input
-                          type={loja.verTerminal ? "text" : "password"}
-                          value={loja.terminal}
-                          onChange={(e) => atualizarLoja(loja.id, "terminal", e.target.value)}
+                          type={loja.verToken ? "text" : "password"}
+                          value={loja.sqlBridgeToken}
+                          onChange={(e) => atualizarLoja(loja.id, "sqlBridgeToken", e.target.value)}
                           className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
-                          placeholder="Cole o terminal gerado no painel MaxData"
+                          placeholder="Token gerado pelo instalar-bridge.ps1"
                         />
                         <button
                           type="button"
-                          onClick={() => atualizarLoja(loja.id, "verTerminal", !loja.verTerminal)}
+                          onClick={() => atualizarLoja(loja.id, "verToken", !loja.verToken)}
                           className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
                         >
-                          {loja.verTerminal ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                          {loja.verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
-                      <p className="text-xs text-red-500 mt-0.5">
-                        Nunca compartilhe este código. Armazenado criptografado.
-                      </p>
+                      <p className="text-xs text-slate-400 mt-0.5">Armazenado criptografado (AES-256-GCM).</p>
                     </div>
                   </div>
-
-                  <div
-                    className="flex items-start gap-3 p-3 rounded-lg"
-                    style={{ background: "rgba(0,0,0,0.02)", border: "1px solid #e2e8f0" }}
-                  >
-                    <input
-                      type="checkbox"
-                      id={`services-${loja.id}`}
-                      checked={loja.syncServicesEnabled}
-                      onChange={(e) => atualizarLoja(loja.id, "syncServicesEnabled", e.target.checked)}
-                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <label htmlFor={`services-${loja.id}`} className="cursor-pointer">
-                      <p className="text-sm font-medium text-slate-700">
-                        Trabalha com serviços / ordens de serviço
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Ative para sincronizar OS e serviços deste cliente.
-                      </p>
-                    </label>
-                  </div>
-
-                  {/* ── Bridge SQL (opcional) ─────────────────────────── */}
-                  <div
-                    className="flex items-start gap-3 p-3 rounded-lg"
-                    style={{ background: "rgba(0,0,0,0.02)", border: "1px solid #e2e8f0" }}
-                  >
-                    <input
-                      type="checkbox"
-                      id={`sql-${loja.id}`}
-                      checked={loja.sqlEnabled}
-                      onChange={(e) => atualizarLoja(loja.id, "sqlEnabled", e.target.checked)}
-                      className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <label htmlFor={`sql-${loja.id}`} className="cursor-pointer flex-1">
-                      <p className="text-sm font-medium text-slate-700">
-                        Dashboard SQL (LC Gestor)
-                      </p>
-                      <p className="text-xs text-slate-400 mt-0.5">
-                        Habilita consultas diretas ao SQL Server via bridge instalada na máquina do cliente.
-                      </p>
-                    </label>
-                  </div>
-
-                  {loja.sqlEnabled && (
-                    <div className="space-y-3 pl-1">
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                          URL da Bridge <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="url"
-                          value={loja.sqlBridgeUrl}
-                          onChange={(e) => atualizarLoja(loja.id, "sqlBridgeUrl", e.target.value)}
-                          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
-                          placeholder="https://sql-nomecliente.lctecnologias.com.br"
-                        />
-                        <p className="text-xs text-slate-400 mt-0.5">
-                          URL do Cloudflare Tunnel apontando para a porta 3055 da bridge.
-                        </p>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-slate-600 mb-1">
-                          Token de segurança <span className="text-red-500">*</span>
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={loja.verToken ? "text" : "password"}
-                            value={loja.sqlBridgeToken}
-                            onChange={(e) => atualizarLoja(loja.id, "sqlBridgeToken", e.target.value)}
-                            className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
-                            placeholder="Token gerado pelo instalador da bridge"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => atualizarLoja(loja.id, "verToken", !loja.verToken)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
-                          >
-                            {loja.verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                          </button>
-                        </div>
-                        <p className="text-xs text-red-500 mt-0.5">
-                          Gerado pelo instalar-bridge.ps1. Armazenado criptografado.
-                        </p>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => testarBridge(loja.id)}
-                        disabled={loja.sqlTestStatus === "testing" || !loja.sqlBridgeUrl || !loja.sqlBridgeToken}
-                        className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {loja.sqlTestStatus === "idle" && <Plug className="h-3.5 w-3.5" />}
-                        {loja.sqlTestStatus === "testing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                        {loja.sqlTestStatus === "ok" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-                        {loja.sqlTestStatus === "erro" && <XCircle className="h-3.5 w-3.5 text-red-500" />}
-                        <span className={loja.sqlTestStatus === "ok" ? "text-green-600" : loja.sqlTestStatus === "erro" ? "text-red-600" : ""}>
-                          {loja.sqlTestStatus === "idle" && "Testar conexão da bridge"}
-                          {loja.sqlTestStatus === "testing" && "Testando..."}
-                          {loja.sqlTestStatus === "ok" && "Bridge OK"}
-                          {loja.sqlTestStatus === "erro" && (loja.sqlTestErro || "Falha na bridge")}
-                        </span>
-                      </button>
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => testarConexaoLoja(loja.id)}
-                    disabled={loja.testStatus === "testing" || !loja.erpBaseUrl || !loja.empId || !loja.terminal}
-                    className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {loja.testStatus === "idle" && <Plug className="h-3.5 w-3.5" />}
-                    {loja.testStatus === "testing" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                    {loja.testStatus === "ok" && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-                    {loja.testStatus === "erro" && <XCircle className="h-3.5 w-3.5 text-red-500" />}
-                    <span className={loja.testStatus === "ok" ? "text-green-600" : loja.testStatus === "erro" ? "text-red-600" : ""}>
-                      {loja.testStatus === "idle" && "Testar conexão desta loja"}
-                      {loja.testStatus === "testing" && "Testando..."}
-                      {loja.testStatus === "ok" && "Conexão OK"}
-                      {loja.testStatus === "erro" && (loja.testErro || "Falha na conexão")}
-                    </span>
-                  </button>
-                </div>
+                )}
               </div>
-            );
-          })}
+            </div>
+          ))}
 
           <button
             type="button"
-            onClick={adicionarLoja}
+            onClick={adicionarFilial}
             className="w-full flex items-center justify-center gap-2 border border-dashed border-slate-300 rounded-lg py-2.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
@@ -753,18 +546,18 @@ export default function NovaEmpresaPage() {
               <select
                 value={form.usuarioPapel}
                 onChange={(e) =>
-                  setForm((prev) => ({ ...prev, usuarioPapel: e.target.value as "admin" | "viewer" }))
+                  setForm((prev) => ({ ...prev, usuarioPapel: e.target.value as "owner" | "admin" | "viewer" }))
                 }
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
               >
-                <option value="admin">Administrador (pode tudo)</option>
+                <option value="owner">Proprietário (acesso total)</option>
+                <option value="admin">Administrador (pode editar)</option>
                 <option value="viewer">Visualizador (só leitura)</option>
               </select>
             </div>
           </div>
         </section>
 
-        {/* Botão de submissão */}
         <button
           type="submit"
           disabled={loading}

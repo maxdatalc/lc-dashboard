@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { requireFeature } from "@/lib/api/plan-guard";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ): Promise<NextResponse> {
+  const denied = await requireFeature("modulo_vendas");
+  if (denied) return denied;
   const externalId = params.id;
   const lojaId = req.nextUrl.searchParams.get("lojaId");
 

@@ -1,19 +1,9 @@
-// Módulo Financeiro — Server Component puro
-// Exibe contas a receber agrupadas por cliente com filtros de situação
-
-import Link from "next/link";
 import { AlertCircle, Clock, CalendarClock, Wallet, CheckCircle } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
-import { SyncButtonUnified } from "@/components/dashboard/sync-button-unified";
 import { getSelectedLojaId } from "@/app/actions/lojas";
-import {
-  getResumoFinanceiro,
-  getClientesInadimplentes,
-} from "@/lib/db/financeiro";
+import { getResumoFinanceiro, getClientesInadimplentes } from "@/lib/db/financeiro";
+import Link from "next/link";
 
 type Filtro = "vencido" | "a_vencer" | "todos";
-
-// ── Helpers de formatação ──────────────────────────────────────────────────
 
 function formatarMoeda(valor: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valor);
@@ -30,8 +20,6 @@ function formatarData(dateStr: string): string {
   return new Date(dateStr + "T12:00:00").toLocaleDateString("pt-BR");
 }
 
-// ── Componente ─────────────────────────────────────────────────────────────
-
 export default async function FinanceiroPage({
   searchParams,
 }: {
@@ -44,23 +32,23 @@ export default async function FinanceiroPage({
 
   const lojaId = await getSelectedLojaId();
 
-  // Sem loja selecionada — orientar o usuário
   if (!lojaId) {
     return (
-      <div className="p-6">
-        <h1 className="text-2xl font-bold text-slate-900 mb-4">Financeiro</h1>
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-slate-500 text-sm text-center py-8">
-              Selecione uma loja na barra lateral para ver os dados.
-            </p>
-          </CardContent>
-        </Card>
+      <div
+        className="flex items-center justify-center min-h-[60vh] p-6"
+      >
+        <div
+          className="rounded-2xl p-10 text-center max-w-sm"
+          style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+        >
+          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+            Selecione uma loja na barra lateral para ver os dados.
+          </p>
+        </div>
       </div>
     );
   }
 
-  // Buscar resumo e clientes em paralelo
   const [resumo, clientes] = await Promise.all([
     getResumoFinanceiro(lojaId),
     getClientesInadimplentes(lojaId, filtro),
@@ -73,101 +61,84 @@ export default async function FinanceiroPage({
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="px-3 py-4 sm:px-4 md:p-6 space-y-5">
 
       {/* Cabeçalho */}
-      <div className="flex justify-between items-start gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Financeiro</h1>
-          <p className="text-slate-500 text-sm mt-1">Contas a receber e inadimplência</p>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Sincronizado da API MaxData · Atualiza automaticamente
-          </p>
-        </div>
-        <SyncButtonUnified key={lojaId ?? "sem-loja"} />
+      <div>
+        <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
+          Financeiro
+        </h1>
+        <p className="text-sm mt-0.5" style={{ color: "var(--text-secondary)" }}>
+          Contas a receber e inadimplência
+        </p>
       </div>
 
-      {/* Grid de 4 KPI cards */}
+      {/* Grid de KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-
-        {/* Card 1 — Total Vencido */}
-        <div className="rounded-xl border-l-4 border-red-500 bg-red-50 p-4">
+        <div className="rounded-xl border-l-4 border-red-500 p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderLeft: "4px solid #ef4444" }}>
           <div className="flex items-center gap-2 mb-2">
-            <AlertCircle className="h-5 w-5 text-red-500 shrink-0" />
-            <span className="text-sm font-medium text-red-700">Total Vencido</span>
+            <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+            <span className="text-xs font-medium text-red-400">Total Vencido</span>
           </div>
-          <p className="text-2xl font-bold text-red-600 mt-1">
-            {formatarMoeda(resumo.totalVencido)}
-          </p>
-          <p className="text-xs text-red-500 mt-0.5">
-            {resumo.qtdInadimplentes} clientes inadimplentes
-          </p>
+          <p className="text-2xl font-bold text-red-400">{formatarMoeda(resumo.totalVencido)}</p>
+          <p className="text-xs text-red-400/70 mt-0.5">{resumo.qtdInadimplentes} clientes inadimplentes</p>
         </div>
 
-        {/* Card 2 — Vence em 7 dias */}
-        <div className="rounded-xl border-l-4 border-amber-500 bg-amber-50 p-4">
+        <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderLeft: "4px solid #f59e0b" }}>
           <div className="flex items-center gap-2 mb-2">
-            <Clock className="h-5 w-5 text-amber-500 shrink-0" />
-            <span className="text-sm font-medium text-amber-700">Vence em 7 dias</span>
+            <Clock className="h-4 w-4 text-amber-400 shrink-0" />
+            <span className="text-xs font-medium text-amber-400">Vence em 7 dias</span>
           </div>
-          <p className="text-2xl font-bold text-amber-600 mt-1">
-            {formatarMoeda(resumo.totalAVencer7)}
-          </p>
-          <p className="text-xs text-amber-500 mt-0.5">Cobranças urgentes</p>
+          <p className="text-2xl font-bold text-amber-400">{formatarMoeda(resumo.totalAVencer7)}</p>
+          <p className="text-xs text-amber-400/70 mt-0.5">Cobranças urgentes</p>
         </div>
 
-        {/* Card 3 — Vence em 30 dias */}
-        <div className="rounded-xl border-l-4 border-blue-500 bg-blue-50 p-4">
+        <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderLeft: "4px solid #3b82f6" }}>
           <div className="flex items-center gap-2 mb-2">
-            <CalendarClock className="h-5 w-5 text-blue-500 shrink-0" />
-            <span className="text-sm font-medium text-blue-700">Vence em 30 dias</span>
+            <CalendarClock className="h-4 w-4 text-blue-400 shrink-0" />
+            <span className="text-xs font-medium text-blue-400">Vence em 30 dias</span>
           </div>
-          <p className="text-2xl font-bold text-blue-600 mt-1">
-            {formatarMoeda(resumo.totalAVencer30)}
-          </p>
-          <p className="text-xs text-blue-500 mt-0.5">
-            {resumo.qtdAVencer30} clientes a vencer
-          </p>
+          <p className="text-2xl font-bold text-blue-400">{formatarMoeda(resumo.totalAVencer30)}</p>
+          <p className="text-xs text-blue-400/70 mt-0.5">{resumo.qtdAVencer30} clientes a vencer</p>
         </div>
 
-        {/* Card 4 — Total Pendente */}
-        <div className="rounded-xl border-l-4 border-slate-400 bg-slate-50 p-4">
+        <div className="rounded-xl p-4" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderLeft: "4px solid var(--border-subtle)" }}>
           <div className="flex items-center gap-2 mb-2">
-            <Wallet className="h-5 w-5 text-slate-500 shrink-0" />
-            <span className="text-sm font-medium text-slate-700">Total Pendente</span>
+            <Wallet className="h-4 w-4 shrink-0" style={{ color: "var(--text-secondary)" }} />
+            <span className="text-xs font-medium" style={{ color: "var(--text-secondary)" }}>Total Pendente</span>
           </div>
-          <p className="text-2xl font-bold text-slate-800 mt-1">
+          <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
             {formatarMoeda(resumo.totalGeral)}
           </p>
           {resumo.clientesSemDocumento > 0 ? (
-            <p className="text-xs text-amber-600 mt-0.5">
-              ⚠ {resumo.clientesSemDocumento} clientes sem CPF/CNPJ
-            </p>
+            <p className="text-xs text-amber-400 mt-0.5">⚠ {resumo.clientesSemDocumento} sem CPF/CNPJ</p>
           ) : (
-            <p className="text-xs text-slate-500 mt-0.5">Todos os registros</p>
+            <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>Todos os registros</p>
           )}
         </div>
       </div>
 
-      {/* Filtros de situação */}
+      {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
         {FILTROS.map((f) => (
           <Link
             key={f.valor}
             href={`/dashboard/financeiro?filtro=${f.valor}`}
-            className={
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+            style={
               filtro === f.valor
-                ? "inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white"
-                : "inline-flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                ? { backgroundColor: "var(--accent-cyan)", color: "#0d1117" }
+                : { border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", backgroundColor: "transparent" }
             }
           >
             {f.label}
             <span
-              className={`ml-1.5 rounded-full px-1.5 py-0.5 text-xs ${
+              className="ml-1 rounded-full px-1.5 py-0.5 text-xs"
+              style={
                 filtro === f.valor
-                  ? "bg-white/20 text-white"
-                  : "bg-slate-100 text-slate-500"
-              }`}
+                  ? { backgroundColor: "rgba(0,0,0,0.15)", color: "#0d1117" }
+                  : { backgroundColor: "var(--bg-secondary, rgba(255,255,255,0.05))", color: "var(--text-muted)" }
+              }
             >
               {f.count}
             </span>
@@ -175,101 +146,59 @@ export default async function FinanceiroPage({
         ))}
       </div>
 
-      {/* Tabela de clientes */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200">
+      {/* Tabela */}
+      <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border-subtle)" }}>
         {clientes.length === 0 ? (
-          // Estado vazio
           <div className="py-16 text-center">
-            <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-3" />
-            <p className="font-medium text-slate-700">
-              Nenhuma conta{" "}
-              {filtro === "vencido"
-                ? "vencida"
-                : filtro === "a_vencer"
-                ? "a vencer"
-                : "pendente"}
+            <CheckCircle className="h-12 w-12 mx-auto mb-3" style={{ color: "var(--text-muted)" }} />
+            <p className="font-medium" style={{ color: "var(--text-primary)" }}>
+              Nenhuma conta {filtro === "vencido" ? "vencida" : filtro === "a_vencer" ? "a vencer" : "pendente"}
             </p>
-            <p className="text-sm text-slate-400 mt-1">Carteira em dia 🎉</p>
+            <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>Carteira em dia</p>
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-slate-50">
-              <tr>
-                {["Cliente", "CPF/CNPJ", "Boletos", "Valor Total", "Mais Antigo", "Situação"].map(
-                  (col) => (
-                    <th
-                      key={col}
-                      className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500"
-                    >
-                      {col}
-                    </th>
-                  )
-                )}
+            <thead>
+              <tr style={{ backgroundColor: "var(--bg-secondary, rgba(255,255,255,0.03))" }}>
+                {["Cliente", "CPF/CNPJ", "Boletos", "Valor Total", "Mais Antigo", "Situação"].map((col) => (
+                  <th key={col} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--text-muted)" }}>
+                    {col}
+                  </th>
+                ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {clientes.map((cliente) => (
-                <tr
-                  key={cliente.cnpj}
-                  className="hover:bg-slate-50 transition-colors"
-                >
-                  {/* Nome */}
-                  <td className="px-4 py-3">
-                    <span className="font-medium text-slate-900">
-                      {cliente.nome.length > 28
-                        ? cliente.nome.slice(0, 28) + "..."
-                        : cliente.nome}
-                    </span>
+                <tr key={cliente.cnpj} style={{ borderTop: "1px solid var(--border-subtle)" }}>
+                  <td className="px-4 py-3 font-medium" style={{ color: "var(--text-primary)" }}>
+                    {cliente.nome.length > 28 ? cliente.nome.slice(0, 28) + "..." : cliente.nome}
                   </td>
-
-                  {/* CPF/CNPJ */}
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-slate-500">
-                      {formatarDocumento(cliente.cnpj)}
-                    </span>
+                  <td className="px-4 py-3 font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                    {formatarDocumento(cliente.cnpj)}
                   </td>
-
-                  {/* Boletos */}
-                  <td className="px-4 py-3">
-                    <span className="text-slate-600">
-                      {cliente.quantidadeBoletos}{" "}
-                      {cliente.quantidadeBoletos === 1 ? "boleto" : "boletos"}
-                    </span>
+                  <td className="px-4 py-3" style={{ color: "var(--text-secondary)" }}>
+                    {cliente.quantidadeBoletos} {cliente.quantidadeBoletos === 1 ? "boleto" : "boletos"}
                   </td>
-
-                  {/* Valor Total */}
                   <td className="px-4 py-3">
-                    <span
-                      className={`font-semibold ${
-                        filtro === "vencido" || cliente.diasMaiorAtraso > 0
-                          ? "text-red-600"
-                          : "text-blue-600"
-                      }`}
-                    >
+                    <span className={`font-semibold ${cliente.diasMaiorAtraso > 0 ? "text-red-400" : "text-blue-400"}`}>
                       {formatarMoeda(cliente.totalDevido)}
                     </span>
                   </td>
-
-                  {/* Boleto mais antigo */}
-                  <td className="px-4 py-3">
-                    <span className="text-slate-600">
-                      {formatarData(cliente.boletoMaisAntigo)}
-                    </span>
+                  <td className="px-4 py-3" style={{ color: "var(--text-secondary)" }}>
+                    {formatarData(cliente.boletoMaisAntigo)}
                   </td>
-
-                  {/* Badge de situação */}
                   <td className="px-4 py-3">
                     {cliente.diasMaiorAtraso > 0 ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-700">
-                        {cliente.diasMaiorAtraso} dias em atraso
+                      <span className="inline-flex items-center rounded-full bg-red-500/10 px-2.5 py-0.5 text-xs font-medium text-red-400">
+                        {cliente.diasMaiorAtraso}d em atraso
                       </span>
                     ) : Math.abs(cliente.diasMaiorAtraso) <= 7 ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
-                        Vence em {Math.abs(cliente.diasMaiorAtraso)} dias
+                      <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                        Vence em {Math.abs(cliente.diasMaiorAtraso)}d
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-700">
-                        Vence em {Math.abs(cliente.diasMaiorAtraso)} dias
+                      <span className="inline-flex items-center rounded-full bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-400">
+                        Vence em {Math.abs(cliente.diasMaiorAtraso)}d
                       </span>
                     )}
                   </td>
@@ -280,10 +209,8 @@ export default async function FinanceiroPage({
         )}
       </div>
 
-      {/* Rodapé informativo */}
-      <p className="text-xs text-slate-400 text-center mt-2">
+      <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
         Clientes sem CPF/CNPJ no ERP não aparecem nesta lista.
-        Atualize o cadastro no MaxManager para cobertura completa.
       </p>
     </div>
   );
