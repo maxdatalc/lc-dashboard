@@ -50,7 +50,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS total
       FROM vendaItem vi
       JOIN venda v ON vi.vdiVedId = v.vedId
-      WHERE v.vedStatus IN ('F','C')
+      WHERE v.vedStatus = 'F'
         AND v.vedTipo IN ('OS','VE')
         AND vi.vdiCancel = 0
         AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end

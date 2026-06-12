@@ -69,7 +69,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ISNULL(SUM(vedTotalNf), 0)         AS total,
             COUNT(*)                           AS qtd
           FROM venda
-          WHERE vedStatus IN ('F','C')
+          WHERE vedStatus = 'F'
             AND vedTipo IN ('OS','VE')
             AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
             AND CONVERT(date, vedFechamento) <= @end
@@ -78,7 +78,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           { start: inicio12m, end }
         );
 
-        // Zero-fill todos os 12 meses
         const mesesMap = new Map<string, number>();
         const cursor = new Date(startDate);
         while (cursor <= endDate) {
@@ -112,7 +111,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ISNULL(SUM(vi.vdiQtde), 0)               AS quantidade
           FROM vendaItem vi
           JOIN venda v ON vi.vdiVedId = v.vedId
-          WHERE v.vedStatus IN ('F','C')
+          WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
@@ -139,26 +138,56 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         );
       }
 
+      case "top-grupos": {
+        const rows = await queryBridge<{ nome: string; valor: number; quantidade: number }>(
+          config,
+          `SELECT TOP 20
+            gp.gdpNome                                 AS nome,
+            ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valor,
+            ISNULL(SUM(vi.vdiQtde), 0)               AS quantidade
+          FROM vendaItem vi
+          JOIN venda v ON vi.vdiVedId = v.vedId
+          JOIN produto p ON vi.vdiItemId = p.proId
+          JOIN grupoProd gp ON p.proGrupo = gp.gdpId
+          WHERE v.vedStatus = 'F'
+            AND v.vedTipo IN ('OS','VE')
+            AND vi.vdiCancel = 0
+            AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+          GROUP BY gp.gdpNome
+          ORDER BY valor DESC`,
+          { start, end }
+        );
+
+        return NextResponse.json(
+          rows.map((r) => ({
+            nome: r.nome,
+            valor: Number(r.valor),
+            quantidade: Number(r.quantidade),
+          }))
+        );
+      }
+
       case "top-clientes": {
         const rows = await queryBridge<{
           nome: string;
           total: number;
           compras: number;
           ultimaCompra: string;
+          tipoCad: number;
         }>(
           config,
           `SELECT TOP 50
             c.cliNome                           AS nome,
             ISNULL(SUM(v.vedTotalNf), 0)       AS total,
             COUNT(*)                            AS compras,
-            MAX(v.vedFechamento)                AS ultimaCompra
+            MAX(v.vedFechamento)                AS ultimaCompra,
+            c.cliTipoCad                        AS tipoCad
           FROM venda v
           JOIN cliente c ON v.vedClienteId = c.cliId
-          WHERE v.vedStatus IN ('F','C')
+          WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
-            AND c.cliTipoCad = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-          GROUP BY c.cliNome
+          GROUP BY c.cliNome, c.cliTipoCad
           ORDER BY total DESC`,
           { start, end }
         );
@@ -172,7 +201,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ultimaCompra: r.ultimaCompra
               ? new Date(r.ultimaCompra).toISOString().split("T")[0]
               : "",
-            tipoPessoa: "PF" as const,
+            tipoPessoa: (Number(r.tipoCad) === 1 ? "PJ" : "PF") as "PF" | "PJ",
             cidade: null,
             estado: null,
             email: null,
@@ -197,7 +226,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             COUNT(*)                            AS quantidade
           FROM venda v
           JOIN cliente c ON v.vedAtendente = c.cliId
-          WHERE v.vedStatus IN ('F','C')
+          WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
           GROUP BY c.cliId, c.cliNome
@@ -225,7 +254,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             COUNT(*)                            AS qtd
           FROM venda v
           JOIN cliente c ON v.vedClienteId = c.cliId
-          WHERE v.vedStatus IN ('F','C')
+          WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
           GROUP BY c.cliTipoCad`,
@@ -249,8 +278,31 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         });
       }
 
-      case "formas-pagamento":
-        return NextResponse.json([]);
+      case "formas-pagamento": {
+        const rows = await queryBridge<{ forma: string; total: number }>(
+          config,
+          `SELECT
+            cv.cavPgtTipoDesc                   AS forma,
+            ISNULL(SUM(cv.cavPgtValor), 0)     AS total
+          FROM caixaVendas cv
+          JOIN venda v ON cv.cavVedId = v.vedId
+          WHERE v.vedStatus = 'F'
+            AND v.vedTipo IN ('OS','VE')
+            AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+          GROUP BY cv.cavPgtTipoDesc
+          ORDER BY total DESC`,
+          { start, end }
+        );
+
+        const totalGeral = rows.reduce((s, r) => s + Number(r.total), 0);
+        return NextResponse.json(
+          rows.map((r) => ({
+            nome: r.forma,
+            valor: Number(r.total),
+            percentual: totalGeral > 0 ? (Number(r.total) / totalGeral) * 100 : 0,
+          }))
+        );
+      }
 
       default:
         return NextResponse.json({ error: "type inválido" }, { status: 400 });

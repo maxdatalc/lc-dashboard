@@ -66,6 +66,30 @@ interface KpiRow {
   ticketMedio: number;
 }
 
+interface CustoRow {
+  custo: number;
+}
+
+const SQL_KPIS = `
+  SELECT
+    ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
+    COUNT(*)                                                                       AS totalVendas,
+    COUNT(DISTINCT NULLIF(vedClienteId, 0))                                       AS clientes,
+    ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0)  AS ticketMedio
+  FROM venda
+  WHERE vedStatus = 'F'
+    AND vedTipo IN ('OS','VE')
+    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+
+const SQL_CUSTO = `
+  SELECT ISNULL(SUM(vi.vdiQtde * vi.vdiProCustoFinal), 0) AS custo
+  FROM vendaItem vi
+  JOIN venda v ON vi.vdiVedId = v.vedId
+  WHERE v.vedStatus = 'F'
+    AND v.vedTipo IN ('OS','VE')
+    AND vi.vdiCancel = 0
+    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
   const lojaIdsParam = searchParams.get("lojaIds");
@@ -97,23 +121,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const anterior = periodoAnterior(period, start, end);
 
-  // Acumula KPIs de cada loja com bridge configurada
   let faturamento = 0;
   let totalVendas = 0;
   let clientes = 0;
+  let custo = 0;
   let faturamentoAnt = 0;
   let totalVendasAnt = 0;
-
-  const SQL_KPIS = `
-    SELECT
-      ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
-      COUNT(*)                                                                       AS totalVendas,
-      COUNT(DISTINCT NULLIF(vedClienteId, 0))                                       AS clientes,
-      ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0)  AS ticketMedio
-    FROM venda
-    WHERE vedStatus IN ('F','C')
-      AND vedTipo IN ('OS','VE')
-      AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+  let custoAnt = 0;
 
   let bridgeFound = false;
   let lastError = "";
@@ -125,16 +139,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     bridgeFound = true;
 
     try {
-      const [atual, ant] = await Promise.all([
+      const [atual, ant, custoAtual, custoAnterior] = await Promise.all([
         queryBridge<KpiRow>(config, SQL_KPIS, { start, end }),
         queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end }),
       ]);
 
-      faturamento += Number(atual[0]?.faturamento ?? 0);
-      totalVendas += Number(atual[0]?.totalVendas ?? 0);
-      clientes += Number(atual[0]?.clientes ?? 0);
-      faturamentoAnt += Number(ant[0]?.faturamento ?? 0);
-      totalVendasAnt += Number(ant[0]?.totalVendas ?? 0);
+      faturamento   += Number(atual[0]?.faturamento   ?? 0);
+      totalVendas   += Number(atual[0]?.totalVendas   ?? 0);
+      clientes      += Number(atual[0]?.clientes      ?? 0);
+      custo         += Number(custoAtual[0]?.custo    ?? 0);
+      faturamentoAnt += Number(ant[0]?.faturamento    ?? 0);
+      totalVendasAnt += Number(ant[0]?.totalVendas    ?? 0);
+      custoAnt      += Number(custoAnterior[0]?.custo ?? 0);
     } catch (e) {
       lastError = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
       console.error(`[kpis] bridge error loja ${id}:`, lastError);
@@ -148,13 +166,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // Se todas as lojas falharam com erro, expõe o erro real
   if (lastError && faturamento === 0 && totalVendas === 0) {
     return NextResponse.json({ error: lastError }, { status: 500 });
   }
 
-  const ticketMedio = totalVendas > 0 ? faturamento / totalVendas : 0;
+  const ticketMedio    = totalVendas > 0 ? faturamento / totalVendas : 0;
   const ticketMedioAnt = totalVendasAnt > 0 ? faturamentoAnt / totalVendasAnt : 0;
+  const lucro          = faturamento - custo;
+  const lucroAnt       = faturamentoAnt - custoAnt;
+  const margem         = faturamento > 0 ? (lucro / faturamento) * 100 : 0;
 
   return NextResponse.json({
     faturamento: {
@@ -165,9 +185,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       totalVendas,
       totalDevolucoes: 0,
     },
-    custo: { value: 0 },
-    lucro: { value: 0, margem: 0 },
-    clientes: { value: clientes },
+    custo:  { value: custo,  change: calcVariacao(custo, custoAnt) },
+    lucro:  { value: lucro,  change: calcVariacao(lucro, lucroAnt), margem },
+    clientes:   { value: clientes },
     vendas: {
       value: totalVendas,
       change: calcVariacao(totalVendas, totalVendasAnt),
