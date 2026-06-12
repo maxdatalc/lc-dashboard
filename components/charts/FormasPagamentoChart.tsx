@@ -8,6 +8,7 @@ export interface FormasPagamentoData {
   nome: string;
   valor: number;
   percentual: number;
+  qtdVendas?: number;
 }
 
 interface Props {
@@ -130,12 +131,16 @@ export function FormasPagamentoChart({ data }: Props) {
             <span className="text-xs truncate flex-1" style={{ color: "var(--text-secondary)" }}>
               {d.nome}
             </span>
-            <span
-              className="text-xs font-semibold tabular-nums flex-shrink-0"
-              style={{ color: "var(--text-primary)" }}
-            >
-              {d.percentual.toFixed(0)}%
-            </span>
+            <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+              <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
+                {d.percentual.toFixed(0)}%
+              </span>
+              {d.qtdVendas != null && (
+                <span className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+                  {d.qtdVendas} vd.
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>

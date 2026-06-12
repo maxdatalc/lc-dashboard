@@ -7,8 +7,6 @@ export type UserRole = "owner" | "admin" | "viewer"
 export const PLAN_FEATURES: Record<Plan, ReadonlySet<string>> = {
   free: new Set([
     "dashboard_visao_geral",
-    "modulo_clientes",
-    "modulo_produtos",
   ]),
   premium: new Set([
     "dashboard_visao_geral",
