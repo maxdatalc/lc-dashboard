@@ -24,6 +24,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const lojaId = searchParams.get("lojaId");
   const period = searchParams.get("period") ?? "month";
   const type = searchParams.get("type");
+  const vendedorIdRaw = searchParams.get("vendedorId");
+  const vendedorId = vendedorIdRaw ? parseInt(vendedorIdRaw) : null;
+  const vClause  = vendedorId ? "AND vedAtendente = @vendedorId" : "";
+  const vClauseJ = vendedorId ? "AND v.vedAtendente = @vendedorId" : "";
+  const vp = vendedorId ? { vendedorId } : {};
 
   const lojaIds = lojaIdsParam
     ? lojaIdsParam.split(",").filter(Boolean)
@@ -71,11 +76,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             FROM venda
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
+              AND vedTotalNf > 0
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
+              ${vClause}
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
-            { start: inicio12m, end }
+            { start: inicio12m, end, ...vp }
           ),
           queryBridge<{ mes: string; total: number }>(
             config,
@@ -85,6 +92,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             FROM venda
             WHERE vedStatus = 'F'
               AND vedTipo = 'DV'
+              AND vedTotalNf > 0
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
@@ -124,21 +132,38 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "top-produtos": {
-        const rows = await queryBridge<{ nome: string; valor: number; quantidade: number }>(
+        const rows = await queryBridge<{
+          nome: string; valor: number; quantidade: number;
+          codigo: string | null; fabricante: string | null; grupo: string | null;
+          custoMedio: number; margem: number;
+        }>(
           config,
           `SELECT TOP 50
-            vi.vdiProNome                              AS nome,
-            ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valor,
-            ISNULL(SUM(vi.vdiQtde), 0)               AS quantidade
+            vi.vdiProNome                                                           AS nome,
+            MIN(p.zzz_proCodigo)                                                   AS codigo,
+            MIN(f.fabNome)                                                         AS fabricante,
+            MIN(gp.gdpNome)                                                        AS grupo,
+            ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0)                             AS valor,
+            ISNULL(SUM(vi.vdiQtde), 0)                                            AS quantidade,
+            ISNULL(AVG(vi.vdiProCustoFinal), 0)                                   AS custoMedio,
+            CASE WHEN SUM(vi.vdiQtde * vi.vdiValor) > 0
+              THEN (SUM(vi.vdiQtde * vi.vdiValor) - SUM(vi.vdiQtde * vi.vdiProCustoFinal))
+                   / SUM(vi.vdiQtde * vi.vdiValor) * 100
+              ELSE 0 END                                                            AS margem
           FROM vendaItem vi
           JOIN venda v ON vi.vdiVedId = v.vedId
+          LEFT JOIN produto p ON vi.vdiItemId = p.proId
+          LEFT JOIN fabricante f ON p.proFab = f.fabId
+          LEFT JOIN grupoProd gp ON p.proGrupo = gp.gdpId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
+            AND v.vedTotalNf > 0
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${vClauseJ}
           GROUP BY vi.vdiProNome
           ORDER BY valor DESC`,
-          { start, end }
+          { start, end, ...vp }
         );
 
         return NextResponse.json(
@@ -147,36 +172,38 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             valor: Number(r.valor),
             quantidade: Number(r.quantidade),
             externalId: null,
-            codigo: null,
-            grupoNome: null,
+            codigo: r.codigo || null,
+            grupoNome: r.grupo || null,
             subGrupo: null,
-            fabricante: null,
+            fabricante: r.fabricante || null,
             precoVenda: null,
-            valorCusto: null,
-            margem: null,
+            valorCusto: Number(r.custoMedio) || null,
+            margem: Number(r.margem),
             estoqueAtual: null,
           }))
         );
       }
 
-      case "top-grupos": {
+      case "top-fabricantes": {
         const rows = await queryBridge<{ nome: string; valor: number; quantidade: number }>(
           config,
           `SELECT TOP 20
-            gp.gdpNome                                 AS nome,
+            f.fabNome                                  AS nome,
             ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valor,
             ISNULL(SUM(vi.vdiQtde), 0)               AS quantidade
           FROM vendaItem vi
           JOIN venda v ON vi.vdiVedId = v.vedId
           JOIN produto p ON vi.vdiItemId = p.proId
-          JOIN grupoProd gp ON p.proGrupo = gp.gdpId
+          JOIN fabricante f ON p.proFab = f.fabId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
+            AND v.vedTotalNf > 0
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-          GROUP BY gp.gdpNome
+            ${vClauseJ}
+          GROUP BY f.fabNome
           ORDER BY valor DESC`,
-          { start, end }
+          { start, end, ...vp }
         );
 
         return NextResponse.json(
@@ -190,11 +217,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
       case "top-clientes": {
         const rows = await queryBridge<{
-          nome: string;
-          total: number;
-          compras: number;
-          ultimaCompra: string;
-          tipoCad: number;
+          nome: string; total: number; compras: number;
+          ultimaCompra: string; tipoCad: number;
+          cidade: string | null; email: string | null;
+          fone: string | null; cpfCgc: string | null;
         }>(
           config,
           `SELECT TOP 50
@@ -202,15 +228,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ISNULL(SUM(v.vedTotalNf), 0)       AS total,
             COUNT(*)                            AS compras,
             MAX(v.vedFechamento)                AS ultimaCompra,
-            c.cliTipoCad                        AS tipoCad
+            c.cliTipoCad                        AS tipoCad,
+            MIN(c.cliFatCidade)                 AS cidade,
+            MIN(c.cliEmail)                     AS email,
+            MIN(c.cliFone)                      AS fone,
+            MIN(c.cliCpfCgc)                    AS cpfCgc
           FROM venda v
           JOIN cliente c ON v.vedClienteId = c.cliId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
+            AND v.vedTotalNf > 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${vClauseJ}
           GROUP BY c.cliNome, c.cliTipoCad
           ORDER BY total DESC`,
-          { start, end }
+          { start, end, ...vp }
         );
 
         return NextResponse.json(
@@ -223,11 +255,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               ? new Date(r.ultimaCompra).toISOString().split("T")[0]
               : "",
             tipoPessoa: (Number(r.tipoCad) === 1 ? "PJ" : "PF") as "PF" | "PJ",
-            cidade: null,
+            cidade: r.cidade || null,
             estado: null,
-            email: null,
-            telefone: null,
-            cnpjCpf: null,
+            email: r.email || null,
+            telefone: r.fone || null,
+            cnpjCpf: r.cpfCgc || null,
           }))
         );
       }
@@ -249,6 +281,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           JOIN cliente c ON v.vedAtendente = c.cliId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
+            AND v.vedTotalNf > 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
           GROUP BY c.cliId, c.cliNome
           ORDER BY valor DESC`,
@@ -277,6 +310,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           JOIN cliente c ON v.vedClienteId = c.cliId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
+            AND v.vedTotalNf > 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
           GROUP BY c.cliTipoCad`,
           { start, end }
@@ -300,19 +334,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "formas-pagamento": {
-        const rows = await queryBridge<{ forma: string; total: number }>(
+        const rows = await queryBridge<{ forma: string; total: number; qtdVendas: number }>(
           config,
           `SELECT
-            cv.cavPgtTipoDesc                   AS forma,
-            ISNULL(SUM(cv.cavPgtValor), 0)     AS total
+            cv.cavPgtTipoDesc                       AS forma,
+            ISNULL(SUM(cv.cavPgtValor), 0)         AS total,
+            COUNT(DISTINCT cv.cavVedId)             AS qtdVendas
           FROM caixaVendas cv
           JOIN venda v ON cv.cavVedId = v.vedId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
+            AND v.vedTotalNf > 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${vClauseJ}
           GROUP BY cv.cavPgtTipoDesc
           ORDER BY total DESC`,
-          { start, end }
+          { start, end, ...vp }
         );
 
         const totalGeral = rows.reduce((s, r) => s + Number(r.total), 0);
@@ -321,6 +358,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             nome: r.forma,
             valor: Number(r.total),
             percentual: totalGeral > 0 ? (Number(r.total) / totalGeral) * 100 : 0,
+            qtdVendas: Number(r.qtdVendas),
           }))
         );
       }
@@ -338,6 +376,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             FROM venda
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
+              AND vedTotalNf > 0
               AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
               AND vedClienteId != 0
             GROUP BY vedClienteId
@@ -347,6 +386,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             FROM venda
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
+              AND vedTotalNf > 0
               AND vedClienteId != 0
             GROUP BY vedClienteId
           )

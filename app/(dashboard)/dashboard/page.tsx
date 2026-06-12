@@ -10,7 +10,6 @@ import { FormasPagamentoChart } from "@/components/charts/FormasPagamentoChart";
 import { TopProdutosChart } from "@/components/charts/TopProdutosChart";
 import { TopClientesChart } from "@/components/charts/TopClientesChart";
 import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
-import { TabelaVendas } from "@/components/dashboard/TabelaVendas";
 import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
 import { TopGruposChart } from "@/components/charts/TopGruposChart";
 import { ClientesRetencaoChart } from "@/components/charts/ClientesRetencaoChart";
@@ -160,7 +159,7 @@ export default function DashboardPage() {
         fetch(`/api/dashboard/charts?${params}&type=top-vendedores`).then((r) =>
           r.ok ? (r.json() as Promise<VendedorItem[]>) : []
         ),
-        fetch(`/api/dashboard/charts?${params}&type=top-grupos`).then((r) =>
+        fetch(`/api/dashboard/charts?${params}&type=top-fabricantes`).then((r) =>
           r.ok ? (r.json() as Promise<GrupoItem[]>) : []
         ),
         fetch(`/api/dashboard/charts?${params}&type=clientes-retencao`).then((r) =>
@@ -189,18 +188,6 @@ export default function DashboardPage() {
 
   if (lojaIds.length === 0) return <SemLoja />;
 
-  // range para TabelaVendas
-  let tabelaStart: string | undefined;
-  let tabelaEnd: string | undefined;
-  if (period === "custom" && customRange) {
-    tabelaStart = customRange.start.toISOString().split("T")[0];
-    tabelaEnd = customRange.end.toISOString().split("T")[0];
-  } else if (period !== "custom") {
-    const range = computeRange(period);
-    tabelaStart = range.start;
-    tabelaEnd = range.end;
-  }
-
   return (
     <div className="px-3 py-4 sm:px-4 md:p-6 flex flex-col gap-5">
       {/* ── Filtro ativo — aparece quando um vendedor/produto está selecionado ── */}
@@ -221,7 +208,7 @@ export default function DashboardPage() {
       />
 
       {/* ── Linha 1: Top Produtos | Formas de Pagamento ──────────────────────── */}
-      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 items-start">
         <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[360px]">
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>
@@ -231,9 +218,9 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* ── Linha 1.5: Top Grupos | PF vs PJ | Novos vs Recorrentes ────────── */}
+      {/* ── Linha 1.5: Top Fabricantes | PF vs PJ | Novos vs Recorrentes ─────── */}
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
-        <ChartCard title="Top Grupos de Produto" subtitle="por faturamento — período selecionado" animationDelay={140} className="min-h-[360px]">
+        <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={140} className="min-h-[360px]">
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
 
@@ -277,17 +264,6 @@ export default function DashboardPage() {
         )}
       </ChartCard>
 
-      {/* ── Tabela de Vendas ─────────────────────────────────────────────────── */}
-      {tabelaStart && tabelaEnd && (
-        <ChartCard title="Vendas" subtitle="drill-down com detalhes por venda" animationDelay={240}>
-          <TabelaVendas
-            lojaIds={lojaIds}
-            period={period}
-            start={tabelaStart}
-            end={tabelaEnd}
-          />
-        </ChartCard>
-      )}
     </div>
   );
 }
