@@ -24,10 +24,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, erro: "Bridge não respondeu ao health check. Verifique se está rodando e o túnel está ativo." });
     }
 
-    // Query de teste real
-    await queryBridge({ bridgeUrl, token }, "SELECT TOP 1 vedId FROM venda");
+    // Query de teste real — retorna a primeira linha da tabela venda
+    const rows = await queryBridge<Record<string, unknown>>(
+      { bridgeUrl, token },
+      "SELECT TOP 1 * FROM venda"
+    );
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, rows });
   } catch (e) {
     const msg = e instanceof BridgeError ? e.message : String(e instanceof Error ? e.message : e);
     return NextResponse.json({ success: false, erro: msg });
