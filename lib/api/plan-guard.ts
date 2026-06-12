@@ -1,49 +1,18 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { planHasFeature } from "@/lib/plans";
-import { cookies } from "next/headers";
+import { requireTenantAccess } from "./tenant-guard";
 
-/**
- * Verifica se o usuário autenticado tem acesso a uma feature específica.
- * Retorna um NextResponse de erro (401/403) se não tiver, ou null se tiver.
- *
- * Uso nas route handlers:
- *   const denied = await requireFeature("modulo_financeiro");
- *   if (denied) return denied;
- */
-export async function requireFeature(featureKey: string): Promise<NextResponse | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
-
-  const adminClient = createAdminClient(
+function makeAdminClient() {
+  return createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
+}
 
-  // System admins têm acesso a tudo
-  const { data: profile } = await adminClient
-    .from("profiles")
-    .select("is_system_admin")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if ((profile as { is_system_admin?: boolean } | null)?.is_system_admin) {
-    return null;
-  }
-
-  const cookieStore = await cookies();
-  const tenantId = cookieStore.get("selected_tenant_id")?.value;
-
-  if (!tenantId) {
-    return NextResponse.json({ error: "Empresa não selecionada" }, { status: 403 });
-  }
-
-  const { data: tenant } = await adminClient
+async function checkPlan(tenantId: string, featureKey: string): Promise<NextResponse | null> {
+  const admin = makeAdminClient();
+  const { data: tenant } = await admin
     .from("tenants")
     .select("plan")
     .eq("id", tenantId)
@@ -59,4 +28,29 @@ export async function requireFeature(featureKey: string): Promise<NextResponse |
   }
 
   return null;
+}
+
+/**
+ * Verifica autenticação + vínculo ao tenant + plano.
+ * Não valida lojaIds — use requireFeatureWithLojas para isso.
+ */
+export async function requireFeature(featureKey: string): Promise<NextResponse | null> {
+  const ctx = await requireTenantAccess();
+  if (ctx instanceof NextResponse) return ctx;
+  if (ctx.isSystemAdmin) return null;
+  return checkPlan(ctx.tenantId, featureKey);
+}
+
+/**
+ * Verifica autenticação + vínculo ao tenant + ownership das lojas + plano.
+ * Use em rotas que recebem lojaIds como parâmetro.
+ */
+export async function requireFeatureWithLojas(
+  featureKey: string,
+  lojaIds: string[]
+): Promise<NextResponse | null> {
+  const ctx = await requireTenantAccess(lojaIds);
+  if (ctx instanceof NextResponse) return ctx;
+  if (ctx.isSystemAdmin) return null;
+  return checkPlan(ctx.tenantId, featureKey);
 }

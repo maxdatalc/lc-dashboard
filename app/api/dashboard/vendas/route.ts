@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getDateRange } from "@/lib/utils/format";
-import { requireFeature } from "@/lib/api/plan-guard";
+import { requireFeatureWithLojas } from "@/lib/api/plan-guard";
 
 const PAGE_LIMIT = 20;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
-  const denied = await requireFeature("modulo_vendas");
-  if (denied) return denied;
-
   const { searchParams } = req.nextUrl;
 
   const lojaIdsParam = searchParams.get("lojaIds");
@@ -22,6 +19,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (lojaIds.length === 0) {
     return NextResponse.json({ error: "lojaId ou lojaIds é obrigatório" }, { status: 400 });
   }
+
+  const denied = await requireFeatureWithLojas("modulo_vendas", lojaIds);
+  if (denied) return denied;
 
   const period = searchParams.get("period") ?? "month";
   const startParam = searchParams.get("start");
@@ -38,8 +38,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const offset = (page - 1) * limit;
 
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   let query = supabase
     .from("vendas")
