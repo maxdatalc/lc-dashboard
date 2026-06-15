@@ -148,7 +148,7 @@ export function ServiceOrderItemEditor({
                 {loadingDetail ? (
                   <Loader2 className="mt-1 h-5 w-5 animate-spin text-muted-foreground" />
                 ) : (
-                  <p className="text-lg font-semibold tabular-nums">
+                  <p className={`text-lg font-semibold tabular-nums ${selecionado.estoqueFiscal < 0 ? "text-destructive" : ""}`}>
                     {selecionado.estoqueFiscal}
                   </p>
                 )}
