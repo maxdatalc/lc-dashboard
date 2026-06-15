@@ -64,7 +64,7 @@ export default function OrdensPage() {
                 <SelectContent>
                   {empresas.map((e) => (
                     <SelectItem key={e.id} value={e.id}>
-                      {e.name}
+                      {e.nome_fantasia}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -81,7 +81,7 @@ export default function OrdensPage() {
                 <SelectContent>
                   {empresaAtiva?.lojas.map((l) => (
                     <SelectItem key={l.id} value={l.id}>
-                      {l.name}
+                      {l.nome}
                     </SelectItem>
                   ))}
                 </SelectContent>
