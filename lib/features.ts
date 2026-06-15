@@ -23,6 +23,14 @@ export const FEATURES_CATALOG: Feature[] = [
 
   // ── Premium — módulos pagos ───────────────────────────────────────────────
   {
+    key: "modulo_os",
+    label: "Ordens de Serviço",
+    descricao: "Gestão de OS com controle fiscal de estoque integrado ao MaxManager",
+    categoria: "premium",
+    icone: "ClipboardList",
+    disponivel: true,
+  },
+  {
     key: "modulo_financeiro",
     label: "Financeiro",
     descricao: "Contas a receber, inadimplência e fluxo de caixa",

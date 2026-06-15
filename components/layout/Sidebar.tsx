@@ -12,6 +12,7 @@ import {
   Lock,
   Package,
   ShoppingCart,
+  ClipboardList,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
@@ -52,6 +53,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/produtos",   label: "Produtos",         icon: Package,         exact: false, featureKey: "modulo_produtos"   },
   { href: "/dashboard/vendas",     label: "Vendas",           icon: ShoppingCart,    exact: false, featureKey: "modulo_vendas"     },
   { href: "/dashboard/clientes",   label: "Clientes",         icon: Users,           exact: false, featureKey: "modulo_clientes"   },
+  { href: "/os",                   label: "Ordens de Serviço", icon: ClipboardList,   exact: false, featureKey: "modulo_os"          },
 ];
 
 export function Sidebar({ isAdmin }: Props) {
