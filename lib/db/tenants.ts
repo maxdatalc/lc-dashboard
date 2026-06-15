@@ -89,6 +89,7 @@ export async function createLoja(input: CreateLojaInput): Promise<Loja> {
       tenant_id: input.tenantId,
       name: input.name,
       emp_id: input.empId,
+      erp_base_url: "",
       sql_bridge_url: input.sqlBridgeUrl ?? null,
       sql_bridge_token: input.sqlBridgeToken ? encrypt(input.sqlBridgeToken) : null,
       sql_enabled: input.sqlEnabled ?? false,
