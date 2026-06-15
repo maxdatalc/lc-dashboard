@@ -3,7 +3,8 @@
 import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { encrypt, decrypt } from "@/lib/crypto";
-import { pingBridge } from "@/lib/bridge/bridge-client";
+import { pingBridge, queryBridge, type BridgeConfig } from "@/lib/bridge/bridge-client";
+import { resolveNamedQuery } from "@/lib/bridge/named-queries";
 import { getOrRefreshToken, buildMaxApiConfig } from "@/lib/maxapi/maxapi-client";
 
 const LojaInput = z.object({ loja_id: z.string().uuid() });
@@ -238,12 +239,61 @@ export async function testMaxApiConnection(input: unknown) {
   return { status, mensagem, token_cached_until };
 }
 
+export type InventarioInfo = {
+  invId: number;
+  data: string;
+  obs: string;
+};
+
+export async function listInventories(input: unknown): Promise<InventarioInfo[]> {
+  const data = LojaInput.parse(input);
+  const { userId, supabase } = await getAuthContext();
+
+  const { data: canManage } = await supabase.rpc("fs_user_can_manage_loja", {
+    _user_id: userId,
+    _loja_id: data.loja_id,
+  });
+  if (!canManage) throw new Error("Apenas owner/admin pode listar inventários.");
+
+  const supabaseAdmin = createAdminClient();
+  const { data: loja } = await supabaseAdmin
+    .from("lojas")
+    .select("emp_id, sql_bridge_url, sql_bridge_token")
+    .eq("id", data.loja_id)
+    .maybeSingle();
+
+  const lojaRow = loja as Record<string, unknown> | null;
+  if (!lojaRow?.sql_bridge_url || !lojaRow?.sql_bridge_token) {
+    throw new Error("Bridge SQL não configurada para esta loja.");
+  }
+
+  const bridge: BridgeConfig = {
+    url: lojaRow.sql_bridge_url as string,
+    token: decrypt(lojaRow.sql_bridge_token as string),
+  };
+  const empId = lojaRow.emp_id as number;
+
+  const { sql, params } = resolveNamedQuery("LIST_INVENTORIES", { empId });
+  const rows = await queryBridge<{ invId: number; data: string; obs: string }>(
+    bridge,
+    sql,
+    params,
+  );
+
+  return rows.map((r) => ({
+    invId: Number(r.invId),
+    data: r.data ?? "",
+    obs: r.obs ?? "",
+  }));
+}
+
 export type IntegrationConfig = {
   bridge_url: string | null;
   bridge_token_configurado: boolean;
   maxapi_url: string | null;
   emp_id_maxdata: string | null;
   terminal_maxdata: string | null;
+  inventario_id_base: number | null;
 };
 
 export async function getIntegrationConfig(input: unknown): Promise<IntegrationConfig | null> {
@@ -265,7 +315,7 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
       .maybeSingle(),
     supabaseAdmin
       .from("integration_configs")
-      .select("maxapi_url")
+      .select("maxapi_url, inventario_id_base")
       .eq("loja_id", data.loja_id)
       .maybeSingle(),
   ]);
@@ -281,6 +331,7 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
     maxapi_url: (cfgRow?.maxapi_url as string) ?? null,
     emp_id_maxdata: lojaRow.emp_id ? String(lojaRow.emp_id) : null,
     terminal_maxdata: (lojaRow.terminal_maxdata as string) ?? null,
+    inventario_id_base: cfgRow?.inventario_id_base ? Number(cfgRow.inventario_id_base) : null,
   };
 }
 
@@ -290,6 +341,7 @@ const SaveConfigInput = z.object({
   bridge_token: z.string().optional(),
   maxapi_url: z.string().url("URL da MaxAPI inválida").optional().or(z.literal("")),
   terminal_maxdata: z.string().optional(),
+  inventario_id_base: z.number().int().positive().nullable().optional(),
 });
 
 export async function saveIntegrationConfig(input: unknown) {
@@ -325,6 +377,7 @@ export async function saveIntegrationConfig(input: unknown) {
 
   const cfgUpsert: Record<string, unknown> = { loja_id: data.loja_id };
   if (data.maxapi_url !== undefined) cfgUpsert.maxapi_url = data.maxapi_url || null;
+  if (data.inventario_id_base !== undefined) cfgUpsert.inventario_id_base = data.inventario_id_base;
   if (invalidaTokenMaxApi) {
     cfgUpsert.maxapi_token_cache = null;
     cfgUpsert.maxapi_token_expires_at = null;
