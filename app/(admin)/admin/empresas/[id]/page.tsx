@@ -225,7 +225,6 @@ export default async function GerenciarEmpresaPage({
                         {f.key === "modulo_os" && f.disponivel && (
                           <Link
                             href={`/admin/empresas/${id}/modulo-os`}
-                            onClick={(e) => e.stopPropagation()}
                             className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors"
                             title="Configurações do módulo OS"
                           >
