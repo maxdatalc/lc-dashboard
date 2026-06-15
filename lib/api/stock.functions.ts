@@ -66,11 +66,18 @@ async function assertLojaAccess(userId: string, loja_id: string) {
 
 async function getLojaConfigs(lojaId: string) {
   const supabaseAdmin = createAdminClient();
-  const { data: loja } = await supabaseAdmin
-    .from("lojas")
-    .select("emp_id, sql_bridge_url, sql_bridge_token")
-    .eq("id", lojaId)
-    .maybeSingle();
+  const [{ data: loja }, { data: cfg }] = await Promise.all([
+    supabaseAdmin
+      .from("lojas")
+      .select("emp_id, sql_bridge_url, sql_bridge_token")
+      .eq("id", lojaId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("integration_configs")
+      .select("inventario_id_base")
+      .eq("loja_id", lojaId)
+      .maybeSingle(),
+  ]);
 
   const row = loja as Record<string, unknown> | null;
   if (!row?.emp_id) throw new Error("Loja sem emp_id configurado");
@@ -81,7 +88,12 @@ async function getLojaConfigs(lojaId: string) {
     url: row.sql_bridge_url as string,
     token: decrypt(row.sql_bridge_token as string),
   };
-  return { empId: row.emp_id as number, bridge };
+  const cfgRow = cfg as Record<string, unknown> | null;
+  const invId: number | null = cfgRow?.inventario_id_base
+    ? Number(cfgRow.inventario_id_base)
+    : null;
+
+  return { empId: row.emp_id as number, bridge, invId };
 }
 
 async function getAuthContext() {
@@ -119,7 +131,7 @@ export async function getProductStockDetail(input: unknown): Promise<ProductStoc
   const { userId } = await getAuthContext();
   await assertLojaAccess(userId, data.loja_id);
 
-  const { empId, bridge } = await getLojaConfigs(data.loja_id);
+  const { empId, bridge, invId } = await getLojaConfigs(data.loja_id);
   const proId = parseInt(data.produto_id, 10);
   if (isNaN(proId)) throw new Error("produto_id inválido");
 
@@ -127,7 +139,7 @@ export async function getProductStockDetail(input: unknown): Promise<ProductStoc
 
   const [physRows, fiscalResult] = await Promise.all([
     queryBridge<ProductRow>(bridge, physQuery.sql, physQuery.params),
-    calculateFiscalStock(empId, proId, bridge),
+    calculateFiscalStock(empId, proId, bridge, invId),
   ]);
 
   const phys = physRows[0] ?? null;

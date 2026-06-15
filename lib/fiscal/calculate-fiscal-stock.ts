@@ -61,6 +61,7 @@ export async function calculateFiscalStock(
   empId: number,
   proId: number,
   bridge: BridgeConfig,
+  invId: number | null = null,
 ): Promise<FiscalStockResult> {
   const [physicalRows, fiscalRows] = await Promise.all([
     queryBridge<PhysicalRow>(
@@ -70,8 +71,8 @@ export async function calculateFiscalStock(
     ),
     queryBridge<FiscalRow>(
       bridge,
-      resolveNamedQuery("GET_FISCAL_STOCK_COMPOSITION", { empId, proId }).sql,
-      { empId, proId },
+      resolveNamedQuery("GET_FISCAL_STOCK_COMPOSITION", { empId, proId, invId }).sql,
+      { empId, proId, invId },
     ),
   ]);
 
@@ -150,8 +151,9 @@ export async function validateStockForOsItem(
   proId: number,
   requestedQty: number,
   bridge: BridgeConfig,
+  invId: number | null = null,
 ) {
-  const stock = await calculateFiscalStock(empId, proId, bridge);
+  const stock = await calculateFiscalStock(empId, proId, bridge, invId);
   const validation = deriveStockStatus(stock.estoqueFisico, stock.estoqueFiscal, requestedQty);
   return { stock, validation };
 }

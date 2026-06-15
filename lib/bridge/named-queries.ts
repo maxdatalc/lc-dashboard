@@ -40,6 +40,17 @@ INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 WHERE p.proId = @proId
 `;
 
+const LIST_INVENTORIES = `
+SELECT
+  invId,
+  CONVERT(VARCHAR(10), invData, 23) AS data,
+  ISNULL(invObs, '')                AS obs
+FROM Inventario
+WHERE empId      = @empId
+  AND invSuspenso = 0
+ORDER BY invData DESC
+`;
+
 const GET_FISCAL_STOCK_COMPOSITION = `
 WITH InventarioBase AS (
   SELECT TOP 1
@@ -50,9 +61,12 @@ WITH InventarioBase AS (
     i.empId
   FROM InventarioItem ii
   INNER JOIN Inventario i ON i.invId = ii.iviInvId
-  WHERE ii.iviProId  = @proId
-    AND i.empId      = @empId
-    AND i.invSuspenso = 0
+  WHERE ii.iviProId = @proId
+    AND i.empId     = @empId
+    AND (
+          (@invId IS NULL AND i.invSuspenso = 0)
+       OR (i.invId = @invId)
+        )
   ORDER BY i.invData DESC
 ),
 Entradas AS (
@@ -191,9 +205,13 @@ const REGISTRY: Record<string, QueryDef> = {
     sql: GET_PRODUCT_PHYSICAL_STOCK,
     allowedParams: ["empId", "proId"],
   },
+  LIST_INVENTORIES: {
+    sql: LIST_INVENTORIES,
+    allowedParams: ["empId"],
+  },
   GET_FISCAL_STOCK_COMPOSITION: {
     sql: GET_FISCAL_STOCK_COMPOSITION,
-    allowedParams: ["empId", "proId"],
+    allowedParams: ["empId", "proId", "invId"],
   },
   LIST_SERVICE_ORDERS: {
     sql: LIST_SERVICE_ORDERS,
