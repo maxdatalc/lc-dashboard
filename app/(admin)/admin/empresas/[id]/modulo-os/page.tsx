@@ -22,10 +22,13 @@ type LojaData = {
 
 export default async function OsModuloPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ erro?: string; ok?: string }>;
 }) {
   const { id: tenantId } = await params;
+  const { erro, ok } = await searchParams;
 
   const tenant = await getTenantByIdAdmin(tenantId);
   if (!tenant) notFound();
@@ -101,11 +104,18 @@ export default async function OsModuloPage({
     const inventario_id_base = invIdRaw ? parseInt(invIdRaw, 10) : null;
 
     const admin = createAdminClient();
-    await admin
+    const { error } = await admin
       .from("integration_configs")
       .upsert({ loja_id, inventario_id_base }, { onConflict: "loja_id" });
 
-    redirect(`/admin/empresas/${tenantId}/modulo-os`);
+    if (error) {
+      const msg = error.message.includes("inventario_id_base")
+        ? "Coluna inventario_id_base não existe. Execute a migration SQL no Supabase antes de continuar."
+        : error.message;
+      redirect(`/admin/empresas/${tenantId}/modulo-os?erro=${encodeURIComponent(msg)}`);
+    }
+
+    redirect(`/admin/empresas/${tenantId}/modulo-os?ok=${loja_id}`);
   }
 
   return (
@@ -127,6 +137,18 @@ export default async function OsModuloPage({
           <p className="text-xs text-slate-400 mt-0.5">{tenant.name}</p>
         </div>
       </div>
+
+      {/* Feedback de save */}
+      {erro && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <strong>Erro ao salvar:</strong> {erro}
+        </div>
+      )}
+      {ok && !erro && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          Inventário base fiscal salvo com sucesso.
+        </div>
+      )}
 
       {lojasData.length === 0 && (
         <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
