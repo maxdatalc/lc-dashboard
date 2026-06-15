@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { ProductSearch } from "./ProductSearch";
 import { stockService } from "@/lib/services/stock-adapter";
 import { disponivelParaEmissao, type Produto } from "@/lib/fiscal-types";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 
 export function ServiceOrderItemEditor({
   open,
@@ -36,6 +36,7 @@ export function ServiceOrderItemEditor({
   const [busca, setBusca] = useState("");
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [selecionado, setSelecionado] = useState<Produto | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [qtd, setQtd] = useState(1);
 
   useEffect(() => {
@@ -50,6 +51,39 @@ export function ServiceOrderItemEditor({
       setQtd(1);
     }
   }, [open]);
+
+  async function handleSelectProduto(p: Produto) {
+    setSelecionado(p);
+    if (!empresaId) return;
+    setLoadingDetail(true);
+    try {
+      const detail = await stockService.detail(empresaId, p.id);
+      if (detail) {
+        setSelecionado((prev) =>
+          prev?.id === p.id
+            ? {
+                ...prev,
+                estoqueFisico: detail.estoque_fisico,
+                estoqueFiscal: detail.estoque_fiscal,
+                composicaoFiscal: detail.composicao_estoque_fiscal
+                  ? {
+                      inventarioBase: detail.composicao_estoque_fiscal.inventario_base,
+                      entradas: detail.composicao_estoque_fiscal.entradas,
+                      saidas: detail.composicao_estoque_fiscal.saidas,
+                      devolucoes: detail.composicao_estoque_fiscal.devolucoes,
+                      ajustes: detail.composicao_estoque_fiscal.ajustes,
+                    }
+                  : prev.composicaoFiscal,
+              }
+            : prev,
+        );
+      }
+    } catch {
+      // mantém os dados da busca (físico correto, fiscal 0)
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
 
   const disponivel = selecionado ? disponivelParaEmissao(selecionado) : 0;
   const excedeFiscal = selecionado ? qtd > selecionado.estoqueFiscal : false;
@@ -72,7 +106,7 @@ export function ServiceOrderItemEditor({
               {produtos.map((p) => (
                 <button
                   key={p.id}
-                  onClick={() => setSelecionado(p)}
+                  onClick={() => handleSelectProduto(p)}
                   className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-secondary last:border-b-0"
                 >
                   <div>
@@ -83,8 +117,7 @@ export function ServiceOrderItemEditor({
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Físico{" "}
-                    <span className="font-mono text-foreground">{p.estoqueFisico}</span> • Fiscal{" "}
-                    <span className="font-mono text-foreground"> {p.estoqueFiscal}</span>
+                    <span className="font-mono text-foreground">{p.estoqueFisico}</span>
                   </div>
                 </button>
               ))}
@@ -112,13 +145,21 @@ export function ServiceOrderItemEditor({
               </div>
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Fiscal</p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {selecionado.estoqueFiscal}
-                </p>
+                {loadingDetail ? (
+                  <Loader2 className="mt-1 h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <p className="text-lg font-semibold tabular-nums">
+                    {selecionado.estoqueFiscal}
+                  </p>
+                )}
               </div>
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Disponível p/ emitir</p>
-                <p className="text-lg font-semibold tabular-nums text-primary">{disponivel}</p>
+                {loadingDetail ? (
+                  <Loader2 className="mt-1 h-5 w-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <p className="text-lg font-semibold tabular-nums text-primary">{disponivel}</p>
+                )}
               </div>
             </div>
             <div>
