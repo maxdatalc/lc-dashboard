@@ -6,7 +6,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
@@ -221,6 +221,17 @@ export default async function GerenciarEmpresaPage({
                           <span className="text-xs bg-slate-100 text-slate-500 px-1.5 rounded">
                             Em breve
                           </span>
+                        )}
+                        {f.key === "modulo_os" && f.disponivel && (
+                          <Link
+                            href={`/admin/empresas/${id}/modulo-os`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors"
+                            title="Configurações do módulo OS"
+                          >
+                            <Settings className="h-3.5 w-3.5" />
+                            Configurar
+                          </Link>
                         )}
                       </div>
                       <p className="text-xs text-slate-400">{f.descricao}</p>
