@@ -1,5 +1,5 @@
 // Utilitários de criptografia AES-256-GCM usando o módulo nativo do Node.js
-// Usado para proteger o terminal MaxData armazenado no banco de dados
+// Usado para proteger sql_bridge_token armazenado no banco de dados
 
 import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
