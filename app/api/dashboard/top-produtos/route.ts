@@ -52,11 +52,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       JOIN venda v ON vi.vdiVedId = v.vedId
       WHERE v.vedStatus = 'F'
         AND v.vedTipo IN ('OS','VE')
+        AND v.empId = @empId
         AND vi.vdiCancel = 0
         AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
       GROUP BY vi.vdiProNome
       ORDER BY total DESC`,
-      { start: dataInicio, end: dataFim }
+      { start: dataInicio, end: dataFim, empId: config.empId }
     );
 
     const resultado: ProdutoRanking[] = rows.map((r) => ({

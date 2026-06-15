@@ -119,12 +119,12 @@ export async function getLojasByTenantId(tenantId: string): Promise<Loja[]> {
 // Retorna URL + token da bridge SQL prontos para uso — token descriptografado em memória
 export async function getLojaDbConfig(
   lojaId: string
-): Promise<{ bridgeUrl: string; token: string } | null> {
+): Promise<{ bridgeUrl: string; token: string; empId: number } | null> {
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("lojas")
-    .select("sql_enabled, sql_bridge_url, sql_bridge_token")
+    .select("sql_enabled, sql_bridge_url, sql_bridge_token, emp_id")
     .eq("id", lojaId)
     .maybeSingle();
 
@@ -140,6 +140,7 @@ export async function getLojaDbConfig(
   return {
     bridgeUrl: row.sql_bridge_url as string,
     token: decrypt(row.sql_bridge_token as string),
+    empId: Number(row.emp_id),
   };
 }
 

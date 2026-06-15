@@ -18,7 +18,7 @@ import { useFiscalAuth } from "@/lib/fiscal-auth-context";
 import type { OrdemServico } from "@/lib/fiscal-types";
 
 export default function OrdensPage() {
-  const { lojaAtiva } = useFiscalAuth();
+  const { empresas, empresaAtiva, lojaAtiva, setEmpresaAtiva, setLojaAtiva } = useFiscalAuth();
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [loading, setLoading] = useState(true);
   const [cliente, setCliente] = useState("");
@@ -45,16 +45,52 @@ export default function OrdensPage() {
   return (
     <RequireLoja>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-semibold">Ordens de Serviço</h1>
             <p className="text-sm text-muted-foreground">
               Gerencie O.S e adicione itens com checagem fiscal.
             </p>
           </div>
-          <Button>
-            <Plus className="mr-1 h-4 w-4" /> Nova O.S
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {empresas.length > 1 && (
+              <Select
+                value={empresaAtiva?.id ?? ""}
+                onValueChange={(id) => setEmpresaAtiva(id)}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Empresa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresas.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>
+                      {e.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {(empresaAtiva?.lojas?.length ?? 0) > 1 && (
+              <Select
+                value={lojaAtiva?.id ?? ""}
+                onValueChange={(id) => setLojaAtiva(id)}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Loja" />
+                </SelectTrigger>
+                <SelectContent>
+                  {empresaAtiva?.lojas.map((l) => (
+                    <SelectItem key={l.id} value={l.id}>
+                      {l.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button>
+              <Plus className="mr-1 h-4 w-4" /> Nova O.S
+            </Button>
+          </div>
         </div>
 
         <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-4">

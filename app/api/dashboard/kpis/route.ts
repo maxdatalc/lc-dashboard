@@ -86,6 +86,7 @@ function buildSqlKpis(vClause: string) {
   WHERE vedStatus = 'F'
     AND vedTipo IN ('OS','VE')
     AND vedTotalNf > 0
+    AND empId = @empId
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
     ${vClause}`;
 }
@@ -98,6 +99,7 @@ function buildSqlCusto(vClause: string) {
   WHERE v.vedStatus = 'F'
     AND v.vedTipo IN ('OS','VE')
     AND v.vedTotalNf > 0
+    AND v.empId = @empId
     AND vi.vdiCancel = 0
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
     ${vClause}`;
@@ -112,6 +114,7 @@ function buildSqlDev(vClause: string) {
   WHERE vedStatus = 'F'
     AND vedTipo = 'DV'
     AND vedTotalNf > 0
+    AND empId = @empId
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
     ${vClause}`;
 }
@@ -172,16 +175,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     try {
       const vp = vendedorId ? { vendedorId } : {};
+      const ep = { empId: config.empId };
       const SQL_KPIS = buildSqlKpis(vendedorClause);
       const SQL_CUSTO = buildSqlCusto(vendedorClauseJ);
       const SQL_DEV   = buildSqlDev(vendedorClause);
 
       const [atual, ant, custoAtual, custoAnterior, dev] = await Promise.all([
-        queryBridge<KpiRow>(config, SQL_KPIS, { start, end, ...vp }),
-        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end, ...vp }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...vp }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...vp }),
-        queryBridge<DevRow>(config, SQL_DEV, { start, end, ...vp }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start, end, ...ep, ...vp }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end, ...ep, ...vp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...ep, ...vp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...ep, ...vp }),
+        queryBridge<DevRow>(config, SQL_DEV, { start, end, ...ep, ...vp }),
       ]);
 
       faturamento     += Number(atual[0]?.faturamento        ?? 0);

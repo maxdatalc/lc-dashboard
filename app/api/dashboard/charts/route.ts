@@ -18,6 +18,11 @@ async function getConfig(lojaIds: string[]) {
   return null;
 }
 
+// shorthand para usar em todos os queryBridge desta rota
+function ep(config: NonNullable<Awaited<ReturnType<typeof getConfig>>>) {
+  return { empId: config.empId };
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
   const lojaIdsParam = searchParams.get("lojaIds");
@@ -77,12 +82,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
               AND vedTotalNf > 0
+              AND empId = @empId
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
               ${vClause}
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
-            { start: inicio12m, end, ...vp }
+            { start: inicio12m, end, ...ep(config), ...vp }
           ),
           queryBridge<{ mes: string; total: number }>(
             config,
@@ -93,11 +99,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo = 'DV'
               AND vedTotalNf > 0
+              AND empId = @empId
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
-            { start: inicio12m, end }
+            { start: inicio12m, end, ...ep(config) }
           ),
         ]);
 
@@ -158,12 +165,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
+            AND v.empId = @empId
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}
           GROUP BY vi.vdiProNome
           ORDER BY valor DESC`,
-          { start, end, ...vp }
+          { start, end, ...ep(config), ...vp }
         );
 
         return NextResponse.json(
@@ -198,12 +206,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
+            AND v.empId = @empId
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}
           GROUP BY f.fabNome
           ORDER BY valor DESC`,
-          { start, end, ...vp }
+          { start, end, ...ep(config), ...vp }
         );
 
         return NextResponse.json(
@@ -238,11 +247,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
+            AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}
           GROUP BY c.cliNome, c.cliTipoCad
           ORDER BY total DESC`,
-          { start, end, ...vp }
+          { start, end, ...ep(config), ...vp }
         );
 
         return NextResponse.json(
@@ -282,10 +292,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
+            AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
           GROUP BY c.cliId, c.cliNome
           ORDER BY valor DESC`,
-          { start, end }
+          { start, end, ...ep(config) }
         );
 
         return NextResponse.json(
@@ -311,9 +322,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
+            AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
           GROUP BY c.cliTipoCad`,
-          { start, end }
+          { start, end, ...ep(config) }
         );
 
         let pfTotal = 0, pfCount = 0, pjTotal = 0, pjCount = 0;
@@ -345,11 +357,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
+            AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}
           GROUP BY cv.cavPgtTipoDesc
           ORDER BY total DESC`,
-          { start, end, ...vp }
+          { start, end, ...ep(config), ...vp }
         );
 
         const totalGeral = rows.reduce((s, r) => s + Number(r.total), 0);
@@ -377,6 +390,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
               AND vedTotalNf > 0
+              AND empId = @empId
               AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
               AND vedClienteId != 0
             GROUP BY vedClienteId
@@ -387,6 +401,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
               AND vedTotalNf > 0
+              AND empId = @empId
               AND vedClienteId != 0
             GROUP BY vedClienteId
           )
@@ -397,7 +412,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ISNULL(SUM(CASE WHEN pc.primeira < @start  THEN cp.valor ELSE 0 END), 0) AS faturamentoRecorrentes
           FROM compras_periodo cp
           JOIN primeira_compra pc ON cp.vedClienteId = pc.vedClienteId`,
-          { start, end }
+          { start, end, ...ep(config) }
         );
 
         const r = rows[0] ?? { novos: 0, recorrentes: 0, faturamentoNovos: 0, faturamentoRecorrentes: 0 };

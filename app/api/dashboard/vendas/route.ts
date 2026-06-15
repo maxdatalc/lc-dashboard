@@ -78,8 +78,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   // Condições WHERE dinâmicas
   const conditions: string[] = [
     "CONVERT(date, vedFechamento) BETWEEN @start AND @end",
+    "empId = @empId",
   ];
-  const params: Record<string, unknown> = { start, end, offset, limit };
+  const params: Record<string, unknown> = { start, end, offset, limit, empId: config.empId };
 
   if (statusFiltro === "finalizada") conditions.push("vedStatus = 'F'");
   else if (statusFiltro === "cancelada") conditions.push("vedStatus = 'C'");
