@@ -1,7 +1,7 @@
 // Funções de acesso ao banco de dados para as tabelas tenants e lojas
 // Escritas administrativas usam createAdminClient (bypassa RLS)
 // Leituras do usuário usam createClient (RLS ativo)
-// O terminal MaxData é sempre armazenado criptografado (AES-256-GCM)
+// sql_bridge_token é armazenado criptografado (AES-256-GCM)
 
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { encrypt, decrypt } from "@/lib/crypto";
@@ -89,7 +89,6 @@ export async function createLoja(input: CreateLojaInput): Promise<Loja> {
       tenant_id: input.tenantId,
       name: input.name,
       emp_id: input.empId,
-      erp_base_url: "",
       sql_bridge_url: input.sqlBridgeUrl ?? null,
       sql_bridge_token: input.sqlBridgeToken ? encrypt(input.sqlBridgeToken) : null,
       sql_enabled: input.sqlEnabled ?? false,
