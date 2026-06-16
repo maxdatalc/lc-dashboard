@@ -214,13 +214,10 @@ export default async function OsModuloPage({
                     defaultValue={
                       loja.inventario_id_base != null
                         ? String(loja.inventario_id_base)
-                        : ""
+                        : "0"
                     }
                     className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
                   >
-                    <option value="">
-                      — Automático (mais recente não suspenso) —
-                    </option>
                     <option value="0">
                       — Nenhum (cálculo geral: todas as NFs sem base de inventário) —
                     </option>
