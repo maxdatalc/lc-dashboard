@@ -74,34 +74,37 @@ Entradas AS (
   FROM nfItem ni
   INNER JOIN nf n ON n.nfId = ni.nfiNf
   CROSS JOIN InventarioBase ib
-  WHERE ni.nfiProd      = @proId
-    AND n.empId         = @empId
-    AND n.nfStatus      = 'F'
-    AND n.nfTipoNf      = 'E'
+  WHERE ni.nfiProd        = @proId
+    AND n.empId           = @empId
+    AND n.nfStatus        = 'F'
+    AND n.nfTipoNf        = 'E'
+    AND n.nfTipoNfSped   <> '01'
     AND ni.nfiCfop NOT IN (1202, 2202, 5202, 6202)
-    AND n.nfDataEmissao > ib.dataInventario
+    AND n.nfDataEmissao   > ib.dataInventario
 ),
 Saidas AS (
   SELECT COALESCE(SUM(ni.nfiQtde), 0) AS total
   FROM nfItem ni
   INNER JOIN nf n ON n.nfId = ni.nfiNf
   CROSS JOIN InventarioBase ib
-  WHERE ni.nfiProd      = @proId
-    AND n.empId         = @empId
-    AND n.nfStatus      = 'F'
-    AND n.nfTipoNf      = 'S'
-    AND n.nfDataEmissao > ib.dataInventario
+  WHERE ni.nfiProd        = @proId
+    AND n.empId           = @empId
+    AND n.nfStatus        = 'F'
+    AND n.nfTipoNf        = 'S'
+    AND n.nfTipoNfSped   <> '01'
+    AND n.nfDataEmissao   > ib.dataInventario
 ),
 Devolucoes AS (
   SELECT COALESCE(SUM(ni.nfiQtde), 0) AS total
   FROM nfItem ni
   INNER JOIN nf n ON n.nfId = ni.nfiNf
   CROSS JOIN InventarioBase ib
-  WHERE ni.nfiProd      = @proId
-    AND n.empId         = @empId
-    AND n.nfStatus      = 'F'
-    AND ni.nfiCfop      IN (1202, 2202)
-    AND n.nfDataEmissao > ib.dataInventario
+  WHERE ni.nfiProd        = @proId
+    AND n.empId           = @empId
+    AND n.nfStatus        = 'F'
+    AND n.nfTipoNfSped   <> '01'
+    AND ni.nfiCfop        IN (1202, 2202)
+    AND n.nfDataEmissao   > ib.dataInventario
 ),
 Ajustes AS (
   SELECT COALESCE(SUM(pai.paiQtdInf - pai.paiProEstoque), 0) AS total
