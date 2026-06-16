@@ -16,6 +16,7 @@ export type Produto = {
   unidade: string;
   estoqueFisico: number;
   estoqueFiscal: number;
+  preco?: number;
   composicaoFiscal: {
     inventarioBase: number;
     entradas: number;

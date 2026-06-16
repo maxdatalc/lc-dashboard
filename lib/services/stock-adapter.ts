@@ -18,6 +18,7 @@ export const stockService = {
       unidade: p.unidade,
       estoqueFisico: p.estoqueFisico,
       estoqueFiscal: p.estoqueFiscal,
+      preco: p.preco,
       composicaoFiscal: {
         inventarioBase: 0,
         entradas: 0,
