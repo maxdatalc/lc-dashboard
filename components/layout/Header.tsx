@@ -195,9 +195,6 @@ export function Header() {
   const [tempStart, setTempStart] = useState(hojeStr);
   const [tempEnd, setTempEnd] = useState(hojeStr);
 
-  // Ocultar o header completo no módulo de O.S
-  if (pathname.startsWith("/os")) return null;
-
   const title = PAGE_TITLES[pathname] ?? "Dashboard";
 
   // Label do pill "Personalizado": mostra intervalo quando ativo
