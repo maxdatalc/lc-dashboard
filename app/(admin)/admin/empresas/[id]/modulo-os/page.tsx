@@ -57,9 +57,8 @@ export default async function OsModuloPage({
         .maybeSingle();
 
       const cfgRow = cfg as Record<string, unknown> | null;
-      const inventario_id_base = cfgRow?.inventario_id_base
-        ? Number(cfgRow.inventario_id_base)
-        : null;
+      const rawInvId = cfgRow?.inventario_id_base;
+      const inventario_id_base = rawInvId != null ? Number(rawInvId) : null;
 
       let inventarios: InventarioRow[] = [];
       if (loja.sql_bridge_url && loja.sql_bridge_token) {
@@ -213,7 +212,7 @@ export default async function OsModuloPage({
                   <select
                     name="inventario_id_base"
                     defaultValue={
-                      loja.inventario_id_base
+                      loja.inventario_id_base != null
                         ? String(loja.inventario_id_base)
                         : ""
                     }
@@ -221,6 +220,9 @@ export default async function OsModuloPage({
                   >
                     <option value="">
                       — Automático (mais recente não suspenso) —
+                    </option>
+                    <option value="0">
+                      — Nenhum (cálculo geral: todas as NFs sem base de inventário) —
                     </option>
                     {loja.inventarios.map((inv) => (
                       <option key={inv.invId} value={String(inv.invId)}>

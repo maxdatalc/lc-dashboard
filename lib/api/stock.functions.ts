@@ -90,9 +90,9 @@ async function getLojaConfigs(lojaId: string) {
     token: decrypt(row.sql_bridge_token as string),
   };
   const cfgRow = cfg as Record<string, unknown> | null;
-  const invId: number | null = cfgRow?.inventario_id_base
-    ? Number(cfgRow.inventario_id_base)
-    : null;
+  const rawInvId = cfgRow?.inventario_id_base;
+  // 0 = modo geral (sem base de inventário); null = auto (mais recente)
+  const invId: number | null = rawInvId != null ? Number(rawInvId) : null;
 
   return { empId: row.emp_id as number, bridge, invId };
 }

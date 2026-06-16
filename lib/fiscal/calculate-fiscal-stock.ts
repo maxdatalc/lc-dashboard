@@ -63,6 +63,10 @@ export async function calculateFiscalStock(
   bridge: BridgeConfig,
   invId: number | null = null,
 ): Promise<FiscalStockResult> {
+  const fiscalQueryName: import("@/lib/bridge/named-queries").NamedQueryKey =
+    invId === 0 ? "GET_FISCAL_STOCK_NO_BASE" : "GET_FISCAL_STOCK_COMPOSITION";
+  const fiscalParams = invId === 0 ? { empId, proId } : { empId, proId, invId };
+
   const [physicalRows, fiscalRows] = await Promise.all([
     queryBridge<PhysicalRow>(
       bridge,
@@ -71,8 +75,8 @@ export async function calculateFiscalStock(
     ),
     queryBridge<FiscalRow>(
       bridge,
-      resolveNamedQuery("GET_FISCAL_STOCK_COMPOSITION", { empId, proId, invId }).sql,
-      { empId, proId, invId },
+      resolveNamedQuery(fiscalQueryName, fiscalParams).sql,
+      fiscalParams,
     ),
   ]);
 
