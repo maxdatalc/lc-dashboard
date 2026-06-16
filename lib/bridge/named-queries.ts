@@ -140,6 +140,64 @@ CROSS JOIN Devolucoes d
 CROSS JOIN Ajustes aj
 `;
 
+const GET_FISCAL_STOCK_NO_BASE = `
+WITH
+Entradas AS (
+  SELECT COALESCE(SUM(ni.nfiQtde), 0) AS total
+  FROM nfItem ni
+  INNER JOIN nf n ON n.nfId = ni.nfiNf
+  WHERE ni.nfiProd        = @proId
+    AND n.empId           = @empId
+    AND n.nfStatus        = 'F'
+    AND n.nfTipoNf        = 'E'
+    AND n.nfTipoNfSped   <> '01'
+    AND ni.nfiCfop NOT IN (1202, 2202, 5202, 6202)
+),
+Saidas AS (
+  SELECT COALESCE(SUM(ni.nfiQtde), 0) AS total
+  FROM nfItem ni
+  INNER JOIN nf n ON n.nfId = ni.nfiNf
+  WHERE ni.nfiProd        = @proId
+    AND n.empId           = @empId
+    AND n.nfStatus        = 'F'
+    AND n.nfTipoNf        = 'S'
+    AND n.nfTipoNfSped   <> '01'
+),
+Devolucoes AS (
+  SELECT COALESCE(SUM(ni.nfiQtde), 0) AS total
+  FROM nfItem ni
+  INNER JOIN nf n ON n.nfId = ni.nfiNf
+  WHERE ni.nfiProd        = @proId
+    AND n.empId           = @empId
+    AND n.nfStatus        = 'F'
+    AND n.nfTipoNfSped   <> '01'
+    AND ni.nfiCfop        IN (1202, 2202)
+),
+Ajustes AS (
+  SELECT COALESCE(SUM(pai.paiQtdInf - pai.paiProEstoque), 0) AS total
+  FROM produtoAcertoEstoque pae
+  INNER JOIN produtoAcertoEstoqueItem pai ON pai.paiPaeId = pae.paeId
+  WHERE pai.paiProId  = @proId
+    AND pae.empId     = @empId
+    AND pae.paeStatus = 'F'
+)
+SELECT
+  @proId AS proId,
+  @empId AS empId,
+  NULL   AS inventarioId,
+  NULL   AS dataInventario,
+  0      AS estoqueBaseInventario,
+  e.total  AS entradasFiscais,
+  s.total  AS saidasFiscais,
+  d.total  AS devolucoesFiscais,
+  aj.total AS ajustesEstoque,
+  (e.total - s.total + d.total + aj.total) AS estoqueFiscal
+FROM Entradas e
+CROSS JOIN Saidas s
+CROSS JOIN Devolucoes d
+CROSS JOIN Ajustes aj
+`;
+
 const LIST_SERVICE_ORDERS = `
 SELECT
   v.vedId              AS vedId,
@@ -221,6 +279,10 @@ const REGISTRY: Record<string, QueryDef> = {
   GET_FISCAL_STOCK_COMPOSITION: {
     sql: GET_FISCAL_STOCK_COMPOSITION,
     allowedParams: ["empId", "proId", "invId"],
+  },
+  GET_FISCAL_STOCK_NO_BASE: {
+    sql: GET_FISCAL_STOCK_NO_BASE,
+    allowedParams: ["empId", "proId"],
   },
   LIST_SERVICE_ORDERS: {
     sql: LIST_SERVICE_ORDERS,
