@@ -9,6 +9,7 @@ import { PeriodProvider } from "@/lib/contexts/period-context";
 import { LojaProvider } from "@/lib/contexts/loja-context";
 import { FilterProvider } from "@/lib/contexts/filter-context";
 import { EmpresaProvider } from "@/lib/contexts/empresa-context";
+import { DashLojaSync } from "@/components/layout/DashLojaSync";
 import type { Plan, UserRole } from "@/lib/plans";
 
 export default async function DashboardLayout({
@@ -89,6 +90,7 @@ export default async function DashboardLayout({
       plan={plan}
       userRole={isAdmin ? "owner" : userRole}
     >
+      <DashLojaSync lojaId={selectedLojaId} />
       <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>
         <PeriodProvider>
           <FilterProvider>
