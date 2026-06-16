@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { stockService } from "@/lib/services/stock-adapter";
 import type { Produto } from "@/lib/fiscal-types";
-import { Loader2, Minus, Plus, Search, Trash2 } from "lucide-react";
+import { Loader2, Plus, Search, Trash2 } from "lucide-react";
 
 type CartItem = {
   proId: string;
@@ -304,45 +304,17 @@ export function ServiceOrderItemEditor({
                       <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
                         {p.estoqueFisico}
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={() =>
-                              setResultQtds((q) => ({
-                                ...q,
-                                [p.id]: Math.max(1, (q[p.id] ?? 1) - 1),
-                              }))
-                            }
-                            className="flex h-6 w-6 items-center justify-center rounded border hover:bg-muted"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <input
-                            id={`qty-${p.id}`}
-                            type="number"
-                            min={1}
-                            value={resultQtds[p.id] ?? 1}
-                            onChange={(e) => setResultQty(p.id, e.target.value)}
-                            onKeyDown={(e) => handleQtyKeyDown(e, p, idx)}
-                            onFocus={(e) => e.target.select()}
-                            className={qtyInputCls}
-                          />
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={() =>
-                              setResultQtds((q) => ({
-                                ...q,
-                                [p.id]: (q[p.id] ?? 1) + 1,
-                              }))
-                            }
-                            className="flex h-6 w-6 items-center justify-center rounded border hover:bg-muted"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
-                        </div>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          id={`qty-${p.id}`}
+                          type="number"
+                          min={1}
+                          value={resultQtds[p.id] ?? 1}
+                          onChange={(e) => setResultQty(p.id, e.target.value)}
+                          onKeyDown={(e) => handleQtyKeyDown(e, p, idx)}
+                          onFocus={(e) => e.target.select()}
+                          className={qtyInputCls}
+                        />
                       </td>
                       <td className="px-3 py-2 text-center">
                         <button
@@ -415,33 +387,15 @@ export function ServiceOrderItemEditor({
                       <td className="px-3 py-2 text-center font-mono text-xs text-muted-foreground">
                         #{c.proId}
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={() => setCartQty(c.proId, c.qtd - 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded border hover:bg-muted"
-                          >
-                            <Minus className="h-3 w-3" />
-                          </button>
-                          <input
-                            type="number"
-                            min={1}
-                            value={c.qtd}
-                            onChange={(e) => setCartQty(c.proId, e.target.value)}
-                            onFocus={(e) => e.target.select()}
-                            className={qtyInputCls}
-                          />
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={() => setCartQty(c.proId, c.qtd + 1)}
-                            className="flex h-6 w-6 items-center justify-center rounded border hover:bg-muted"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </button>
-                        </div>
+                      <td className="px-3 py-2 text-center">
+                        <input
+                          type="number"
+                          min={1}
+                          value={c.qtd}
+                          onChange={(e) => setCartQty(c.proId, e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          className={qtyInputCls}
+                        />
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums">
                         {c.preco > 0 ? fmtBRL(c.preco) : "—"}
