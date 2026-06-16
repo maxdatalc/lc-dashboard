@@ -45,7 +45,7 @@ function ProdutoDetalheContent() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-6">
         <div className="h-5 w-24 animate-pulse rounded bg-muted" />
         <div className="space-y-2">
           <div className="h-8 w-64 animate-pulse rounded bg-muted" />
@@ -66,14 +66,16 @@ function ProdutoDetalheContent() {
 
   if (!d)
     return (
-      <p className="text-sm text-muted-foreground">Produto não encontrado nesta loja.</p>
+      <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4">
+        <p className="text-sm text-muted-foreground">Produto não encontrado nesta loja.</p>
+      </div>
     );
 
   const p = d.produto;
   const c = d.composicao_estoque_fiscal;
 
   return (
-    <div className="space-y-6">
+    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-6">
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-3">
         <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
       </Button>

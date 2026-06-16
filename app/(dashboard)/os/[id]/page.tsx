@@ -82,7 +82,7 @@ function OSDetailContent() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-4">
         <div className="rounded-lg border bg-card px-4 py-3 shadow-sm">
           <div className="mb-2 flex items-center gap-2">
             <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -106,7 +106,7 @@ function OSDetailContent() {
 
   if (!os) {
     return (
-      <div className="space-y-4">
+      <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-4">
         <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-3">
           <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
         </Button>
@@ -156,7 +156,7 @@ function OSDetailContent() {
   const totalItens = os.itens.reduce((acc, it) => acc + (it.total ?? 0), 0);
 
   return (
-    <div className="space-y-6">
+    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-6">
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-3">
         <ChevronLeft className="mr-1 h-4 w-4" /> Voltar
       </Button>
