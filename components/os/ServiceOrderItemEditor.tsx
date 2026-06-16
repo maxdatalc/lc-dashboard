@@ -88,19 +88,19 @@ export function ServiceOrderItemEditor({
           <div className="space-y-3">
             <div className="flex gap-2">
               <Input
+                placeholder="Código / EAN (≥7 dígitos)"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="w-44"
+                autoFocus
+              />
+              <Input
                 placeholder="Descrição (% para buscar no meio)"
                 value={descricao}
                 onChange={(e) => setDescricao(e.target.value)}
                 onKeyDown={handleKeyDown}
                 className="flex-1"
-                autoFocus
-              />
-              <Input
-                placeholder="Código interno"
-                value={codigo}
-                onChange={(e) => setCodigo(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="w-36"
               />
               <Button
                 onClick={() => void triggerSearch()}
@@ -115,8 +115,8 @@ export function ServiceOrderItemEditor({
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">
-              Descrição começa com o digitado. Use{" "}
-              <code className="rounded bg-muted px-1">%</code> para buscar em qualquer posição.
+              Código/EAN exato quando ≥7 dígitos numéricos. Descrição começa com o digitado — use{" "}
+              <code className="rounded bg-muted px-1">%</code> para qualquer posição.
               Pressione{" "}
               <kbd className="rounded border px-1 font-mono text-xs">Enter</kbd> ou clique na lupa.
             </p>
@@ -144,7 +144,7 @@ export function ServiceOrderItemEditor({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{p.nome}</p>
-                      <p className="text-xs text-muted-foreground">{p.codigo}</p>
+                      <p className="text-xs text-muted-foreground">#{p.id}</p>
                     </div>
                     <div className="ml-4 flex shrink-0 gap-4 text-xs text-muted-foreground">
                       <span>

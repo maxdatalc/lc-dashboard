@@ -21,8 +21,16 @@ FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 WHERE
   (pe.proDesativaProd IS NULL OR pe.proDesativaProd = 0)
-  AND (@termoDesc    = '' OR p.proDescricao LIKE @termoDesc)
-  AND (@termoCodigo  = '' OR pe.proCodigo   LIKE @termoCodigo)
+  AND (
+    @termoDesc = ''
+    OR p.proDescricao LIKE @termoDesc
+    OR p.proAplicacao LIKE @termoDesc
+  )
+  AND (
+    @termoCodigo = ''
+    OR (@termoCodigoExato = 1 AND pe.proCodigo = @termoCodigo)
+    OR (@termoCodigoExato = 0 AND pe.proCodigo LIKE @termoCodigo)
+  )
 ORDER BY p.proDescricao
 `;
 
@@ -200,7 +208,7 @@ type QueryDef = {
 const REGISTRY: Record<string, QueryDef> = {
   SEARCH_PRODUCTS: {
     sql: SEARCH_PRODUCTS,
-    allowedParams: ["empId", "termoDesc", "termoCodigo"],
+    allowedParams: ["empId", "termoDesc", "termoCodigo", "termoCodigoExato"],
   },
   GET_PRODUCT_PHYSICAL_STOCK: {
     sql: GET_PRODUCT_PHYSICAL_STOCK,
