@@ -13,6 +13,7 @@ import {
   type EmpresaContext,
   type LojaContext,
 } from "@/lib/api/user-context.functions";
+import { DASH_LOJA_KEY } from "@/components/layout/DashLojaSync";
 
 export type { EmpresaContext, LojaContext, UserContext };
 
@@ -68,13 +69,28 @@ export function FiscalAuthProvider({ children }: { children: ReactNode }) {
         typeof window !== "undefined" ? localStorage.getItem(EMP_KEY) : null;
       const savedLoja =
         typeof window !== "undefined" ? localStorage.getItem(LOJA_KEY) : null;
+      const dashLoja =
+        typeof window !== "undefined" ? localStorage.getItem(DASH_LOJA_KEY) : null;
 
-      const chosenEmp =
-        ctx.empresas.find((e) => e.id === savedEmp) ?? ctx.empresas[0] ?? null;
+      // Tenta sincronizar com a loja selecionada no dashboard
+      let chosenEmp: EmpresaContext | null = null;
+      let chosenLoja: LojaContext | null = null;
+
+      if (dashLoja) {
+        for (const emp of ctx.empresas) {
+          const match = emp.lojas.find((l) => l.id === dashLoja);
+          if (match) { chosenEmp = emp; chosenLoja = match; break; }
+        }
+      }
+
+      // Fallback: seleção anterior do módulo OS
+      if (!chosenEmp) {
+        chosenEmp = ctx.empresas.find((e) => e.id === savedEmp) ?? ctx.empresas[0] ?? null;
+        chosenLoja =
+          chosenEmp?.lojas.find((l) => l.id === savedLoja) ?? chosenEmp?.lojas[0] ?? null;
+      }
+
       setEmpId(chosenEmp?.id ?? null);
-
-      const chosenLoja =
-        chosenEmp?.lojas.find((l) => l.id === savedLoja) ?? chosenEmp?.lojas[0] ?? null;
       setLId(chosenLoja?.id ?? null);
     } catch (e) {
       console.error("[FiscalStock] erro ao carregar contexto:", e);
