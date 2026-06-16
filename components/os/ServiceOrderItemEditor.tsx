@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +49,7 @@ export function ServiceOrderItemEditor({
   const [searched, setSearched] = useState(false);
   const [resultQtds, setResultQtds] = useState<Record<string, number>>({});
   const [cart, setCart] = useState<CartItem[]>([]);
+  const shouldFocusFirstRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
@@ -61,16 +62,29 @@ export function ServiceOrderItemEditor({
     }
   }, [open]);
 
+  // Após busca: foca o campo de qtde do primeiro resultado
+  useEffect(() => {
+    if (shouldFocusFirstRef.current && produtos.length > 0) {
+      shouldFocusFirstRef.current = false;
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`qty-${produtos[0].id}`) as HTMLInputElement | null;
+        el?.focus();
+        el?.select();
+      });
+    }
+  }, [produtos]);
+
   async function triggerSearch() {
     if (!empresaId || (!descricao.trim() && !codigo.trim())) return;
     setSearching(true);
     setSearched(true);
     try {
       const results = await stockService.search(empresaId, descricao.trim(), codigo.trim());
-      setProdutos(results);
       const qtds: Record<string, number> = {};
       for (const r of results) qtds[r.id] = 1;
       setResultQtds(qtds);
+      if (results.length > 0) shouldFocusFirstRef.current = true;
+      setProdutos(results);
     } catch (e) {
       console.error(e);
       setProdutos([]);
@@ -79,8 +93,44 @@ export function ServiceOrderItemEditor({
     }
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function focusQty(id: string) {
+    const el = document.getElementById(`qty-${id}`) as HTMLInputElement | null;
+    el?.focus();
+    el?.select();
+  }
+
+  function handleSearchKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") void triggerSearch();
+  }
+
+  function handleQtyKeyDown(e: React.KeyboardEvent, p: Produto, idx: number) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById(`add-${p.id}`)?.focus();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = produtos[idx + 1];
+      if (next) focusQty(next.id);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (idx === 0) {
+        document.getElementById("search-codigo")?.focus();
+      } else {
+        focusQty(produtos[idx - 1].id);
+      }
+    }
+  }
+
+  function handleAddBtnKeyDown(e: React.KeyboardEvent, p: Produto) {
+    if (e.key === "Backspace" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      focusQty(p.id);
+    }
+  }
+
+  function setResultQty(proId: string, raw: string) {
+    const n = parseInt(raw.replace(/\D/g, ""), 10);
+    setResultQtds((q) => ({ ...q, [proId]: isNaN(n) || n < 1 ? 1 : n }));
   }
 
   function addToCart(p: Produto) {
@@ -104,15 +154,19 @@ export function ServiceOrderItemEditor({
         },
       ];
     });
+    // Refoca qty da mesma linha para facilitar sequência de adições
+    requestAnimationFrame(() => focusQty(p.id));
   }
 
   function removeFromCart(proId: string) {
     setCart((prev) => prev.filter((c) => c.proId !== proId));
   }
 
-  function updateCartQty(proId: string, delta: number) {
+  function setCartQty(proId: string, raw: string | number) {
+    const n =
+      typeof raw === "number" ? raw : parseInt(String(raw).replace(/\D/g, ""), 10);
     setCart((prev) =>
-      prev.map((c) => (c.proId === proId ? { ...c, qtd: Math.max(1, c.qtd + delta) } : c)),
+      prev.map((c) => (c.proId === proId ? { ...c, qtd: isNaN(n) || n < 1 ? 1 : n } : c)),
     );
   }
 
@@ -134,9 +188,12 @@ export function ServiceOrderItemEditor({
   const fmtBRL = (v: number) =>
     v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+  const qtyInputCls =
+    "w-12 rounded border bg-transparent px-1 py-0.5 text-center tabular-nums text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl gap-0 p-0 overflow-hidden">
+      <DialogContent className="max-w-4xl gap-0 overflow-hidden p-0">
         <DialogHeader className="sr-only">
           <DialogTitle>Adicionar itens à O.S</DialogTitle>
         </DialogHeader>
@@ -152,10 +209,11 @@ export function ServiceOrderItemEditor({
 
           <div className="mb-3 flex gap-2">
             <Input
+              id="search-codigo"
               placeholder="Código / EAN"
               value={codigo}
               onChange={(e) => setCodigo(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleSearchKeyDown}
               className="w-44"
               autoFocus
             />
@@ -163,7 +221,7 @@ export function ServiceOrderItemEditor({
               placeholder="Descrição ou referência (use % para buscar no meio)"
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleSearchKeyDown}
               className="flex-1"
             />
             <Button
@@ -208,7 +266,10 @@ export function ServiceOrderItemEditor({
                       Preço unit.
                     </th>
                     <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
-                      Estoque fiscal / físico
+                      Estoq. fiscal
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">
+                      Estoq. físico
                     </th>
                     <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">
                       Qtde
@@ -219,19 +280,19 @@ export function ServiceOrderItemEditor({
                   </tr>
                 </thead>
                 <tbody>
-                  {produtos.map((p) => (
+                  {produtos.map((p, idx) => (
                     <tr key={p.id} className="border-b last:border-b-0 hover:bg-muted/30">
                       <td className="px-3 py-2">
-                        <p className="max-w-[220px] truncate font-medium">{p.nome}</p>
+                        <p className="max-w-[190px] truncate font-medium">{p.nome}</p>
                         <p className="text-xs text-muted-foreground">{p.unidade}</p>
                       </td>
                       <td className="px-3 py-2 text-center font-mono text-xs text-muted-foreground">
                         #{p.id}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-sm">
+                      <td className="px-3 py-2 text-right tabular-nums">
                         {(p.preco ?? 0) > 0 ? fmtBRL(p.preco ?? 0) : "—"}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums text-sm">
+                      <td className="px-3 py-2 text-right tabular-nums">
                         <span
                           className={
                             p.estoqueFiscal < 0 ? "font-semibold text-destructive" : ""
@@ -239,12 +300,15 @@ export function ServiceOrderItemEditor({
                         >
                           {p.estoqueFiscal}
                         </span>
-                        <span className="text-muted-foreground"> / {p.estoqueFisico}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">
+                        {p.estoqueFisico}
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={() =>
                               setResultQtds((q) => ({
                                 ...q,
@@ -255,11 +319,19 @@ export function ServiceOrderItemEditor({
                           >
                             <Minus className="h-3 w-3" />
                           </button>
-                          <span className="w-7 text-center tabular-nums text-sm font-medium">
-                            {resultQtds[p.id] ?? 1}
-                          </span>
+                          <input
+                            id={`qty-${p.id}`}
+                            type="number"
+                            min={1}
+                            value={resultQtds[p.id] ?? 1}
+                            onChange={(e) => setResultQty(p.id, e.target.value)}
+                            onKeyDown={(e) => handleQtyKeyDown(e, p, idx)}
+                            onFocus={(e) => e.target.select()}
+                            className={qtyInputCls}
+                          />
                           <button
                             type="button"
+                            tabIndex={-1}
                             onClick={() =>
                               setResultQtds((q) => ({
                                 ...q,
@@ -274,10 +346,12 @@ export function ServiceOrderItemEditor({
                       </td>
                       <td className="px-3 py-2 text-center">
                         <button
+                          id={`add-${p.id}`}
                           type="button"
                           onClick={() => addToCart(p)}
+                          onKeyDown={(e) => handleAddBtnKeyDown(e, p)}
                           title="Inserir no conferidor"
-                          className="mx-auto flex h-7 w-7 items-center justify-center rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                          className="mx-auto flex h-7 w-7 items-center justify-center rounded bg-primary text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
                         >
                           <Plus className="h-4 w-4" />
                         </button>
@@ -345,17 +419,24 @@ export function ServiceOrderItemEditor({
                         <div className="flex items-center justify-center gap-1">
                           <button
                             type="button"
-                            onClick={() => updateCartQty(c.proId, -1)}
+                            tabIndex={-1}
+                            onClick={() => setCartQty(c.proId, c.qtd - 1)}
                             className="flex h-6 w-6 items-center justify-center rounded border hover:bg-muted"
                           >
                             <Minus className="h-3 w-3" />
                           </button>
-                          <span className="w-7 text-center tabular-nums text-sm font-medium">
-                            {c.qtd}
-                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            value={c.qtd}
+                            onChange={(e) => setCartQty(c.proId, e.target.value)}
+                            onFocus={(e) => e.target.select()}
+                            className={qtyInputCls}
+                          />
                           <button
                             type="button"
-                            onClick={() => updateCartQty(c.proId, 1)}
+                            tabIndex={-1}
+                            onClick={() => setCartQty(c.proId, c.qtd + 1)}
                             className="flex h-6 w-6 items-center justify-center rounded border hover:bg-muted"
                           >
                             <Plus className="h-3 w-3" />
