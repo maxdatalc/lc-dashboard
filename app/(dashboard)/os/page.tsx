@@ -12,8 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { Plus } from "lucide-react";
 import { serviceOrderService } from "@/lib/services/service-order-adapter";
 import { useFiscalAuth } from "@/lib/fiscal-auth-context";
 import type { OrdemServico } from "@/lib/fiscal-types";
@@ -45,15 +44,9 @@ export default function OrdensPage() {
 
   return (
     <RequireLoja>
-      <div className="space-y-6">
+      <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <Link
-              href="/dashboard"
-              className="mb-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="h-3 w-3" /> Voltar ao Dashboard
-            </Link>
             <h1 className="text-2xl font-semibold">Ordens de Serviço</h1>
             <p className="text-sm text-muted-foreground">
               Gerencie O.S e adicione itens com checagem fiscal.
