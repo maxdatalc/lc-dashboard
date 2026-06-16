@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { getSelectedLojaId } from "@/app/actions/lojas";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
+import { DashboardMain } from "@/components/layout/DashboardMain";
 import { PeriodProvider } from "@/lib/contexts/period-context";
 import { LojaProvider } from "@/lib/contexts/loja-context";
 import { FilterProvider } from "@/lib/contexts/filter-context";
@@ -106,12 +107,7 @@ export default async function DashboardLayout({
               >
                 <Header />
 
-                <main
-                  className="flex-1 overflow-y-auto pb-20 md:pb-0"
-                  style={{ paddingTop: "var(--header-height)" }}
-                >
-                  {children}
-                </main>
+                <DashboardMain>{children}</DashboardMain>
               </div>
             </div>
           </FilterProvider>
