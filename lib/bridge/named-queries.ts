@@ -16,7 +16,8 @@ SELECT TOP 10
   pe.proCodigo       AS proCodigo,
   p.proDescricao     AS proDescricao,
   pe.proEstoqueAtual AS proEstoqueAtual,
-  p.proUn            AS proUn
+  p.proUn            AS proUn,
+  pe.proVenda        AS proVenda
 FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 WHERE

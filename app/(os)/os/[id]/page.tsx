@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { RequireLoja } from "@/components/os/RequireLoja";
-import { ServiceOrderItemEditor } from "@/components/os/ServiceOrderItemEditor";
+import {
+  ServiceOrderItemEditor,
+  type AddItemPayload,
+} from "@/components/os/ServiceOrderItemEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -304,7 +307,13 @@ function OSDetailContent() {
         open={open}
         onOpenChange={setOpen}
         empresaId={lojaAtiva?.id}
-        onAdd={(item) => submitAdd(item, false)}
+        onAdd={(items: AddItemPayload[]) => {
+          void (async () => {
+            for (const item of items) {
+              await submitAdd(item, false);
+            }
+          })();
+        }}
       />
 
       <AlertDialog open={!!confirmacao} onOpenChange={(o) => !o && setConfirmacao(null)}>
