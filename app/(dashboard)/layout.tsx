@@ -4,8 +4,6 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { getSelectedLojaId } from "@/app/actions/lojas";
 import { Sidebar } from "@/components/layout/Sidebar";
-import { Header } from "@/components/layout/Header";
-import { DashboardMain } from "@/components/layout/DashboardMain";
 import { PeriodProvider } from "@/lib/contexts/period-context";
 import { LojaProvider } from "@/lib/contexts/loja-context";
 import { FilterProvider } from "@/lib/contexts/filter-context";
@@ -105,9 +103,7 @@ export default async function DashboardLayout({
                 style={{ marginLeft: "var(--sidebar-width)" }}
                 className="flex flex-col min-h-screen"
               >
-                <Header />
-
-                <DashboardMain>{children}</DashboardMain>
+                {children}
               </div>
             </div>
           </FilterProvider>
