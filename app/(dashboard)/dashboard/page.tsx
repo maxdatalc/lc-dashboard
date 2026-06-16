@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 import { KpiBar } from "@/components/ui/KpiBar";
@@ -14,6 +14,7 @@ import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
 import { TopGruposChart } from "@/components/charts/TopGruposChart";
 import { ClientesRetencaoChart } from "@/components/charts/ClientesRetencaoChart";
 import { ActiveFilterBar } from "@/components/ui/ActiveFilterBar";
+import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { useFilter } from "@/lib/contexts/filter-context";
 import type { VendasMensalData } from "@/components/charts/VendasMensalChart";
 import type { FormasPagamentoData } from "@/components/charts/FormasPagamentoChart";
@@ -81,6 +82,8 @@ export default function DashboardPage() {
 
   const [kpiLoading, setKpiLoading] = useState(true);
   const [chartsLoading, setChartsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const hasLoadedOnce = useRef(false);
 
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
   const [vendasMensal, setVendasMensal] = useState<VendasMensalData[]>([]);
@@ -112,8 +115,11 @@ export default function DashboardPage() {
   const fetchDados = useCallback(async () => {
     if (lojaIds.length === 0) return;
 
-    setKpiLoading(true);
-    setChartsLoading(true);
+    setIsRefreshing(true);
+    if (!hasLoadedOnce.current) {
+      setKpiLoading(true);
+      setChartsLoading(true);
+    }
 
     let start: string, end: string;
     if (period === "custom" && customRange) {
@@ -169,6 +175,8 @@ export default function DashboardPage() {
 
     setKpiLoading(false);
     setChartsLoading(false);
+    setIsRefreshing(false);
+    hasLoadedOnce.current = true;
 
     if (kpisRes.status === "fulfilled" && kpisRes.value) setKpis(kpisRes.value);
     if (faturamentoRes.status === "fulfilled") setVendasMensal(faturamentoRes.value as VendasMensalData[]);
@@ -189,9 +197,21 @@ export default function DashboardPage() {
   if (lojaIds.length === 0) return <SemLoja />;
 
   return (
-    <div className="px-3 py-4 sm:px-4 md:p-6 flex flex-col gap-5">
+    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
+      <TopProgressBar loading={isRefreshing} />
+
       {/* ── Filtro ativo — aparece quando um vendedor/produto está selecionado ── */}
       <ActiveFilterBar />
+
+      {/* ── Conteúdo — dimming suave durante refresh ───────────────────────── */}
+      <div
+        className="flex flex-col gap-3"
+        style={{
+          opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1,
+          transition: 'opacity 0.2s ease',
+          pointerEvents: isRefreshing && hasLoadedOnce.current ? 'none' : 'auto',
+        }}
+      >
 
       {/* ── KPIs — barra horizontal unificada ──────────────────────────────── */}
       <KpiBar
@@ -207,20 +227,20 @@ export default function DashboardPage() {
         isLoading={kpiLoading}
       />
 
-      {/* ── Linha 1: Top Produtos | Formas de Pagamento ──────────────────────── */}
-      <div className="grid gap-3 grid-cols-1 lg:grid-cols-2 items-start">
-        <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={80} className="min-h-[360px]">
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
+      {/* ── Linha 1: Top Clientes | Top Produtos ──────────────────────────────── */}
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2 items-start">
+        <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={80}>
+          {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
         </ChartCard>
 
-        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={120}>
-          {chartsLoading ? <ChartSkeleton /> : <FormasPagamentoChart data={formasPagamento} />}
+        <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={120}>
+          {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
         </ChartCard>
       </div>
 
       {/* ── Linha 1.5: Top Fabricantes | PF vs PJ | Novos vs Recorrentes ─────── */}
-      <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
-        <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={140} className="min-h-[360px]">
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-3">
+        <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={140}>
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
 
@@ -233,11 +253,11 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* ── Linha 2: Top Clientes (40%) | Vendas Mensal (60%) ───────────────── */}
-      <div className="grid gap-3 grid-cols-1 lg:grid-cols-5">
+      {/* ── Linha 2: Formas de Pagamento (40%) | Vendas Mensal (60%) ──────────── */}
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-5">
         <div className="lg:col-span-2">
-          <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={160} className="min-h-[360px] h-full">
-            {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
+          <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={160} className="h-full">
+            {chartsLoading ? <ChartSkeleton height={280} /> : <FormasPagamentoChart data={formasPagamento} />}
           </ChartCard>
         </div>
         <div className="lg:col-span-3">
@@ -248,7 +268,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 3: Top Vendedores ──────────────────────────────────────────── */}
-      <ChartCard title="Top 10 Vendedores" animationDelay={220} className="min-h-[360px]">
+      <ChartCard title="Top 10 Vendedores" animationDelay={220}>
         {chartsLoading ? <ChartSkeleton height={280} /> : (
           <TopVendedoresChart
             data={topVendedores}
@@ -264,6 +284,7 @@ export default function DashboardPage() {
         )}
       </ChartCard>
 
+      </div>{/* fim do wrapper de dimming */}
     </div>
   );
 }

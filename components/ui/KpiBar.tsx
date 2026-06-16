@@ -36,7 +36,7 @@ const LABEL: React.CSSProperties = {
 const STRIP_DIVIDER: React.CSSProperties = {
   borderLeft: '1px solid var(--border-subtle)',
   flex: 1,
-  padding: '14px 16px',
+  padding: '10px 14px',
   minWidth: 0,
   display: 'flex',
   flexDirection: 'column',
@@ -61,12 +61,12 @@ export function KpiBar({
   if (isLoading) {
     return (
       <div
-        className="rounded-xl overflow-hidden mb-4"
+        className="rounded-xl overflow-hidden mb-3"
         style={{ background: 'var(--bg-card)', border: '1px solid var(--border-subtle)' }}
       >
-        <div className="flex" style={{ minHeight: 88 }}>
+        <div className="flex" style={{ minHeight: 68 }}>
           {/* Spotlight skeleton */}
-          <div className="p-5" style={{ width: '38%', borderRight: '1px solid var(--border-subtle)' }}>
+          <div className="p-4" style={{ width: '38%', borderRight: '1px solid var(--border-subtle)' }}>
             <div className="shimmer rounded mb-3" style={{ height: 10, width: 48 }} />
             <div className="shimmer rounded mb-2" style={{ height: 36, width: '80%' }} />
             <div className="shimmer rounded" style={{ height: 12, width: 100 }} />
@@ -85,13 +85,13 @@ export function KpiBar({
 
   return (
     <div
-      className="rounded-xl overflow-hidden mb-4"
+      className="rounded-xl overflow-hidden mb-3"
       style={{
         background: 'var(--bg-card)',
         border: '1px solid var(--border-subtle)',
       }}
     >
-      <div className="flex" style={{ minHeight: 88, alignItems: 'stretch' }}>
+      <div className="flex" style={{ minHeight: 68, alignItems: 'stretch' }}>
 
         {/* ── SPOTLIGHT: VENDA ─────────────────────────────── */}
         <div
@@ -99,7 +99,7 @@ export function KpiBar({
             width: '38%',
             flexShrink: 0,
             borderRight: '1px solid var(--border-subtle)',
-            padding: '16px 20px',
+            padding: '11px 16px',
             display: 'flex',
             flexDirection: 'column',
             justifyContent: 'center',
@@ -111,7 +111,7 @@ export function KpiBar({
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
             <span style={{
               fontFamily: 'var(--font-numeric)',
-              fontSize: 'clamp(22px, 2.6vw, 40px)',
+              fontSize: 'clamp(18px, 2.1vw, 30px)',
               fontWeight: 500,
               color: 'var(--accent-cyan)',
               fontVariantNumeric: 'tabular-nums',
@@ -152,7 +152,7 @@ export function KpiBar({
 
         {/* ── STRIP: CUSTO ──────────────────────────────────── */}
         <div style={STRIP_DIVIDER}>
-          <p style={LABEL}>Custo</p>
+          <p style={LABEL}>Custo Total</p>
           <span style={{
             fontFamily: 'var(--font-numeric)',
             fontSize: 'clamp(13px, 1.4vw, 16px)',
@@ -166,7 +166,7 @@ export function KpiBar({
 
         {/* ── STRIP: TICKET MÉDIO ───────────────────────────── */}
         <div style={STRIP_DIVIDER}>
-          <p style={LABEL}>Ticket Médio</p>
+          <p style={LABEL}>Venda Média</p>
           <span style={{
             fontFamily: 'var(--font-numeric)',
             fontSize: 'clamp(13px, 1.4vw, 16px)',

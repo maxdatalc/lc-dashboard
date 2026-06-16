@@ -69,15 +69,15 @@ export function FormasPagamentoChart({ data }: Props) {
   return (
     <div className="flex items-center gap-3">
       {/* Donut com hover expand */}
-      <div className="relative flex-shrink-0" style={{ width: 160, height: 160 }}>
-        <ResponsiveContainer width={160} height={160}>
+      <div className="relative flex-shrink-0" style={{ width: 130, height: 130 }}>
+        <ResponsiveContainer width={130} height={130}>
           <PieChart>
             <Pie
               data={top6}
-              cx={75}
-              cy={75}
-              innerRadius={50}
-              outerRadius={75}
+              cx={60}
+              cy={60}
+              innerRadius={40}
+              outerRadius={60}
               paddingAngle={3}
               dataKey="valor"
               strokeWidth={0}

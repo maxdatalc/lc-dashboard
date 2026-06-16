@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MapPin, Phone, Mail, CreditCard, ShoppingCart, Wallet } from "lucide-react";
 
 export interface ClienteItem {
   nome: string;
@@ -27,7 +28,6 @@ function formatMoeda(valor: number): string {
 
 function formatData(data: string): string {
   if (!data) return "";
-
   return new Date(data).toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "short",
@@ -45,24 +45,49 @@ function formatDoc(doc: string): string {
 function getAvatarColor(nome: string): string {
   const cores = ["#7c3aed", "#1a6fd4", "#059669", "#d97706", "#0891b2", "#be185d"];
   let hash = 0;
-
   for (let i = 0; i < nome.length; i++) {
     hash = nome.charCodeAt(i) + ((hash << 5) - hash);
   }
-
   return cores[Math.abs(hash) % cores.length];
 }
 
 function getIniciais(nome: string): string {
   const partes = nome.split(" ").filter(Boolean).slice(0, 2);
-  return partes.map((parte) => parte[0]).join("").toUpperCase();
+  return partes.map((p) => p[0]).join("").toUpperCase();
 }
 
 function getRankColor(index: number): string {
   if (index === 0) return "#f59e0b";
   if (index === 1) return "#94a3b8";
   if (index === 2) return "#a78bfa";
-  return "#475569";
+  return "var(--text-muted)";
+}
+
+function InfoLinha({ icon: Icon, texto }: { icon: React.ElementType; texto: string }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+      <Icon
+        style={{
+          width: 13,
+          height: 13,
+          flexShrink: 0,
+          marginTop: 1,
+          color: "var(--text-muted)",
+        }}
+      />
+      <span
+        style={{
+          fontSize: "12px",
+          color: "var(--text-secondary)",
+          lineHeight: "1.4",
+          minWidth: 0,
+          overflowWrap: "anywhere",
+        }}
+      >
+        {texto}
+      </span>
+    </div>
+  );
 }
 
 export function TopClientesChart({ data }: { data: ClienteItem[] }) {
@@ -70,7 +95,10 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
 
   if (!data.length) {
     return (
-      <div className="flex items-center justify-center py-8 text-xs" style={{ color: "var(--text-muted)" }}>
+      <div
+        className="flex items-center justify-center py-8 text-xs"
+        style={{ color: "var(--text-muted)" }}
+      >
         Sem dados disponíveis
       </div>
     );
@@ -80,11 +108,14 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
   const maxTotal = clientes[0]?.total ?? 1;
 
   return (
-    <div className="custom-scroll" style={{ height: "280px", overflowY: "auto", paddingRight: "4px" }}>
+    <div
+      className="custom-scroll"
+      style={{ height: "210px", overflowY: "auto", paddingRight: "4px" }}
+    >
       {clientes.map((cliente, i) => {
         const isExpanded = expandido === i;
         const progresso = maxTotal > 0 ? Math.min((cliente.total / maxTotal) * 100, 100) : 0;
-        const localizacao = [cliente.cidade, cliente.estado].filter(Boolean).join(" - ");
+        const localizacao = [cliente.cidade, cliente.estado].filter(Boolean).join(" — ");
         const ultimaCompra = formatData(cliente.ultimaCompra);
         const comprasTexto = `${cliente.compras} compra${cliente.compras !== 1 ? "s" : ""}`;
 
@@ -94,23 +125,23 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
             onMouseEnter={() => setExpandido(i)}
             onMouseLeave={() => setExpandido(null)}
             style={{
-              borderBottom: "1px solid rgba(255,255,255,0.05)",
+              borderBottom: "1px solid var(--chart-item-border)",
               paddingBottom: "6px",
               marginBottom: "5px",
               cursor: "default",
             }}
           >
-            {/* Linha principal do ranking */}
             <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <span
                 style={{
                   fontSize: "11px",
-                  fontWeight: 600,
+                  fontWeight: 700,
                   minWidth: "20px",
                   color: getRankColor(i),
+                  fontFamily: "var(--font-numeric)",
                 }}
               >
-                #{i + 1}
+                {i + 1}
               </span>
 
               <div
@@ -154,8 +185,13 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
                       borderRadius: "3px",
                       flexShrink: 0,
                       background:
-                        cliente.tipoPessoa === "PJ" ? "rgba(124,58,237,0.2)" : "rgba(0,229,255,0.12)",
-                      color: cliente.tipoPessoa === "PJ" ? "#a78bfa" : "#00e5ff",
+                        cliente.tipoPessoa === "PJ"
+                          ? "rgba(124,58,237,0.15)"
+                          : "rgba(8,145,178,0.12)",
+                      color:
+                        cliente.tipoPessoa === "PJ"
+                          ? "#a78bfa"
+                          : "var(--accent-cyan)",
                       fontWeight: 500,
                     }}
                   >
@@ -163,12 +199,18 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
                   </span>
                 </div>
 
-                <div style={{ height: "2px", background: "rgba(255,255,255,0.06)", borderRadius: "1px" }}>
+                <div
+                  style={{
+                    height: "3px",
+                    background: "var(--chart-track-bg)",
+                    borderRadius: "2px",
+                  }}
+                >
                   <div
                     style={{
                       width: `${progresso}%`,
                       height: "100%",
-                      borderRadius: "1px",
+                      borderRadius: "2px",
                       background: "linear-gradient(90deg, #7c3aed 0%, rgba(124,58,237,0.2) 100%)",
                       transition: "width 0.8s ease",
                     }}
@@ -182,7 +224,7 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
                   fontWeight: 600,
                   color: "var(--text-primary)",
                   flexShrink: 0,
-                  fontFamily: "var(--font-inter, Inter, sans-serif)",
+                  fontFamily: "var(--font-numeric)",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -208,42 +250,31 @@ export function TopClientesChart({ data }: { data: ClienteItem[] }) {
                   background: "rgba(0,229,255,0.04)",
                 }}
               >
-                {/* Lista vertical do hover */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {localizacao && <InfoLinha icon="📍" texto={localizacao} />}
-                  {cliente.telefone && <InfoLinha icon="📱" texto={cliente.telefone} />}
-                  {cliente.email && <InfoLinha icon="✉️" texto={cliente.email} />}
-                  {cliente.cnpjCpf && <InfoLinha icon="🪪" texto={formatDoc(cliente.cnpjCpf)} />}
+                  {localizacao && <InfoLinha icon={MapPin} texto={localizacao} />}
+                  {cliente.telefone && <InfoLinha icon={Phone} texto={cliente.telefone} />}
+                  {cliente.email && <InfoLinha icon={Mail} texto={cliente.email} />}
+                  {cliente.cnpjCpf && (
+                    <InfoLinha icon={CreditCard} texto={formatDoc(cliente.cnpjCpf)} />
+                  )}
                   <InfoLinha
-                    icon="🛒"
-                    texto={ultimaCompra ? `${comprasTexto}  |  Última: ${ultimaCompra}` : comprasTexto}
+                    icon={ShoppingCart}
+                    texto={
+                      ultimaCompra
+                        ? `${comprasTexto}  ·  Última: ${ultimaCompra}`
+                        : comprasTexto
+                    }
                   />
-                  <InfoLinha icon="💰" texto={`Ticket médio: ${formatMoeda(cliente.ticketMedio)}`} />
+                  <InfoLinha
+                    icon={Wallet}
+                    texto={`Ticket médio: ${formatMoeda(cliente.ticketMedio)}`}
+                  />
                 </div>
               </div>
             </div>
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function InfoLinha({ icon, texto }: { icon: string; texto: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-      <span style={{ fontSize: "16px", lineHeight: "1.4", flexShrink: 0 }}>{icon}</span>
-      <span
-        style={{
-          fontSize: "12px",
-          color: "var(--text-secondary)",
-          lineHeight: "1.4",
-          minWidth: 0,
-          overflowWrap: "anywhere",
-        }}
-      >
-        {texto}
-      </span>
     </div>
   );
 }

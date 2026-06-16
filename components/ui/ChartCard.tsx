@@ -19,34 +19,52 @@ export function ChartCard({
 }: ChartCardProps) {
   return (
     <div
-      className={`rounded-2xl flex flex-col gap-0 overflow-hidden ${className}`}
+      className={`rounded-2xl flex flex-col overflow-hidden ${className}`}
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
-        animation: `fadeInUp 0.4s ease-out both`,
+        animation: "fadeInUp 0.4s ease-out both",
         animationDelay: `${animationDelay}ms`,
       }}
     >
-      {/* Header */}
-      <div className="px-4 pt-3 pb-2">
+      {/* Header — tint azul no light, sutil cyan no dark */}
+      <div
+        className="flex-shrink-0"
+        style={{
+          padding: "10px 16px 8px",
+          background: "var(--card-header-bg)",
+          borderBottom: "1px solid var(--card-header-border)",
+        }}
+      >
         <h3
-          className="text-sm font-semibold"
-          style={{ color: "var(--text-primary)" }}
+          style={{
+            fontSize: "13px",
+            fontWeight: 700,
+            letterSpacing: "-0.01em",
+            color: "var(--card-title-color)",
+            lineHeight: 1.3,
+            margin: 0,
+          }}
         >
           {title}
         </h3>
         {subtitle && (
-          <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+          <p
+            style={{
+              fontSize: "11px",
+              color: "var(--text-muted)",
+              marginTop: "2px",
+              lineHeight: 1.4,
+              margin: "2px 0 0",
+            }}
+          >
             {subtitle}
           </p>
         )}
       </div>
 
-      {/* Divisor sutil */}
-      <div style={{ height: 1, backgroundColor: "var(--border-subtle)" }} />
-
       {/* Conteúdo */}
-      <div className="px-4 py-3">{children}</div>
+      <div className="px-4 py-3 flex-1">{children}</div>
     </div>
   );
 }

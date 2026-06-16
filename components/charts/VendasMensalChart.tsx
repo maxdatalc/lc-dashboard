@@ -76,7 +76,7 @@ export function VendasMensalChart({ data }: Props) {
       {/* Scroll horizontal para 12 barras */}
       <div style={{ overflowX: "auto", overflowY: "visible" }} className="custom-scroll">
         <div style={{ width: totalWidth, minWidth: "100%" }}>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={155}>
             <BarChart
               data={data}
               margin={{ top: 4, right: 8, bottom: 0, left: -10 }}
@@ -153,7 +153,7 @@ export function VendasMensalChart({ data }: Props) {
                     </div>
                   );
                 }}
-                cursor={{ fill: "rgba(255,255,255,0.04)", radius: 4 }}
+                cursor={{ fill: "var(--chart-cursor-bg)", radius: 4 }}
               />
 
               {/* Barras de vendas */}
