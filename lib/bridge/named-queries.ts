@@ -29,7 +29,7 @@ WHERE
   AND (
     @termoCodigo = ''
     OR (@termoCodigoExato = 1 AND pe.proCodigo = @termoCodigo)
-    OR (@termoCodigoExato = 0 AND pe.proCodigo LIKE @termoCodigo)
+    OR (@termoCodigoExato = 0 AND p.proId = @termoCodigoId)
   )
 ORDER BY p.proDescricao
 `;
@@ -208,7 +208,7 @@ type QueryDef = {
 const REGISTRY: Record<string, QueryDef> = {
   SEARCH_PRODUCTS: {
     sql: SEARCH_PRODUCTS,
-    allowedParams: ["empId", "termoDesc", "termoCodigo", "termoCodigoExato"],
+    allowedParams: ["empId", "termoDesc", "termoCodigo", "termoCodigoExato", "termoCodigoId"],
   },
   GET_PRODUCT_PHYSICAL_STOCK: {
     sql: GET_PRODUCT_PHYSICAL_STOCK,

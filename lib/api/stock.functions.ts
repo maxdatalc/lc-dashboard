@@ -120,16 +120,19 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
     ? (termoDescRaw.includes("%") ? termoDescRaw : `${termoDescRaw}%`)
     : "";
 
-  // EAN: ≥7 dígitos numéricos → busca exata; senão → prefixo LIKE
+  // EAN: ≥7 dígitos numéricos → busca exata em proCodigo
+  // Código normal → busca exata em proId (integer)
   const isEan = /^\d{7,}$/.test(termoCodigoRaw);
-  const termoCodigo = termoCodigoRaw ? (isEan ? termoCodigoRaw : `${termoCodigoRaw}%`) : "";
+  const termoCodigo = isEan ? termoCodigoRaw : "";
   const termoCodigoExato = isEan ? 1 : 0;
+  const termoCodigoId = !isEan ? (parseInt(termoCodigoRaw, 10) || 0) : 0;
 
   const { sql, params } = resolveNamedQuery("SEARCH_PRODUCTS", {
     empId,
     termoDesc,
     termoCodigo,
     termoCodigoExato,
+    termoCodigoId,
   });
   const rows = await queryBridge<ProductRow>(bridge, sql, params);
 
