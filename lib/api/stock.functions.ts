@@ -11,7 +11,8 @@ import { resolveNamedQuery } from "@/lib/bridge/named-queries";
 
 const SearchInput = z.object({
   loja_id: z.string().uuid(),
-  termo: z.string().optional(),
+  termoDesc: z.string().optional(),
+  termoCodigo: z.string().optional(),
 });
 const DetailInput = z.object({
   loja_id: z.string().uuid(),
@@ -108,21 +109,35 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
   const { userId } = await getAuthContext();
   await assertLojaAccess(userId, data.loja_id);
 
-  const termo = (data.termo ?? "").trim();
-  if (!termo) return [];
+  const termoDescRaw = (data.termoDesc ?? "").trim();
+  const termoCodigoRaw = (data.termoCodigo ?? "").trim();
+  if (!termoDescRaw && !termoCodigoRaw) return [];
 
-  const { empId, bridge } = await getLojaConfigs(data.loja_id);
-  const { sql, params } = resolveNamedQuery("SEARCH_PRODUCTS", { empId, termo: `%${termo}%` });
+  const { empId, bridge, invId } = await getLojaConfigs(data.loja_id);
+
+  // Descrição: sem % = começa com; com % = o usuário controla o padrão
+  const termoDesc = termoDescRaw
+    ? (termoDescRaw.includes("%") ? termoDescRaw : `${termoDescRaw}%`)
+    : "";
+  // Código: sempre começa com
+  const termoCodigo = termoCodigoRaw ? `${termoCodigoRaw}%` : "";
+
+  const { sql, params } = resolveNamedQuery("SEARCH_PRODUCTS", { empId, termoDesc, termoCodigo });
   const rows = await queryBridge<ProductRow>(bridge, sql, params);
 
-  return rows.map((p) => ({
+  // Calcula estoque fiscal de todos os resultados em paralelo
+  const fiscalResults = await Promise.all(
+    rows.map((p) => calculateFiscalStock(empId, p.proId, bridge, invId).catch(() => null)),
+  );
+
+  return rows.map((p, i) => ({
     id: String(p.proId),
     codigo: p.proCodigo ?? String(p.proId),
     codigoBarras: "",
     nome: p.proDescricao ?? "",
     unidade: p.proUn ?? "",
     estoqueFisico: Number(p.proEstoqueAtual ?? 0),
-    estoqueFiscal: 0,
+    estoqueFiscal: fiscalResults[i]?.estoqueFiscal ?? 0,
   }));
 }
 

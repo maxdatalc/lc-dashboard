@@ -12,10 +12,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { ProductSearch } from "./ProductSearch";
 import { stockService } from "@/lib/services/stock-adapter";
 import { disponivelParaEmissao, type Produto } from "@/lib/fiscal-types";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, Loader2, Search } from "lucide-react";
 
 export function ServiceOrderItemEditor({
   open,
@@ -33,56 +32,42 @@ export function ServiceOrderItemEditor({
     quantidade: number;
   }) => void;
 }) {
-  const [busca, setBusca] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [codigo, setCodigo] = useState("");
   const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [selecionado, setSelecionado] = useState<Produto | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
   const [qtd, setQtd] = useState(1);
 
   useEffect(() => {
-    if (!open) return;
-    stockService.search(empresaId, busca).then(setProdutos).catch(console.error);
-  }, [busca, empresaId, open]);
-
-  useEffect(() => {
     if (!open) {
-      setBusca("");
+      setDescricao("");
+      setCodigo("");
+      setProdutos([]);
+      setSearched(false);
       setSelecionado(null);
       setQtd(1);
     }
   }, [open]);
 
-  async function handleSelectProduto(p: Produto) {
-    setSelecionado(p);
-    if (!empresaId) return;
-    setLoadingDetail(true);
+  async function triggerSearch() {
+    if (!empresaId || (!descricao.trim() && !codigo.trim())) return;
+    setSearching(true);
+    setSearched(true);
     try {
-      const detail = await stockService.detail(empresaId, p.id);
-      if (detail) {
-        setSelecionado((prev) =>
-          prev?.id === p.id
-            ? {
-                ...prev,
-                estoqueFisico: detail.estoque_fisico,
-                estoqueFiscal: detail.estoque_fiscal,
-                composicaoFiscal: detail.composicao_estoque_fiscal
-                  ? {
-                      inventarioBase: detail.composicao_estoque_fiscal.inventario_base,
-                      entradas: detail.composicao_estoque_fiscal.entradas,
-                      saidas: detail.composicao_estoque_fiscal.saidas,
-                      devolucoes: detail.composicao_estoque_fiscal.devolucoes,
-                      ajustes: detail.composicao_estoque_fiscal.ajustes,
-                    }
-                  : prev.composicaoFiscal,
-              }
-            : prev,
-        );
-      }
-    } catch {
-      // mantém os dados da busca (físico correto, fiscal 0)
+      const results = await stockService.search(empresaId, descricao.trim(), codigo.trim());
+      setProdutos(results);
+    } catch (e) {
+      console.error(e);
+      setProdutos([]);
     } finally {
-      setLoadingDetail(false);
+      setSearching(false);
     }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") void triggerSearch();
   }
 
   const disponivel = selecionado ? disponivelParaEmissao(selecionado) : 0;
@@ -101,30 +86,86 @@ export function ServiceOrderItemEditor({
 
         {!selecionado ? (
           <div className="space-y-3">
-            <ProductSearch value={busca} onChange={setBusca} />
+            <div className="flex gap-2">
+              <Input
+                placeholder="Descrição (% para buscar no meio)"
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="flex-1"
+                autoFocus
+              />
+              <Input
+                placeholder="Código interno"
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="w-36"
+              />
+              <Button
+                onClick={() => void triggerSearch()}
+                disabled={searching || (!descricao.trim() && !codigo.trim())}
+                className="shrink-0"
+              >
+                {searching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Descrição começa com o digitado. Use{" "}
+              <code className="rounded bg-muted px-1">%</code> para buscar em qualquer posição.
+              Pressione{" "}
+              <kbd className="rounded border px-1 font-mono text-xs">Enter</kbd> ou clique na lupa.
+            </p>
+
             <div className="max-h-72 overflow-y-auto rounded-md border">
-              {produtos.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => handleSelectProduto(p)}
-                  className="flex w-full items-center justify-between border-b px-3 py-2 text-left text-sm hover:bg-secondary last:border-b-0"
-                >
-                  <div>
-                    <p className="font-medium">{p.nome}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {p.codigo} • EAN {p.codigoBarras}
-                    </p>
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Físico{" "}
-                    <span className="font-mono text-foreground">{p.estoqueFisico}</span>
-                  </div>
-                </button>
-              ))}
-              {produtos.length === 0 && (
+              {searching ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Buscando e calculando estoque fiscal…
+                </div>
+              ) : searched && produtos.length === 0 ? (
                 <p className="p-4 text-center text-sm text-muted-foreground">
-                  Nenhum produto.
+                  Nenhum produto encontrado.
                 </p>
+              ) : !searched ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">
+                  Preencha ao menos um campo e pressione Enter.
+                </p>
+              ) : (
+                produtos.map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setSelecionado(p)}
+                    className="flex w-full items-center justify-between border-b px-3 py-2.5 text-left text-sm hover:bg-secondary last:border-b-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{p.nome}</p>
+                      <p className="text-xs text-muted-foreground">{p.codigo}</p>
+                    </div>
+                    <div className="ml-4 flex shrink-0 gap-4 text-xs text-muted-foreground">
+                      <span>
+                        Físico{" "}
+                        <span className="font-mono font-semibold text-foreground">
+                          {p.estoqueFisico}
+                        </span>
+                      </span>
+                      <span>
+                        Fiscal{" "}
+                        <span
+                          className={`font-mono font-semibold ${
+                            p.estoqueFiscal < 0 ? "text-destructive" : "text-foreground"
+                          }`}
+                        >
+                          {p.estoqueFiscal}
+                        </span>
+                      </span>
+                    </div>
+                  </button>
+                ))
               )}
             </div>
           </div>
@@ -139,27 +180,21 @@ export function ServiceOrderItemEditor({
             <div className="grid grid-cols-3 gap-3 text-sm">
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Físico</p>
-                <p className="text-lg font-semibold tabular-nums">
-                  {selecionado.estoqueFisico}
-                </p>
+                <p className="text-lg font-semibold tabular-nums">{selecionado.estoqueFisico}</p>
               </div>
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Fiscal</p>
-                {loadingDetail ? (
-                  <Loader2 className="mt-1 h-5 w-5 animate-spin text-muted-foreground" />
-                ) : (
-                  <p className={`text-lg font-semibold tabular-nums ${selecionado.estoqueFiscal < 0 ? "text-destructive" : ""}`}>
-                    {selecionado.estoqueFiscal}
-                  </p>
-                )}
+                <p
+                  className={`text-lg font-semibold tabular-nums ${
+                    selecionado.estoqueFiscal < 0 ? "text-destructive" : ""
+                  }`}
+                >
+                  {selecionado.estoqueFiscal}
+                </p>
               </div>
               <div className="rounded-md border p-3">
                 <p className="text-xs text-muted-foreground">Disponível p/ emitir</p>
-                {loadingDetail ? (
-                  <Loader2 className="mt-1 h-5 w-5 animate-spin text-muted-foreground" />
-                ) : (
-                  <p className="text-lg font-semibold tabular-nums text-primary">{disponivel}</p>
-                )}
+                <p className="text-lg font-semibold tabular-nums text-primary">{disponivel}</p>
               </div>
             </div>
             <div>
@@ -174,10 +209,10 @@ export function ServiceOrderItemEditor({
             </div>
             {excedeFiscal && (
               <div className="flex gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive">
-                <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                <AlertTriangle className="h-4 w-4 shrink-0" />
                 <p>
-                  <strong>Atenção fiscal:</strong> a quantidade informada pode não estar
-                  disponível para emissão fiscal. Físico: {selecionado.estoqueFisico}, fiscal:{" "}
+                  <strong>Atenção fiscal:</strong> a quantidade informada pode não estar disponível
+                  para emissão fiscal. Físico: {selecionado.estoqueFisico}, fiscal:{" "}
                   {selecionado.estoqueFiscal}.
                 </p>
               </div>

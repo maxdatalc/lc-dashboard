@@ -11,7 +11,7 @@
  */
 
 const SEARCH_PRODUCTS = `
-SELECT TOP 30
+SELECT TOP 10
   p.proId            AS proId,
   pe.proCodigo       AS proCodigo,
   p.proDescricao     AS proDescricao,
@@ -21,10 +21,8 @@ FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 WHERE
   (pe.proDesativaProd IS NULL OR pe.proDesativaProd = 0)
-  AND (
-       p.proDescricao LIKE @termo
-    OR pe.proCodigo   LIKE @termo
-  )
+  AND (@termoDesc    = '' OR p.proDescricao LIKE @termoDesc)
+  AND (@termoCodigo  = '' OR pe.proCodigo   LIKE @termoCodigo)
 ORDER BY p.proDescricao
 `;
 
@@ -202,7 +200,7 @@ type QueryDef = {
 const REGISTRY: Record<string, QueryDef> = {
   SEARCH_PRODUCTS: {
     sql: SEARCH_PRODUCTS,
-    allowedParams: ["empId", "termo"],
+    allowedParams: ["empId", "termoDesc", "termoCodigo"],
   },
   GET_PRODUCT_PHYSICAL_STOCK: {
     sql: GET_PRODUCT_PHYSICAL_STOCK,
