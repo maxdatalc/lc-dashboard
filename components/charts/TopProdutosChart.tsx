@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import {
+  Package, Tag, Factory, Banknote, Wallet, TrendingUp, Hash, ChevronDown,
+} from "lucide-react";
 
 export interface ProdutoItem {
   nome: string;
@@ -19,11 +22,27 @@ export interface ProdutoItem {
 
 export type TopProdutoData = ProdutoItem;
 
-function InfoLinha({ icon, texto }: { icon: string; texto: string }) {
+function InfoLinha({
+  icon: Icon,
+  texto,
+}: {
+  icon: React.ElementType;
+  texto: string;
+}) {
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
-      <span style={{ fontSize: "13px", lineHeight: "1.4", flexShrink: 0 }}>{icon}</span>
-      <span style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
+      <Icon
+        style={{
+          width: 13,
+          height: 13,
+          flexShrink: 0,
+          marginTop: 1,
+          color: "var(--text-muted)",
+        }}
+      />
+      <span
+        style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}
+      >
         {texto}
       </span>
     </div>
@@ -65,7 +84,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
     if (i === 0) return "#f59e0b";
     if (i === 1) return "#94a3b8";
     if (i === 2) return "#a78bfa";
-    return "#475569";
+    return "var(--text-muted)";
   };
 
   return (
@@ -78,15 +97,15 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
             type="button"
             onClick={() => setModo(m)}
             style={{
-              padding: "3px 10px",
+              padding: "3px 12px",
               borderRadius: "20px",
-              fontSize: "12px",
+              fontSize: "11px",
               fontWeight: 500,
               border: "1px solid",
               cursor: "pointer",
               background: modo === m ? "var(--accent-cyan)" : "transparent",
-              borderColor: modo === m ? "var(--accent-cyan)" : "rgba(255,255,255,0.12)",
-              color: modo === m ? "#0a0f1e" : "var(--text-secondary)",
+              borderColor: modo === m ? "var(--accent-cyan)" : "var(--toggle-inactive-border)",
+              color: modo === m ? "#0a0f1e" : "var(--toggle-inactive-color)",
               transition: "all 0.15s",
             }}
           >
@@ -95,10 +114,10 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
         ))}
       </div>
 
-      {/* Lista com scroll */}
+      {/* Lista */}
       <div
         className="custom-scroll"
-        style={{ height: "280px", overflowY: "auto", paddingRight: "4px" }}
+        style={{ height: "210px", overflowY: "auto", paddingRight: "4px" }}
       >
         {lista.map((produto, i) => {
           const isExpanded = expandido === i;
@@ -112,13 +131,12 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
               key={i}
               onClick={() => setExpandido(expandido === i ? null : i)}
               style={{
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                borderBottom: "1px solid var(--chart-item-border)",
                 paddingBottom: "5px",
                 marginBottom: "4px",
                 cursor: "pointer",
               }}
             >
-              {/* Linha principal */}
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span
                   style={{
@@ -127,14 +145,16 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     minWidth: "24px",
                     flexShrink: 0,
                     color: corRanking(i),
+                    fontFamily: "var(--font-numeric)",
                   }}
                 >
-                  #{i + 1}
+                  {i + 1}
                 </span>
 
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ marginBottom: "4px" }}>
                     <span
+                      title={produto.nome}
                       style={{
                         fontSize: "11px",
                         fontWeight: 500,
@@ -145,25 +165,23 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                         display: "block",
                         maxWidth: "clamp(100px, 35vw, 200px)",
                       }}
-                      title={produto.nome}
                     >
                       {produto.nome}
                     </span>
                   </div>
                   <div
                     style={{
-                      height: "1.5px",
-                      background: "rgba(255,255,255,0.06)",
-                      borderRadius: "1px",
+                      height: "3px",
+                      background: "var(--chart-track-bg)",
+                      borderRadius: "2px",
                     }}
                   >
                     <div
                       style={{
                         width: `${barraWidth}%`,
                         height: "100%",
-                        borderRadius: "1px",
-                        background:
-                          "linear-gradient(90deg, #00e5ff 0%, rgba(0,229,255,0.2) 100%)",
+                        borderRadius: "2px",
+                        background: "linear-gradient(90deg, var(--accent-cyan) 0%, rgba(0,229,255,0.25) 100%)",
                         transition: "width 0.8s ease",
                       }}
                     />
@@ -176,7 +194,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     fontWeight: 600,
                     color: "var(--text-primary)",
                     flexShrink: 0,
-                    fontFamily: "var(--font-inter, Inter, sans-serif)",
+                    fontFamily: "var(--font-numeric)",
                     whiteSpace: "nowrap",
                   }}
                 >
@@ -185,22 +203,19 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     : `${produto.quantidade.toFixed(0)} un`}
                 </span>
 
-                {/* Chevron indica que o item é clicável */}
-                <span
+                <ChevronDown
                   style={{
-                    fontSize: "10px",
+                    width: 12,
+                    height: 12,
                     color: "var(--text-muted)",
                     flexShrink: 0,
                     transition: "transform 0.2s ease",
                     transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                    display: "inline-block",
                   }}
-                >
-                  ▼
-                </span>
+                />
               </div>
 
-              {/* Painel expandido ao hover */}
+              {/* Painel expandido */}
               {isExpanded && (
                 <div
                   style={{
@@ -216,7 +231,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     {produto.grupoNome && (
                       <InfoLinha
-                        icon="📦"
+                        icon={Package}
                         texto={
                           produto.subGrupo
                             ? `${produto.grupoNome.trim()} › ${produto.subGrupo.trim()}`
@@ -225,26 +240,28 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                       />
                     )}
                     {produto.externalId != null && (
-                      <InfoLinha icon="🏷️" texto={`Cód: ${produto.externalId}`} />
+                      <InfoLinha icon={Tag} texto={`Cód: ${produto.externalId}`} />
                     )}
                     {produto.fabricante && (
-                      <InfoLinha icon="🏭" texto={`Fabricante: ${produto.fabricante}`} />
+                      <InfoLinha icon={Factory} texto={produto.fabricante} />
                     )}
                     {produto.precoVenda != null && produto.precoVenda > 0 && (
                       <InfoLinha
-                        icon="💵"
+                        icon={Banknote}
                         texto={`Preço venda: ${formatMoeda(produto.precoVenda)}`}
                       />
                     )}
                     {produto.valorCusto != null && produto.valorCusto > 0 && (
                       <InfoLinha
-                        icon="💰"
-                        texto={`Custo: ${formatMoeda(produto.valorCusto)}`}
+                        icon={Wallet}
+                        texto={`Custo unitário: ${formatMoeda(produto.valorCusto)}`}
                       />
                     )}
                     {produto.margem != null && (
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <span style={{ fontSize: "13px", flexShrink: 0 }}>📈</span>
+                        <TrendingUp
+                          style={{ width: 13, height: 13, flexShrink: 0, color: "var(--text-muted)" }}
+                        />
                         <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
                           Margem:{" "}
                           <span
@@ -263,7 +280,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                       </div>
                     )}
                     <InfoLinha
-                      icon="🔢"
+                      icon={Hash}
                       texto={`${produto.quantidade.toFixed(0)} un. vendidas no período`}
                     />
                   </div>

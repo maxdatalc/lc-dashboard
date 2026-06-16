@@ -57,7 +57,7 @@ export function TopGruposChart({ data }: Props) {
 
   return (
     <div className="space-y-3">
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={170}>
         <BarChart data={top} layout="vertical" margin={{ top: 0, right: 12, left: 0, bottom: 0 }}>
           <XAxis
             type="number"
@@ -70,7 +70,7 @@ export function TopGruposChart({ data }: Props) {
             tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
             tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 18) + "…" : v}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: "var(--chart-cursor-bg)" }} />
           <Bar dataKey="valor" radius={[0, 4, 4, 0]}>
             {top.map((_, i) => (
               <Cell key={i} fill={CORES[i % CORES.length]} />

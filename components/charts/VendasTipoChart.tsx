@@ -45,15 +45,15 @@ export function VendasTipoChart({ data }: Props) {
   return (
     <div className="flex flex-col items-center gap-2">
       {/* Donut */}
-      <div className="relative" style={{ width: 140, height: 140 }}>
-        <ResponsiveContainer width={140} height={140}>
+      <div className="relative" style={{ width: 110, height: 110 }}>
+        <ResponsiveContainer width={110} height={110}>
           <PieChart>
             <Pie
               data={chartData}
-              cx={65}
-              cy={65}
-              innerRadius={44}
-              outerRadius={64}
+              cx={50}
+              cy={50}
+              innerRadius={33}
+              outerRadius={50}
               paddingAngle={3}
               dataKey="value"
               strokeWidth={0}

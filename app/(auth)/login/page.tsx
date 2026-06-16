@@ -70,316 +70,594 @@ export default function LoginPage() {
 
   const tenantSelecionado = tenants.find((t) => t.id === selectedTenantId);
   const mostrarSeletorEmpresa = tenants.length > 1;
+  const submitDisabled = isPending || (mostrarSeletorEmpresa && !selectedTenantId);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#f0f4ff] flex items-center justify-center p-4">
-      <div
-        className="absolute inset-0 z-0 opacity-[0.04]"
-        style={{
-          backgroundImage: `linear-gradient(#2563eb 1px, transparent 1px), linear-gradient(90deg, #2563eb 1px, transparent 1px)`,
-          backgroundSize: "48px 48px",
-        }}
-      />
-
-      <div className="login-bg-animated pointer-events-none absolute inset-0 z-0 overflow-hidden" aria-hidden="true">
-        <div className="login-bg-glow" />
-        <span className="login-bg-panel login-bg-panel-1" />
-        <span className="login-bg-panel login-bg-panel-2" />
-        <span className="login-bg-panel login-bg-panel-3" />
+    <div className="login-root">
+      {/* ── Decorações de fundo ── */}
+      <div aria-hidden className="login-bg">
+        <div className="login-silk login-silk-tr" />
+        <div className="login-silk login-silk-bl" />
+        <div className="login-glow" />
       </div>
 
-      <div className="relative z-10 w-full max-w-sm">
+      {/* ── Conteúdo ── */}
+      <div className="login-content">
+
         {/* Logo */}
-        <div className="text-center mb-6">
-          <span className="text-slate-900 font-bold text-xl tracking-tight">
-            LC Gestor
-          </span>
+        <div className="login-logo-wrap">
+          <div className="login-logo">
+            <span>LC</span>
+          </div>
         </div>
 
-        {/* Card */}
-        <div className="bg-white border border-blue-100 rounded-2xl p-8 shadow-xl shadow-blue-100/50">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">
-              Acesse agora seu dashboard
-            </h1>
+        {/* Título */}
+        <h1 className="login-title">Entrar no LC Gestor</h1>
+
+        {/* Formulário */}
+        <form onSubmit={handleSubmit} className="login-form">
+
+          {/* E-mail */}
+          <div className="login-field">
+            <label className="login-label">E-mail</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              autoComplete="email"
+              required
+              disabled={isPending}
+              className="login-input"
+            />
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                E-mail
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                autoComplete="email"
-                required
-                disabled={isPending}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition-all disabled:opacity-50"
-              />
-            </div>
+          {/* Senha */}
+          <div className="login-field">
+            <label className="login-label">Senha</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+              disabled={isPending}
+              className="login-input"
+            />
+          </div>
 
-            {/* Senha */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Senha
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                autoComplete="current-password"
-                required
-                disabled={isPending}
-                className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-500/10 transition-all disabled:opacity-50"
-              />
-            </div>
-
-            {/* Seletor de empresa — aparece quando há múltiplas empresas */}
-            {mostrarSeletorEmpresa && (
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-                    <rect x="1" y="4" width="10" height="7" rx="1" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M4 4V3a2 2 0 014 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-                  Empresa
-                </label>
-
-                <div className="relative" ref={selectRef}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectOpen(!selectOpen)}
-                    disabled={isPending}
-                    className={`w-full flex items-center gap-3 bg-slate-50 border rounded-lg px-3.5 py-2.5 text-sm text-left transition-all disabled:opacity-50 ${
-                      selectOpen
-                        ? "border-blue-500 bg-white ring-2 ring-blue-500/10"
-                        : "border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {tenantSelecionado ? (
-                      <>
-                        <div className="w-6 h-6 rounded-md bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
-                          <span className="text-[10px] font-bold text-white uppercase">
-                            {tenantSelecionado.name.charAt(0)}
-                          </span>
-                        </div>
-                        <span className="font-medium text-slate-900 flex-1 truncate">
-                          {tenantSelecionado.name}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-slate-400 flex-1">
-                        Selecione a empresa...
-                      </span>
-                    )}
-                    <svg
-                      width="16"
-                      height="16"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      className={`text-slate-400 shrink-0 transition-transform ${selectOpen ? "rotate-180" : ""}`}
-                    >
-                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-
-                  {selectOpen && (
-                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden z-10">
-                      {tenants.map((tenant) => (
-                        <button
-                          key={tenant.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedTenantId(tenant.id);
-                            setSelectOpen(false);
-                          }}
-                          className={`w-full flex items-center gap-3 px-3.5 py-3 text-sm text-left transition-colors ${
-                            selectedTenantId === tenant.id
-                              ? "bg-blue-50 text-blue-700"
-                              : "text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
-                            <span className="text-[10px] font-bold text-white uppercase">
-                              {tenant.name.charAt(0)}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{tenant.name}</p>
-                            <p className="text-xs text-slate-400 truncate">
-                              {tenant.slug}
-                            </p>
-                          </div>
-                          {selectedTenantId === tenant.id && (
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="text-blue-600 shrink-0">
-                              <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </button>
-                      ))}
-                    </div>
+          {/* Seletor de empresa */}
+          {mostrarSeletorEmpresa && (
+            <div className="login-field">
+              <label className="login-label">Empresa</label>
+              <div className="login-select-wrap" ref={selectRef}>
+                <button
+                  type="button"
+                  onClick={() => setSelectOpen(!selectOpen)}
+                  disabled={isPending}
+                  className={`login-select-btn ${selectOpen ? "login-select-btn--open" : ""}`}
+                >
+                  {tenantSelecionado ? (
+                    <>
+                      <div className="login-tenant-avatar">
+                        {tenantSelecionado.name.charAt(0)}
+                      </div>
+                      <span className="login-select-value">{tenantSelecionado.name}</span>
+                    </>
+                  ) : (
+                    <span className="login-select-placeholder">Selecione a empresa...</span>
                   )}
-                </div>
-              </div>
-            )}
-
-            {/* Loading empresas */}
-            {isFetchingTenants && (
-              <div className="flex items-center gap-2 text-xs text-slate-400">
-                <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                </svg>
-                Buscando empresas...
-              </div>
-            )}
-
-            {/* Erro */}
-            {error && (
-              <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3.5 py-2.5">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="shrink-0">
-                  <circle cx="7" cy="7" r="6" stroke="#dc2626" strokeWidth="1.5"/>
-                  <path d="M7 4v3.5M7 9.5v.5" stroke="#dc2626" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-                <p className="text-xs text-red-600">{error}</p>
-              </div>
-            )}
-
-            {/* Botão */}
-            <button
-              type="submit"
-              disabled={isPending || (mostrarSeletorEmpresa && !selectedTenantId)}
-              className="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-sm font-medium rounded-lg py-2.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2 flex items-center justify-center gap-2"
-            >
-              {isPending ? (
-                <>
-                  <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  <svg
+                    width="14" height="14" viewBox="0 0 14 14" fill="none"
+                    className={`login-chevron ${selectOpen ? "login-chevron--open" : ""}`}
+                  >
+                    <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  Entrando...
-                </>
-              ) : (
-                "Entrar"
-              )}
-            </button>
-          </form>
-        </div>
+                </button>
+
+                {selectOpen && (
+                  <div className="login-dropdown">
+                    {tenants.map((tenant) => (
+                      <button
+                        key={tenant.id}
+                        type="button"
+                        onClick={() => { setSelectedTenantId(tenant.id); setSelectOpen(false); }}
+                        className={`login-dropdown-item ${selectedTenantId === tenant.id ? "login-dropdown-item--active" : ""}`}
+                      >
+                        <div className="login-tenant-avatar">{tenant.name.charAt(0)}</div>
+                        <div className="login-tenant-info">
+                          <p className="login-tenant-name">{tenant.name}</p>
+                          <p className="login-tenant-slug">{tenant.slug}</p>
+                        </div>
+                        {selectedTenantId === tenant.id && (
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ color: "#00e5ff", flexShrink: 0 }}>
+                            <path d="M2.5 7l3.5 3.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Buscando empresas */}
+          {isFetchingTenants && (
+            <div className="login-fetching">
+              <svg className="login-spin" viewBox="0 0 24 24" fill="none" width="12" height="12">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              Buscando empresas...
+            </div>
+          )}
+
+          {/* Erro */}
+          {error && (
+            <div className="login-error">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
+                <circle cx="7" cy="7" r="6" stroke="#f87171" strokeWidth="1.5" />
+                <path d="M7 4v3.5M7 9.5v.5" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              {error}
+            </div>
+          )}
+
+          {/* Botão */}
+          <button
+            type="submit"
+            disabled={submitDisabled}
+            className={`login-btn ${submitDisabled ? "login-btn--disabled" : ""}`}
+          >
+            {isPending ? (
+              <>
+                <svg className="login-spin" viewBox="0 0 24 24" fill="none" width="14" height="14">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
+                  <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                Entrando...
+              </>
+            ) : (
+              "Entrar"
+            )}
+          </button>
+        </form>
+
+        {/* Texto legal */}
+        <p className="login-legal">
+          Ao entrar, você concorda com nossos{" "}
+          <a href="#" className="login-legal-link">Termos</a>
+          {" "}e{" "}
+          <a href="#" className="login-legal-link">Política de Privacidade</a>.
+        </p>
       </div>
 
       <style jsx>{`
-        .login-bg-animated {
-          perspective: 900px;
+        /* ── Base ── */
+        .login-root {
+          position: relative;
+          min-height: 100vh;
+          overflow: hidden;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #08101e;
         }
 
-        .login-bg-glow {
+        /* ── Background decorativo ── */
+        .login-bg {
+          pointer-events: none;
+          position: absolute;
+          inset: 0;
+        }
+
+        .login-glow {
           position: absolute;
           left: 50%;
-          top: 50%;
-          width: 520px;
-          height: 520px;
-          transform: translate3d(-50%, -50%, 0);
-          background: radial-gradient(circle, rgba(37, 99, 235, 0.12), rgba(37, 99, 235, 0) 62%);
+          top: 40%;
+          width: 640px;
+          height: 640px;
+          transform: translate(-50%, -50%);
+          background: radial-gradient(ellipse at center, rgba(0, 229, 255, 0.04) 0%, transparent 65%);
+          border-radius: 50%;
         }
 
-        .login-bg-panel {
+        .login-silk {
           position: absolute;
-          display: block;
-          border: 1px solid rgba(37, 99, 235, 0.12);
-          border-radius: 18px;
-          background: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.08));
-          opacity: 0.62;
-          transform-style: preserve-3d;
-          will-change: transform, opacity;
+          border-radius: 38% 62% 55% 45% / 42% 38% 62% 58%;
+          overflow: hidden;
         }
 
-        .login-bg-panel-1 {
-          width: 168px;
-          height: 104px;
-          left: max(24px, calc(50% - 430px));
-          top: 24%;
-          animation: login-panel-drift-1 22s ease-in-out infinite;
+        /* Painel superior-direito */
+        .login-silk-tr {
+          width: 720px;
+          height: 660px;
+          top: -260px;
+          right: -220px;
+          background: linear-gradient(
+            148deg,
+            rgba(170, 185, 220, 0.42) 0%,
+            rgba(110, 125, 170, 0.28) 28%,
+            rgba(55, 70, 115, 0.14) 55%,
+            rgba(20, 35, 75, 0.05) 75%,
+            transparent 90%
+          );
+          transform: rotate(-16deg);
         }
 
-        .login-bg-panel-2 {
-          width: 132px;
-          height: 82px;
-          right: max(22px, calc(50% - 390px));
-          top: 18%;
-          animation: login-panel-drift-2 26s ease-in-out infinite;
+        /* Faixa de highlight superior-direito */
+        .login-silk-tr::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(
+            205deg,
+            rgba(230, 238, 255, 0.22) 0%,
+            rgba(180, 195, 230, 0.10) 22%,
+            transparent 48%
+          );
         }
 
-        .login-bg-panel-3 {
-          width: 190px;
-          height: 118px;
-          right: max(28px, calc(50% - 460px));
-          bottom: 18%;
-          animation: login-panel-drift-3 24s ease-in-out infinite;
+        /* Painel inferior-esquerdo */
+        .login-silk-bl {
+          width: 620px;
+          height: 560px;
+          bottom: -210px;
+          left: -210px;
+          background: linear-gradient(
+            -38deg,
+            rgba(145, 160, 200, 0.36) 0%,
+            rgba(85, 100, 145, 0.20) 32%,
+            rgba(40, 55, 100, 0.09) 58%,
+            transparent 78%
+          );
+          border-radius: 58% 42% 48% 52% / 52% 48% 52% 48%;
+          transform: rotate(14deg);
         }
 
-        @keyframes login-panel-drift-1 {
-          0%,
-          100% {
-            opacity: 0.5;
-            transform: translate3d(0, 0, 0) rotateX(58deg) rotateZ(-18deg) scale(0.98);
-          }
-          50% {
-            opacity: 0.72;
-            transform: translate3d(16px, -18px, 24px) rotateX(58deg) rotateZ(-13deg) scale(1.03);
-          }
+        .login-silk-bl::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background: linear-gradient(
+            -160deg,
+            rgba(210, 220, 245, 0.18) 0%,
+            rgba(160, 175, 215, 0.08) 25%,
+            transparent 50%
+          );
         }
 
-        @keyframes login-panel-drift-2 {
-          0%,
-          100% {
-            opacity: 0.44;
-            transform: translate3d(0, 0, 0) rotateX(62deg) rotateZ(19deg) scale(0.96);
-          }
-          50% {
-            opacity: 0.66;
-            transform: translate3d(-14px, 20px, 20px) rotateX(62deg) rotateZ(14deg) scale(1.02);
-          }
+        /* ── Conteúdo central ── */
+        .login-content {
+          position: relative;
+          z-index: 10;
+          width: 100%;
+          max-width: 380px;
+          padding: 0 20px;
         }
 
-        @keyframes login-panel-drift-3 {
-          0%,
-          100% {
-            opacity: 0.38;
-            transform: translate3d(0, 0, 0) rotateX(56deg) rotateZ(12deg) scale(0.98);
-          }
-          50% {
-            opacity: 0.58;
-            transform: translate3d(-18px, -16px, 18px) rotateX(56deg) rotateZ(16deg) scale(1.03);
-          }
+        /* ── Logo ── */
+        .login-logo-wrap {
+          display: flex;
+          justify-content: center;
+          margin-bottom: 24px;
         }
 
-        @media (max-width: 640px) {
-          .login-bg-glow {
-            width: 360px;
-            height: 360px;
-            opacity: 0.7;
-          }
+        .login-logo {
+          width: 46px;
+          height: 46px;
+          border-radius: 12px;
+          background: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.08);
+        }
 
-          .login-bg-panel-2,
-          .login-bg-panel-3 {
+        .login-logo span {
+          font-size: 15px;
+          font-weight: 700;
+          color: #f1f5f9;
+          letter-spacing: -0.5px;
+          font-family: var(--font-body, ui-sans-serif, system-ui, sans-serif);
+        }
+
+        /* ── Título ── */
+        .login-title {
+          text-align: center;
+          font-size: 22px;
+          font-weight: 600;
+          color: #f1f5f9;
+          letter-spacing: -0.02em;
+          margin: 0 0 32px;
+          line-height: 1.3;
+        }
+
+        /* ── Formulário ── */
+        .login-form {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        /* ── Campo ── */
+        .login-field {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+        }
+
+        .login-label {
+          font-size: 12px;
+          font-weight: 500;
+          color: #64748b;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
+        .login-input {
+          width: 100%;
+          background: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 10px;
+          padding: 11px 14px;
+          font-size: 14px;
+          color: #f1f5f9;
+          outline: none;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          box-sizing: border-box;
+        }
+
+        .login-input::placeholder {
+          color: #334155;
+        }
+
+        .login-input:focus {
+          border-color: rgba(0, 229, 255, 0.35);
+          box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.07);
+        }
+
+        .login-input:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        /* ── Select empresa ── */
+        .login-select-wrap {
+          position: relative;
+        }
+
+        .login-select-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          background: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          border-radius: 10px;
+          padding: 10px 14px;
+          font-size: 14px;
+          color: #f1f5f9;
+          cursor: pointer;
+          text-align: left;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .login-select-btn--open,
+        .login-select-btn:focus-visible {
+          border-color: rgba(0, 229, 255, 0.35);
+          box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.07);
+          outline: none;
+        }
+
+        .login-select-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .login-select-value {
+          flex: 1;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .login-select-placeholder {
+          flex: 1;
+          color: #334155;
+        }
+
+        .login-chevron {
+          color: #475569;
+          flex-shrink: 0;
+          transition: transform 0.2s;
+        }
+
+        .login-chevron--open {
+          transform: rotate(180deg);
+        }
+
+        .login-tenant-avatar {
+          width: 24px;
+          height: 24px;
+          border-radius: 7px;
+          background: linear-gradient(135deg, #0891b2, #00e5ff22);
+          border: 1px solid rgba(0, 229, 255, 0.25);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-weight: 700;
+          color: #00e5ff;
+          flex-shrink: 0;
+          text-transform: uppercase;
+        }
+
+        /* ── Dropdown ── */
+        .login-dropdown {
+          position: absolute;
+          top: calc(100% + 6px);
+          left: 0;
+          right: 0;
+          background: #111827;
+          border: 1px solid rgba(255, 255, 255, 0.10);
+          border-radius: 12px;
+          overflow: hidden;
+          z-index: 20;
+          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        .login-dropdown-item {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 14px;
+          font-size: 13px;
+          color: #cbd5e1;
+          cursor: pointer;
+          text-align: left;
+          background: transparent;
+          border: none;
+          transition: background 0.12s;
+        }
+
+        .login-dropdown-item:hover {
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .login-dropdown-item--active {
+          background: rgba(0, 229, 255, 0.07);
+          color: #f1f5f9;
+        }
+
+        .login-tenant-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .login-tenant-name {
+          font-weight: 500;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          font-size: 13px;
+        }
+
+        .login-tenant-slug {
+          font-size: 11px;
+          color: #475569;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        /* ── States ── */
+        .login-fetching {
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          font-size: 12px;
+          color: #475569;
+        }
+
+        .login-error {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          background: rgba(239, 68, 68, 0.08);
+          border: 1px solid rgba(239, 68, 68, 0.2);
+          border-radius: 8px;
+          padding: 10px 14px;
+          font-size: 12px;
+          color: #f87171;
+        }
+
+        /* ── Botão ── */
+        .login-btn {
+          width: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          background: #1a2338;
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 10px;
+          padding: 12px;
+          font-size: 14px;
+          font-weight: 500;
+          color: #f1f5f9;
+          cursor: pointer;
+          margin-top: 4px;
+          transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+        }
+
+        .login-btn:hover:not(:disabled) {
+          background: #1e2a40;
+          border-color: rgba(0, 229, 255, 0.2);
+          box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.06);
+        }
+
+        .login-btn--disabled,
+        .login-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+
+        /* ── Texto legal ── */
+        .login-legal {
+          text-align: center;
+          font-size: 12px;
+          color: #334155;
+          margin-top: 28px;
+          line-height: 1.6;
+        }
+
+        .login-legal-link {
+          color: #475569;
+          text-decoration: underline;
+          text-underline-offset: 2px;
+          text-decoration-color: rgba(71, 85, 105, 0.5);
+          transition: color 0.12s;
+        }
+
+        .login-legal-link:hover {
+          color: #94a3b8;
+        }
+
+        /* ── Spinner ── */
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        .login-spin {
+          animation: spin 0.8s linear infinite;
+          flex-shrink: 0;
+        }
+
+        /* ── Mobile ── */
+        @media (max-width: 480px) {
+          .login-silk-bl {
             display: none;
           }
-
-          .login-bg-panel-1 {
-            left: -48px;
-            top: 18%;
-            opacity: 0.34;
+          .login-silk-tr {
+            width: 460px;
+            height: 420px;
+            top: -160px;
+            right: -150px;
+          }
+          .login-title {
+            font-size: 20px;
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .login-bg-animated * {
-            animation: none !important;
+          .login-spin {
+            animation: none;
           }
         }
       `}</style>

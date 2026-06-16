@@ -61,14 +61,14 @@ export function ClientesRetencaoChart({ data }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* Donut */}
-      <ResponsiveContainer width="100%" height={180}>
+      <ResponsiveContainer width="100%" height={140}>
         <PieChart>
           <Pie
             data={pieData}
             cx="50%"
             cy="50%"
-            innerRadius={55}
-            outerRadius={80}
+            innerRadius={42}
+            outerRadius={62}
             paddingAngle={3}
             dataKey="value"
           >
@@ -84,7 +84,7 @@ export function ClientesRetencaoChart({ data }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <div
           className="rounded-xl p-3 flex flex-col gap-1"
-          style={{ background: "var(--bg-elevated)", border: `1px solid ${COR_NOVO}33` }}
+          style={{ background: "var(--bg-elevated)", border: `1px solid color-mix(in srgb, ${COR_NOVO} 20%, transparent)` }}
         >
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COR_NOVO }} />
@@ -103,7 +103,7 @@ export function ClientesRetencaoChart({ data }: Props) {
 
         <div
           className="rounded-xl p-3 flex flex-col gap-1"
-          style={{ background: "var(--bg-elevated)", border: `1px solid ${COR_REC}33` }}
+          style={{ background: "var(--bg-elevated)", border: `1px solid color-mix(in srgb, ${COR_REC} 20%, transparent)` }}
         >
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: COR_REC }} />

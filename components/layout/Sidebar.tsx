@@ -13,6 +13,8 @@ import {
   Package,
   ShoppingCart,
   ClipboardList,
+  ChevronRight,
+  ArrowLeftRight,
 } from "lucide-react";
 import { logout } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
@@ -22,62 +24,88 @@ interface Props {
   isAdmin: boolean;
 }
 
-const ACTIVE_STYLE = {
-  backgroundColor: "rgba(0, 212, 255, 0.12)",
-  color: "var(--accent-cyan)",
-} as const;
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
-const INACTIVE_STYLE = {
-  backgroundColor: "transparent",
-  color: "var(--text-secondary)",
-} as const;
-
-const LOCKED_STYLE = {
-  backgroundColor: "transparent",
-  color: "var(--text-muted)",
-  opacity: 0.5,
-  cursor: "default",
-} as const;
-
-type NavItem = {
-  href:       string;
-  label:      string;
-  icon:       React.ElementType;
-  exact:      boolean;
-  featureKey?: string; // se definido, checa com hasFeature()
+type SubItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  exact?: boolean;
+  featureKey?: string;
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { href: "/dashboard",            label: "Dashboard",        icon: LayoutDashboard, exact: true },
-  { href: "/dashboard/financeiro", label: "Financeiro",       icon: Landmark,        exact: false, featureKey: "modulo_financeiro" },
-  { href: "/dashboard/produtos",   label: "Produtos",         icon: Package,         exact: false, featureKey: "modulo_produtos"   },
-  { href: "/dashboard/vendas",     label: "Vendas",           icon: ShoppingCart,    exact: false, featureKey: "modulo_vendas"     },
-  { href: "/dashboard/clientes",   label: "Clientes",         icon: Users,           exact: false, featureKey: "modulo_clientes"   },
-  { href: "/os",                   label: "Ordens de Serviço", icon: ClipboardList,   exact: false, featureKey: "modulo_os"          },
+type NavGroup = {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  items: SubItem[];
+};
+
+// ─── Estrutura de navegação ───────────────────────────────────────────────────
+
+const GRUPOS: NavGroup[] = [
+  {
+    key: "dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    items: [
+      { href: "/dashboard",            label: "Vendas",     icon: ShoppingCart, exact: true },
+      { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark,     featureKey: "modulo_financeiro" },
+      { href: "/dashboard/produtos",   label: "Produtos",   icon: Package,      featureKey: "modulo_produtos"   },
+      { href: "/dashboard/clientes",   label: "Clientes",   icon: Users,        featureKey: "modulo_clientes"   },
+    ],
+  },
+  {
+    key: "movimentacao",
+    label: "Movimentação",
+    icon: ArrowLeftRight,
+    items: [
+      { href: "/os", label: "Ordens de Serviço", icon: ClipboardList, featureKey: "modulo_os" },
+    ],
+  },
 ];
 
+// ─── Estilos base ─────────────────────────────────────────────────────────────
+
+const SUBITEM_BASE: React.CSSProperties = {
+  height: 34,
+  paddingLeft: 38,
+  paddingRight: 14,
+  gap: 10,
+  display: "flex",
+  alignItems: "center",
+  borderLeft: "3px solid transparent",
+};
+
 export function Sidebar({ isAdmin }: Props) {
-  const pathname  = usePathname();
-  const [expanded, setExpanded] = useState(false);
-  const { hasFeature, plan }    = useEmpresa();
+  const pathname = usePathname();
+  const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const { hasFeature, plan } = useEmpresa();
 
-  const isActive = (href: string, exact: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href);
+  const isAnyChildActive = (grupo: NavGroup) =>
+    grupo.items.some((item) =>
+      item.exact ? pathname === item.href : pathname.startsWith(item.href)
+    );
 
-  const allItems: NavItem[] = [
-    ...NAV_ITEMS,
-    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false }] : []),
-  ];
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+    dashboard: true,
+    movimentacao: isAnyChildActive(GRUPOS[1]),
+  });
+
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const adminActive = pathname.startsWith("/admin");
 
   return (
     <>
-      {/* ── Desktop: sidebar expansível ao hover ────────────────────── */}
+      {/* ── Desktop: sidebar expansível ao hover ─────────────────────── */}
       <aside
-        onMouseEnter={() => setExpanded(true)}
-        onMouseLeave={() => setExpanded(false)}
+        onMouseEnter={() => setSidebarExpanded(true)}
+        onMouseLeave={() => setSidebarExpanded(false)}
         className="hidden md:flex fixed top-0 left-0 h-screen flex-col z-40"
         style={{
-          width: expanded ? "200px" : "56px",
+          width: sidebarExpanded ? "200px" : "56px",
           backgroundColor: "var(--sidebar-bg, var(--bg-card))",
           borderRight: "1px solid var(--border-subtle)",
           transition: "width 0.25s ease",
@@ -96,7 +124,13 @@ export function Sidebar({ isAdmin }: Props) {
         >
           <div
             className="flex-shrink-0 rounded-lg flex items-center justify-center font-bold select-none"
-            style={{ width: 32, height: 32, backgroundColor: "var(--accent-cyan)", color: "#0d1117", fontSize: "13px" }}
+            style={{
+              width: 32,
+              height: 32,
+              backgroundColor: "var(--accent-cyan)",
+              color: "#0d1117",
+              fontSize: "13px",
+            }}
           >
             LC
           </div>
@@ -106,8 +140,8 @@ export function Sidebar({ isAdmin }: Props) {
               fontWeight: 700,
               color: "var(--text-primary)",
               whiteSpace: "nowrap",
-              opacity: expanded ? 1 : 0,
-              transform: expanded ? "translateX(0)" : "translateX(-8px)",
+              opacity: sidebarExpanded ? 1 : 0,
+              transform: sidebarExpanded ? "translateX(0)" : "translateX(-8px)",
               transition: "opacity 0.2s ease 0.05s, transform 0.2s ease 0.05s",
               letterSpacing: "-0.3px",
             }}
@@ -116,84 +150,208 @@ export function Sidebar({ isAdmin }: Props) {
           </span>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 flex flex-col py-2 overflow-hidden">
-          {allItems.map(({ href, label, icon: Icon, exact, featureKey }, i) => {
-            const locked  = !!featureKey && !hasFeature(featureKey);
-            const active  = !locked && isActive(href, exact);
-            const style   = locked ? LOCKED_STYLE : active ? ACTIVE_STYLE : INACTIVE_STYLE;
+        {/* Nav */}
+        <nav className="flex-1 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
 
-            const content = (
-              <>
-                <Icon className="flex-shrink-0" style={{ width: 18, height: 18 }} />
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: active ? 600 : 400,
-                    whiteSpace: "nowrap",
-                    opacity: expanded ? 1 : 0,
-                    transform: expanded ? "translateX(0)" : "translateX(-6px)",
-                    transition: `opacity 0.2s ease ${0.05 + i * 0.02}s, transform 0.2s ease ${0.05 + i * 0.02}s`,
-                    flex: 1,
-                  }}
-                >
-                  {label}
-                </span>
-                {locked && expanded && (
-                  <Lock
-                    style={{ width: 11, height: 11, opacity: 0.6, flexShrink: 0 }}
-                  />
-                )}
-              </>
-            );
-
-            const commonStyle: React.CSSProperties = {
-              height: "44px",
-              padding: "0 14px",
-              gap: "12px",
-              borderLeft: active
-                ? "3px solid var(--accent-cyan)"
-                : "3px solid transparent",
-              display: "flex",
-              alignItems: "center",
-              ...style,
-            };
-
-            if (locked) {
-              return (
-                <div
-                  key={href}
-                  title={`Disponível no plano Premium`}
-                  style={commonStyle}
-                >
-                  {content}
-                </div>
-              );
-            }
+          {GRUPOS.map((grupo, gi) => {
+            const grupoAtivo = isAnyChildActive(grupo);
+            const grupoAberto = openGroups[grupo.key] ?? false;
+            const GrupoIcon = grupo.icon;
 
             return (
-              <Link
-                key={href}
-                href={href}
-                style={commonStyle}
-                className="transition-colors"
-                onMouseEnter={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)";
-                    e.currentTarget.style.color = "var(--text-primary)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.color = "var(--text-secondary)";
-                  }
-                }}
-              >
-                {content}
-              </Link>
+              <div key={grupo.key}>
+
+                {/* ── Cabeçalho do grupo ──────────────────────────── */}
+                <button
+                  onClick={() => toggleGroup(grupo.key)}
+                  style={{
+                    height: 44,
+                    padding: "0 14px",
+                    gap: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    width: "100%",
+                    cursor: "pointer",
+                    background: grupoAtivo ? "var(--sidebar-item-active-bg)" : "transparent",
+                    borderLeft: grupoAtivo
+                      ? "3px solid var(--accent-cyan)"
+                      : "3px solid transparent",
+                    color: grupoAtivo ? "var(--accent-cyan)" : "var(--text-secondary)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!grupoAtivo) {
+                      e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                      e.currentTarget.style.color = "var(--text-primary)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!grupoAtivo) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.color = "var(--text-secondary)";
+                    }
+                  }}
+                >
+                  <GrupoIcon style={{ width: 18, height: 18, flexShrink: 0 }} />
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontWeight: grupoAtivo ? 600 : 400,
+                      whiteSpace: "nowrap",
+                      flex: 1,
+                      textAlign: "left",
+                      opacity: sidebarExpanded ? 1 : 0,
+                      transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                      transition: `opacity 0.2s ease ${0.05 + gi * 0.04}s, transform 0.2s ease ${0.05 + gi * 0.04}s`,
+                    }}
+                  >
+                    {grupo.label}
+                  </span>
+                  <ChevronRight
+                    style={{
+                      width: 13,
+                      height: 13,
+                      flexShrink: 0,
+                      opacity: sidebarExpanded ? 0.6 : 0,
+                      transform: grupoAberto ? "rotate(90deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease, opacity 0.15s ease",
+                    }}
+                  />
+                </button>
+
+                {/* ── Sub-itens ───────────────────────────────────── */}
+                <div
+                  style={{
+                    maxHeight: (grupoAberto && sidebarExpanded) ? `${grupo.items.length * 34 + 4}px` : "0px",
+                    overflow: "hidden",
+                    transition: "max-height 0.22s ease",
+                  }}
+                >
+                  {grupo.items.map((item, si) => {
+                    const locked = !!item.featureKey && !hasFeature(item.featureKey);
+                    const active =
+                      !locked &&
+                      (item.exact ? pathname === item.href : pathname.startsWith(item.href));
+                    const SubIcon = item.icon;
+
+                    const subStyle: React.CSSProperties = {
+                      ...SUBITEM_BASE,
+                      borderLeft: active
+                        ? "3px solid var(--accent-cyan)"
+                        : "3px solid transparent",
+                      backgroundColor: active ? "var(--sidebar-item-active-bg)" : "transparent",
+                      color: locked
+                        ? "var(--text-muted)"
+                        : active
+                        ? "var(--accent-cyan)"
+                        : "var(--text-secondary)",
+                      opacity: locked ? 0.45 : 1,
+                    };
+
+                    const content = (
+                      <>
+                        <SubIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: active ? 600 : 400,
+                            whiteSpace: "nowrap",
+                            flex: 1,
+                            opacity: sidebarExpanded ? 1 : 0,
+                            transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                            transition: `opacity 0.15s ease ${0.02 + si * 0.02}s, transform 0.15s ease`,
+                          }}
+                        >
+                          {item.label}
+                        </span>
+                        {locked && sidebarExpanded && (
+                          <Lock style={{ width: 10, height: 10, opacity: 0.6, flexShrink: 0 }} />
+                        )}
+                      </>
+                    );
+
+                    if (locked) {
+                      return (
+                        <div
+                          key={item.href}
+                          style={{ ...subStyle, cursor: "default" }}
+                          title="Disponível no plano Premium"
+                        >
+                          {content}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        style={subStyle}
+                        onMouseEnter={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                            e.currentTarget.style.color = "var(--text-primary)";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.backgroundColor = "transparent";
+                            e.currentTarget.style.color = "var(--text-secondary)";
+                          }
+                        }}
+                      >
+                        {content}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
+
+          {/* ── Admin (item plano, só se admin) ──────────────────── */}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              style={{
+                height: 44,
+                padding: "0 14px",
+                gap: 12,
+                display: "flex",
+                alignItems: "center",
+                borderLeft: adminActive
+                  ? "3px solid var(--accent-cyan)"
+                  : "3px solid transparent",
+                backgroundColor: adminActive ? "var(--sidebar-item-active-bg)" : "transparent",
+                color: adminActive ? "var(--accent-cyan)" : "var(--text-secondary)",
+              }}
+              onMouseEnter={(e) => {
+                if (!adminActive) {
+                  e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                  e.currentTarget.style.color = "var(--text-primary)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!adminActive) {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                  e.currentTarget.style.color = "var(--text-secondary)";
+                }
+              }}
+            >
+              <Settings2 style={{ width: 18, height: 18, flexShrink: 0 }} />
+              <span
+                style={{
+                  fontSize: 13,
+                  fontWeight: adminActive ? 600 : 400,
+                  whiteSpace: "nowrap",
+                  opacity: sidebarExpanded ? 1 : 0,
+                  transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                  transition: "opacity 0.2s ease 0.12s, transform 0.2s ease 0.12s",
+                }}
+              >
+                Admin
+              </span>
+            </Link>
+          )}
         </nav>
 
         {/* Rodapé: plano + logout */}
@@ -201,15 +359,15 @@ export function Sidebar({ isAdmin }: Props) {
           className="flex flex-col py-3"
           style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
-          {/* Badge de plano */}
-          {expanded && (
+          {sidebarExpanded && (
             <div
               className="mx-3 mb-2 px-2 py-1 rounded-md text-center"
               style={{
-                backgroundColor: plan === "premium"
-                  ? "rgba(0,212,255,0.1)"
-                  : "rgba(255,255,255,0.04)",
-                border: `1px solid ${plan === "premium" ? "rgba(0,212,255,0.25)" : "var(--border-subtle)"}`,
+                backgroundColor:
+                  plan === "premium" ? "var(--sidebar-item-active-bg)" : "var(--sidebar-badge-bg)",
+                border: `1px solid ${
+                  plan === "premium" ? "var(--accent-cyan)" : "var(--border-subtle)"
+                }`,
               }}
             >
               <span
@@ -218,7 +376,8 @@ export function Sidebar({ isAdmin }: Props) {
                   fontWeight: 600,
                   letterSpacing: "0.05em",
                   textTransform: "uppercase",
-                  color: plan === "premium" ? "var(--accent-cyan)" : "var(--text-muted)",
+                  color:
+                    plan === "premium" ? "var(--accent-cyan)" : "var(--text-muted)",
                 }}
               >
                 {PLAN_LABELS[plan]}
@@ -229,7 +388,7 @@ export function Sidebar({ isAdmin }: Props) {
           <form action={logout}>
             <button
               type="submit"
-              className="w-full flex items-center transition-colors"
+              className="w-full flex items-center"
               style={{
                 height: "40px",
                 padding: "0 14px",
@@ -246,13 +405,13 @@ export function Sidebar({ isAdmin }: Props) {
                 e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
-              <LogOut className="flex-shrink-0" style={{ width: 16, height: 16 }} />
+              <LogOut style={{ width: 16, height: 16, flexShrink: 0 }} />
               <span
                 style={{
                   fontSize: "13px",
                   whiteSpace: "nowrap",
-                  opacity: expanded ? 1 : 0,
-                  transform: expanded ? "translateX(0)" : "translateX(-6px)",
+                  opacity: sidebarExpanded ? 1 : 0,
+                  transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
                   transition: "opacity 0.2s ease 0.1s, transform 0.2s ease 0.1s",
                 }}
               >
@@ -274,9 +433,15 @@ export function Sidebar({ isAdmin }: Props) {
           minHeight: "64px",
         }}
       >
-        {allItems.map(({ href, label, icon: Icon, exact, featureKey }) => {
-          const locked = !!featureKey && !hasFeature(featureKey);
-          const active = !locked && isActive(href, exact);
+        {[
+          { href: "/dashboard",            label: "Dashboard",  icon: LayoutDashboard, exact: true,  featureKey: undefined },
+          { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark,        exact: false, featureKey: "modulo_financeiro" },
+          { href: "/dashboard/clientes",   label: "Clientes",   icon: Users,           exact: false, featureKey: "modulo_clientes"   },
+          { href: "/os",                   label: "OS",         icon: ClipboardList,   exact: false, featureKey: "modulo_os"         },
+          ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false, featureKey: undefined }] : []),
+        ].map(({ href, label, icon: Icon, exact, featureKey }) => {
+          const locked = featureKey ? !hasFeature(featureKey) : false;
+          const active = !locked && (exact ? pathname === href : pathname.startsWith(href));
 
           if (locked) {
             return (

@@ -64,8 +64,8 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
               fontSize: '12px', fontWeight: 500,
               border: '1px solid', cursor: 'pointer',
               background: modo === m ? 'var(--accent-cyan)' : 'transparent',
-              borderColor: modo === m ? 'var(--accent-cyan)' : 'rgba(255,255,255,0.12)',
-              color: modo === m ? '#0a0f1e' : 'var(--text-secondary)',
+              borderColor: modo === m ? 'var(--accent-cyan)' : 'var(--toggle-inactive-border)',
+              color: modo === m ? '#0a0f1e' : 'var(--toggle-inactive-color)',
               transition: 'all 0.15s',
             }}
           >
@@ -75,7 +75,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
       </div>
 
       {/* Lista */}
-      <div className="custom-scroll" style={{ height: '280px', overflowY: 'auto', paddingRight: '4px' }}>
+      <div className="custom-scroll" style={{ height: '210px', overflowY: 'auto', paddingRight: '4px' }}>
         {lista.map((v, i) => {
           const isSelected = selectedId === v.vendedorId
           const cor = CORES[i] ?? '#475569'
@@ -92,7 +92,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
                 padding: '6px 8px',
                 marginBottom: '4px',
                 cursor: onSelect ? 'pointer' : 'default',
-                background: isSelected ? 'rgba(0,229,255,0.08)' : 'transparent',
+                background: isSelected ? 'var(--sidebar-item-active-bg)' : 'transparent',
                 border: isSelected
                   ? '1px solid rgba(0,229,255,0.3)'
                   : '1px solid transparent',
@@ -104,7 +104,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
                 <span style={{
                   fontSize: '11px', fontWeight: 700,
                   minWidth: '24px', flexShrink: 0,
-                  color: cor,
+                  color: cor, fontFamily: 'var(--font-numeric)',
                 }}>
                   #{i + 1}
                 </span>
@@ -130,10 +130,10 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
                   }}>
                     {v.nome}
                   </div>
-                  <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)', borderRadius: '1px' }}>
+                  <div style={{ height: '3px', background: 'var(--chart-track-bg)', borderRadius: '2px' }}>
                     <div style={{
                       width: `${barraWidth}%`, height: '100%',
-                      borderRadius: '1px', background: cor,
+                      borderRadius: '2px', background: cor,
                       transition: 'width 0.8s ease',
                     }} />
                   </div>
