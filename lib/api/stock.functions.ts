@@ -119,10 +119,18 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
   const termoDesc = termoDescRaw
     ? (termoDescRaw.includes("%") ? termoDescRaw : `${termoDescRaw}%`)
     : "";
-  // Código: sempre começa com
-  const termoCodigo = termoCodigoRaw ? `${termoCodigoRaw}%` : "";
 
-  const { sql, params } = resolveNamedQuery("SEARCH_PRODUCTS", { empId, termoDesc, termoCodigo });
+  // EAN: ≥7 dígitos numéricos → busca exata; senão → prefixo LIKE
+  const isEan = /^\d{7,}$/.test(termoCodigoRaw);
+  const termoCodigo = termoCodigoRaw ? (isEan ? termoCodigoRaw : `${termoCodigoRaw}%`) : "";
+  const termoCodigoExato = isEan ? 1 : 0;
+
+  const { sql, params } = resolveNamedQuery("SEARCH_PRODUCTS", {
+    empId,
+    termoDesc,
+    termoCodigo,
+    termoCodigoExato,
+  });
   const rows = await queryBridge<ProductRow>(bridge, sql, params);
 
   // Calcula estoque fiscal de todos os resultados em paralelo
