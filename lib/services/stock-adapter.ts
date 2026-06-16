@@ -3,9 +3,13 @@ import type { Produto } from "@/lib/fiscal-types";
 import type { ProductStockDetail } from "@/lib/api/stock.functions";
 
 export const stockService = {
-  async search(lojaId: string | undefined, busca: string): Promise<Produto[]> {
+  async search(
+    lojaId: string | undefined,
+    termoDesc: string,
+    termoCodigo: string,
+  ): Promise<Produto[]> {
     if (!lojaId) return [];
-    const rows = await searchProducts({ loja_id: lojaId, termo: busca });
+    const rows = await searchProducts({ loja_id: lojaId, termoDesc, termoCodigo });
     return rows.map((p) => ({
       id: p.id,
       codigo: p.codigo,
