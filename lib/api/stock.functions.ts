@@ -147,14 +147,10 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
   });
   const rows = await queryBridge<ProductRow>(bridge, sql, params);
 
-  console.log(`[fiscal] invId=${invId} empId=${empId} produtos=${rows.length}`);
   // Calcula estoque fiscal de todos os resultados em paralelo
   const fiscalResults = await Promise.all(
     rows.map((p) =>
-      calculateFiscalStock(empId, p.proId, bridge, invId, osTiposFiscais).catch((err) => {
-        console.error(`[fiscal] erro proId=${p.proId}:`, err instanceof Error ? err.message : err);
-        return null;
-      }),
+      calculateFiscalStock(empId, p.proId, bridge, invId, osTiposFiscais).catch(() => null),
     ),
   );
 
