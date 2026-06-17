@@ -190,7 +190,7 @@ export async function getProductStockDetail(input: unknown): Promise<ProductStoc
   if (fiscalResult.semInventario) {
     alertas.push({
       tipo: "danger",
-      mensagem: "Inventário não encontrado — estoque fiscal não pode ser calculado.",
+      mensagem: "Produto sem movimentações fiscais registradas — estoque fiscal indisponível.",
     });
   }
 
