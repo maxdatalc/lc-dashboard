@@ -128,6 +128,7 @@ function OSDetailContent() {
         os_id: os.id,
         produto_id: item.produtoId,
         quantidade: item.quantidade,
+        tipo_atend_id: os.tipoAtendId,
         forcar_sem_fiscal: forcar,
       });
       if (r.ok) {

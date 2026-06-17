@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, Loader2, Settings } from "lucide-react";
+import { Building2, Loader2, Settings, Zap } from "lucide-react";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
 
 type Loja = {
@@ -132,6 +132,13 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                       >
                         <Settings className="h-3 w-3" />
                         Bridge
+                      </Link>
+                      <Link
+                        href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`}
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <Zap className="h-3 w-3" />
+                        API
                       </Link>
                     </div>
                   </td>

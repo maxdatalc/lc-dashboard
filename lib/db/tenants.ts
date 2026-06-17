@@ -199,3 +199,72 @@ export async function updateLojaSqlConfig(
   if (error) throw new Error(error.message);
 }
 
+// Retorna dados completos de uma loja incluindo MaxAPI config — uso exclusivo do painel admin
+export async function getLojaAdminWithMaxApi(lojaId: string): Promise<{
+  id: string;
+  tenantId: string;
+  name: string;
+  empId: number;
+  isActive: boolean;
+  sqlEnabled: boolean;
+  bridgeUrl: string | null;
+  bridgeToken: string | null;
+  terminalMaxdata: string | null;
+  maxApiUrl: string | null;
+} | null> {
+  const supabase = createAdminClient();
+
+  const [lojaRes, cfgRes] = await Promise.all([
+    supabase
+      .from("lojas")
+      .select("id, tenant_id, name, emp_id, is_active, sql_enabled, sql_bridge_url, sql_bridge_token, terminal_maxdata")
+      .eq("id", lojaId)
+      .maybeSingle(),
+    supabase
+      .from("integration_configs")
+      .select("maxapi_url")
+      .eq("loja_id", lojaId)
+      .maybeSingle(),
+  ]);
+
+  if (lojaRes.error) throw new Error(lojaRes.error.message);
+  if (!lojaRes.data) return null;
+
+  const row = lojaRes.data as Record<string, unknown>;
+  const cfgRow = cfgRes.data as Record<string, unknown> | null;
+
+  return {
+    id: row.id as string,
+    tenantId: row.tenant_id as string,
+    name: row.name as string,
+    empId: row.emp_id as number,
+    isActive: row.is_active as boolean,
+    sqlEnabled: (row.sql_enabled as boolean) ?? false,
+    bridgeUrl: (row.sql_bridge_url as string) ?? null,
+    bridgeToken: row.sql_bridge_token ? decrypt(row.sql_bridge_token as string) : null,
+    terminalMaxdata: (row.terminal_maxdata as string) ?? null,
+    maxApiUrl: (cfgRow?.maxapi_url as string) ?? null,
+  };
+}
+
+// Salva URL da MaxAPI em integration_configs e terminal em lojas
+export async function updateLojaMaxApiConfig(
+  lojaId: string,
+  config: { maxApiUrl: string; terminalMaxdata: string }
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const [lojaRes, cfgRes] = await Promise.all([
+    supabase
+      .from("lojas")
+      .update({ terminal_maxdata: config.terminalMaxdata })
+      .eq("id", lojaId),
+    supabase
+      .from("integration_configs")
+      .upsert({ loja_id: lojaId, maxapi_url: config.maxApiUrl }, { onConflict: "loja_id" }),
+  ]);
+
+  if (lojaRes.error) throw new Error(lojaRes.error.message);
+  if (cfgRes.error) throw new Error(cfgRes.error.message);
+}
+

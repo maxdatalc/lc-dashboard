@@ -283,6 +283,18 @@ WHERE v.vedId = @osId
   AND v.vedTipo = 'OS'
 `;
 
+const LIST_ERP_USERS = `
+SELECT TOP 100
+  c.cliId   AS cliId,
+  c.cliNome AS cliNome,
+  c.cliUsu  AS cliUsu
+FROM cliente c
+WHERE c.empId = @empId
+  AND c.cliUsu IS NOT NULL
+  AND c.cliUsu <> ''
+ORDER BY c.cliNome
+`;
+
 const GET_SERVICE_ORDER_ITEMS = `
 SELECT
   vdi.vdiId            AS itemId,
@@ -349,6 +361,10 @@ const REGISTRY: Record<string, QueryDef> = {
   GET_SERVICE_ORDER_ITEMS: {
     sql: GET_SERVICE_ORDER_ITEMS,
     allowedParams: ["osId", "empId"],
+  },
+  LIST_ERP_USERS: {
+    sql: LIST_ERP_USERS,
+    allowedParams: ["empId"],
   },
 };
 
