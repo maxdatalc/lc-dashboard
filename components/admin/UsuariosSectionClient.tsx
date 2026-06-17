@@ -6,7 +6,7 @@ import {
   Loader2, UserPlus, AlertCircle, ChevronDown, ChevronUp,
   Download, User, CheckCircle2, Shield, Building2,
 } from "lucide-react";
-import { adicionarUsuarioTenant, salvarUsuarioERP, salvarAcessoUsuario } from "@/lib/actions/admin-lojas";
+import { salvarUsuarioERP, salvarAcessoUsuario } from "@/lib/actions/admin-lojas";
 import type { UsuarioTenantCompleto, ErpMapping } from "@/lib/db/admin";
 import type { ErpUserItem } from "@/app/api/admin/erp-users/route";
 
