@@ -11,7 +11,7 @@
  */
 
 const SEARCH_PRODUCTS = `
-SELECT TOP 10
+SELECT TOP 20
   p.proId            AS proId,
   pe.proCodigo       AS proCodigo,
   p.proDescricao     AS proDescricao,
@@ -28,10 +28,11 @@ WHERE
     OR p.proAplicacao LIKE @termoDesc
   )
   AND (
-    @termoCodigo = ''
+    (@termoCodigo = '' AND @termoCodigoId = 0)
     OR (@termoCodigoExato = 1 AND pe.proCodigo = @termoCodigo)
-    OR (@termoCodigoExato = 0 AND p.proId = @termoCodigoId)
+    OR (@termoCodigoId > 0 AND p.proId = @termoCodigoId)
   )
+  AND (@grupo = '' OR p.proGrupo LIKE '%' + @grupo + '%')
 ORDER BY p.proDescricao
 `;
 
@@ -267,7 +268,7 @@ type QueryDef = {
 const REGISTRY: Record<string, QueryDef> = {
   SEARCH_PRODUCTS: {
     sql: SEARCH_PRODUCTS,
-    allowedParams: ["empId", "termoDesc", "termoCodigo", "termoCodigoExato", "termoCodigoId"],
+    allowedParams: ["empId", "termoDesc", "termoCodigo", "termoCodigoExato", "termoCodigoId", "grupo"],
   },
   GET_PRODUCT_PHYSICAL_STOCK: {
     sql: GET_PRODUCT_PHYSICAL_STOCK,
