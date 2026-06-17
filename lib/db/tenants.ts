@@ -217,12 +217,12 @@ export async function getLojaAdminWithMaxApi(lojaId: string): Promise<{
   const [lojaRes, cfgRes] = await Promise.all([
     supabase
       .from("lojas")
-      .select("id, tenant_id, name, emp_id, is_active, sql_enabled, sql_bridge_url, sql_bridge_token, terminal_maxdata")
+      .select("id, tenant_id, name, emp_id, is_active, sql_enabled, sql_bridge_url, sql_bridge_token")
       .eq("id", lojaId)
       .maybeSingle(),
     supabase
       .from("integration_configs")
-      .select("maxapi_url")
+      .select("maxapi_url, terminal_maxdata")
       .eq("loja_id", lojaId)
       .maybeSingle(),
   ]);
@@ -242,29 +242,25 @@ export async function getLojaAdminWithMaxApi(lojaId: string): Promise<{
     sqlEnabled: (row.sql_enabled as boolean) ?? false,
     bridgeUrl: (row.sql_bridge_url as string) ?? null,
     bridgeToken: row.sql_bridge_token ? decrypt(row.sql_bridge_token as string) : null,
-    terminalMaxdata: (row.terminal_maxdata as string) ?? null,
+    terminalMaxdata: (cfgRow?.terminal_maxdata as string) ?? null,
     maxApiUrl: (cfgRow?.maxapi_url as string) ?? null,
   };
 }
 
-// Salva URL da MaxAPI em integration_configs e terminal em lojas
+// Salva URL e terminal da MaxAPI em integration_configs (não toca na tabela lojas)
 export async function updateLojaMaxApiConfig(
   lojaId: string,
   config: { maxApiUrl: string; terminalMaxdata: string }
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  const [lojaRes, cfgRes] = await Promise.all([
-    supabase
-      .from("lojas")
-      .update({ terminal_maxdata: config.terminalMaxdata })
-      .eq("id", lojaId),
-    supabase
-      .from("integration_configs")
-      .upsert({ loja_id: lojaId, maxapi_url: config.maxApiUrl }, { onConflict: "loja_id" }),
-  ]);
+  const { error } = await supabase
+    .from("integration_configs")
+    .upsert(
+      { loja_id: lojaId, maxapi_url: config.maxApiUrl, terminal_maxdata: config.terminalMaxdata },
+      { onConflict: "loja_id" },
+    );
 
-  if (lojaRes.error) throw new Error(lojaRes.error.message);
-  if (cfgRes.error) throw new Error(cfgRes.error.message);
+  if (error) throw new Error(`Falha ao salvar config MaxAPI: ${error.message}`);
 }
 

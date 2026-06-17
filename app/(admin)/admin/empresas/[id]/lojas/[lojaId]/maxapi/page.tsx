@@ -9,14 +9,20 @@ import MaxApiForm from "./maxapi-form";
 async function salvarMaxApi(
   lojaId: string,
   tenantId: string,
+  _prevState: { erro: string | null },
   formData: FormData,
-) {
+): Promise<{ erro: string | null }> {
   "use server";
 
-  const maxApiUrl = (formData.get("maxApiUrl") as string).trim();
-  const terminalMaxdata = ((formData.get("terminalMaxdata") as string).trim()) || "1";
+  const maxApiUrl = (formData.get("maxApiUrl") as string ?? "").trim();
+  const terminalMaxdata = ((formData.get("terminalMaxdata") as string ?? "").trim()) || "1";
 
-  await updateLojaMaxApiConfig(lojaId, { maxApiUrl, terminalMaxdata });
+  try {
+    await updateLojaMaxApiConfig(lojaId, { maxApiUrl, terminalMaxdata });
+  } catch (e) {
+    return { erro: e instanceof Error ? e.message : "Falha ao salvar configuração." };
+  }
+
   redirect(`/admin/empresas/${tenantId}?aba=lojas`);
 }
 
