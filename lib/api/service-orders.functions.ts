@@ -8,6 +8,7 @@ import { queryBridge } from "@/lib/bridge/bridge-client";
 import { resolveNamedQuery } from "@/lib/bridge/named-queries";
 import {
   addItemToServiceOrderMaxApi,
+  cancelServiceOrderItem,
   buildMaxApiConfig,
   type MaxApiConfig,
 } from "@/lib/maxapi/maxapi-client";
@@ -467,4 +468,42 @@ export async function addItemToServiceOrder(input: unknown) {
     estoque_fiscal: stock.estoqueFiscal,
     item_adicionado: itemAdicionado,
   };
+}
+
+const RemoveItemInput = z.object({
+  loja_id: z.string().uuid(),
+  os_id: z.string(),
+  item_id: z.string(),
+});
+
+export async function removeItemFromServiceOrder(input: unknown) {
+  const data = RemoveItemInput.parse(input);
+  const { userId, supabase } = await getAuthContext();
+
+  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
+    _user_id: userId,
+    _loja_id: data.loja_id,
+  });
+  if (!canAccess) throw new Error("Acesso negado a esta loja");
+
+  const { loja, maxApi } = await getLojaConfig(data.loja_id);
+  if (!maxApi) throw new Error("MaxAPI não configurada para esta loja");
+
+  const itemId = parseInt(data.item_id, 10);
+  if (isNaN(itemId)) throw new Error("item_id inválido");
+
+  const supabaseAdmin = createAdminClient();
+  await cancelServiceOrderItem(maxApi, supabaseAdmin, data.loja_id, itemId);
+
+  await logAuditoria({
+    userId,
+    tenant_id: loja.tenant_id as string | null,
+    loja_id: data.loja_id,
+    entidade: "ordem_servico",
+    entidade_id: data.os_id,
+    acao: "REMOVEU_ITEM_OS",
+    detalhes: { item_id: data.item_id },
+  });
+
+  return { ok: true };
 }

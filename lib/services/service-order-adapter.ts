@@ -4,6 +4,7 @@ import {
   getServiceOrderDetail,
   getServiceOrderItems,
   addItemToServiceOrder,
+  removeItemFromServiceOrder,
 } from "@/lib/api/service-orders.functions";
 import type { OrdemServico, ItemOS, TipoAtendimento } from "@/lib/fiscal-types";
 
@@ -116,5 +117,9 @@ export const serviceOrderService = {
       tipo_atend_id: input.tipo_atend_id,
       forcar_sem_fiscal: input.forcar_sem_fiscal ?? false,
     });
+  },
+
+  async removeItem(lojaId: string, osId: string, itemId: string) {
+    return removeItemFromServiceOrder({ loja_id: lojaId, os_id: osId, item_id: itemId });
   },
 };
