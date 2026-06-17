@@ -83,7 +83,6 @@ async function getLojaConfigs(lojaId: string) {
       .from("integration_configs")
       .select("inventario_id_base, os_tipos_fiscais")
       .eq("loja_id", lojaId)
-      .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 

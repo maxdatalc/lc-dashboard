@@ -224,7 +224,6 @@ export async function getLojaAdminWithMaxApi(lojaId: string): Promise<{
       .from("integration_configs")
       .select("maxapi_url, terminal_maxdata")
       .eq("loja_id", lojaId)
-      .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 

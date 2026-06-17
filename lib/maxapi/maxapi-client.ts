@@ -62,7 +62,6 @@ export async function getOrRefreshToken(
     .from("integration_configs")
     .select("maxapi_token_cache, maxapi_token_expires_at")
     .eq("loja_id", lojaId)
-    .order("updated_at", { ascending: false })
     .limit(1);
 
   const row = ((rows as Record<string, unknown>[] | null)?.[0]) ?? null;

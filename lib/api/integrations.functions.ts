@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
@@ -22,7 +22,7 @@ export type IntegrationStatusInfo = {
 async function getAuthContext() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Não autenticado");
+  if (!user) throw new Error("NÃ£o autenticado");
   return { userId: user.id, supabase };
 }
 
@@ -72,7 +72,6 @@ export async function getIntegrationStatus(
         "loja_id, status_bridge, status_maxapi, ultimo_teste_bridge, ultimo_teste_maxapi, maxapi_url",
       )
       .eq("loja_id", data.loja_id)
-      .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 
@@ -101,7 +100,7 @@ export async function testBridgeConnection(input: unknown) {
     _user_id: userId,
     _loja_id: data.loja_id,
   });
-  if (!canManage) throw new Error("Apenas owner/admin pode testar integrações.");
+  if (!canManage) throw new Error("Apenas owner/admin pode testar integraÃ§Ãµes.");
 
   const supabaseAdmin = createAdminClient();
   const { data: loja } = await supabaseAdmin
@@ -112,7 +111,7 @@ export async function testBridgeConnection(input: unknown) {
 
   const lojaRow = loja as Record<string, unknown> | null;
   let status: "online" | "offline" | "erro" | "nao_configurado" = "nao_configurado";
-  let mensagem = "Bridge SQL ainda não configurada para esta loja.";
+  let mensagem = "Bridge SQL ainda nÃ£o configurada para esta loja.";
   let latencia_ms: number | null = null;
 
   if (lojaRow?.sql_bridge_url && lojaRow?.sql_bridge_token) {
@@ -122,7 +121,7 @@ export async function testBridgeConnection(input: unknown) {
     });
     if (result.ok) {
       status = "online";
-      mensagem = `Bridge respondeu em ${result.ms}ms — banco: ${result.db || "BATAUTO"}`;
+      mensagem = `Bridge respondeu em ${result.ms}ms â€” banco: ${result.db || "BATAUTO"}`;
       latencia_ms = result.ms;
     } else {
       status = "erro";
@@ -163,7 +162,7 @@ export async function testMaxApiConnection(input: unknown) {
     _user_id: userId,
     _loja_id: data.loja_id,
   });
-  if (!canManage) throw new Error("Apenas owner/admin pode testar integrações.");
+  if (!canManage) throw new Error("Apenas owner/admin pode testar integraÃ§Ãµes.");
 
   const supabaseAdmin = createAdminClient();
   const [{ data: loja }, { data: cfg }] = await Promise.all([
@@ -176,14 +175,13 @@ export async function testMaxApiConnection(input: unknown) {
       .from("integration_configs")
       .select("maxapi_url, maxapi_token_cache, maxapi_token_expires_at")
       .eq("loja_id", data.loja_id)
-      .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 
   const lojaRow = loja as Record<string, unknown> | null;
   const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
   let status: "online" | "offline" | "erro" | "nao_configurado" = "nao_configurado";
-  let mensagem = "MaxAPI ainda não configurada para esta loja.";
+  let mensagem = "MaxAPI ainda nÃ£o configurada para esta loja.";
   let token_cached_until: string | null = null;
 
   const isConfigured = !!(cfgRow?.maxapi_url && lojaRow?.emp_id && lojaRow?.terminal_maxdata);
@@ -202,7 +200,6 @@ export async function testMaxApiConnection(input: unknown) {
         .from("integration_configs")
         .select("maxapi_token_expires_at")
         .eq("loja_id", data.loja_id)
-        .order("updated_at", { ascending: false })
         .limit(1);
 
       const refreshed = ((refreshedRows as Record<string, unknown>[] | null)?.[0]) ?? null;
@@ -210,11 +207,11 @@ export async function testMaxApiConnection(input: unknown) {
         (refreshed?.maxapi_token_expires_at as string) ?? null;
       status = token ? "online" : "erro";
       mensagem = token
-        ? `Autenticação MaxAPI realizada com sucesso. Cache válido até ${token_cached_until ?? "desconhecido"}.`
-        : "Token retornado vazio — verifique configuração.";
+        ? `AutenticaÃ§Ã£o MaxAPI realizada com sucesso. Cache vÃ¡lido atÃ© ${token_cached_until ?? "desconhecido"}.`
+        : "Token retornado vazio â€” verifique configuraÃ§Ã£o.";
     } catch (err) {
       status = "erro";
-      mensagem = `Falha na autenticação MaxAPI: ${(err as Error).message}`;
+      mensagem = `Falha na autenticaÃ§Ã£o MaxAPI: ${(err as Error).message}`;
     }
   } else if (cfgRow?.maxapi_url) {
     status = "nao_configurado";
@@ -257,7 +254,7 @@ export async function listInventories(input: unknown): Promise<InventarioInfo[]>
     _user_id: userId,
     _loja_id: data.loja_id,
   });
-  if (!canManage) throw new Error("Apenas owner/admin pode listar inventários.");
+  if (!canManage) throw new Error("Apenas owner/admin pode listar inventÃ¡rios.");
 
   const supabaseAdmin = createAdminClient();
   const { data: loja } = await supabaseAdmin
@@ -268,7 +265,7 @@ export async function listInventories(input: unknown): Promise<InventarioInfo[]>
 
   const lojaRow = loja as Record<string, unknown> | null;
   if (!lojaRow?.sql_bridge_url || !lojaRow?.sql_bridge_token) {
-    throw new Error("Bridge SQL não configurada para esta loja.");
+    throw new Error("Bridge SQL nÃ£o configurada para esta loja.");
   }
 
   const bridge: BridgeConfig = {
@@ -308,7 +305,7 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
     _user_id: userId,
     _loja_id: data.loja_id,
   });
-  if (!canManage) throw new Error("Apenas owner/admin pode ver configurações de integração.");
+  if (!canManage) throw new Error("Apenas owner/admin pode ver configuraÃ§Ãµes de integraÃ§Ã£o.");
 
   const supabaseAdmin = createAdminClient();
   const [{ data: loja }, { data: cfg }] = await Promise.all([
@@ -321,7 +318,6 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
       .from("integration_configs")
       .select("maxapi_url, inventario_id_base")
       .eq("loja_id", data.loja_id)
-      .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 
@@ -342,9 +338,9 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
 
 const SaveConfigInput = z.object({
   loja_id: z.string().uuid(),
-  bridge_url: z.string().url("URL da Bridge inválida").optional().or(z.literal("")),
+  bridge_url: z.string().url("URL da Bridge invÃ¡lida").optional().or(z.literal("")),
   bridge_token: z.string().optional(),
-  maxapi_url: z.string().url("URL da MaxAPI inválida").optional().or(z.literal("")),
+  maxapi_url: z.string().url("URL da MaxAPI invÃ¡lida").optional().or(z.literal("")),
   terminal_maxdata: z.string().optional(),
   inventario_id_base: z.number().int().positive().nullable().optional(),
 });
@@ -357,7 +353,7 @@ export async function saveIntegrationConfig(input: unknown) {
     _user_id: userId,
     _loja_id: data.loja_id,
   });
-  if (!canManage) throw new Error("Apenas owner/admin pode alterar configurações de integração.");
+  if (!canManage) throw new Error("Apenas owner/admin pode alterar configuraÃ§Ãµes de integraÃ§Ã£o.");
 
   const supabaseAdmin = createAdminClient();
   const { data: loja } = await supabaseAdmin
@@ -411,3 +407,4 @@ export async function saveIntegrationConfig(input: unknown) {
 
   return { ok: true };
 }
+
