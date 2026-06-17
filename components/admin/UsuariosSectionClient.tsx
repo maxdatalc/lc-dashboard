@@ -395,7 +395,7 @@ function AddManualForm({
     setErro(null);
     const result = await salvarUsuarioERP(tenantId, {
       ...form,
-      lojaId: null, cliId: null, cliNome: "",
+      cliId: null, cliNome: "",
       lojaIds, modulos, tiposBloqueados: [],
     });
     setLoading(false);
