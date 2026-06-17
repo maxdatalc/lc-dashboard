@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { RequireLoja } from "@/components/os/RequireLoja";
 import { ServiceOrderItemEditor } from "@/components/os/ServiceOrderItemEditor";
+import type { AddItemPayload } from "@/components/os/ServiceOrderItemEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -34,6 +35,9 @@ const statusLabel: Record<OrdemServico["status"], { label: string; cls: string }
   cancelada: { label: "Cancelada", cls: "bg-muted text-muted-foreground border-border" },
 };
 
+const fmtBRL = (v: number) =>
+  v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
 export default function OSDetailPage() {
   return (
     <RequireLoja>
@@ -42,6 +46,8 @@ export default function OSDetailPage() {
   );
 }
 
+type PendingItem = AddItemPayload & { tempId: string };
+
 function OSDetailContent() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -49,12 +55,8 @@ function OSDetailContent() {
   const [os, setOs] = useState<OrdemServico | null>(null);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
-  const [pendingItems, setPendingItems] = useState<Array<{
-    tempId: string;
-    produtoId: string; produtoNome: string; descricao: string;
-    codigo: string; quantidade: number; precoUnitario: number;
-  }>>([]);
-  const [savingPendentes, setSavingPendentes] = useState(false);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+  const [saving, setSaving] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -62,10 +64,7 @@ function OSDetailContent() {
     setLoading(true);
     serviceOrderService
       .get(id, lojaAtiva.id)
-      .then((r) => {
-        setOs(r);
-        setLoading(false);
-      })
+      .then((r) => { setOs(r); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id, lojaAtiva?.id, reload]);
 
@@ -111,8 +110,11 @@ function OSDetailContent() {
     );
   }
 
-  const addPending = (item: { produtoId: string; produtoNome: string; descricao: string; codigo: string; quantidade: number; precoUnitario: number }) => {
-    setPendingItems((prev) => [...prev, { ...item, tempId: Math.random().toString(36).slice(2) }]);
+  const addPending = (item: AddItemPayload) => {
+    setPendingItems((prev) => [
+      ...prev,
+      { ...item, tempId: Math.random().toString(36).slice(2) },
+    ]);
   };
 
   const removePending = (tempId: string) => {
@@ -135,7 +137,7 @@ function OSDetailContent() {
 
   const salvarPendentes = async () => {
     if (!lojaAtiva || !os || pendingItems.length === 0) return;
-    setSavingPendentes(true);
+    setSaving(true);
     try {
       for (const item of pendingItems) {
         const r = await serviceOrderService.addItem({
@@ -145,6 +147,7 @@ function OSDetailContent() {
           descricao: item.descricao,
           quantidade: item.quantidade,
           valor_unitario: item.precoUnitario,
+          tipo: item.tipo,
           tipo_atend_id: os.tipoAtendId,
           forcar_sem_fiscal: true,
         });
@@ -159,15 +162,27 @@ function OSDetailContent() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Falha ao salvar itens.");
     } finally {
-      setSavingPendentes(false);
+      setSaving(false);
     }
   };
 
   const s = statusLabel[os.status] ?? statusLabel.aberta;
-  const produtos = os.itens.filter((it) => it.tipo !== "S");
-  const servicos = os.itens.filter((it) => it.tipo === "S");
-  const totalProdutos = produtos.reduce((acc, it) => acc + (it.total ?? 0), 0);
-  const totalServicos = servicos.reduce((acc, it) => acc + (it.total ?? 0), 0);
+  const savedProdutos = os.itens.filter((it) => it.tipo !== "S");
+  const savedServicos = os.itens.filter((it) => it.tipo === "S");
+  const pendingProdutos = pendingItems.filter((it) => it.tipo !== "S");
+  const pendingServicos = pendingItems.filter((it) => it.tipo === "S");
+
+  const totalProdutos =
+    savedProdutos.reduce((acc, it) => acc + (it.total ?? 0), 0) +
+    pendingProdutos.reduce((acc, it) => acc + it.quantidade * it.precoUnitario, 0);
+  const totalServicos =
+    savedServicos.reduce((acc, it) => acc + (it.total ?? 0), 0) +
+    pendingServicos.reduce((acc, it) => acc + it.quantidade * it.precoUnitario, 0);
+
+  const totalProdutosCount = savedProdutos.length + pendingProdutos.length;
+  const totalServicosCount = savedServicos.length + pendingServicos.length;
+
+  const hasPending = pendingItems.length > 0;
 
   return (
     <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-6">
@@ -246,86 +261,25 @@ function OSDetailContent() {
         </Card>
       )}
 
-      <ServiceOrderItemEditor
-        empresaId={lojaAtiva?.id}
-        onAdd={addPending}
-      />
+      <ServiceOrderItemEditor empresaId={lojaAtiva?.id} onAdd={addPending} />
 
-      {/* Itens pendentes de salvar */}
-      {pendingItems.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-base text-amber-800">
-              Itens a salvar ({pendingItems.length})
-            </CardTitle>
-            <Button
-              onClick={salvarPendentes}
-              disabled={savingPendentes}
-              size="sm"
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              {savingPendentes
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</>
-                : `Salvar ${pendingItems.length} item(s)`}
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto / Serviço</TableHead>
-                  <TableHead className="w-24 text-right">Qtde</TableHead>
-                  <TableHead className="w-32 text-right">Preço unit.</TableHead>
-                  <TableHead className="w-32 text-right">Total</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pendingItems.map((it) => (
-                  <TableRow key={it.tempId} className="bg-amber-50">
-                    <TableCell>
-                      <p className="text-sm font-medium">{it.descricao || it.produtoNome}</p>
-                      {it.codigo && <p className="text-xs text-muted-foreground font-mono">{it.codigo}</p>}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{it.quantidade}</TableCell>
-                    <TableCell className="text-right tabular-nums text-sm">
-                      {it.precoUnitario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-sm font-medium">
-                      {(it.quantidade * it.precoUnitario).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                    </TableCell>
-                    <TableCell>
-                      <button onClick={() => removePending(it.tempId)} className="text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Produtos */}
+      {/* ── Produtos ──────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Produtos</CardTitle>
-          {produtos.length > 0 && (
+          {totalProdutosCount > 0 && (
             <span className="text-sm text-muted-foreground">
-              {produtos.length} {produtos.length === 1 ? "item" : "itens"}
+              {totalProdutosCount} {totalProdutosCount === 1 ? "item" : "itens"}
               {totalProdutos > 0 && (
                 <>
                   {" "}•{" "}
-                  <span className="font-medium text-foreground">
-                    {totalProdutos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </span>
+                  <span className="font-medium text-foreground">{fmtBRL(totalProdutos)}</span>
                 </>
               )}
             </span>
           )}
         </CardHeader>
-        <CardContent>
+        <CardContent className="pb-3">
           <Table>
             <TableHeader>
               <TableRow>
@@ -339,7 +293,8 @@ function OSDetailContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {produtos.map((it) => (
+              {/* Itens salvos */}
+              {savedProdutos.map((it) => (
                 <TableRow key={it.id}>
                   <TableCell className="font-mono text-sm">{it.produtoId}</TableCell>
                   <TableCell>{it.produtoNome}</TableCell>
@@ -348,19 +303,15 @@ function OSDetailContent() {
                   </TableCell>
                   <TableCell className="text-right tabular-nums">{it.quantidade}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm">
-                    {it.precoUnitario != null
-                      ? it.precoUnitario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                      : "—"}
+                    {it.precoUnitario != null ? fmtBRL(it.precoUnitario) : "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-sm font-medium">
-                    {it.total != null
-                      ? it.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                      : "—"}
+                    {it.total != null ? fmtBRL(it.total) : "—"}
                   </TableCell>
                   <TableCell>
                     <button
                       onClick={() => deleteItem(it.id)}
-                      disabled={!!deletingItemId}
+                      disabled={!!deletingItemId || saving}
                       className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
                     >
                       {deletingItemId === it.id
@@ -370,7 +321,44 @@ function OSDetailContent() {
                   </TableCell>
                 </TableRow>
               ))}
-              {produtos.length === 0 && (
+
+              {/* Itens pendentes (não salvos ainda) */}
+              {pendingProdutos.map((it) => (
+                <TableRow
+                  key={it.tempId}
+                  className="border-l-[3px] border-l-amber-500 bg-amber-500/5"
+                >
+                  <TableCell className="font-mono text-sm text-muted-foreground">
+                    {it.produtoId}
+                  </TableCell>
+                  <TableCell>
+                    <span className="text-foreground/80">{it.descricao || it.produtoNome}</span>
+                  </TableCell>
+                  <TableCell className="text-right text-sm text-muted-foreground">
+                    {it.unidade || "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground/80">
+                    {it.quantidade}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm text-foreground/80">
+                    {fmtBRL(it.precoUnitario)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm font-medium text-foreground/80">
+                    {fmtBRL(it.quantidade * it.precoUnitario)}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => removePending(it.tempId)}
+                      disabled={saving}
+                      className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {totalProdutosCount === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                     Nenhum produto adicionado.
@@ -379,22 +367,41 @@ function OSDetailContent() {
               )}
             </TableBody>
           </Table>
+
+          {/* Botão salvar — aparece apenas quando há pendentes */}
+          {hasPending && (
+            <div className="flex justify-end pt-3 border-t border-border mt-1">
+              <Button
+                onClick={salvarPendentes}
+                disabled={saving}
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white min-w-[140px]"
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  `Salvar ${pendingItems.length} item(s)`
+                )}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Serviços */}
+      {/* ── Serviços ──────────────────────────────────────────────────────── */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-base">Serviços</CardTitle>
-          {servicos.length > 0 && (
+          {totalServicosCount > 0 && (
             <span className="text-sm text-muted-foreground">
-              {servicos.length} {servicos.length === 1 ? "item" : "itens"}
+              {totalServicosCount} {totalServicosCount === 1 ? "item" : "itens"}
               {totalServicos > 0 && (
                 <>
                   {" "}•{" "}
-                  <span className="font-medium text-foreground">
-                    {totalServicos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
-                  </span>
+                  <span className="font-medium text-foreground">{fmtBRL(totalServicos)}</span>
                 </>
               )}
             </span>
@@ -412,24 +419,20 @@ function OSDetailContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {servicos.map((it) => (
+              {savedServicos.map((it) => (
                 <TableRow key={it.id}>
                   <TableCell>{it.produtoNome}</TableCell>
                   <TableCell className="text-right tabular-nums">{it.quantidade}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm">
-                    {it.precoUnitario != null
-                      ? it.precoUnitario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                      : "—"}
+                    {it.precoUnitario != null ? fmtBRL(it.precoUnitario) : "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-sm font-medium">
-                    {it.total != null
-                      ? it.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
-                      : "—"}
+                    {it.total != null ? fmtBRL(it.total) : "—"}
                   </TableCell>
                   <TableCell>
                     <button
                       onClick={() => deleteItem(it.id)}
-                      disabled={!!deletingItemId}
+                      disabled={!!deletingItemId || saving}
                       className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
                     >
                       {deletingItemId === it.id
@@ -439,7 +442,37 @@ function OSDetailContent() {
                   </TableCell>
                 </TableRow>
               ))}
-              {servicos.length === 0 && (
+
+              {pendingServicos.map((it) => (
+                <TableRow
+                  key={it.tempId}
+                  className="border-l-[3px] border-l-amber-500 bg-amber-500/5"
+                >
+                  <TableCell>
+                    <span className="text-foreground/80">{it.descricao || it.produtoNome}</span>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-foreground/80">
+                    {it.quantidade}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm text-foreground/80">
+                    {fmtBRL(it.precoUnitario)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm font-medium text-foreground/80">
+                    {fmtBRL(it.quantidade * it.precoUnitario)}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => removePending(it.tempId)}
+                      disabled={saving}
+                      className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+
+              {totalServicosCount === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
                     Nenhum serviço registrado.
@@ -450,7 +483,6 @@ function OSDetailContent() {
           </Table>
         </CardContent>
       </Card>
-
     </div>
   );
 }

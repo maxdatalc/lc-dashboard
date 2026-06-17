@@ -20,6 +20,7 @@ export const stockService = {
       estoqueFisico: p.estoqueFisico,
       estoqueFiscal: p.estoqueFiscal,
       preco: p.preco,
+      tipo: p.tipo,
       composicaoFiscal: {
         inventarioBase: 0,
         entradas: 0,

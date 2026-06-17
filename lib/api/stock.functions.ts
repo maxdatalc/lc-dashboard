@@ -29,6 +29,7 @@ export type ProdutoListItem = {
   estoqueFisico: number;
   estoqueFiscal: number;
   preco: number;
+  tipo: string;
 };
 
 export type ProductStockDetail = {
@@ -58,6 +59,7 @@ interface ProductRow {
   proEstoqueAtual: number;
   proUn: string;
   proVenda: number | null;
+  proTipo: string;
 }
 
 async function assertLojaAccess(userId: string, loja_id: string) {
@@ -161,6 +163,7 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
     estoqueFisico: Number(p.proEstoqueAtual ?? 0),
     estoqueFiscal: fiscalResults[i]?.estoqueFiscal ?? 0,
     preco: Number(p.proVenda ?? 0),
+    tipo: p.proTipo ?? "P",
   }));
 }
 
