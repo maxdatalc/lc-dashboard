@@ -1,0 +1,649 @@
+# FiscalStock — Guia Técnico Completo
+
+> Documento de referência para Claude Code e desenvolvedores.
+> Cobre arquitetura, cálculo fiscal, como verificar dados no banco e o que falta implementar.
+
+---
+
+## 1. O que é o FiscalStock
+
+Sistema de controle de **estoque físico vs. estoque fiscal (contábil)** para empresas que usam o ERP MaxData. Permite:
+
+- Listar e consultar Ordens de Serviço (OS) do MaxData
+- Calcular o estoque fiscal de um produto a partir do último inventário
+- Alertar antes de lançar um item numa OS se o estoque fiscal for insuficiente (emissão de NF vai falhar)
+- Testar e configurar a Bridge SQL e a MaxAPI por loja
+
+**Regra de ouro:** toda leitura vem do SQL Server via Bridge SQL. Toda escrita vai pela MaxAPI. Nunca SQL no frontend.
+
+---
+
+## 2. Arquitetura
+
+```
+Browser (React)
+  │
+  │  chamadas a createServerFn / Server Actions
+  ▼
+Servidor (TanStack Start / Next.js)
+  ├── src/lib/api/*.functions.ts   ← boundary seguro, valida auth via Supabase
+  │     ├── service-orders.functions.ts
+  │     ├── integrations.functions.ts
+  │     ├── stock.functions.ts
+  │     └── admin.functions.ts
+  │
+  ├── src/lib/bridge/bridge-client.ts   ← queryBridge(), pingBridge()
+  │     └── named-queries.ts            ← whitelist SQL (único lugar com SQL)
+  │
+  ├── src/lib/maxapi/maxapi-client.ts   ← getOrRefreshToken(), addItemToServiceOrderMaxApi()
+  │
+  └── src/lib/fiscal/
+        ├── calculate-fiscal-stock.ts  ← fórmula do estoque fiscal
+        └── stock-status.ts            ← classifica risco (OK/ATENÇÃO/BLOQUEADO)
+
+Supabase (usokjuxnttfhffuvkhec)
+  ├── tenants          ← empresas/clientes MaxData
+  ├── tenant_users     ← vínculo usuário↔empresa
+  ├── lojas            ← lojas (sql_bridge_url, sql_bridge_token, emp_id, terminal_maxdata)
+  ├── integration_configs ← config MaxAPI + cache token + status testes
+  ├── fs_profiles      ← perfis FiscalStock
+  └── fs_audit_logs    ← auditoria de ações
+
+Bridge SQL → SQL Server BATAUTO (MaxData ERP)
+MaxAPI     → https://lucasbatauto.lcgestor.com.br
+```
+
+---
+
+## 3. Como Claude deve conectar ao banco para verificar informações
+
+### 3.1 Via Bridge SQL (leitura de dados MaxData)
+
+A Bridge é um proxy HTTP que executa SQL no SQL Server BATAUTO.
+**Nunca execute a Bridge diretamente do frontend.** Use apenas nas server functions.
+
+**Configuração de acesso (já em produção):**
+```
+URL:   https://batautobridge.lcgestor.com.br
+Token: REDACTED_BRIDGE_TOKEN
+```
+
+**Para verificar conectividade:**
+```bash
+curl -s https://batautobridge.lcgestor.com.br/health
+# Resposta esperada: {"ok":true,"db":"BATAUTO","port":3055}
+```
+
+**Para executar uma query de verificação:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -d '{
+    "sql": "SELECT TOP 5 proId, proDescricao FROM produto ORDER BY proId",
+    "params": {}
+  }'
+```
+
+**Para investigar o estoque de um produto específico (empId=1, proId=15788):**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -d '{
+    "sql": "SELECT pe.proEstoqueAtual, pe.proCodigo, p.proDescricao FROM produto_empresa pe INNER JOIN produto p ON p.proId = pe.proId WHERE pe.proId = @proId AND pe.empId = @empId",
+    "params": {"proId": 15788, "empId": 1}
+  }'
+```
+
+**Para verificar o último inventário de um produto:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -d '{
+    "sql": "SELECT TOP 1 i.invId, i.invData, ii.iviProEstoque FROM Inventario i INNER JOIN InventarioItem ii ON ii.iviInvId = i.invId WHERE ii.iviProId = @proId AND i.empId = @empId AND i.invSuspenso = 0 ORDER BY i.invData DESC",
+    "params": {"proId": 15788, "empId": 1}
+  }'
+```
+
+### 3.2 Tabelas principais do SQL Server BATAUTO
+
+| Tabela | O que armazena |
+|--------|---------------|
+| `produto` | Cadastro mestre de produtos |
+| `produto_empresa` | Estoque físico atual por empresa (`proEstoqueAtual`, `proCodigo`) |
+| `Inventario` | Cabeçalho do inventário (`invId`, `invData`, `empId`, `invSuspenso`) |
+| `InventarioItem` | Itens do inventário (`iviInvId`, `iviProId`, `iviProEstoque`) |
+| `nf` | Notas fiscais (`nfId`, `empId`, `nfStatus`, `nfTipoNf`, `nfDataEmissao`) |
+| `nfItem` | Itens das NF (`nfiNf`, `nfiProd`, `nfiQtde`, `nfiCfop`) |
+| `venda` | OS e vendas (`vedId`, `empId`, `vedTipo='OS'`, `vedStatus`) |
+| `vendaItem` | Itens de OS/venda (`vdiVedId`, `vdiItemId`, `vdiQtde`, `vdiCancel`) |
+| `produtoAcertoEstoque` | Ajustes manuais de estoque (`paeId`, `empId`, `paeStatus`, `paeDataOcorrencia`) |
+| `produtoAcertoEstoqueItem` | Itens dos ajustes (`paiPaeId`, `paiProId`, `paiQtdInf`, `paiProEstoque`) |
+
+### 3.3 Empresa IDs (empId)
+
+| empId | Empresa |
+|-------|---------|
+| 1 | Principal (BATAUTO) — onde a maioria dos dados está |
+| 2–5 | Empresas secundárias |
+
+---
+
+## 4. Fórmula do Estoque Fiscal (implementada)
+
+**Arquivo:** `src/lib/fiscal/calculate-fiscal-stock.ts`
+**Query SQL:** `GET_FISCAL_STOCK_COMPOSITION` em `src/lib/bridge/named-queries.ts`
+
+### 4.1 Conceito
+
+O **estoque físico** (`proEstoqueAtual`) é o que o sistema MaxData registra como disponível no galpão.
+
+O **estoque fiscal/contábil** é calculado com base no que *legalmente passou pela empresa* segundo documentos fiscais:
+
+```
+Estoque Fiscal = Inventário Base
+              + Entradas de NF (compras, novas mercadorias)
+              - Saídas de NF (vendas, OS com NF emitida)
+              + Devoluções de venda (cliente devolveu mercadoria)
+              + Ajustes de estoque finalizados
+```
+
+### 4.2 Fórmula detalhada com filtros
+
+```sql
+-- Base: último inventário não suspenso
+InventarioBase = InventarioItem.iviProEstoque
+  WHERE Inventario.invSuspenso = 0
+  ORDER BY Inventario.invData DESC
+  LIMIT 1
+
+-- Entradas: NF de entrada aprovadas, após o inventário, excluindo devoluções de compra
+Entradas = SUM(nfItem.nfiQtde)
+  WHERE nf.nfTipoNf = 'E'
+    AND nf.nfStatus = 'F'
+    AND nfItem.nfiCfop NOT IN (1202, 2202, 5202, 6202)
+    AND nf.nfDataEmissao > dataInventario
+
+-- Saídas: NF de saída aprovadas após o inventário (inclui NF de OS)
+Saidas = SUM(nfItem.nfiQtde)
+  WHERE nf.nfTipoNf = 'S'
+    AND nf.nfStatus = 'F'
+    AND nf.nfDataEmissao > dataInventario
+
+-- Devoluções de venda: cliente devolveu mercadoria (CFOP 1202/2202)
+Devolucoes = SUM(nfItem.nfiQtde)
+  WHERE nfItem.nfiCfop IN (1202, 2202)
+    AND nf.nfStatus = 'F'
+    AND nf.nfDataEmissao > dataInventario
+
+-- Ajustes manuais finalizados após o inventário
+Ajustes = SUM(paiQtdInf - paiProEstoque)
+  WHERE produtoAcertoEstoque.paeStatus = 'F'
+    AND produtoAcertoEstoque.paeDataOcorrencia > dataInventario
+```
+
+### 4.3 Validação conhecida
+
+Em 2026-06-14, validado contra BATAUTO:
+- `proId=15788`, `empId=1`
+- Resultado: `estoqueFiscal = 898 = proEstoqueAtual` (produto sem movimentação desde o inventário)
+- Confirma que a fórmula está correta para esse cenário
+
+---
+
+## 5. O que ainda falta / precisa melhorar
+
+### 5.1 🔴 CRÍTICO — Devolução de compra (CFOP 5202/6202) ausente da fórmula
+
+**Problema:** Quando a empresa devolve uma mercadoria ao fornecedor, a NF emitida usa CFOP 5202 ou 6202. Esse documento é de **saída** (`nfTipoNf = 'S'`) e deveria subtrair do estoque fiscal — e já está sendo subtraído via a CTE `Saidas` porque essa CTE pega todas NF de saída aprovadas.
+
+**Verificar com query:**
+```sql
+SELECT COUNT(*) as total, SUM(ni.nfiQtde) as qtde_total
+FROM nfItem ni
+INNER JOIN nf n ON n.nfId = ni.nfiNf
+WHERE n.empId = 1
+  AND ni.nfiCfop IN (5202, 6202)
+  AND n.nfStatus = 'F'
+  AND n.nfTipoNf = 'S'
+```
+
+Se retornar dados, confirmar se já estão sendo capturados em `Saidas`. Se `nfTipoNf` para CFOP 5202/6202 for `'E'` no BATAUTO (entidade emissor, não destinatário), há um bug na fórmula.
+
+**Como verificar via Bridge:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT TOP 10 n.nfTipoNf, ni.nfiCfop, ni.nfiQtde FROM nfItem ni INNER JOIN nf n ON n.nfId = ni.nfiNf WHERE n.empId = @empId AND ni.nfiCfop IN (5202, 6202) AND n.nfStatus = @status","params":{"empId":1,"status":"F"}}'
+```
+
+### 5.2 🔴 CRÍTICO — OS sem NF emitida não reduz estoque fiscal
+
+**Problema:** Quando uma peça é usada em uma OS mas **nenhuma NF de saída é emitida** (OS encerrada sem faturamento), a peça some do estoque físico mas **não** reduz o estoque fiscal. Isso gera divergência permanente.
+
+**Investigar:** Verificar se o MaxData vincula os itens de OS a uma NF de saída.
+
+**Query de investigação:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT TOP 5 vdi.vdiId, vdi.vdiVedId, vdi.vdiItemId, vdi.vdiQtde, vdi.vdiNf FROM vendaItem vdi INNER JOIN venda v ON v.vedId = vdi.vdiVedId WHERE v.vedTipo = @tipo AND v.empId = @empId AND vdi.vdiCancel = 0","params":{"tipo":"OS","empId":1}}'
+```
+
+Verificar se `vdiNf` (número da NF vinculada ao item) está preenchido. Se estiver em branco para OS, esses itens precisam ser tratados separadamente na fórmula fiscal.
+
+**Possível correção na fórmula:**
+```sql
+-- Adicionar CTE para consumo de OS sem NF vinculada
+ConsumidoEmOS AS (
+  SELECT COALESCE(SUM(vdi.vdiQtde), 0) AS total
+  FROM vendaItem vdi
+  INNER JOIN venda v ON v.vedId = vdi.vdiVedId
+  CROSS JOIN InventarioBase ib
+  WHERE vdi.vdiItemId = @proId
+    AND v.empId       = @empId
+    AND v.vedTipo     = 'OS'
+    AND vdi.vdiCancel = 0
+    AND (vdi.vdiNf IS NULL OR vdi.vdiNf = '')  -- só OS sem NF emitida
+    AND v.vedAbertura > ib.dataInventario
+)
+-- E subtrair no resultado final:
+-- (ib.baseInv + e.total - s.total + d.total + aj.total - os_sem_nf.total)
+```
+
+### 5.3 🟡 IMPORTANTE — Paginação na listagem de OS
+
+**Problema:** A query `LIST_SERVICE_ORDERS` retorna **todas** as OS sem paginação. Com 2.048+ OS abertas, isso pode ser lento.
+
+**Arquivo:** `src/lib/bridge/named-queries.ts` — query `LIST_SERVICE_ORDERS`
+
+**Solução:** Adicionar `OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY` (SQL Server syntax) e passar `{ offset: 0, limit: 50 }` como parâmetros.
+
+```sql
+SELECT ...
+FROM venda v
+LEFT JOIN cliente c ON c.cliId = v.vedClienteId
+WHERE v.empId = @empId
+  AND v.vedTipo = 'OS'
+  AND v.vedStatus NOT IN ('Z')
+  AND (@statusFilter = '' OR v.vedStatus = @statusFilter)
+  AND (@clienteNome  = '' OR COALESCE(c.cliNome, v.vedCliNome) LIKE @clienteNome)
+ORDER BY v.vedAbertura DESC
+OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
+```
+
+### 5.4 🟡 IMPORTANTE — Relatório de divergências em lote
+
+**Falta:** Uma tela/exportação que mostre todos os produtos com divergência físico vs fiscal, ordenados pela maior diferença absoluta.
+
+**Query base para o relatório:**
+```sql
+-- (adaptar para a CTE existente)
+SELECT
+  p.proDescricao,
+  pe.proCodigo,
+  pe.proEstoqueAtual AS estoqueFisico,
+  [resultado do cálculo fiscal] AS estoqueFiscal,
+  pe.proEstoqueAtual - [fiscal] AS divergencia
+FROM produto_empresa pe
+INNER JOIN produto p ON p.proId = pe.proId
+WHERE pe.empId = @empId
+ORDER BY ABS(pe.proEstoqueAtual - [fiscal]) DESC
+```
+
+Isso é uma query complexa para rodar em lote — provavelmente precisa de uma stored procedure ou materialização via job noturno no Bridge.
+
+### 5.5 🟡 IMPORTANTE — Cache de resultado fiscal
+
+**Problema:** Cada consulta de detalhe de produto faz 2 queries na Bridge (físico + fiscal CTE). Para um relatório com 500+ produtos, isso levaria ~500 requisições HTTP.
+
+**Solução:** Armazenar o resultado do cálculo fiscal em `integration_configs.fiscal_stock_cache` ou em uma tabela separada no Supabase, com `calculated_at`. Recalcular em background a cada X horas via cron job.
+
+### 5.6 🟢 MELHORIAS MENORES
+
+- **Filtro por data** na listagem de OS (abertura entre datas)
+- **Busca por número de OS** (vedId direto) — já existe mas poderia ter um campo dedicado
+- **Status de OS** mais granular — atualmente só `aberta/faturada/cancelada`; MaxData pode ter sub-status
+- **Placa do veículo** — a query `LIST_SERVICE_ORDERS` retorna `placa = ''` (vazia). Investigar se `vedVeiculoId` está preenchido e fazer JOIN com `veiculo`
+
+---
+
+## 6. Como validar o cálculo fiscal manualmente
+
+Para verificar se o resultado do FiscalStock está correto para um produto, rode esta sequência de queries na Bridge:
+
+**Passo 1 — estoque físico atual:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT pe.proEstoqueAtual, pe.proCodigo, p.proDescricao FROM produto_empresa pe INNER JOIN produto p ON p.proId = pe.proId WHERE pe.proId = @proId AND pe.empId = @empId","params":{"proId":15788,"empId":1}}'
+```
+
+**Passo 2 — base do inventário:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT TOP 1 i.invId, CONVERT(VARCHAR,i.invData,23) AS data, ii.iviProEstoque AS baseEstoque FROM Inventario i INNER JOIN InventarioItem ii ON ii.iviInvId = i.invId WHERE ii.iviProId = @proId AND i.empId = @empId AND i.invSuspenso = 0 ORDER BY i.invData DESC","params":{"proId":15788,"empId":1}}'
+```
+
+**Passo 3 — movimentações após o inventário:**
+```bash
+curl -s -X POST https://batautobridge.lcgestor.com.br/query \
+  -H "Authorization: Bearer REDACTED_BRIDGE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"sql":"SELECT n.nfTipoNf, ni.nfiCfop, SUM(ni.nfiQtde) AS total FROM nfItem ni INNER JOIN nf n ON n.nfId = ni.nfiNf WHERE ni.nfiProd = @proId AND n.empId = @empId AND n.nfStatus = @status AND n.nfDataEmissao > @dataRef GROUP BY n.nfTipoNf, ni.nfiCfop ORDER BY n.nfTipoNf, ni.nfiCfop","params":{"proId":15788,"empId":1,"status":"F","dataRef":"2026-05-31"}}'
+```
+
+**Passo 4 — CTE completa (a mesma que o sistema usa):**
+
+Executar diretamente a query `GET_FISCAL_STOCK_COMPOSITION` do arquivo `named-queries.ts` com `@proId` e `@empId` específicos.
+
+---
+
+## 7. Variáveis de ambiente necessárias
+
+```env
+# Supabase (mesmo projeto do dashboard)
+SUPABASE_URL=https://usokjuxnttfhffuvkhec.supabase.co
+SUPABASE_PUBLISHABLE_KEY=eyJ...   # anon key
+SUPABASE_SERVICE_ROLE_KEY=eyJ...  # service role — NUNCA expor no frontend
+
+# TanStack Start / Next.js (prefixo VITE_ ou NEXT_PUBLIC_ conforme o framework)
+VITE_SUPABASE_URL=https://usokjuxnttfhffuvkhec.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=eyJ...
+```
+
+A Bridge SQL e a MaxAPI **não ficam em variáveis de ambiente** — ficam nas colunas `lojas.sql_bridge_url`, `lojas.sql_bridge_token`, `integration_configs.maxapi_url` no Supabase, buscadas pelo servidor em tempo de execução.
+
+---
+
+## 8. Configuração inicial de uma loja no Supabase
+
+Para uma loja funcionar, precisam estar preenchidos no Supabase:
+
+**Tabela `lojas`:**
+```sql
+UPDATE lojas SET
+  sql_bridge_url    = 'https://batautobridge.lcgestor.com.br',
+  sql_bridge_token  = 'REDACTED_BRIDGE_TOKEN',
+  emp_id            = 1,
+  terminal_maxdata  = '0A285A0A41A6472F300BE37FE6680720'
+WHERE id = '<uuid-da-loja>';
+```
+
+**Tabela `integration_configs`:**
+```sql
+INSERT INTO integration_configs (loja_id, maxapi_url)
+VALUES ('<uuid-da-loja>', 'https://lucasbatauto.lcgestor.com.br')
+ON CONFLICT (loja_id) DO UPDATE SET maxapi_url = EXCLUDED.maxapi_url;
+```
+
+---
+
+## 10. MaxAPI — Como acessar e gerenciar autenticação
+
+### 10.1 Visão geral
+
+A MaxAPI é a API REST oficial do MaxData para **escrita de dados** (criar OS, adicionar itens, cancelar itens). Leitura de dados é feita pela Bridge SQL — nunca pela MaxAPI para dados que o Bridge cobre.
+
+```
+URL base:  https://lucasbatauto.lcgestor.com.br
+Auth:      POST /v2/auth → JWT Bearer token
+TTL JWT:   3600 segundos (1 hora exata)
+Cache app: 3000 segundos (50 min) — 10 min de margem de segurança
+```
+
+**Importante — confirmado por testes live (2026-06-14):**
+- Nenhum header `CF-Access-Client-Id` ou `CF-Access-Client-Secret` é necessário
+- O body de auth usa `empid` em **minúsculo** (não `empId`)
+- A paginação retorna os dados em `docs` (não `items` nem `data`)
+- `GET /v2/serviceorder/items?OsId=X` retorna **405** — itens de OS só via Bridge SQL
+
+---
+
+### 10.2 Fluxo de autenticação e ciclo de vida do token
+
+```
+┌─────────────────────────────────────────────────────┐
+│  Server Function (server-side only)                 │
+│                                                     │
+│  1. Busca token no Supabase                         │
+│     integration_configs.maxapi_token_cache          │
+│     integration_configs.maxapi_token_expires_at     │
+│                                                     │
+│  2a. Token válido? → usa direto                     │
+│                                                     │
+│  2b. Expirado ou ausente?                           │
+│      POST /v2/auth { empid, terminal } → JWT        │
+│      Salva em integration_configs (TTL 3000s)       │
+│                                                     │
+│  3. Faz requisição com Authorization: Bearer {JWT}  │
+│                                                     │
+│  4. Recebe 401? → invalida cache, refaz auth (1x)   │
+│     Se 401 de novo → lança erro para o usuário      │
+└─────────────────────────────────────────────────────┘
+```
+
+**Arquivo que implementa esse fluxo:** `src/lib/maxapi/maxapi-client.ts`
+
+Funções relevantes:
+- `fetchNewToken(config)` — faz o `POST /v2/auth`, nunca chame diretamente
+- `getOrRefreshToken(config, supabaseAdmin, lojaId)` — ponto de entrada do cache
+- `maxApiRequest(...)` — toda requisição passa por aqui, com auto-refresh em 401
+
+---
+
+### 10.3 Testar a autenticação manualmente
+
+**Obter um token JWT (substitua `empid` e `terminal` conforme a loja):**
+```bash
+curl -s -X POST https://lucasbatauto.lcgestor.com.br/v2/auth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "empid": 1,
+    "terminal": "0A285A0A41A6472F300BE37FE6680720"
+  }'
+```
+
+**Resposta esperada:**
+```json
+{
+  "application": "MaxData",
+  "empId": 1,
+  "expiration": "2026-06-15T20:39:18.22-03:00",
+  "idUser": 42,
+  "terminal": "0A285A0A41A6472F300BE37FE6680720",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+Salve o `token` para usar nas requisições abaixo. O campo `expiration` marca o TTL real do JWT (3600s desde a emissão).
+
+---
+
+### 10.4 Endpoints confirmados — com exemplos curl
+
+Substitua `$TOKEN` pelo JWT obtido no §10.3.
+
+**Listar Ordens de Serviço:**
+```bash
+curl -s "https://lucasbatauto.lcgestor.com.br/v2/serviceorder" \
+  -H "Authorization: Bearer $TOKEN"
+# Retorna: { docs: [...], total, limit, page, pages }
+```
+
+**Listar OS filtradas por status:**
+```bash
+curl -s "https://lucasbatauto.lcgestor.com.br/v2/serviceorder?status=pendente" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Detalhe de uma OS específica (osId = número da OS):**
+```bash
+curl -s "https://lucasbatauto.lcgestor.com.br/v2/serviceorder/12345" \
+  -H "Authorization: Bearer $TOKEN"
+# Retorna objeto direto (não paginado)
+```
+
+**Buscar produto por descrição:**
+```bash
+curl -s "https://lucasbatauto.lcgestor.com.br/v2/product?descricao=FILTRO" \
+  -H "Authorization: Bearer $TOKEN"
+# Retorna: { docs: [...], total, limit, page, pages }
+```
+
+**Detalhe de um produto:**
+```bash
+curl -s "https://lucasbatauto.lcgestor.com.br/v2/product/15788" \
+  -H "Authorization: Bearer $TOKEN"
+# Campo "estoque" = estoque físico para o empId do JWT
+```
+
+**Criar uma Ordem de Serviço:**
+```bash
+curl -s -X POST "https://lucasbatauto.lcgestor.com.br/v2/serviceorder" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "clienteNome": "João Silva",
+    "defeito": "Troca de óleo",
+    "equipamento": "Gol 2020",
+    "marca": "VW"
+  }'
+```
+
+**Adicionar item a uma OS:**
+```bash
+curl -s -X POST "https://lucasbatauto.lcgestor.com.br/v2/serviceorder/items" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{
+    "OsId": 12345,
+    "produtoId": 15788,
+    "produtoDescricao": "FILTRO DE ÓLEO",
+    "qtde": 1,
+    "valor": 29.90,
+    "tipo": "P"
+  }'
+```
+
+**Cancelar item de uma OS:**
+```bash
+curl -s -X DELETE "https://lucasbatauto.lcgestor.com.br/v2/serviceorder/items/67890" \
+  -H "Authorization: Bearer $TOKEN"
+# Retorna 204 No Content em sucesso
+```
+
+**❌ NÃO EXISTE — retorna 405:**
+```bash
+# Itens de OS NÃO podem ser lidos pela MaxAPI
+curl "https://lucasbatauto.lcgestor.com.br/v2/serviceorder/items?OsId=12345"
+# → 405 Method Not Allowed
+# Use Bridge SQL (vendaItem) para ler itens de OS
+```
+
+---
+
+### 10.5 Gerenciamento do cache de token no Supabase
+
+O token JWT fica armazenado em `integration_configs` por loja:
+
+```sql
+-- Ver estado atual do cache de uma loja
+SELECT
+  loja_id,
+  LEFT(maxapi_token_cache, 20) || '...' AS token_preview,
+  maxapi_token_expires_at,
+  CASE
+    WHEN maxapi_token_expires_at > NOW() THEN 'VÁLIDO'
+    ELSE 'EXPIRADO'
+  END AS status_cache,
+  status_maxapi,
+  ultimo_teste_maxapi
+FROM integration_configs
+WHERE loja_id = '<uuid-da-loja>';
+```
+
+**Forçar renovação do token (invalidar cache manualmente):**
+```sql
+UPDATE integration_configs
+SET
+  maxapi_token_cache      = NULL,
+  maxapi_token_expires_at = NULL
+WHERE loja_id = '<uuid-da-loja>';
+```
+
+Após isso, a próxima requisição à MaxAPI irá buscar um token novo automaticamente.
+
+**O sistema invalida o cache automaticamente quando:**
+1. `maxapi_token_expires_at` está no passado (expirou os 3000s de cache)
+2. A API retorna HTTP 401 (token rejeitado antes do esperado)
+3. O usuário salva uma nova configuração de `maxapi_url` ou `terminal_maxdata`
+
+---
+
+### 10.6 Campos do token e como interpretar
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `token` | string | JWT Bearer — usar no header `Authorization: Bearer {token}` |
+| `expiration` | string ISO | Quando o JWT expira no servidor MaxData (3600s após emissão) |
+| `empId` | number | ID da empresa autenticada (confirma qual empresa o token representa) |
+| `terminal` | string | Terminal MaxData que gerou o token |
+| `idUser` | number | ID do usuário MaxData vinculado ao terminal |
+| `application` | string | Sempre `"MaxData"` |
+
+**Atenção:** O `expiration` do JWT é 3600s, mas o app usa 3000s (50 min) como TTL de cache para evitar usar um token prestes a expirar. Nunca use o `expiration` direto — confie no `maxapi_token_expires_at` do Supabase.
+
+---
+
+### 10.7 Tipos TypeScript dos payloads MaxAPI
+
+**Arquivo:** `src/lib/maxapi/maxapi-types.ts`
+
+Tipos disponíveis:
+- `TokenDto` — resposta do POST /v2/auth
+- `ServiceOrder` — OS completa (leitura)
+- `ServiceOrderBody` — payload para criar OS
+- `ServiceOrderItem` — payload para adicionar item
+- `MaxApiProduct` — produto com estoque físico
+- `MaxApiPaginated<T>` — wrapper de paginação `{ docs, total, limit, page, pages }`
+- `MaxApiError` — shape de erro `{ message, success, statusCode }`
+
+---
+
+### 10.8 Regras de segurança da MaxAPI (imutáveis)
+
+1. **Token nunca vai ao frontend** — `maxapi_token_cache` é lido apenas em server functions
+2. **Token nunca aparece em logs** — não use `console.log(token)` em nenhuma circunstância
+3. **Toda escrita vai pela MaxAPI** — nunca `INSERT`/`UPDATE` direto no SQL Server via Bridge
+4. **Cache no Supabase, não em memória** — garante que múltiplas instâncias do servidor compartilham o mesmo token sem race conditions
+5. **Auto-refresh em 401** — implementado em `maxApiRequest()` com uma única tentativa de renovação
+
+---
+
+## 9. Status atual do projeto (2026-06-15)
+
+| Funcionalidade | Status |
+|---|---|
+| Listagem de OS | ✅ Funcionando |
+| Detalhe de OS com itens | ✅ Funcionando |
+| Cálculo de estoque físico | ✅ Funcionando |
+| Cálculo de estoque fiscal (fórmula base) | ✅ Implementado e validado |
+| Bloqueio/alerta ao lançar item em OS | ✅ Funcionando |
+| Configuração de Bridge/MaxAPI via UI | ✅ Funcionando |
+| Testes de conectividade Bridge e MaxAPI | ✅ Funcionando |
+| Auditoria de ações | ✅ Funcionando |
+| Integração com dashboard (Next.js) | ✅ Build ok, módulo integrado |
+| Devolução de compra CFOP 5202/6202 | ⚠️ A verificar (ver §5.1) |
+| OS sem NF emitida no estoque fiscal | ⚠️ Provavelmente ausente (ver §5.2) |
+| Paginação da listagem de OS | ❌ Não implementado |
+| Relatório de divergências em lote | ❌ Não implementado |
+| Placa do veículo na OS | ❌ Retornando vazio |
+| Cache de resultados fiscais | ❌ Não implementado |
