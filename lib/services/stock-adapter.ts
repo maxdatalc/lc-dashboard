@@ -7,9 +7,10 @@ export const stockService = {
     lojaId: string | undefined,
     termoDesc: string,
     termoCodigo: string,
+    grupo?: string,
   ): Promise<Produto[]> {
     if (!lojaId) return [];
-    const rows = await searchProducts({ loja_id: lojaId, termoDesc, termoCodigo });
+    const rows = await searchProducts({ loja_id: lojaId, termoDesc, termoCodigo, grupo });
     return rows.map((p) => ({
       id: p.id,
       codigo: p.codigo,

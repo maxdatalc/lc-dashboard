@@ -13,6 +13,7 @@ const SearchInput = z.object({
   loja_id: z.string().uuid(),
   termoDesc: z.string().optional(),
   termoCodigo: z.string().optional(),
+  grupo: z.string().optional(),
 });
 const DetailInput = z.object({
   loja_id: z.string().uuid(),
@@ -129,12 +130,15 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
   const termoCodigoExato = isEan ? 1 : 0;
   const termoCodigoId = !isEan ? (parseInt(termoCodigoRaw, 10) || 0) : 0;
 
+  const grupo = (data.grupo ?? "").trim();
+
   const { sql, params } = resolveNamedQuery("SEARCH_PRODUCTS", {
     empId,
     termoDesc,
     termoCodigo,
     termoCodigoExato,
     termoCodigoId,
+    grupo,
   });
   const rows = await queryBridge<ProductRow>(bridge, sql, params);
 

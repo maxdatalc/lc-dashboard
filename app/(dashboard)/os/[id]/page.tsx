@@ -3,10 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { RequireLoja } from "@/components/os/RequireLoja";
-import {
-  ServiceOrderItemEditor,
-  type AddItemPayload,
-} from "@/components/os/ServiceOrderItemEditor";
+import { ServiceOrderItemEditor } from "@/components/os/ServiceOrderItemEditor";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -28,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, ChevronLeft, Plus } from "lucide-react";
+import { AlertTriangle, ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { serviceOrderService } from "@/lib/services/service-order-adapter";
 import { useFiscalAuth } from "@/lib/fiscal-auth-context";
@@ -61,7 +58,6 @@ function OSDetailContent() {
   const { lojaAtiva } = useFiscalAuth();
   const [os, setOs] = useState<OrdemServico | null>(null);
   const [loading, setLoading] = useState(true);
-  const [open, setOpen] = useState(false);
   const [reload, setReload] = useState(0);
   const [confirmacao, setConfirmacao] = useState<{
     alerta: string;
@@ -187,9 +183,6 @@ function OSDetailContent() {
             {" "}• {new Date(os.data).toLocaleDateString("pt-BR")}
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" /> Adicionar item
-        </Button>
       </div>
 
       {(os.defeito || os.obs || os.laudoTec || os.equipamento || os.marca) && (
@@ -234,6 +227,11 @@ function OSDetailContent() {
           </CardContent>
         </Card>
       )}
+
+      <ServiceOrderItemEditor
+        empresaId={lojaAtiva?.id}
+        onAdd={(item) => { void submitAdd(item, false); }}
+      />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -302,19 +300,6 @@ function OSDetailContent() {
           </Table>
         </CardContent>
       </Card>
-
-      <ServiceOrderItemEditor
-        open={open}
-        onOpenChange={setOpen}
-        empresaId={lojaAtiva?.id}
-        onAdd={(items: AddItemPayload[]) => {
-          void (async () => {
-            for (const item of items) {
-              await submitAdd(item, false);
-            }
-          })();
-        }}
-      />
 
       <AlertDialog open={!!confirmacao} onOpenChange={(o) => !o && setConfirmacao(null)}>
         <AlertDialogContent>
