@@ -18,6 +18,16 @@ const ListInput = z.object({
   cliente: z.string().optional(),
   placa: z.string().optional(),
   status: z.string().optional(),
+  tipoAtend: z.number().int().optional(),
+  osNum: z.number().int().optional(),
+  marca: z.string().optional(),
+  prisma: z.string().optional(),
+  dtAbertIni: z.string().optional(),
+  dtAbertFim: z.string().optional(),
+});
+
+const TiposInput = z.object({
+  loja_id: z.string().uuid(),
 });
 
 const DetailInput = z.object({
@@ -39,14 +49,31 @@ const AddItemInput = z.object({
 
 interface OsListRow {
   vedId: number;
+  cliId: number | null;
   clienteNome: string | null;
   placa: string | null;
   status: string;
   dataAbertura: string | null;
+  dataFechamento: string | null;
   obs: string | null;
   defeito: string | null;
   equipamento: string | null;
   marca: string | null;
+  valorTotal: number | null;
+  tipoAtendId: number | null;
+  tipoAtendDesc: string | null;
+  tipoAtendCor: string | null;
+  tipoAtendCorFundo: string | null;
+  tipoAtendGeraFin: number | null;
+  prisma: string | null;
+}
+
+interface TipoAtendRow {
+  tatId: number;
+  tatDesc: string;
+  tatCorDestaqueTexto: string;
+  tatCorDestaqueFundo: string;
+  tatProGeraFinanceiro: number;
 }
 
 interface OsDetailRow {
@@ -176,9 +203,15 @@ export async function listServiceOrders(input: unknown) {
 
   const { sql, params } = resolveNamedQuery("LIST_SERVICE_ORDERS", {
     empId,
-    statusFilter:
-      data.status && data.status !== "todas" ? displayToVedStatus(data.status) : "",
+    statusFilter: data.status && data.status !== "todas" ? displayToVedStatus(data.status) : "",
     clienteNome: data.cliente ? `%${data.cliente}%` : "",
+    tipoAtend: data.tipoAtend ?? 0,
+    osNum: data.osNum ?? 0,
+    placa: data.placa ? `%${data.placa}%` : "",
+    marca: data.marca ? `%${data.marca}%` : "",
+    prisma: data.prisma ? `%${data.prisma}%` : "",
+    dtAbertIni: data.dtAbertIni ?? "",
+    dtAbertFim: data.dtAbertFim ?? "",
   });
 
   const rows = await queryBridge<OsListRow>(bridge, sql, params);
@@ -186,18 +219,24 @@ export async function listServiceOrders(input: unknown) {
   return rows.map((o) => ({
     id: String(o.vedId),
     numero: String(o.vedId),
+    cliId: o.cliId ? String(o.cliId) : "",
     cliente: o.clienteNome ?? "",
     placa: o.placa ?? "",
     status: vedStatusToDisplay(o.status),
     statusOs: o.status,
     dataAbertura: o.dataAbertura,
-    totalNf: 0,
-    valorTotalProduto: 0,
-    valorTotalServico: 0,
+    dataFechamento: o.dataFechamento,
     obs: o.obs ?? "",
     defeito: o.defeito ?? "",
     equipamento: o.equipamento ?? "",
     marca: o.marca ?? "",
+    valorTotal: Number(o.valorTotal ?? 0),
+    tipoAtendId: o.tipoAtendId ?? undefined,
+    tipoAtendDesc: o.tipoAtendDesc ?? "",
+    tipoAtendCor: o.tipoAtendCor ?? "",
+    tipoAtendCorFundo: o.tipoAtendCorFundo ?? "",
+    tipoAtendGeraFin: Boolean(o.tipoAtendGeraFin),
+    prisma: o.prisma ?? "",
   }));
 }
 
@@ -263,6 +302,29 @@ export async function getServiceOrderItems(input: unknown) {
     quantidade: Number(r.qtde),
     precoUnitario: Number(r.precoUnitario ?? 0),
     total: Number(r.totalItem ?? 0),
+  }));
+}
+
+export async function listTiposAtendimento(input: unknown) {
+  const data = TiposInput.parse(input);
+  const { userId, supabase } = await getAuthContext();
+
+  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
+    _user_id: userId,
+    _loja_id: data.loja_id,
+  });
+  if (!canAccess) throw new Error("Acesso negado a esta loja");
+
+  const { bridge } = await getLojaConfig(data.loja_id);
+  const { sql, params } = resolveNamedQuery("LIST_TIPOS_ATENDIMENTO", {});
+  const rows = await queryBridge<TipoAtendRow>(bridge, sql, params);
+
+  return rows.map((r) => ({
+    tatId: r.tatId,
+    tatDesc: r.tatDesc ?? "",
+    tatCorDestaqueTexto: r.tatCorDestaqueTexto ?? "",
+    tatCorDestaqueFundo: r.tatCorDestaqueFundo ?? "",
+    tatProGeraFinanceiro: Boolean(r.tatProGeraFinanceiro),
   }));
 }
 

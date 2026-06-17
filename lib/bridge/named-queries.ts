@@ -201,24 +201,48 @@ CROSS JOIN Ajustes aj
 `;
 
 const LIST_SERVICE_ORDERS = `
-SELECT
-  v.vedId              AS vedId,
-  COALESCE(c.cliNome, v.vedCliNome) AS clienteNome,
-  ''                   AS placa,
-  v.vedStatus          AS status,
-  CONVERT(VARCHAR(23), v.vedAbertura, 126) AS dataAbertura,
-  v.vedEquipamento     AS equipamento,
-  v.vedMarca           AS marca,
-  v.vedDefeito         AS defeito,
-  v.vedObs             AS obs
+SELECT TOP 200
+  v.vedId                                             AS vedId,
+  v.vedClienteId                                      AS cliId,
+  COALESCE(c.cliNome, v.vedCliNome, '')               AS clienteNome,
+  COALESCE(ve.veiPlaca, '')                           AS placa,
+  v.vedStatus                                         AS status,
+  CONVERT(VARCHAR(23), v.vedAbertura, 126)            AS dataAbertura,
+  CONVERT(VARCHAR(23), v.vedFechamento, 126)          AS dataFechamento,
+  ISNULL(v.vedEquipamento, '')                        AS equipamento,
+  ISNULL(v.vedMarca, '')                              AS marca,
+  ISNULL(v.vedDefeito, '')                            AS defeito,
+  ISNULL(v.vedObs, '')                                AS obs,
+  ISNULL(v.vedTotalNf, 0)                             AS valorTotal,
+  v.vedTipoAtend                                      AS tipoAtendId,
+  ISNULL(tat.tatDesc, '')                             AS tipoAtendDesc,
+  ISNULL(tat.tatCorDestaqueTexto, '')                 AS tipoAtendCor,
+  ISNULL(tat.tatCorDestaqueFundo, '')                 AS tipoAtendCorFundo,
+  ISNULL(tat.tatProGeraFinanceiro, 0)                 AS tipoAtendGeraFin,
+  ISNULL(v.vedOsPrisma, '')                           AS prisma
 FROM venda v
-LEFT JOIN cliente c ON c.cliId = v.vedClienteId
-WHERE v.empId   = @empId
-  AND v.vedTipo = 'OS'
+LEFT JOIN cliente c   ON c.cliId   = v.vedClienteId
+LEFT JOIN veiculo ve  ON ve.veiId  = v.vedVeiculoId
+LEFT JOIN tipoAtend tat ON tat.tatId = v.vedTipoAtend
+WHERE v.empId    = @empId
+  AND v.vedTipo  = 'OS'
   AND v.vedStatus NOT IN ('Z')
   AND (@statusFilter = '' OR v.vedStatus = @statusFilter)
-  AND (@clienteNome  = '' OR COALESCE(c.cliNome, v.vedCliNome) LIKE @clienteNome)
+  AND (@clienteNome  = '' OR COALESCE(c.cliNome, v.vedCliNome, '') LIKE @clienteNome)
+  AND (@tipoAtend    = 0  OR v.vedTipoAtend = @tipoAtend)
+  AND (@osNum        = 0  OR v.vedId = @osNum)
+  AND (@placa        = '' OR COALESCE(ve.veiPlaca, '') LIKE @placa)
+  AND (@marca        = '' OR ISNULL(v.vedMarca, '') LIKE @marca)
+  AND (@prisma       = '' OR ISNULL(v.vedOsPrisma, '') LIKE @prisma)
+  AND (@dtAbertIni   = '' OR CONVERT(DATE, v.vedAbertura) >= @dtAbertIni)
+  AND (@dtAbertFim   = '' OR CONVERT(DATE, v.vedAbertura) <= @dtAbertFim)
 ORDER BY v.vedAbertura DESC
+`;
+
+const LIST_TIPOS_ATENDIMENTO = `
+SELECT tatId, tatDesc, tatCorDestaqueTexto, tatCorDestaqueFundo, tatProGeraFinanceiro
+FROM tipoAtend
+ORDER BY tatDesc
 `;
 
 const GET_SERVICE_ORDER_DETAIL = `
@@ -288,7 +312,14 @@ const REGISTRY: Record<string, QueryDef> = {
   },
   LIST_SERVICE_ORDERS: {
     sql: LIST_SERVICE_ORDERS,
-    allowedParams: ["empId", "statusFilter", "clienteNome"],
+    allowedParams: [
+      "empId", "statusFilter", "clienteNome", "tipoAtend",
+      "osNum", "placa", "marca", "prisma", "dtAbertIni", "dtAbertFim",
+    ],
+  },
+  LIST_TIPOS_ATENDIMENTO: {
+    sql: LIST_TIPOS_ATENDIMENTO,
+    allowedParams: [],
   },
   GET_SERVICE_ORDER_DETAIL: {
     sql: GET_SERVICE_ORDER_DETAIL,

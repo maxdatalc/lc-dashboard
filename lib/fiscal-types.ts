@@ -30,6 +30,14 @@ export type Produto = {
 
 export type StatusFiscal = "ok" | "atencao" | "bloqueado";
 
+export type TipoAtendimento = {
+  tatId: number;
+  tatDesc: string;
+  tatCorDestaqueTexto: string;
+  tatCorDestaqueFundo: string;
+  tatProGeraFinanceiro: boolean;
+};
+
 export type OrdemServico = {
   id: string;
   numero: string;
@@ -44,6 +52,15 @@ export type OrdemServico = {
   obs?: string;
   defeito?: string;
   laudoTec?: string;
+  cliId?: string;
+  valorTotal?: number;
+  tipoAtendId?: number;
+  tipoAtendDesc?: string;
+  tipoAtendCor?: string;
+  tipoAtendCorFundo?: string;
+  tipoAtendGeraFin?: boolean;
+  prisma?: string;
+  dataFechamento?: string | null;
 };
 
 export type ItemOS = {
