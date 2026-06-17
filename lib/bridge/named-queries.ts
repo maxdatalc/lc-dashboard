@@ -257,11 +257,7 @@ WHERE @tatIds <> ''
   AND v.vedTipo      = 'OS'
   AND v.vedStatus   NOT IN ('F', 'C', 'Z')
   AND vdi.vdiCancel  = 0
-  AND v.vedTipoAtend IN (
-      SELECT TRY_CAST(value AS INT)
-      FROM   STRING_SPLIT(@tatIds, ',')
-      WHERE  TRY_CAST(value AS INT) IS NOT NULL
-  )
+  AND CHARINDEX(',' + CAST(v.vedTipoAtend AS VARCHAR(20)) + ',', ',' + @tatIds + ',') > 0
 `;
 
 const GET_SERVICE_ORDER_DETAIL = `
