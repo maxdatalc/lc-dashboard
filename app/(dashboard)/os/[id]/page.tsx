@@ -55,6 +55,7 @@ function OSDetailContent() {
     codigo: string; quantidade: number; precoUnitario: number;
   }>>([]);
   const [savingPendentes, setSavingPendentes] = useState(false);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!lojaAtiva) return;
@@ -116,6 +117,20 @@ function OSDetailContent() {
 
   const removePending = (tempId: string) => {
     setPendingItems((prev) => prev.filter((p) => p.tempId !== tempId));
+  };
+
+  const deleteItem = async (itemId: string) => {
+    if (!lojaAtiva || !os || deletingItemId) return;
+    setDeletingItemId(itemId);
+    try {
+      await serviceOrderService.removeItem(lojaAtiva.id, os.id, itemId);
+      toast.success("Item removido da O.S.");
+      setReload((x) => x + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao remover item.");
+    } finally {
+      setDeletingItemId(null);
+    }
   };
 
   const salvarPendentes = async () => {
@@ -320,6 +335,7 @@ function OSDetailContent() {
                 <TableHead className="w-24 text-right">Qtde</TableHead>
                 <TableHead className="w-32 text-right">Preço unit.</TableHead>
                 <TableHead className="w-32 text-right">Total</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -341,11 +357,22 @@ function OSDetailContent() {
                       ? it.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                       : "—"}
                   </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => deleteItem(it.id)}
+                      disabled={!!deletingItemId}
+                      className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      {deletingItemId === it.id
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))}
               {produtos.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">
                     Nenhum produto adicionado.
                   </TableCell>
                 </TableRow>
@@ -381,6 +408,7 @@ function OSDetailContent() {
                 <TableHead className="w-24 text-right">Qtde</TableHead>
                 <TableHead className="w-32 text-right">Preço unit.</TableHead>
                 <TableHead className="w-32 text-right">Total</TableHead>
+                <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -398,11 +426,22 @@ function OSDetailContent() {
                       ? it.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                       : "—"}
                   </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={() => deleteItem(it.id)}
+                      disabled={!!deletingItemId}
+                      className="text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      {deletingItemId === it.id
+                        ? <Loader2 className="h-4 w-4 animate-spin" />
+                        : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </TableCell>
                 </TableRow>
               ))}
               {servicos.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
                     Nenhum serviço registrado.
                   </TableCell>
                 </TableRow>
