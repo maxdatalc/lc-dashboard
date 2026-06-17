@@ -128,7 +128,6 @@ async function getLojaConfig(lojaId: string) {
       .from("integration_configs")
       .select("maxapi_url, terminal_maxdata, os_tipos_fiscais")
       .eq("loja_id", lojaId)
-      .order("updated_at", { ascending: false })
       .limit(1),
   ]);
 

@@ -64,7 +64,6 @@ export default async function OsModuloPage({
         .from("integration_configs")
         .select("inventario_id_base, os_tipos_fiscais")
         .eq("loja_id", lojaId)
-        .order("updated_at", { ascending: false })
         .limit(1);
 
       const cfgRow = ((cfgRows as Record<string, unknown>[] | null)?.[0]) ?? null;
@@ -134,7 +133,6 @@ export default async function OsModuloPage({
       .from("integration_configs")
       .select("os_tipos_fiscais")
       .eq("loja_id", loja_id)
-      .order("updated_at", { ascending: false })
       .limit(1);
     const os_tipos_fiscais = (rows1 as Record<string, unknown>[] | null)?.[0]?.os_tipos_fiscais ?? [];
 
@@ -163,7 +161,6 @@ export default async function OsModuloPage({
       .from("integration_configs")
       .select("inventario_id_base")
       .eq("loja_id", loja_id)
-      .order("updated_at", { ascending: false })
       .limit(1);
     const inventario_id_base = (rows2 as Record<string, unknown>[] | null)?.[0]?.inventario_id_base ?? null;
 
