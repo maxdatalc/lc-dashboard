@@ -102,6 +102,7 @@ interface OsItemRow {
   precoUnitario: number;
   totalItem: number;
   cancelado: number;
+  proTipo: string;
 }
 
 async function getAuthContext() {
@@ -308,6 +309,7 @@ export async function getServiceOrderItems(input: unknown) {
     quantidade: Number(r.qtde),
     precoUnitario: Number(r.precoUnitario ?? 0),
     total: Number(r.totalItem ?? 0),
+    tipo: r.proTipo ?? "P",
   }));
 }
 

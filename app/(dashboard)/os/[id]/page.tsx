@@ -152,8 +152,8 @@ function OSDetailContent() {
   };
 
   const s = statusLabel[os.status] ?? statusLabel.aberta;
-  const produtos = os.itens.filter((it) => it.produtoId && it.produtoId !== "0");
-  const servicos = os.itens.filter((it) => !it.produtoId || it.produtoId === "0");
+  const produtos = os.itens.filter((it) => it.tipo !== "S");
+  const servicos = os.itens.filter((it) => it.tipo === "S");
   const totalProdutos = produtos.reduce((acc, it) => acc + (it.total ?? 0), 0);
   const totalServicos = servicos.reduce((acc, it) => acc + (it.total ?? 0), 0);
 

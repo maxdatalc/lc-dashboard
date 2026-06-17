@@ -73,6 +73,7 @@ export type ItemOS = {
   precoUnitario?: number;
   total?: number;
   observacao?: string;
+  tipo?: string;
 };
 
 export type LogIntegracao = {
