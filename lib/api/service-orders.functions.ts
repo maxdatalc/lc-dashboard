@@ -346,16 +346,17 @@ export async function addItemToServiceOrder(input: unknown) {
   });
   if (!canAccess) throw new Error("Acesso negado a esta loja");
 
-  // Busca mapeamento ERP do usuário logado: cliId (tecnico) e tipos bloqueados
+  // Busca mapeamento ERP do usuário logado em todas as lojas (fallback se loja específica não tiver mapeamento)
   const supabaseAdmin = createAdminClient();
-  const { data: userMappingRow } = await supabaseAdmin
+  const { data: allMappingRows } = await supabaseAdmin
     .from("loja_usuarios_erp")
-    .select("cli_id, tipos_bloqueados")
-    .eq("loja_id", data.loja_id)
-    .eq("supabase_user_id", userId)
-    .maybeSingle();
+    .select("cli_id, tipos_bloqueados, loja_id")
+    .eq("supabase_user_id", userId);
 
-  const mappingRow = userMappingRow as Record<string, unknown> | null;
+  type MappingRow = { loja_id: string; cli_id: number; tipos_bloqueados: unknown };
+  const rows = allMappingRows as MappingRow[] | null;
+  const mappingRow = rows?.find((r) => r.loja_id === data.loja_id) ?? rows?.[0] ?? null;
+
   const erpCliId: number | null = mappingRow?.cli_id != null ? Number(mappingRow.cli_id) : null;
   const tiposBloqueados: number[] = Array.isArray(mappingRow?.tipos_bloqueados)
     ? (mappingRow.tipos_bloqueados as unknown[]).map(Number).filter((n) => n > 0)

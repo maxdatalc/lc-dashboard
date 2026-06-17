@@ -15,17 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { AlertTriangle, ChevronLeft } from "lucide-react";
+import { ChevronLeft, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { serviceOrderService } from "@/lib/services/service-order-adapter";
 import { useFiscalAuth } from "@/lib/fiscal-auth-context";
@@ -59,10 +49,12 @@ function OSDetailContent() {
   const [os, setOs] = useState<OrdemServico | null>(null);
   const [loading, setLoading] = useState(true);
   const [reload, setReload] = useState(0);
-  const [confirmacao, setConfirmacao] = useState<{
-    alerta: string;
-    item: { produtoId: string; produtoNome: string; descricao: string; codigo: string; quantidade: number; precoUnitario: number };
-  } | null>(null);
+  const [pendingItems, setPendingItems] = useState<Array<{
+    tempId: string;
+    produtoId: string; produtoNome: string; descricao: string;
+    codigo: string; quantidade: number; precoUnitario: number;
+  }>>([]);
+  const [savingPendentes, setSavingPendentes] = useState(false);
 
   useEffect(() => {
     if (!lojaAtiva) return;
@@ -118,36 +110,41 @@ function OSDetailContent() {
     );
   }
 
-  const submitAdd = async (
-    item: { produtoId: string; produtoNome: string; descricao: string; codigo: string; quantidade: number; precoUnitario: number },
-    forcar: boolean,
-  ) => {
+  const addPending = (item: { produtoId: string; produtoNome: string; descricao: string; codigo: string; quantidade: number; precoUnitario: number }) => {
+    setPendingItems((prev) => [...prev, { ...item, tempId: Math.random().toString(36).slice(2) }]);
+  };
+
+  const removePending = (tempId: string) => {
+    setPendingItems((prev) => prev.filter((p) => p.tempId !== tempId));
+  };
+
+  const salvarPendentes = async () => {
+    if (!lojaAtiva || !os || pendingItems.length === 0) return;
+    setSavingPendentes(true);
     try {
-      const r = await serviceOrderService.addItem({
-        loja_id: lojaAtiva?.id,
-        os_id: os.id,
-        produto_id: item.produtoId,
-        descricao: item.descricao,
-        quantidade: item.quantidade,
-        valor_unitario: item.precoUnitario,
-        tipo_atend_id: os.tipoAtendId,
-        forcar_sem_fiscal: forcar,
-      });
-      if (r.ok) {
-        toast.success(r.alerta ? `Item adicionado. ${r.alerta}` : "Item adicionado à O.S.");
-        setReload((x) => x + 1);
-        setConfirmacao(null);
-        return;
+      for (const item of pendingItems) {
+        const r = await serviceOrderService.addItem({
+          loja_id: lojaAtiva.id,
+          os_id: os.id,
+          produto_id: item.produtoId,
+          descricao: item.descricao,
+          quantidade: item.quantidade,
+          valor_unitario: item.precoUnitario,
+          tipo_atend_id: os.tipoAtendId,
+          forcar_sem_fiscal: true,
+        });
+        if (!r.ok && !r.excedeu_fiscal) {
+          toast.error(r.alerta ?? "Erro ao salvar item.");
+          return;
+        }
       }
-      if (r.excedeu_fiscal) {
-        setConfirmacao({ alerta: r.alerta ?? "Estoque fiscal insuficiente.", item });
-        return;
-      }
-      toast.error(r.alerta ?? "Operação bloqueada pelo controle fiscal.");
-      setConfirmacao(null);
+      toast.success(`${pendingItems.length} item(s) adicionado(s) à O.S.`);
+      setPendingItems([]);
+      setReload((x) => x + 1);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Falha ao adicionar item.");
-      setConfirmacao(null);
+      toast.error(e instanceof Error ? e.message : "Falha ao salvar itens.");
+    } finally {
+      setSavingPendentes(false);
     }
   };
 
@@ -236,8 +233,64 @@ function OSDetailContent() {
 
       <ServiceOrderItemEditor
         empresaId={lojaAtiva?.id}
-        onAdd={(item) => { void submitAdd(item, false); }}
+        onAdd={addPending}
       />
+
+      {/* Itens pendentes de salvar */}
+      {pendingItems.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/50">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-base text-amber-800">
+              Itens a salvar ({pendingItems.length})
+            </CardTitle>
+            <Button
+              onClick={salvarPendentes}
+              disabled={savingPendentes}
+              size="sm"
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {savingPendentes
+                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Salvando...</>
+                : `Salvar ${pendingItems.length} item(s)`}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Produto / Serviço</TableHead>
+                  <TableHead className="w-24 text-right">Qtde</TableHead>
+                  <TableHead className="w-32 text-right">Preço unit.</TableHead>
+                  <TableHead className="w-32 text-right">Total</TableHead>
+                  <TableHead className="w-10" />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pendingItems.map((it) => (
+                  <TableRow key={it.tempId} className="bg-amber-50">
+                    <TableCell>
+                      <p className="text-sm font-medium">{it.descricao || it.produtoNome}</p>
+                      {it.codigo && <p className="text-xs text-muted-foreground font-mono">{it.codigo}</p>}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">{it.quantidade}</TableCell>
+                    <TableCell className="text-right tabular-nums text-sm">
+                      {it.precoUnitario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-sm font-medium">
+                      {(it.quantidade * it.precoUnitario).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </TableCell>
+                    <TableCell>
+                      <button onClick={() => removePending(it.tempId)} className="text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Produtos */}
       <Card>
@@ -359,28 +412,6 @@ function OSDetailContent() {
         </CardContent>
       </Card>
 
-      <AlertDialog open={!!confirmacao} onOpenChange={(o) => !o && setConfirmacao(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" /> Confirmar inclusão com risco fiscal
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {confirmacao?.alerta} Deseja prosseguir mesmo assim? Esta ação será registrada no
-              log de auditoria.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => confirmacao && submitAdd(confirmacao.item, true)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Prosseguir mesmo assim
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
