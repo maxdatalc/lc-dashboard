@@ -389,7 +389,7 @@ export async function addItemToServiceOrder(input: unknown) {
     entidade_id: data.os_id,
   };
 
-  if (validation.blocked) {
+  if (validation.blocked && !data.forcar_sem_fiscal) {
     await logAuditoria({
       ...auditBase,
       acao: "BLOQUEOU_ADICIONAR_ITEM_OS",
