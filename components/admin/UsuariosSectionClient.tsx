@@ -567,11 +567,14 @@ function ERPConfirmForm({
   const [modulos, setModulos] = useState<Record<string, boolean>>(
     Object.fromEntries(configurableModules.map((k) => [k, false]))
   );
-  // Auto-seleciona as lojas cujo empId corresponde ao empId padrão do usuário no ERP
+  // Auto-seleciona as lojas cujo empId corresponde ao empId padrão do usuário no ERP.
+  // Fallback para todas as lojas se não houver match (garante que loja_usuarios_erp sempre é criado).
   const autoLojas = allLojas
-    .filter((l) => erpUser.cliUsuEmpIdPadrao != null && l.empId === erpUser.cliUsuEmpIdPadrao)
+    .filter((l) => erpUser.cliUsuEmpIdPadrao != null && l.empId === Number(erpUser.cliUsuEmpIdPadrao))
     .map((l) => l.id);
-  const [lojaIds, setLojaIds] = useState<string[]>(autoLojas);
+  const [lojaIds, setLojaIds] = useState<string[]>(
+    autoLojas.length > 0 ? autoLojas : allLojas.map((l) => l.id),
+  );
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
