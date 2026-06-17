@@ -61,7 +61,7 @@ function OSDetailContent() {
   const [reload, setReload] = useState(0);
   const [confirmacao, setConfirmacao] = useState<{
     alerta: string;
-    item: { produtoId: string; produtoNome: string; codigo: string; quantidade: number };
+    item: { produtoId: string; produtoNome: string; codigo: string; quantidade: number; precoUnitario: number };
   } | null>(null);
 
   useEffect(() => {
@@ -119,7 +119,7 @@ function OSDetailContent() {
   }
 
   const submitAdd = async (
-    item: { produtoId: string; produtoNome: string; codigo: string; quantidade: number },
+    item: { produtoId: string; produtoNome: string; codigo: string; quantidade: number; precoUnitario: number },
     forcar: boolean,
   ) => {
     try {
@@ -128,6 +128,7 @@ function OSDetailContent() {
         os_id: os.id,
         produto_id: item.produtoId,
         quantidade: item.quantidade,
+        valor_unitario: item.precoUnitario,
         tipo_atend_id: os.tipoAtendId,
         forcar_sem_fiscal: forcar,
       });

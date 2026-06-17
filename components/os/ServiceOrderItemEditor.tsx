@@ -34,6 +34,7 @@ export type AddItemPayload = {
   produtoNome: string;
   codigo: string;
   quantidade: number;
+  precoUnitario: number;
 };
 
 export function ServiceOrderItemEditor({
@@ -179,6 +180,7 @@ export function ServiceOrderItemEditor({
       produtoNome: form.nome,
       codigo: form.codFab,
       quantidade: form.qtd,
+      precoUnitario: form.preco,
     });
     resetForm();
   }
