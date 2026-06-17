@@ -84,6 +84,7 @@ export const serviceOrderService = {
           unidade: r.unidade,
           precoUnitario: r.precoUnitario,
           total: r.total,
+          tipo: r.tipo,
         }),
       ),
       obs: detail.obs,
