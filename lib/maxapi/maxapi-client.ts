@@ -58,14 +58,16 @@ export async function getOrRefreshToken(
   supabaseAdmin: AnySupabaseClient,
   lojaId: string,
 ): Promise<string> {
-  const { data: row } = await supabaseAdmin
+  const { data: rows } = await supabaseAdmin
     .from("integration_configs")
     .select("maxapi_token_cache, maxapi_token_expires_at")
     .eq("loja_id", lojaId)
-    .maybeSingle();
+    .order("updated_at", { ascending: false })
+    .limit(1);
 
-  const cached: string | null = (row as Record<string, unknown> | null)?.maxapi_token_cache as string ?? null;
-  const expiresAt: string | null = (row as Record<string, unknown> | null)?.maxapi_token_expires_at as string ?? null;
+  const row = ((rows as Record<string, unknown>[] | null)?.[0]) ?? null;
+  const cached: string | null = row?.maxapi_token_cache as string ?? null;
+  const expiresAt: string | null = row?.maxapi_token_expires_at as string ?? null;
 
   if (cached && expiresAt && new Date(expiresAt).getTime() > Date.now()) {
     return cached;
