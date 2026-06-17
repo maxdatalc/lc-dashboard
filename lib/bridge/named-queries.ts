@@ -38,13 +38,14 @@ ORDER BY p.proDescricao
 
 const GET_PRODUCT_PHYSICAL_STOCK = `
 SELECT
-  p.proId            AS proId,
-  pe.proCodigo       AS proCodigo,
-  p.proDescricao     AS proDescricao,
-  pe.proEstoqueAtual AS proEstoqueAtual,
-  p.proUn            AS proUn
+  p.proId                       AS proId,
+  ISNULL(pe.proCodigo, '')      AS proCodigo,
+  p.proDescricao                AS proDescricao,
+  ISNULL(pe.proEstoqueAtual, 0) AS proEstoqueAtual,
+  ISNULL(p.proUn, '')           AS proUn,
+  p.proTipo                     AS proTipo
 FROM produto p
-INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
+LEFT JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 WHERE p.proId = @proId
 `;
 
@@ -289,8 +290,7 @@ SELECT TOP 100
   c.cliNome              AS cliNome,
   ISNULL(c.cliEmail, '') AS cliEmail
 FROM cliente c
-WHERE c.empId = @empId
-  AND c.cliUsuarioUsaSistema = 1
+WHERE c.cliUsuarioUsaSistema = 1
 ORDER BY c.cliNome
 `;
 
@@ -365,7 +365,7 @@ const REGISTRY: Record<string, QueryDef> = {
   },
   LIST_ERP_USERS: {
     sql: LIST_ERP_USERS,
-    allowedParams: ["empId"],
+    allowedParams: [],
   },
 };
 
