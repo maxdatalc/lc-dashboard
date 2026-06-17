@@ -1,18 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { Plug, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 type TestStatus = "idle" | "testing" | "ok" | "erro";
 
 interface Props {
-  action: (formData: FormData) => Promise<void>;
+  action: (
+    prevState: { erro: string | null },
+    formData: FormData,
+  ) => Promise<{ erro: string | null }>;
   loja: { maxApiUrl: string; terminalMaxdata: string; empId: number };
   tenantId: string;
 }
 
 export default function MaxApiForm({ action, loja, tenantId }: Props) {
+  const [state, formAction, pending] = useActionState(action, { erro: null });
   const [maxApiUrl, setMaxApiUrl] = useState(loja.maxApiUrl);
   const [terminal, setTerminal] = useState(loja.terminalMaxdata);
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
@@ -45,7 +49,13 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
   }
 
   return (
-    <form action={action} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+    <form action={formAction} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+
+      {state.erro && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+          <p className="text-xs text-red-700 font-mono">{state.erro}</p>
+        </div>
+      )}
 
       {/* URL */}
       <div>
@@ -127,9 +137,11 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
         </Link>
         <button
           type="submit"
-          className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+          disabled={pending}
+          className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-60 transition-colors"
         >
-          Salvar configuração
+          {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+          {pending ? "Salvando..." : "Salvar configuração"}
         </button>
       </div>
     </form>

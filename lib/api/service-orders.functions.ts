@@ -123,7 +123,7 @@ async function getLojaConfig(lojaId: string) {
       .maybeSingle(),
     supabaseAdmin
       .from("integration_configs")
-      .select("maxapi_url, os_tipos_fiscais")
+      .select("maxapi_url, terminal_maxdata, os_tipos_fiscais")
       .eq("loja_id", lojaId)
       .maybeSingle(),
   ]);
@@ -149,7 +149,7 @@ async function getLojaConfig(lojaId: string) {
     maxApi = buildMaxApiConfig(
       {
         emp_id_maxdata: String(lojaRow.emp_id),
-        terminal_maxdata: (lojaRow.terminal_maxdata as string | null) ?? "1",
+        terminal_maxdata: (cfgRow?.terminal_maxdata as string | null) ?? (lojaRow.terminal_maxdata as string | null) ?? "1",
       },
       { maxapi_url: cfgRow.maxapi_url as string },
     );
