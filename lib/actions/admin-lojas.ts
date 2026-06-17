@@ -159,6 +159,49 @@ export async function salvarUsuarioERP(
   }
 }
 
+/** Remove um usuário do tenant (revoga acesso, mantém conta Auth) */
+export async function removerUsuarioTenant(
+  tenantId: string,
+  userId: string,
+): Promise<{ error?: string }> {
+  try {
+    await verificarAdmin();
+    const supabase = createAdminClient();
+
+    // IDs das lojas do tenant para limpar ERP mappings
+    const { data: lojas } = await supabase
+      .from("lojas")
+      .select("id")
+      .eq("tenant_id", tenantId);
+    const lojaIds = (lojas ?? []).map((l: Record<string, string>) => l.id);
+
+    if (lojaIds.length > 0) {
+      await supabase
+        .from("loja_usuarios_erp")
+        .delete()
+        .eq("supabase_user_id", userId)
+        .in("loja_id", lojaIds);
+    }
+
+    await supabase
+      .from("user_tenant_settings")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId);
+
+    await supabase
+      .from("tenant_users")
+      .delete()
+      .eq("tenant_id", tenantId)
+      .eq("user_id", userId);
+
+    revalidatePath(`/admin/empresas/${tenantId}`, "page");
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erro ao remover usuário" };
+  }
+}
+
 /** Salva configurações de módulos e lojas de um usuário já existente */
 export async function salvarAcessoUsuario(
   tenantId: string,

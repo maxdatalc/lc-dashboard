@@ -4,9 +4,9 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, UserPlus, AlertCircle, ChevronDown, ChevronUp,
-  Download, User, CheckCircle2, Shield, Building2,
+  Download, User, CheckCircle2, Shield, Building2, Trash2,
 } from "lucide-react";
-import { salvarUsuarioERP, salvarAcessoUsuario } from "@/lib/actions/admin-lojas";
+import { salvarUsuarioERP, salvarAcessoUsuario, removerUsuarioTenant } from "@/lib/actions/admin-lojas";
 import type { UsuarioTenantCompleto, ErpMapping } from "@/lib/db/admin";
 import type { ErpUserItem } from "@/app/api/admin/erp-users/route";
 
@@ -36,7 +36,7 @@ const MODULES_LABEL: Record<string, string> = {
 const ROLE_LABEL: Record<string, string> = {
   owner:  "Proprietário",
   admin:  "Admin",
-  viewer: "Viewer",
+  viewer: "Usuário",
 };
 
 const ROLE_CLS: Record<string, string> = {
@@ -51,6 +51,7 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
   const router = useRouter();
   const [painel, setPainel] = useState<"none" | "add-manual" | "add-erp">("none");
   const [editUserId, setEditUserId] = useState<string | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   const configurableModules = tenantFeatures.filter((k) => k in MODULES_LABEL);
   const bridgeLojas = lojas.filter((l) => l.bridgeEnabled);
@@ -64,6 +65,17 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
     router.refresh();
     fecharPainel();
   }, [router, fecharPainel]);
+
+  const handleDelete = useCallback(async (userId: string) => {
+    setDeletingUserId(userId);
+    const result = await removerUsuarioTenant(tenantId, userId);
+    setDeletingUserId(null);
+    if (result.error) {
+      alert(`Erro ao remover usuário: ${result.error}`);
+      return;
+    }
+    router.refresh();
+  }, [tenantId, router]);
 
   return (
     <div className="space-y-4">
@@ -145,6 +157,8 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
                 expanded={editUserId === u.userId}
                 onToggle={() => setEditUserId(editUserId === u.userId ? null : u.userId)}
                 onSaved={refresh}
+                onDelete={() => handleDelete(u.userId)}
+                deleting={deletingUserId === u.userId}
               />
             ))}
           </div>
@@ -157,7 +171,7 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
 // ── Linha de usuário com painel expansível ────────────────────────────────────
 
 function UsuarioRow({
-  usuario, tenantId, lojas, configurableModules, expanded, onToggle, onSaved,
+  usuario, tenantId, lojas, configurableModules, expanded, onToggle, onSaved, onDelete, deleting,
 }: {
   usuario: UsuarioTenantCompleto;
   tenantId: string;
@@ -166,6 +180,8 @@ function UsuarioRow({
   expanded: boolean;
   onToggle: () => void;
   onSaved: () => void;
+  onDelete: () => void;
+  deleting: boolean;
 }) {
   const activeModules = Object.entries(usuario.settings?.modulos ?? {})
     .filter(([, v]) => v)
@@ -206,6 +222,17 @@ function UsuarioRow({
             <CheckCircle2 className="h-3 w-3" /> ERP
           </span>
         )}
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          disabled={deleting}
+          className="shrink-0 p-1 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-40 rounded"
+          title="Remover usuário"
+        >
+          {deleting
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Trash2 className="h-4 w-4" />}
+        </button>
 
         {expanded ? (
           <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" />
@@ -433,8 +460,7 @@ function AddManualForm({
           <select value={form.papel}
             onChange={(e) => setForm((f) => ({ ...f, papel: e.target.value as UserRole }))}
             className={inputCls}>
-            <option value="viewer">Visualizador</option>
-            <option value="admin">Administrador</option>
+            <option value="viewer">Usuário</option>
             <option value="owner">Proprietário</option>
           </select>
         </Field>
@@ -629,8 +655,7 @@ function ERPConfirmForm({
         <Field label="Papel">
           <select value={papel}
             onChange={(e) => setPapel(e.target.value as UserRole)} className={inputCls}>
-            <option value="viewer">Visualizador</option>
-            <option value="admin">Administrador</option>
+            <option value="viewer">Usuário</option>
             <option value="owner">Proprietário</option>
           </select>
         </Field>
