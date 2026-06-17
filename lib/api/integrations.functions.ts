@@ -72,13 +72,14 @@ export async function getIntegrationStatus(
         "loja_id, status_bridge, status_maxapi, ultimo_teste_bridge, ultimo_teste_maxapi, maxapi_url",
       )
       .eq("loja_id", data.loja_id)
-      .maybeSingle(),
+      .order("updated_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!loja) return null;
 
   const lojaRow = loja as Record<string, unknown>;
-  const cfgRow = cfg as Record<string, unknown> | null;
+  const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
   const maxapiConfigurada = !!(cfgRow?.maxapi_url && lojaRow.emp_id && lojaRow.terminal_maxdata);
 
   return {
@@ -175,11 +176,12 @@ export async function testMaxApiConnection(input: unknown) {
       .from("integration_configs")
       .select("maxapi_url, maxapi_token_cache, maxapi_token_expires_at")
       .eq("loja_id", data.loja_id)
-      .maybeSingle(),
+      .order("updated_at", { ascending: false })
+      .limit(1),
   ]);
 
   const lojaRow = loja as Record<string, unknown> | null;
-  const cfgRow = cfg as Record<string, unknown> | null;
+  const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
   let status: "online" | "offline" | "erro" | "nao_configurado" = "nao_configurado";
   let mensagem = "MaxAPI ainda não configurada para esta loja.";
   let token_cached_until: string | null = null;
@@ -196,14 +198,16 @@ export async function testMaxApiConnection(input: unknown) {
         { maxapi_url: cfgRow!.maxapi_url as string },
       );
       const token = await getOrRefreshToken(maxApiConfig, supabaseAdmin, data.loja_id);
-      const { data: refreshed } = await supabaseAdmin
+      const { data: refreshedRows } = await supabaseAdmin
         .from("integration_configs")
         .select("maxapi_token_expires_at")
         .eq("loja_id", data.loja_id)
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(1);
 
+      const refreshed = ((refreshedRows as Record<string, unknown>[] | null)?.[0]) ?? null;
       token_cached_until =
-        ((refreshed as Record<string, unknown> | null)?.maxapi_token_expires_at as string) ?? null;
+        (refreshed?.maxapi_token_expires_at as string) ?? null;
       status = token ? "online" : "erro";
       mensagem = token
         ? `Autenticação MaxAPI realizada com sucesso. Cache válido até ${token_cached_until ?? "desconhecido"}.`
@@ -317,13 +321,14 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
       .from("integration_configs")
       .select("maxapi_url, inventario_id_base")
       .eq("loja_id", data.loja_id)
-      .maybeSingle(),
+      .order("updated_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (!loja) return null;
 
   const lojaRow = loja as Record<string, unknown>;
-  const cfgRow = cfg as Record<string, unknown> | null;
+  const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
 
   return {
     bridge_url: (lojaRow.sql_bridge_url as string) ?? null,

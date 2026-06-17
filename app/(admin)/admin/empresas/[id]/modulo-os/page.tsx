@@ -60,13 +60,14 @@ export default async function OsModuloPage({
       const lojaId    = loja.id as string;
       const lojaEmpId = loja.emp_id as number;
 
-      const { data: cfg } = await supabaseAdmin
+      const { data: cfgRows } = await supabaseAdmin
         .from("integration_configs")
         .select("inventario_id_base, os_tipos_fiscais")
         .eq("loja_id", lojaId)
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(1);
 
-      const cfgRow = cfg as Record<string, unknown> | null;
+      const cfgRow = ((cfgRows as Record<string, unknown>[] | null)?.[0]) ?? null;
       const rawInvId = cfgRow?.inventario_id_base;
       const inventario_id_base = rawInvId != null ? Number(rawInvId) : null;
       const os_tipos_fiscais: number[] = Array.isArray(cfgRow?.os_tipos_fiscais)
@@ -125,12 +126,21 @@ export default async function OsModuloPage({
     "use server";
     const loja_id = formData.get("loja_id") as string;
     const invIdRaw = (formData.get("inventario_id_base") as string | null)?.trim();
-    const inventario_id_base = invIdRaw ? parseInt(invIdRaw, 10) : null;
+    const inventario_id_base = invIdRaw && invIdRaw !== "0" ? parseInt(invIdRaw, 10) : null;
 
     const admin = createAdminClient();
+    // Lê os_tipos_fiscais existente para não sobrescrever no upsert (limit(1) tolera duplicatas)
+    const { data: rows1 } = await admin
+      .from("integration_configs")
+      .select("os_tipos_fiscais")
+      .eq("loja_id", loja_id)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const os_tipos_fiscais = (rows1 as Record<string, unknown>[] | null)?.[0]?.os_tipos_fiscais ?? [];
+
     const { error } = await admin
       .from("integration_configs")
-      .upsert({ loja_id, inventario_id_base }, { onConflict: "loja_id" });
+      .upsert({ loja_id, inventario_id_base, os_tipos_fiscais }, { onConflict: "loja_id" });
 
     if (error) {
       const msg = error.message.includes("inventario_id_base")
@@ -148,9 +158,18 @@ export default async function OsModuloPage({
     const os_tipos_fiscais = tatIdsRaw.map(Number).filter((n) => !isNaN(n) && n > 0);
 
     const admin = createAdminClient();
+    // Lê inventario_id_base existente para não sobrescrever no upsert (limit(1) tolera duplicatas)
+    const { data: rows2 } = await admin
+      .from("integration_configs")
+      .select("inventario_id_base")
+      .eq("loja_id", loja_id)
+      .order("updated_at", { ascending: false })
+      .limit(1);
+    const inventario_id_base = (rows2 as Record<string, unknown>[] | null)?.[0]?.inventario_id_base ?? null;
+
     const { error } = await admin
       .from("integration_configs")
-      .upsert({ loja_id, os_tipos_fiscais }, { onConflict: "loja_id" });
+      .upsert({ loja_id, inventario_id_base, os_tipos_fiscais }, { onConflict: "loja_id" });
 
     if (error) {
       const msg = error.message.includes("os_tipos_fiscais")

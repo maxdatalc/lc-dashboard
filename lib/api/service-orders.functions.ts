@@ -128,7 +128,8 @@ async function getLojaConfig(lojaId: string) {
       .from("integration_configs")
       .select("maxapi_url, terminal_maxdata, os_tipos_fiscais")
       .eq("loja_id", lojaId)
-      .maybeSingle(),
+      .order("updated_at", { ascending: false })
+      .limit(1),
   ]);
 
   const lojaRow = loja as Record<string, unknown> | null;
@@ -142,7 +143,7 @@ async function getLojaConfig(lojaId: string) {
   };
   const empId = lojaRow.emp_id as number;
 
-  const cfgRow = cfg as Record<string, unknown> | null;
+  const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
   const osTiposFiscais: number[] = Array.isArray(cfgRow?.os_tipos_fiscais)
     ? (cfgRow.os_tipos_fiscais as unknown[]).map(Number).filter((n) => n > 0)
     : [];

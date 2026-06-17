@@ -83,7 +83,8 @@ async function getLojaConfigs(lojaId: string) {
       .from("integration_configs")
       .select("inventario_id_base, os_tipos_fiscais")
       .eq("loja_id", lojaId)
-      .maybeSingle(),
+      .order("updated_at", { ascending: false })
+      .limit(1),
   ]);
 
   const row = loja as Record<string, unknown> | null;
@@ -95,7 +96,7 @@ async function getLojaConfigs(lojaId: string) {
     url: row.sql_bridge_url as string,
     token: decrypt(row.sql_bridge_token as string),
   };
-  const cfgRow = cfg as Record<string, unknown> | null;
+  const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
   const rawInvId = cfgRow?.inventario_id_base;
   const invId: number | null = rawInvId != null ? Number(rawInvId) : null;
   const osTiposFiscais: number[] = Array.isArray(cfgRow?.os_tipos_fiscais)

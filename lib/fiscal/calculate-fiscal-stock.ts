@@ -79,7 +79,9 @@ export async function calculateFiscalStock(
   invId: number | null = null,
   osTiposFiscais: number[] = [],
 ): Promise<FiscalStockResult> {
-  const useNoBase = invId === 0;
+  // null = nenhum inventário configurado → calcular desde o início de todas as movimentações
+  // 0   = legado, mesmo comportamento
+  const useNoBase = invId === null || invId === 0;
   const compParams = { empId, proId, invId };
   const noBaseParams = { empId, proId };
 

@@ -224,14 +224,15 @@ export async function getLojaAdminWithMaxApi(lojaId: string): Promise<{
       .from("integration_configs")
       .select("maxapi_url, terminal_maxdata")
       .eq("loja_id", lojaId)
-      .maybeSingle(),
+      .order("updated_at", { ascending: false })
+      .limit(1),
   ]);
 
   if (lojaRes.error) throw new Error(lojaRes.error.message);
   if (!lojaRes.data) return null;
 
   const row = lojaRes.data as Record<string, unknown>;
-  const cfgRow = cfgRes.data as Record<string, unknown> | null;
+  const cfgRow = ((cfgRes.data as Record<string, unknown>[] | null)?.[0]) ?? null;
 
   return {
     id: row.id as string,
