@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useFormState, useFormStatus } from "react-dom";
+import { useState } from "react";
 import Link from "next/link";
 import { Plug, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
@@ -15,8 +16,22 @@ interface Props {
   tenantId: string;
 }
 
+function SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-60 transition-colors"
+    >
+      {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {pending ? "Salvando..." : "Salvar configuração"}
+    </button>
+  );
+}
+
 export default function MaxApiForm({ action, loja, tenantId }: Props) {
-  const [state, formAction, pending] = useActionState(action, { erro: null });
+  const [state, formAction] = useFormState(action, { erro: null });
   const [maxApiUrl, setMaxApiUrl] = useState(loja.maxApiUrl);
   const [terminal, setTerminal] = useState(loja.terminalMaxdata);
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
@@ -135,14 +150,7 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
         >
           Cancelar
         </Link>
-        <button
-          type="submit"
-          disabled={pending}
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-60 transition-colors"
-        >
-          {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-          {pending ? "Salvando..." : "Salvar configuração"}
-        </button>
+        <SubmitButton />
       </div>
     </form>
   );
