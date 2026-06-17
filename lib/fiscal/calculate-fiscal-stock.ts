@@ -35,6 +35,7 @@ export interface FiscalStockResult {
   proCodigo: string;
   proDescricao: string;
   proUn: string;
+  proTipo: string;
   estoqueFisico: number;
   composicao: FiscalStockComposition | null;
   estoqueFiscal: number;
@@ -51,6 +52,7 @@ interface PhysicalRow {
   proDescricao: string;
   proEstoqueAtual: number;
   proUn: string;
+  proTipo: string;
 }
 
 interface FiscalRow {
@@ -105,6 +107,27 @@ export async function calculateFiscalStock(
   }
 
   const ph = physicalRows[0];
+
+  // Services have no stock control — skip fiscal validation entirely
+  if (ph.proTipo === "S") {
+    return {
+      proId,
+      empId,
+      proCodigo: ph.proCodigo ?? "",
+      proDescricao: ph.proDescricao ?? "",
+      proUn: ph.proUn ?? "",
+      proTipo: "S",
+      estoqueFisico: 0,
+      composicao: null,
+      estoqueFiscal: 0,
+      diferenca: 0,
+      statusCode: "OK" as StockStatusCode,
+      alertas: [],
+      semInventario: true,
+      calculadoSemBase: false,
+    };
+  }
+
   const estoqueFisico = Number(ph.proEstoqueAtual ?? 0);
   const alertas: string[] = [];
 
@@ -135,6 +158,7 @@ export async function calculateFiscalStock(
       proCodigo: ph.proCodigo ?? "",
       proDescricao: ph.proDescricao ?? "",
       proUn: ph.proUn ?? "",
+      proTipo: ph.proTipo ?? "P",
       estoqueFisico,
       composicao: null,
       estoqueFiscal: 0,
@@ -197,6 +221,7 @@ export async function calculateFiscalStock(
     proCodigo: ph.proCodigo ?? "",
     proDescricao: ph.proDescricao ?? "",
     proUn: ph.proUn ?? "",
+    proTipo: ph.proTipo ?? "P",
     estoqueFisico,
     composicao,
     estoqueFiscal,
@@ -217,6 +242,17 @@ export async function validateStockForOsItem(
   osTiposFiscais: number[] = [],
 ) {
   const stock = await calculateFiscalStock(empId, proId, bridge, invId, osTiposFiscais);
+  if (stock.proTipo === "S") {
+    return {
+      stock,
+      validation: {
+        code: "OK" as StockStatusCode,
+        blocked: false,
+        warning: false,
+        message: "Serviço — sem controle de estoque.",
+      },
+    };
+  }
   const validation = deriveStockStatus(stock.estoqueFisico, stock.estoqueFiscal, requestedQty);
   return { stock, validation };
 }
