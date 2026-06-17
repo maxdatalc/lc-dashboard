@@ -83,8 +83,7 @@ export async function salvarUsuarioERP(
     senha: string;         // obrigatório para novos; vazio = não alterar senha
     nomeCompleto: string;
     papel: "owner" | "admin" | "viewer";
-    // ERP mapping (por loja)
-    lojaId: string | null;
+    // ERP mapping
     cliId: number | null;
     cliNome: string;
     // Acesso
@@ -135,17 +134,17 @@ export async function salvarUsuarioERP(
       { onConflict: "tenant_id,user_id" }
     );
 
-    // 3. ERP mapping por loja (se fornecido)
-    if (dados.lojaId && dados.cliId != null) {
+    // 3. ERP mapping: cria entrada em loja_usuarios_erp para todas as lojas selecionadas
+    if (dados.cliId != null && dados.lojaIds.length > 0) {
       await supabase.from("loja_usuarios_erp").upsert(
-        {
-          loja_id: dados.lojaId,
-          cli_id: dados.cliId,
+        dados.lojaIds.map((lId) => ({
+          loja_id: lId,
+          cli_id: dados.cliId!,
           cli_nome: dados.cliNome,
           supabase_user_id: userId,
           email: dados.email,
           tipos_bloqueados: dados.tiposBloqueados,
-        },
+        })),
         { onConflict: "loja_id,cli_id" }
       );
     }

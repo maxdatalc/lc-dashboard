@@ -11,6 +11,7 @@ export type ErpUserItem = {
   cliId: number;
   cliNome: string;
   cliEmail: string;
+  cliUsuEmpIdPadrao: number | null;
 };
 
 export async function GET(request: Request) {

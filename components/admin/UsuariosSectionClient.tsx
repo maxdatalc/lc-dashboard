@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, UserPlus, AlertCircle, ChevronDown, ChevronUp,
@@ -16,6 +16,7 @@ interface LojaInfo {
   id: string;
   name: string;
   bridgeEnabled: boolean;
+  empId: number;
 }
 
 interface Props {
@@ -449,7 +450,7 @@ function AddManualForm({
 
 // ── Importação do ERP ─────────────────────────────────────────────────────────
 
-type ERPStep = "select-loja" | "select-user" | "confirm";
+type ERPStep = "select-user" | "confirm";
 
 function ERPImportFlow({
   tenantId, bridgeLojas, allLojas, configurableModules, onSuccess, onCancel,
@@ -461,66 +462,28 @@ function ERPImportFlow({
   onSuccess: () => void;
   onCancel: () => void;
 }) {
-  const [step, setStep] = useState<ERPStep>(bridgeLojas.length === 1 ? "select-user" : "select-loja");
-  const [lojaId, setLojaId] = useState<string>(bridgeLojas.length === 1 ? bridgeLojas[0].id : "");
+  // Sempre usa a primeira loja com Bridge — usuários são globais no ERP
+  const lojaId = bridgeLojas[0]?.id ?? "";
+  const [step, setStep] = useState<ERPStep>("select-user");
   const [erpUsers, setErpUsers] = useState<ErpUserItem[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [erroUsers, setErroUsers] = useState<string | null>(null);
   const [selected, setSelected] = useState<ErpUserItem | null>(null);
 
-  // Busca automática quando loja já está definida
-  const buscarERPUsers = useCallback(async (id: string) => {
+  // Busca automática ao montar
+  useEffect(() => {
+    if (!lojaId) return;
     setLoadingUsers(true);
     setErroUsers(null);
-    try {
-      const res = await fetch(`/api/admin/erp-users?lojaId=${id}`);
-      const data = await res.json() as { users?: ErpUserItem[]; erro?: string };
-      if (!res.ok || data.erro) throw new Error(data.erro ?? "Erro ao buscar usuários");
-      setErpUsers(data.users ?? []);
-      setStep("select-user");
-    } catch (e) {
-      setErroUsers(e instanceof Error ? e.message : "Erro ao buscar usuários ERP");
-    } finally {
-      setLoadingUsers(false);
-    }
-  }, []);
-
-  // Auto-fetch se já tem loja selecionada (caso de loja única)
-  useState(() => {
-    if (bridgeLojas.length === 1 && step === "select-user") {
-      void buscarERPUsers(bridgeLojas[0].id);
-    }
-  });
-
-  if (step === "select-loja") {
-    return (
-      <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-800">Importar do ERP — Selecionar Loja</h3>
-        <div className="space-y-2">
-          {bridgeLojas.map((l) => (
-            <button
-              key={l.id}
-              onClick={() => { setLojaId(l.id); void buscarERPUsers(l.id); }}
-              className="w-full text-left px-4 py-3 rounded-lg border border-slate-200 hover:border-slate-400 hover:bg-slate-50 transition-colors"
-            >
-              <p className="text-sm font-medium text-slate-900">{l.name}</p>
-            </button>
-          ))}
-        </div>
-        {loadingUsers && (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <Loader2 className="h-4 w-4 animate-spin" /> Buscando usuários ERP...
-          </div>
-        )}
-        {erroUsers && (
-          <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-            <AlertCircle className="h-4 w-4 shrink-0" /> {erroUsers}
-          </div>
-        )}
-        <button onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-700">Cancelar</button>
-      </div>
-    );
-  }
+    fetch(`/api/admin/erp-users?lojaId=${lojaId}`)
+      .then((res) => res.json() as Promise<{ users?: ErpUserItem[]; erro?: string }>)
+      .then((data) => {
+        if (data.erro) throw new Error(data.erro);
+        setErpUsers(data.users ?? []);
+      })
+      .catch((e) => setErroUsers(e instanceof Error ? e.message : "Erro ao buscar usuários ERP"))
+      .finally(() => setLoadingUsers(false));
+  }, [lojaId]);
 
   if (step === "select-user") {
     return (
@@ -566,11 +529,6 @@ function ERPImportFlow({
         )}
 
         <div className="flex gap-2">
-          {bridgeLojas.length > 1 && (
-            <button onClick={() => setStep("select-loja")} className="text-sm text-slate-500 hover:text-slate-700">
-              ← Trocar loja
-            </button>
-          )}
           <button onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-700">Cancelar</button>
         </div>
       </div>
@@ -581,7 +539,6 @@ function ERPImportFlow({
   return (
     <ERPConfirmForm
       tenantId={tenantId}
-      lojaId={lojaId}
       erpUser={selected!}
       allLojas={allLojas}
       configurableModules={configurableModules}
@@ -593,10 +550,9 @@ function ERPImportFlow({
 }
 
 function ERPConfirmForm({
-  tenantId, lojaId, erpUser, allLojas, configurableModules, onSuccess, onBack, onCancel,
+  tenantId, erpUser, allLojas, configurableModules, onSuccess, onBack, onCancel,
 }: {
   tenantId: string;
-  lojaId: string;
   erpUser: ErpUserItem;
   allLojas: LojaInfo[];
   configurableModules: string[];
@@ -611,7 +567,11 @@ function ERPConfirmForm({
   const [modulos, setModulos] = useState<Record<string, boolean>>(
     Object.fromEntries(configurableModules.map((k) => [k, false]))
   );
-  const [lojaIds, setLojaIds] = useState<string[]>([lojaId]);
+  // Auto-seleciona as lojas cujo empId corresponde ao empId padrão do usuário no ERP
+  const autoLojas = allLojas
+    .filter((l) => erpUser.cliUsuEmpIdPadrao != null && l.empId === erpUser.cliUsuEmpIdPadrao)
+    .map((l) => l.id);
+  const [lojaIds, setLojaIds] = useState<string[]>(autoLojas);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -621,7 +581,7 @@ function ERPConfirmForm({
     setErro(null);
     const result = await salvarUsuarioERP(tenantId, {
       email, nomeCompleto, senha, papel,
-      lojaId, cliId: Number(erpUser.cliId), cliNome: erpUser.cliNome,
+      cliId: Number(erpUser.cliId), cliNome: erpUser.cliNome,
       lojaIds, modulos, tiposBloqueados: [],
     });
     setLoading(false);
@@ -631,11 +591,16 @@ function ERPConfirmForm({
 
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <h3 className="text-sm font-semibold text-slate-800">Confirmar usuário ERP</h3>
         <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 rounded px-2 py-0.5 font-mono">
           cliId {erpUser.cliId}
         </span>
+        {erpUser.cliUsuEmpIdPadrao != null && (
+          <span className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded px-2 py-0.5 font-mono">
+            empId {erpUser.cliUsuEmpIdPadrao}
+          </span>
+        )}
       </div>
 
       {erro && (

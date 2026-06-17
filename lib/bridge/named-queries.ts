@@ -285,12 +285,14 @@ WHERE v.vedId = @osId
 `;
 
 const LIST_ERP_USERS = `
-SELECT TOP 100
-  c.cliId                AS cliId,
-  c.cliNome              AS cliNome,
-  ISNULL(c.cliEmail, '') AS cliEmail
+SELECT TOP 200
+  c.cliId                     AS cliId,
+  c.cliNome                   AS cliNome,
+  ISNULL(c.cliEmail, '')      AS cliEmail,
+  c.cliUsuEmpIdPadrao         AS cliUsuEmpIdPadrao
 FROM cliente c
 WHERE c.cliUsuarioUsaSistema = 1
+  AND c.cliUsuLoginId IS NOT NULL
 ORDER BY c.cliNome
 `;
 

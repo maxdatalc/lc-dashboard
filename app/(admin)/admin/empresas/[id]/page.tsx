@@ -260,6 +260,7 @@ export default async function GerenciarEmpresaPage({
             id: l.id,
             name: l.name,
             bridgeEnabled: l.sqlEnabled,
+            empId: l.empId,
           }))}
           tenantFeatures={tenant.features}
         />
