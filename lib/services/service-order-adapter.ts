@@ -98,6 +98,7 @@ export const serviceOrderService = {
     loja_id: string | undefined;
     os_id: string;
     produto_id: string;
+    descricao?: string;
     quantidade: number;
     valor_unitario: number;
     tipo_atend_id?: number;
@@ -108,6 +109,7 @@ export const serviceOrderService = {
       loja_id: input.loja_id,
       os_id: input.os_id,
       produto_id: input.produto_id,
+      descricao: input.descricao,
       quantidade: input.quantidade,
       valor_unitario: input.valor_unitario,
       tipo_atend_id: input.tipo_atend_id,

@@ -39,6 +39,7 @@ const AddItemInput = z.object({
   loja_id: z.string().uuid(),
   os_id: z.string(),
   produto_id: z.string(),
+  descricao: z.string().optional(),
   quantidade: z.number().min(1),
   valor_unitario: z.number().min(0),
   tipo: z.string().optional().default("P"),
@@ -429,7 +430,7 @@ export async function addItemToServiceOrder(input: unknown) {
   const itemAdicionado = await addItemToServiceOrderMaxApi(maxApi, supabaseAdmin, data.loja_id, {
     OsId: osId,
     produtoId: proId,
-    produtoDescricao: stock.proDescricao,
+    produtoDescricao: data.descricao?.trim() || stock.proDescricao,
     qtde: data.quantidade,
     valor: data.valor_unitario,
     tipo: data.tipo,

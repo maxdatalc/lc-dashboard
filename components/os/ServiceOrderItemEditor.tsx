@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 type EntryForm = {
   proId: string;
   nome: string;
+  descricao: string;
   codFab: string;
   qtd: number;
   estoqueFisico: number;
@@ -21,6 +22,7 @@ type EntryForm = {
 const EMPTY_FORM: EntryForm = {
   proId: "",
   nome: "",
+  descricao: "",
   codFab: "",
   qtd: 0,
   estoqueFisico: 0,
@@ -32,6 +34,7 @@ const EMPTY_FORM: EntryForm = {
 export type AddItemPayload = {
   produtoId: string;
   produtoNome: string;
+  descricao: string;
   codigo: string;
   quantidade: number;
   precoUnitario: number;
@@ -59,6 +62,7 @@ export function ServiceOrderItemEditor({
 
   const qtdRef = useRef<HTMLInputElement>(null);
   const codeRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLInputElement>(null);
   const overlayDescRef = useRef<HTMLInputElement>(null);
 
   // Auto-focus overlay description field when overlay opens
@@ -73,6 +77,7 @@ export function ServiceOrderItemEditor({
     setForm({
       proId: p.id,
       nome: p.nome,
+      descricao: p.nome,
       codFab: p.codigo,
       qtd: 0,
       estoqueFisico: p.estoqueFisico,
@@ -98,8 +103,8 @@ export function ServiceOrderItemEditor({
       if (results.length === 1) {
         fillForm(results[0]);
         requestAnimationFrame(() => {
-          qtdRef.current?.focus();
-          qtdRef.current?.select();
+          descRef.current?.focus();
+          descRef.current?.select();
         });
       } else if (results.length > 1) {
         setOverlayCod(code.trim());
@@ -141,8 +146,8 @@ export function ServiceOrderItemEditor({
     fillForm(p);
     setOverlayOpen(false);
     requestAnimationFrame(() => {
-      qtdRef.current?.focus();
-      qtdRef.current?.select();
+      descRef.current?.focus();
+      descRef.current?.select();
     });
   }
 
@@ -152,8 +157,8 @@ export function ServiceOrderItemEditor({
     setSearched(false);
   }
 
-  // Description field: open overlay only when typing a printable character
-  function handleDescKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+  // Abre overlay de pesquisa — só usado quando não há produto selecionado
+  function openOverlayOnType(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
       e.preventDefault();
       setOverlayDesc(e.key);
@@ -178,6 +183,7 @@ export function ServiceOrderItemEditor({
     onAdd({
       produtoId: form.proId,
       produtoNome: form.nome,
+      descricao: form.descricao || form.nome,
       codigo: form.codFab,
       quantidade: form.qtd,
       precoUnitario: form.preco,
@@ -243,16 +249,28 @@ export function ServiceOrderItemEditor({
             )}
           </div>
 
-          {/* Descrição — readonly; typing opens overlay */}
+          {/* Descrição — editável quando produto selecionado; sem produto → typing abre overlay */}
           <input
-            value={form.proId ? form.nome : ""}
-            readOnly
-            onKeyDown={handleDescKeyDown}
+            ref={descRef}
+            value={form.proId ? form.descricao : ""}
+            readOnly={!form.proId}
+            onChange={(e) => {
+              if (form.proId) setForm((f) => ({ ...f, descricao: e.target.value }));
+            }}
+            onKeyDown={(e) => {
+              if (!form.proId) {
+                openOverlayOnType(e);
+              } else if (e.key === "Tab" || e.key === "Enter") {
+                e.preventDefault();
+                qtdRef.current?.focus();
+                qtdRef.current?.select();
+              }
+            }}
             placeholder="Digite para pesquisar produto…"
             className={cn(
               inputBase,
-              "flex-1 cursor-text",
-              !form.proId && "text-muted-foreground",
+              "flex-1",
+              !form.proId && "cursor-text text-muted-foreground",
             )}
           />
 
