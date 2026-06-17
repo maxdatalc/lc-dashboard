@@ -48,9 +48,15 @@ export async function GET(request: Request) {
     const empId = Number(row.emp_id);
 
     const { sql, params } = resolveNamedQuery("LIST_ERP_USERS", { empId });
-    const rows = await queryBridge<ErpUserItem>(bridge, sql, params);
+    const rawRows = await queryBridge<Record<string, unknown>>(bridge, sql, params);
+    const users: ErpUserItem[] = rawRows.map((r) => ({
+      cliId: Number(r.cliId),
+      cliNome: String(r.cliNome ?? ""),
+      cliEmail: String(r.cliEmail ?? ""),
+      cliUsuEmpIdPadrao: r.cliUsuEmpIdPadrao != null ? Number(r.cliUsuEmpIdPadrao) : null,
+    }));
 
-    return NextResponse.json({ users: rows });
+    return NextResponse.json({ users });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro interno";
     return NextResponse.json({ erro: msg }, { status: 500 });

@@ -455,6 +455,7 @@ export async function addItemToServiceOrder(input: unknown) {
       excedeu_fiscal: validation.warning,
       estoque_fisico: stock.estoqueFisico,
       estoque_fiscal: stock.estoqueFiscal,
+      tecnico_id_enviado: erpCliId ?? null,
     },
   });
 
