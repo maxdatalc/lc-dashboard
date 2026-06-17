@@ -4,6 +4,10 @@
  * Formula: InventarioBase + Entradas(E) + Devoluções(1202/2202) - Saídas(S) + Ajustes
  * Validated against BATAUTO on 2026-06-14:
  *   proId=15788, empId=1 → fiscal=898 = proEstoqueAtual
+ *
+ * Fallback rule: if the product has no entry in the selected inventory,
+ * the calculation falls back to all fiscal movements from the beginning
+ * (same as GET_FISCAL_STOCK_NO_BASE), instead of blocking with fiscal=0.
  */
 
 import { queryBridge, type BridgeConfig } from "@/lib/bridge/bridge-client";
@@ -34,6 +38,7 @@ export interface FiscalStockResult {
   statusCode: StockStatusCode;
   alertas: string[];
   semInventario: boolean;
+  calculadoSemBase: boolean;
 }
 
 interface PhysicalRow {
@@ -63,21 +68,27 @@ export async function calculateFiscalStock(
   bridge: BridgeConfig,
   invId: number | null = null,
 ): Promise<FiscalStockResult> {
-  const fiscalQueryName: import("@/lib/bridge/named-queries").NamedQueryKey =
-    invId === 0 ? "GET_FISCAL_STOCK_NO_BASE" : "GET_FISCAL_STOCK_COMPOSITION";
-  const fiscalParams = invId === 0 ? { empId, proId } : { empId, proId, invId };
+  const useNoBase = invId === 0;
+  const compParams = { empId, proId, invId };
+  const noBaseParams = { empId, proId };
 
   const [physicalRows, fiscalRows] = await Promise.all([
     queryBridge<PhysicalRow>(
       bridge,
-      resolveNamedQuery("GET_PRODUCT_PHYSICAL_STOCK", { empId, proId }).sql,
-      { empId, proId },
+      resolveNamedQuery("GET_PRODUCT_PHYSICAL_STOCK", noBaseParams).sql,
+      noBaseParams,
     ),
-    queryBridge<FiscalRow>(
-      bridge,
-      resolveNamedQuery(fiscalQueryName, fiscalParams).sql,
-      fiscalParams,
-    ),
+    useNoBase
+      ? queryBridge<FiscalRow>(
+          bridge,
+          resolveNamedQuery("GET_FISCAL_STOCK_NO_BASE", noBaseParams).sql,
+          noBaseParams,
+        )
+      : queryBridge<FiscalRow>(
+          bridge,
+          resolveNamedQuery("GET_FISCAL_STOCK_COMPOSITION", compParams).sql,
+          compParams,
+        ),
   ]);
 
   if (!physicalRows.length) {
@@ -88,8 +99,27 @@ export async function calculateFiscalStock(
   const estoqueFisico = Number(ph.proEstoqueAtual ?? 0);
   const alertas: string[] = [];
 
-  if (!fiscalRows.length) {
-    alertas.push("Nenhum inventário encontrado para este produto — estoque fiscal indisponível.");
+  let fi = fiscalRows[0] as FiscalRow | undefined;
+  let calculadoSemBase = useNoBase;
+
+  // Fallback: product not in the selected inventory → recalculate from all movements
+  if (!fi && !useNoBase) {
+    const fallbackRows = await queryBridge<FiscalRow>(
+      bridge,
+      resolveNamedQuery("GET_FISCAL_STOCK_NO_BASE", noBaseParams).sql,
+      noBaseParams,
+    );
+    fi = fallbackRows[0];
+    calculadoSemBase = true;
+    if (fi) {
+      alertas.push(
+        "Produto não lançado neste inventário — estoque fiscal calculado a partir de todas as movimentações.",
+      );
+    }
+  }
+
+  if (!fi) {
+    alertas.push("Produto sem movimentações fiscais registradas — estoque fiscal indisponível.");
     return {
       proId,
       empId,
@@ -103,10 +133,10 @@ export async function calculateFiscalStock(
       statusCode: "PENDENTE_VALIDACAO",
       alertas,
       semInventario: true,
+      calculadoSemBase: true,
     };
   }
 
-  const fi = fiscalRows[0];
   const estoqueFiscal = Number(fi.estoqueFiscal ?? 0);
   const diferenca = estoqueFisico - estoqueFiscal;
 
@@ -147,6 +177,7 @@ export async function calculateFiscalStock(
     statusCode: code,
     alertas,
     semInventario: false,
+    calculadoSemBase,
   };
 }
 
