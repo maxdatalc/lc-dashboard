@@ -103,6 +103,7 @@ export const serviceOrderService = {
     descricao?: string;
     quantidade: number;
     valor_unitario: number;
+    tipo?: string;
     tipo_atend_id?: number;
     forcar_sem_fiscal?: boolean;
   }) {
@@ -114,6 +115,7 @@ export const serviceOrderService = {
       descricao: input.descricao,
       quantidade: input.quantidade,
       valor_unitario: input.valor_unitario,
+      tipo: input.tipo,
       tipo_atend_id: input.tipo_atend_id,
       forcar_sem_fiscal: input.forcar_sem_fiscal ?? false,
     });

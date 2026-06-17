@@ -17,6 +17,7 @@ type EntryForm = {
   estoqueFiscal: number;
   preco: number;
   unidade: string;
+  tipo: string;
 };
 
 const EMPTY_FORM: EntryForm = {
@@ -29,6 +30,7 @@ const EMPTY_FORM: EntryForm = {
   estoqueFiscal: 0,
   preco: 0,
   unidade: "",
+  tipo: "P",
 };
 
 export type AddItemPayload = {
@@ -38,6 +40,8 @@ export type AddItemPayload = {
   codigo: string;
   quantidade: number;
   precoUnitario: number;
+  unidade: string;
+  tipo: string;
 };
 
 export function ServiceOrderItemEditor({
@@ -84,6 +88,7 @@ export function ServiceOrderItemEditor({
       estoqueFiscal: p.estoqueFiscal,
       preco: p.preco ?? 0,
       unidade: p.unidade,
+      tipo: p.tipo ?? "P",
     });
     setFormError(null);
   }
@@ -187,6 +192,8 @@ export function ServiceOrderItemEditor({
       codigo: form.codFab,
       quantidade: form.qtd,
       precoUnitario: form.preco,
+      unidade: form.unidade,
+      tipo: form.tipo,
     });
     resetForm();
   }

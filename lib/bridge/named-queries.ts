@@ -12,12 +12,13 @@
 
 const SEARCH_PRODUCTS = `
 SELECT TOP 20
-  p.proId            AS proId,
-  pe.proCodigo       AS proCodigo,
-  p.proDescricao     AS proDescricao,
-  pe.proEstoqueAtual AS proEstoqueAtual,
-  p.proUn            AS proUn,
-  pe.proVenda        AS proVenda
+  p.proId                    AS proId,
+  pe.proCodigo               AS proCodigo,
+  p.proDescricao             AS proDescricao,
+  pe.proEstoqueAtual         AS proEstoqueAtual,
+  p.proUn                    AS proUn,
+  pe.proVenda                AS proVenda,
+  ISNULL(p.proTipo, 'P')     AS proTipo
 FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 WHERE
