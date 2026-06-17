@@ -297,7 +297,6 @@ export type ErpMapping = {
   lojaNome: string;
   cliId: number;
   cliNome: string;
-  cliUsu: string;
   tiposBloqueados: number[];
 };
 
@@ -367,10 +366,9 @@ export async function getUsuariosTenantDetalhado(
 ): Promise<UsuarioTenantCompleto[]> {
   const supabase = createAdminClient();
 
-  const [tenantUsersRes, settingsRes, erpRes, lojasRes] = await Promise.all([
+  const [tenantUsersRes, settingsRes, lojasRes] = await Promise.all([
     supabase.from("tenant_users").select("id, user_id, role").eq("tenant_id", tenantId),
     supabase.from("user_tenant_settings").select("user_id, loja_ids, modulos").eq("tenant_id", tenantId),
-    supabase.from("loja_usuarios_erp").select("loja_id, cli_id, cli_nome, cli_usu, supabase_user_id, tipos_bloqueados").eq("loja_id.tenant_id", tenantId).limit(0), // placeholder — see below
     supabase.from("lojas").select("id, name").eq("tenant_id", tenantId).eq("is_active", true),
   ]);
 
@@ -379,10 +377,9 @@ export async function getUsuariosTenantDetalhado(
 
   const userIds = rows.map((u) => u.user_id);
 
-  // ERP mappings: busca por user_ids (não tem tenant_id direto em loja_usuarios_erp)
   const { data: erpData } = await supabase
     .from("loja_usuarios_erp")
-    .select("loja_id, cli_id, cli_nome, cli_usu, supabase_user_id, tipos_bloqueados")
+    .select("loja_id, cli_id, cli_nome, supabase_user_id, tipos_bloqueados")
     .in("supabase_user_id", userIds);
 
   const lojas = ((lojasRes.data ?? []) as { id: string; name: string }[]);
@@ -399,7 +396,7 @@ export async function getUsuariosTenantDetalhado(
 
   const erpByUser = new Map<string, ErpMapping[]>();
   for (const e of (erpData ?? []) as {
-    loja_id: string; cli_id: number; cli_nome: string; cli_usu: string;
+    loja_id: string; cli_id: number; cli_nome: string;
     supabase_user_id: string; tipos_bloqueados: unknown;
   }[]) {
     if (!e.supabase_user_id) continue;
@@ -409,7 +406,6 @@ export async function getUsuariosTenantDetalhado(
       lojaNome: lojaMap.get(e.loja_id) ?? e.loja_id,
       cliId: Number(e.cli_id),
       cliNome: e.cli_nome ?? "",
-      cliUsu: e.cli_usu ?? "",
       tiposBloqueados: Array.isArray(e.tipos_bloqueados)
         ? (e.tipos_bloqueados as unknown[]).map(Number).filter((n) => n > 0)
         : [],

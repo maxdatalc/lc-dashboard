@@ -352,9 +352,9 @@ function ERPMappingBadge({ mapping }: { mapping: ErpMapping }) {
     <div className="flex items-center gap-2 text-xs bg-white border border-slate-200 rounded px-2.5 py-1.5">
       <span className="font-medium text-slate-700">{mapping.lojaNome}</span>
       <span className="text-slate-400">·</span>
-      <span className="font-mono text-slate-500">{mapping.cliUsu}</span>
+      <span className="text-slate-600">{mapping.cliNome}</span>
       <span className="text-slate-400">·</span>
-      <span className="text-slate-600">cliId {mapping.cliId}</span>
+      <span className="font-mono text-slate-400">#{mapping.cliId}</span>
       {mapping.tiposBloqueados.length > 0 && (
         <>
           <span className="text-slate-400">·</span>
@@ -394,7 +394,7 @@ function AddManualForm({
     setErro(null);
     const result = await salvarUsuarioERP(tenantId, {
       ...form,
-      lojaId: null, cliId: null, cliNome: "", cliUsu: "",
+      lojaId: null, cliId: null, cliNome: "",
       lojaIds, modulos, tiposBloqueados: [],
     });
     setLoading(false);
@@ -557,8 +557,7 @@ function ERPImportFlow({
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">{u.cliNome}</p>
                   <p className="text-xs text-slate-500">
-                    Login: <span className="font-mono">{u.cliUsu || "—"}</span>
-                    {u.cliEmail && <> · {u.cliEmail}</>}
+                    {u.cliEmail || "Sem email"}
                   </p>
                 </div>
               </button>
@@ -622,7 +621,7 @@ function ERPConfirmForm({
     setErro(null);
     const result = await salvarUsuarioERP(tenantId, {
       email, nomeCompleto, senha, papel,
-      lojaId, cliId: Number(erpUser.cliId), cliNome: erpUser.cliNome, cliUsu: erpUser.cliUsu,
+      lojaId, cliId: Number(erpUser.cliId), cliNome: erpUser.cliNome,
       lojaIds, modulos, tiposBloqueados: [],
     });
     setLoading(false);
@@ -635,7 +634,7 @@ function ERPConfirmForm({
       <div className="flex items-center gap-3">
         <h3 className="text-sm font-semibold text-slate-800">Confirmar usuário ERP</h3>
         <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 rounded px-2 py-0.5 font-mono">
-          cliId {erpUser.cliId} · {erpUser.cliUsu || "—"}
+          cliId {erpUser.cliId}
         </span>
       </div>
 
