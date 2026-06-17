@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 export type ErpUserItem = {
   cliId: number;
   cliNome: string;
-  cliUsu: string;
   cliEmail: string;
 };
 

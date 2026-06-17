@@ -87,7 +87,6 @@ export async function salvarUsuarioERP(
     lojaId: string | null;
     cliId: number | null;
     cliNome: string;
-    cliUsu: string;
     // Acesso
     lojaIds: string[];
     modulos: Record<string, boolean>;
@@ -143,7 +142,6 @@ export async function salvarUsuarioERP(
           loja_id: dados.lojaId,
           cli_id: dados.cliId,
           cli_nome: dados.cliNome,
-          cli_usu: dados.cliUsu,
           supabase_user_id: userId,
           email: dados.email,
           tipos_bloqueados: dados.tiposBloqueados,
