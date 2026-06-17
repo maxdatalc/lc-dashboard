@@ -245,6 +245,23 @@ FROM tipoAtend
 ORDER BY tatDesc
 `;
 
+const GET_OS_RESERVATIONS = `
+SELECT COALESCE(SUM(vdi.vdiQtde), 0) AS reservado
+FROM vendaItem vdi
+INNER JOIN venda v ON v.vedId = vdi.vdiVedId
+WHERE @tatIds <> ''
+  AND vdi.vdiItemId  = @proId
+  AND v.empId        = @empId
+  AND v.vedTipo      = 'OS'
+  AND v.vedStatus   NOT IN ('F', 'C', 'Z')
+  AND vdi.vdiCancel  = 0
+  AND v.vedTipoAtend IN (
+      SELECT TRY_CAST(value AS INT)
+      FROM   STRING_SPLIT(@tatIds, ',')
+      WHERE  TRY_CAST(value AS INT) IS NOT NULL
+  )
+`;
+
 const GET_SERVICE_ORDER_DETAIL = `
 SELECT
   v.vedId              AS vedId,
@@ -320,6 +337,10 @@ const REGISTRY: Record<string, QueryDef> = {
   LIST_TIPOS_ATENDIMENTO: {
     sql: LIST_TIPOS_ATENDIMENTO,
     allowedParams: [],
+  },
+  GET_OS_RESERVATIONS: {
+    sql: GET_OS_RESERVATIONS,
+    allowedParams: ["empId", "proId", "tatIds"],
   },
   GET_SERVICE_ORDER_DETAIL: {
     sql: GET_SERVICE_ORDER_DETAIL,

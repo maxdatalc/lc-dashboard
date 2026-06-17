@@ -1,13 +1,15 @@
 /**
  * calculateFiscalStock — server-side only.
  *
- * Formula: InventarioBase + Entradas(E) + Devoluções(1202/2202) - Saídas(S) + Ajustes
- * Validated against BATAUTO on 2026-06-14:
- *   proId=15788, empId=1 → fiscal=898 = proEstoqueAtual
+ * Formula: InventarioBase + Entradas(E) + Devoluções(1202/2202) - Saídas(S) + Ajustes - ReservadoEmOS
+ * Validated against BATAUTO on 2026-06-14.
  *
  * Fallback rule: if the product has no entry in the selected inventory,
- * the calculation falls back to all fiscal movements from the beginning
- * (same as GET_FISCAL_STOCK_NO_BASE), instead of blocking with fiscal=0.
+ * the calculation falls back to all fiscal movements from the beginning.
+ *
+ * OS reservation rule: if osTiposFiscais is provided, quantities of this
+ * product in open OS whose tipo de atendimento is in that list are
+ * pre-deducted from the effective fiscal stock.
  */
 
 import { queryBridge, type BridgeConfig } from "@/lib/bridge/bridge-client";
@@ -22,6 +24,8 @@ export interface FiscalStockComposition {
   saidasFiscais: number;
   devolucoesFiscais: number;
   ajustesEstoque: number;
+  estoqueFiscalNf: number;
+  reservadoEmOS: number;
   estoqueFiscal: number;
 }
 
@@ -62,11 +66,16 @@ interface FiscalRow {
   estoqueFiscal: number;
 }
 
+interface ReservationRow {
+  reservado: number;
+}
+
 export async function calculateFiscalStock(
   empId: number,
   proId: number,
   bridge: BridgeConfig,
   invId: number | null = null,
+  osTiposFiscais: number[] = [],
 ): Promise<FiscalStockResult> {
   const useNoBase = invId === 0;
   const compParams = { empId, proId, invId };
@@ -102,7 +111,7 @@ export async function calculateFiscalStock(
   let fi = fiscalRows[0] as FiscalRow | undefined;
   let calculadoSemBase = useNoBase;
 
-  // Fallback: product not in the selected inventory → recalculate from all movements
+  // Fallback: product not in inventory → recalculate from all movements
   if (!fi && !useNoBase) {
     const fallbackRows = await queryBridge<FiscalRow>(
       bridge,
@@ -137,10 +146,26 @@ export async function calculateFiscalStock(
     };
   }
 
-  const estoqueFiscal = Number(fi.estoqueFiscal ?? 0);
+  const estoqueFiscalNf = Number(fi.estoqueFiscal ?? 0);
+
+  // OS reservation: sum quantities in open OS with fiscal-trigger tipos
+  let reservadoEmOS = 0;
+  if (osTiposFiscais.length > 0) {
+    const tatIds = osTiposFiscais.join(",");
+    const resQuery = resolveNamedQuery("GET_OS_RESERVATIONS", { empId, proId, tatIds });
+    const resRows = await queryBridge<ReservationRow>(bridge, resQuery.sql, resQuery.params);
+    reservadoEmOS = Number(resRows[0]?.reservado ?? 0);
+    if (reservadoEmOS > 0) {
+      alertas.push(
+        `${reservadoEmOS} unidade(s) em O.S abertas (tipo fiscal) — descontada(s) do estoque disponível.`,
+      );
+    }
+  }
+
+  const estoqueFiscal = estoqueFiscalNf - reservadoEmOS;
   const diferenca = estoqueFisico - estoqueFiscal;
 
-  if (diferenca > 0) {
+  if (diferenca > 0 && estoqueFiscal >= 0) {
     alertas.push(
       `Estoque físico (${estoqueFisico}) maior que fiscal (${estoqueFiscal}) em ${diferenca} unidades.`,
     );
@@ -159,6 +184,8 @@ export async function calculateFiscalStock(
     saidasFiscais: Number(fi.saidasFiscais ?? 0),
     devolucoesFiscais: Number(fi.devolucoesFiscais ?? 0),
     ajustesEstoque: Number(fi.ajustesEstoque ?? 0),
+    estoqueFiscalNf,
+    reservadoEmOS,
     estoqueFiscal,
   };
 
@@ -187,8 +214,9 @@ export async function validateStockForOsItem(
   requestedQty: number,
   bridge: BridgeConfig,
   invId: number | null = null,
+  osTiposFiscais: number[] = [],
 ) {
-  const stock = await calculateFiscalStock(empId, proId, bridge, invId);
+  const stock = await calculateFiscalStock(empId, proId, bridge, invId, osTiposFiscais);
   const validation = deriveStockStatus(stock.estoqueFisico, stock.estoqueFiscal, requestedQty);
   return { stock, validation };
 }
