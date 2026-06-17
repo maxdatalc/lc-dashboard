@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { ServiceOrderList } from "@/components/os/ServiceOrderList";
 import { RequireLoja } from "@/components/os/RequireLoja";
 import { Button } from "@/components/ui/button";
