@@ -44,6 +44,7 @@ const AddItemInput = z.object({
   tipo: z.string().optional().default("P"),
   cfop: z.number().optional(),
   tecnico_id: z.number().optional(),
+  tipo_atend_id: z.number().optional(),
   forcar_sem_fiscal: z.boolean().optional().default(false),
 });
 
@@ -342,6 +343,28 @@ export async function addItemToServiceOrder(input: unknown) {
   });
   if (!canAccess) throw new Error("Acesso negado a esta loja");
 
+  // Busca mapeamento ERP do usuário logado: cliId (tecnico) e tipos bloqueados
+  const supabaseAdmin = createAdminClient();
+  const { data: userMappingRow } = await supabaseAdmin
+    .from("loja_usuarios_erp")
+    .select("cli_id, tipos_bloqueados")
+    .eq("loja_id", data.loja_id)
+    .eq("supabase_user_id", userId)
+    .maybeSingle();
+
+  const mappingRow = userMappingRow as Record<string, unknown> | null;
+  const erpCliId: number | null = mappingRow?.cli_id != null ? Number(mappingRow.cli_id) : null;
+  const tiposBloqueados: number[] = Array.isArray(mappingRow?.tipos_bloqueados)
+    ? (mappingRow.tipos_bloqueados as unknown[]).map(Number).filter((n) => n > 0)
+    : [];
+
+  // Bloqueia se o tipo de atendimento da O.S está na lista de bloqueios do usuário
+  if (data.tipo_atend_id && tiposBloqueados.includes(data.tipo_atend_id)) {
+    throw new Error(
+      "Tipo de atendimento bloqueado: você não tem permissão para adicionar itens a O.S com este tipo.",
+    );
+  }
+
   const { loja, bridge, empId, maxApi, osTiposFiscais } = await getLojaConfig(data.loja_id);
   if (!maxApi) throw new Error("MaxAPI não configurada para esta loja");
 
@@ -354,7 +377,6 @@ export async function addItemToServiceOrder(input: unknown) {
     empId, proId, data.quantidade, bridge, null, osTiposFiscais,
   );
 
-  const supabaseAdmin = createAdminClient();
   const auditBase = {
     userId,
     tenant_id: loja.tenant_id as string | null,
@@ -412,7 +434,7 @@ export async function addItemToServiceOrder(input: unknown) {
     valor: data.valor_unitario,
     tipo: data.tipo,
     cfop: data.cfop,
-    tecnicoId: data.tecnico_id,
+    tecnicoId: erpCliId ?? data.tecnico_id,
     un: stock.proUn,
   });
 

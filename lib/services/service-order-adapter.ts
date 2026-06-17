@@ -99,6 +99,7 @@ export const serviceOrderService = {
     os_id: string;
     produto_id: string;
     quantidade: number;
+    tipo_atend_id?: number;
     forcar_sem_fiscal?: boolean;
   }) {
     if (!input.loja_id) throw new Error("loja_id ausente");
@@ -108,6 +109,7 @@ export const serviceOrderService = {
       produto_id: input.produto_id,
       quantidade: input.quantidade,
       valor_unitario: 0,
+      tipo_atend_id: input.tipo_atend_id,
       forcar_sem_fiscal: input.forcar_sem_fiscal ?? false,
     });
   },
