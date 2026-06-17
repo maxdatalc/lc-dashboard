@@ -152,8 +152,8 @@ function OSDetailContent() {
   };
 
   const s = statusLabel[os.status] ?? statusLabel.aberta;
-  const produtos = os.itens.filter((it) => it.codigo);
-  const servicos = os.itens.filter((it) => !it.codigo);
+  const produtos = os.itens.filter((it) => it.produtoId && it.produtoId !== "0");
+  const servicos = os.itens.filter((it) => !it.produtoId || it.produtoId === "0");
   const totalProdutos = produtos.reduce((acc, it) => acc + (it.total ?? 0), 0);
   const totalServicos = servicos.reduce((acc, it) => acc + (it.total ?? 0), 0);
 
@@ -272,7 +272,7 @@ function OSDetailContent() {
             <TableBody>
               {produtos.map((it) => (
                 <TableRow key={it.id}>
-                  <TableCell className="font-mono text-sm">{it.codigo}</TableCell>
+                  <TableCell className="font-mono text-sm">{it.produtoId}</TableCell>
                   <TableCell>{it.produtoNome}</TableCell>
                   <TableCell className="text-right text-sm text-muted-foreground">
                     {it.unidade ?? "—"}
