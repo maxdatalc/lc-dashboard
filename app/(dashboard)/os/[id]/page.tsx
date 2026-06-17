@@ -152,7 +152,10 @@ function OSDetailContent() {
   };
 
   const s = statusLabel[os.status] ?? statusLabel.aberta;
-  const totalItens = os.itens.reduce((acc, it) => acc + (it.total ?? 0), 0);
+  const produtos = os.itens.filter((it) => it.codigo);
+  const servicos = os.itens.filter((it) => !it.codigo);
+  const totalProdutos = produtos.reduce((acc, it) => acc + (it.total ?? 0), 0);
+  const totalServicos = servicos.reduce((acc, it) => acc + (it.total ?? 0), 0);
 
   return (
     <div className="px-3 py-3 sm:px-4 md:px-5 md:py-4 space-y-6">
@@ -236,17 +239,18 @@ function OSDetailContent() {
         onAdd={(item) => { void submitAdd(item, false); }}
       />
 
+      {/* Produtos */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Itens da O.S</CardTitle>
-          {os.itens.length > 0 && (
+          <CardTitle className="text-base">Produtos</CardTitle>
+          {produtos.length > 0 && (
             <span className="text-sm text-muted-foreground">
-              {os.itens.length} {os.itens.length === 1 ? "item" : "itens"}
-              {totalItens > 0 && (
+              {produtos.length} {produtos.length === 1 ? "item" : "itens"}
+              {totalProdutos > 0 && (
                 <>
                   {" "}•{" "}
                   <span className="font-medium text-foreground">
-                    {totalItens.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    {totalProdutos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
                   </span>
                 </>
               )}
@@ -266,7 +270,7 @@ function OSDetailContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {os.itens.map((it) => (
+              {produtos.map((it) => (
                 <TableRow key={it.id}>
                   <TableCell className="font-mono text-sm">{it.codigo}</TableCell>
                   <TableCell>{it.produtoNome}</TableCell>
@@ -276,10 +280,7 @@ function OSDetailContent() {
                   <TableCell className="text-right tabular-nums">{it.quantidade}</TableCell>
                   <TableCell className="text-right tabular-nums text-sm">
                     {it.precoUnitario != null
-                      ? it.precoUnitario.toLocaleString("pt-BR", {
-                          style: "currency",
-                          currency: "BRL",
-                        })
+                      ? it.precoUnitario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
                       : "—"}
                   </TableCell>
                   <TableCell className="text-right tabular-nums text-sm font-medium">
@@ -289,13 +290,67 @@ function OSDetailContent() {
                   </TableCell>
                 </TableRow>
               ))}
-              {os.itens.length === 0 && (
+              {produtos.length === 0 && (
                 <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="py-6 text-center text-sm text-muted-foreground"
-                  >
-                    Nenhum item adicionado.
+                  <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
+                    Nenhum produto adicionado.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Serviços */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Serviços</CardTitle>
+          {servicos.length > 0 && (
+            <span className="text-sm text-muted-foreground">
+              {servicos.length} {servicos.length === 1 ? "item" : "itens"}
+              {totalServicos > 0 && (
+                <>
+                  {" "}•{" "}
+                  <span className="font-medium text-foreground">
+                    {totalServicos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                  </span>
+                </>
+              )}
+            </span>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Serviço</TableHead>
+                <TableHead className="w-24 text-right">Qtde</TableHead>
+                <TableHead className="w-32 text-right">Preço unit.</TableHead>
+                <TableHead className="w-32 text-right">Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {servicos.map((it) => (
+                <TableRow key={it.id}>
+                  <TableCell>{it.produtoNome}</TableCell>
+                  <TableCell className="text-right tabular-nums">{it.quantidade}</TableCell>
+                  <TableCell className="text-right tabular-nums text-sm">
+                    {it.precoUnitario != null
+                      ? it.precoUnitario.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                      : "—"}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-sm font-medium">
+                    {it.total != null
+                      ? it.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                      : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {servicos.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                    Nenhum serviço registrado.
                   </TableCell>
                 </TableRow>
               )}
