@@ -122,7 +122,7 @@ async function getLojaConfig(lojaId: string) {
       .maybeSingle(),
     supabaseAdmin
       .from("integration_configs")
-      .select("maxapi_url")
+      .select("maxapi_url, os_tipos_fiscais")
       .eq("loja_id", lojaId)
       .maybeSingle(),
   ]);
@@ -138,8 +138,12 @@ async function getLojaConfig(lojaId: string) {
   };
   const empId = lojaRow.emp_id as number;
 
-  let maxApi: MaxApiConfig | null = null;
   const cfgRow = cfg as Record<string, unknown> | null;
+  const osTiposFiscais: number[] = Array.isArray(cfgRow?.os_tipos_fiscais)
+    ? (cfgRow.os_tipos_fiscais as unknown[]).map(Number).filter((n) => n > 0)
+    : [];
+
+  let maxApi: MaxApiConfig | null = null;
   if (cfgRow?.maxapi_url) {
     maxApi = buildMaxApiConfig(
       {
@@ -150,7 +154,7 @@ async function getLojaConfig(lojaId: string) {
     );
   }
 
-  return { loja: lojaRow, bridge, empId, maxApi };
+  return { loja: lojaRow, bridge, empId, maxApi, osTiposFiscais };
 }
 
 async function logAuditoria(
@@ -338,7 +342,7 @@ export async function addItemToServiceOrder(input: unknown) {
   });
   if (!canAccess) throw new Error("Acesso negado a esta loja");
 
-  const { loja, bridge, empId, maxApi } = await getLojaConfig(data.loja_id);
+  const { loja, bridge, empId, maxApi, osTiposFiscais } = await getLojaConfig(data.loja_id);
   if (!maxApi) throw new Error("MaxAPI não configurada para esta loja");
 
   const proId = parseInt(data.produto_id, 10);
@@ -346,7 +350,9 @@ export async function addItemToServiceOrder(input: unknown) {
   if (isNaN(proId)) throw new Error("produto_id inválido");
   if (isNaN(osId)) throw new Error("os_id inválido");
 
-  const { stock, validation } = await validateStockForOsItem(empId, proId, data.quantidade, bridge);
+  const { stock, validation } = await validateStockForOsItem(
+    empId, proId, data.quantidade, bridge, null, osTiposFiscais,
+  );
 
   const supabaseAdmin = createAdminClient();
   const auditBase = {

@@ -43,6 +43,7 @@ export type ProductStockDetail = {
     saidas: number;
     devolucoes: number;
     ajustes: number;
+    reservado_em_os: number;
   } | null;
   pode_emitir_nf: boolean;
   pode_lancar_os: boolean;
@@ -78,7 +79,7 @@ async function getLojaConfigs(lojaId: string) {
       .maybeSingle(),
     supabaseAdmin
       .from("integration_configs")
-      .select("inventario_id_base")
+      .select("inventario_id_base, os_tipos_fiscais")
       .eq("loja_id", lojaId)
       .maybeSingle(),
   ]);
@@ -94,10 +95,12 @@ async function getLojaConfigs(lojaId: string) {
   };
   const cfgRow = cfg as Record<string, unknown> | null;
   const rawInvId = cfgRow?.inventario_id_base;
-  // 0 = modo geral (sem base de inventário); null = auto (mais recente)
   const invId: number | null = rawInvId != null ? Number(rawInvId) : null;
+  const osTiposFiscais: number[] = Array.isArray(cfgRow?.os_tipos_fiscais)
+    ? (cfgRow.os_tipos_fiscais as unknown[]).map(Number).filter((n) => n > 0)
+    : [];
 
-  return { empId: row.emp_id as number, bridge, invId };
+  return { empId: row.emp_id as number, bridge, invId, osTiposFiscais };
 }
 
 async function getAuthContext() {
@@ -116,7 +119,7 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
   const termoCodigoRaw = (data.termoCodigo ?? "").trim();
   if (!termoDescRaw && !termoCodigoRaw) return [];
 
-  const { empId, bridge, invId } = await getLojaConfigs(data.loja_id);
+  const { empId, bridge, invId, osTiposFiscais } = await getLojaConfigs(data.loja_id);
 
   // Descrição: sem % = começa com; com % = o usuário controla o padrão
   const termoDesc = termoDescRaw
@@ -144,7 +147,9 @@ export async function searchProducts(input: unknown): Promise<ProdutoListItem[]>
 
   // Calcula estoque fiscal de todos os resultados em paralelo
   const fiscalResults = await Promise.all(
-    rows.map((p) => calculateFiscalStock(empId, p.proId, bridge, invId).catch(() => null)),
+    rows.map((p) =>
+      calculateFiscalStock(empId, p.proId, bridge, invId, osTiposFiscais).catch(() => null),
+    ),
   );
 
   return rows.map((p, i) => ({
@@ -164,7 +169,7 @@ export async function getProductStockDetail(input: unknown): Promise<ProductStoc
   const { userId } = await getAuthContext();
   await assertLojaAccess(userId, data.loja_id);
 
-  const { empId, bridge, invId } = await getLojaConfigs(data.loja_id);
+  const { empId, bridge, invId, osTiposFiscais } = await getLojaConfigs(data.loja_id);
   const proId = parseInt(data.produto_id, 10);
   if (isNaN(proId)) throw new Error("produto_id inválido");
 
@@ -172,7 +177,7 @@ export async function getProductStockDetail(input: unknown): Promise<ProductStoc
 
   const [physRows, fiscalResult] = await Promise.all([
     queryBridge<ProductRow>(bridge, physQuery.sql, physQuery.params),
-    calculateFiscalStock(empId, proId, bridge, invId),
+    calculateFiscalStock(empId, proId, bridge, invId, osTiposFiscais),
   ]);
 
   const phys = physRows[0] ?? null;
@@ -213,6 +218,7 @@ export async function getProductStockDetail(input: unknown): Promise<ProductStoc
           saidas: fiscalResult.composicao.saidasFiscais,
           devolucoes: fiscalResult.composicao.devolucoesFiscais,
           ajustes: fiscalResult.composicao.ajustesEstoque,
+          reservado_em_os: fiscalResult.composicao.reservadoEmOS,
         }
       : null,
     pode_emitir_nf: estoqueFiscal > 0,
