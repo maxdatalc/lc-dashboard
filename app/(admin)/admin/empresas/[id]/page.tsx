@@ -10,7 +10,7 @@ import { ArrowLeft, Settings } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
-  getUsuariosTenant,
+  getUsuariosTenantDetalhado,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
@@ -62,7 +62,7 @@ export default async function GerenciarEmpresaPage({
   const tenant = await getTenantByIdAdmin(id);
   if (!tenant) notFound();
 
-  const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenant(id) : [];
+  const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenantDetalhado(id) : [];
 
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
   const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
@@ -253,7 +253,16 @@ export default async function GerenciarEmpresaPage({
 
       {/* ── Aba Usuários ──────────────────────────────────────────────────── */}
       {abaAtiva === "usuarios" && (
-        <UsuariosSectionClient tenantId={id} usuarios={usuarios} />
+        <UsuariosSectionClient
+          tenantId={id}
+          usuarios={usuarios}
+          lojas={tenant.lojas.map((l) => ({
+            id: l.id,
+            name: l.name,
+            bridgeEnabled: l.sqlEnabled,
+          }))}
+          tenantFeatures={tenant.features}
+        />
       )}
 
     </div>
