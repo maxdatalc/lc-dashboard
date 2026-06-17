@@ -304,9 +304,11 @@ SELECT
   vdi.vdiQtde          AS qtde,
   vdi.vdiValor         AS precoUnitario,
   (vdi.vdiQtde * vdi.vdiValor) AS totalItem,
-  vdi.vdiCancel        AS cancelado
+  vdi.vdiCancel        AS cancelado,
+  ISNULL(p.proTipo, 'P') AS proTipo
 FROM vendaItem vdi
 LEFT JOIN produto_empresa pe ON pe.proId = vdi.vdiItemId AND pe.empId = @empId
+LEFT JOIN produto p ON p.proId = vdi.vdiItemId
 WHERE vdi.vdiVedId = @osId
   AND vdi.vdiCancel = 0
 ORDER BY vdi.vdiId
