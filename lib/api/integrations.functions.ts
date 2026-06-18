@@ -6,6 +6,7 @@ import { encrypt, decrypt } from "@/lib/crypto";
 import { pingBridge, queryBridge, type BridgeConfig } from "@/lib/bridge/bridge-client";
 import { resolveNamedQuery } from "@/lib/bridge/named-queries";
 import { getOrRefreshToken, buildMaxApiConfig } from "@/lib/maxapi/maxapi-client";
+import { assertLojaAccess, assertManageLoja } from "@/lib/api/access";
 
 const LojaInput = z.object({ loja_id: z.string().uuid() });
 
@@ -53,11 +54,7 @@ export async function getIntegrationStatus(
   const data = LojaInput.parse(input);
   const { userId, supabase } = await getAuthContext();
 
-  const { data: can } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!can) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   const supabaseAdmin = createAdminClient();
   const [{ data: loja }, { data: cfg }] = await Promise.all([
@@ -96,11 +93,7 @@ export async function testBridgeConnection(input: unknown) {
   const data = LojaInput.parse(input);
   const { userId, supabase } = await getAuthContext();
 
-  const { data: canManage } = await supabase.rpc("fs_user_can_manage_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canManage) throw new Error("Apenas owner/admin pode testar integraÃ§Ãµes.");
+  await assertManageLoja(userId, data.loja_id);
 
   const supabaseAdmin = createAdminClient();
   const { data: loja } = await supabaseAdmin
@@ -158,11 +151,7 @@ export async function testMaxApiConnection(input: unknown) {
   const data = LojaInput.parse(input);
   const { userId, supabase } = await getAuthContext();
 
-  const { data: canManage } = await supabase.rpc("fs_user_can_manage_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canManage) throw new Error("Apenas owner/admin pode testar integraÃ§Ãµes.");
+  await assertManageLoja(userId, data.loja_id);
 
   const supabaseAdmin = createAdminClient();
   const [{ data: loja }, { data: cfg }] = await Promise.all([
@@ -250,11 +239,7 @@ export async function listInventories(input: unknown): Promise<InventarioInfo[]>
   const data = LojaInput.parse(input);
   const { userId, supabase } = await getAuthContext();
 
-  const { data: canManage } = await supabase.rpc("fs_user_can_manage_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canManage) throw new Error("Apenas owner/admin pode listar inventÃ¡rios.");
+  await assertManageLoja(userId, data.loja_id);
 
   const supabaseAdmin = createAdminClient();
   const { data: loja } = await supabaseAdmin
@@ -301,11 +286,7 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
   const data = LojaInput.parse(input);
   const { userId, supabase } = await getAuthContext();
 
-  const { data: canManage } = await supabase.rpc("fs_user_can_manage_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canManage) throw new Error("Apenas owner/admin pode ver configuraÃ§Ãµes de integraÃ§Ã£o.");
+  await assertManageLoja(userId, data.loja_id);
 
   const supabaseAdmin = createAdminClient();
   const [{ data: loja }, { data: cfg }] = await Promise.all([
@@ -349,11 +330,7 @@ export async function saveIntegrationConfig(input: unknown) {
   const data = SaveConfigInput.parse(input);
   const { userId, supabase } = await getAuthContext();
 
-  const { data: canManage } = await supabase.rpc("fs_user_can_manage_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canManage) throw new Error("Apenas owner/admin pode alterar configuraÃ§Ãµes de integraÃ§Ã£o.");
+  await assertManageLoja(userId, data.loja_id);
 
   const supabaseAdmin = createAdminClient();
   const { data: loja } = await supabaseAdmin

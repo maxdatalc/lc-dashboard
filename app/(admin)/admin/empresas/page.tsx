@@ -4,13 +4,51 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
-import { Building2, Users } from "lucide-react";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
+import { Building2, Users, LayoutDashboard } from "lucide-react";
 import { getAllTenants } from "@/lib/db/admin";
 import { BotaoExcluirCliente } from "@/components/admin/botao-excluir-cliente";
 import { FEATURES_CATALOG } from "@/lib/features";
+import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { isSystemAdmin } from "@/lib/db/admin";
 
 function formatarData(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("pt-BR");
+}
+
+async function acessarDashboard(formData: FormData) {
+  "use server";
+  const tenantId = formData.get("tenantId") as string;
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  if (!(await isSystemAdmin(user.id))) redirect("/admin");
+
+  const admin = createAdminClient();
+
+  const { data: loja } = await admin
+    .from("lojas")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const cookieStore = await cookies();
+  const opts = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    maxAge: 60 * 60 * 24 * 30,
+    path: "/",
+  };
+  cookieStore.set("selected_tenant_id", tenantId, opts);
+  if (loja?.id) cookieStore.set("selected_loja_id", loja.id, opts);
+
+  redirect("/dashboard");
 }
 
 export default async function AdminEmpresasPage() {
@@ -132,6 +170,17 @@ export default async function AdminEmpresasPage() {
                         >
                           Gerenciar →
                         </Link>
+                        <form action={acessarDashboard}>
+                          <input type="hidden" name="tenantId" value={t.id} />
+                          <button
+                            type="submit"
+                            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 hover:bg-emerald-50 px-2 py-1 rounded transition-colors"
+                            title={`Acessar dashboard de ${t.name}`}
+                          >
+                            <LayoutDashboard className="h-3 w-3" />
+                            Dashboard
+                          </button>
+                        </form>
                         <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
                       </div>
                     </td>
