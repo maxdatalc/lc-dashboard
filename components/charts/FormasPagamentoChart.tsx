@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer } from "recharts";
+import { formatCurrency } from "@/lib/utils/format";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PieAny = Pie as any;
-import { formatCurrency } from "@/lib/utils/format";
 
 export interface FormasPagamentoData {
   nome: string;
@@ -47,7 +47,7 @@ function ActiveSlice(props: any) {
       cx={cx}
       cy={cy}
       innerRadius={innerRadius - 3}
-      outerRadius={outerRadius + 7}
+      outerRadius={outerRadius + 5}
       startAngle={startAngle}
       endAngle={endAngle}
       fill={fill}
@@ -76,17 +76,17 @@ export function FormasPagamentoChart({ data }: Props) {
     activeIndex !== undefined ? CORES[activeIndex % CORES.length] : CORES[0];
 
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Donut */}
-      <div className="relative flex-shrink-0" style={{ width: 130, height: 130 }}>
-        <ResponsiveContainer width={130} height={130}>
+    <div className="flex flex-col items-center gap-2">
+      {/* Donut — mesmas dimensões do VendasTipoChart */}
+      <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
+        <ResponsiveContainer width={120} height={120}>
           <PieChart>
             <PieAny
               data={top6}
-              cx={60}
-              cy={60}
-              innerRadius={38}
-              outerRadius={56}
+              cx={55}
+              cy={55}
+              innerRadius={35}
+              outerRadius={52}
               paddingAngle={2}
               dataKey="valor"
               strokeWidth={0}
@@ -108,26 +108,23 @@ export function FormasPagamentoChart({ data }: Props) {
           </PieChart>
         </ResponsiveContainer>
 
-        {/* Centro — nome e % do item ativo ou dominante */}
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none"
-        >
+        {/* Centro */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span
+            className="tabular-nums leading-none"
             style={{
+              fontFamily: "var(--font-numeric)",
               fontSize: "1.25rem",
               fontWeight: 700,
               color: displayedColor,
-              fontFamily: "var(--font-numeric)",
-              lineHeight: 1,
             }}
           >
             {fmtPct(displayed?.percentual ?? 0)}
           </span>
           <span
+            className="text-[10px] mt-0.5"
             style={{
-              fontSize: "9px",
               color: "var(--text-muted)",
-              marginTop: "3px",
               maxWidth: "62px",
               textAlign: "center",
               overflow: "hidden",
@@ -141,7 +138,7 @@ export function FormasPagamentoChart({ data }: Props) {
       </div>
 
       {/* Legenda */}
-      <div className="flex flex-col gap-2.5 w-full">
+      <div className="flex flex-col gap-2 w-full">
         {top6.map((d, i) => {
           const cor = CORES[i % CORES.length];
           const isActive = activeIndex === i;
@@ -150,8 +147,7 @@ export function FormasPagamentoChart({ data }: Props) {
               key={d.nome}
               className="flex items-center gap-2"
               style={{
-                opacity:
-                  activeIndex !== undefined && !isActive ? 0.4 : 1,
+                opacity: activeIndex !== undefined && !isActive ? 0.4 : 1,
                 transition: "opacity 0.15s",
                 cursor: "default",
               }}
@@ -159,13 +155,8 @@ export function FormasPagamentoChart({ data }: Props) {
               onMouseLeave={() => setActiveIndex(undefined)}
             >
               <div
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: cor,
-                  flexShrink: 0,
-                }}
+                className="flex-shrink-0"
+                style={{ width: 7, height: 7, borderRadius: "50%", background: cor }}
               />
               <span
                 className="text-xs flex-1 truncate"
@@ -174,29 +165,21 @@ export function FormasPagamentoChart({ data }: Props) {
                 {d.nome}
               </span>
               <span
-                className="text-xs font-bold tabular-nums"
+                className="text-xs font-semibold tabular-nums"
                 style={{ color: "var(--text-primary)", minWidth: "32px", textAlign: "right" }}
               >
                 {fmtPct(d.percentual)}
               </span>
               <span
                 className="text-xs tabular-nums"
-                style={{
-                  color: "var(--text-muted)",
-                  minWidth: "52px",
-                  textAlign: "right",
-                }}
+                style={{ color: "var(--text-muted)", minWidth: "52px", textAlign: "right" }}
               >
                 {fmtCompact(d.valor)}
               </span>
               {d.qtdVendas != null && (
                 <span
-                  style={{
-                    fontSize: "10px",
-                    color: "var(--text-muted)",
-                    minWidth: "44px",
-                    textAlign: "right",
-                  }}
+                  className="text-[10px] tabular-nums"
+                  style={{ color: "var(--text-muted)", minWidth: "44px", textAlign: "right" }}
                 >
                   {d.qtdVendas.toLocaleString("pt-BR")} vd.
                 </span>

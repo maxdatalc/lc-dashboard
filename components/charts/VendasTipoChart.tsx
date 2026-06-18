@@ -44,16 +44,16 @@ export function VendasTipoChart({ data }: Props) {
 
   return (
     <div className="flex flex-col items-center gap-2">
-      {/* Donut */}
-      <div className="relative" style={{ width: 110, height: 110 }}>
-        <ResponsiveContainer width={110} height={110}>
+      {/* Donut — mesmas dimensões do FormasPagamentoChart */}
+      <div className="relative" style={{ width: 120, height: 120 }}>
+        <ResponsiveContainer width={120} height={120}>
           <PieChart>
             <Pie
               data={chartData}
-              cx={50}
-              cy={50}
-              innerRadius={33}
-              outerRadius={50}
+              cx={55}
+              cy={55}
+              innerRadius={35}
+              outerRadius={52}
               paddingAngle={3}
               dataKey="value"
               strokeWidth={0}
@@ -68,13 +68,14 @@ export function VendasTipoChart({ data }: Props) {
           </PieChart>
         </ResponsiveContainer>
 
-        {/* Percentual dominante no centro */}
+        {/* Centro */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <p
             className="tabular-nums leading-none"
             style={{
-              fontFamily: "var(--font-display, 'DM Serif Display', serif)",
+              fontFamily: "var(--font-numeric)",
               fontSize: "1.25rem",
+              fontWeight: 700,
               color: CORES[dominantName as keyof typeof CORES],
             }}
           >
@@ -94,21 +95,21 @@ export function VendasTipoChart({ data }: Props) {
           return (
             <div key={item.key} className="flex items-center gap-2">
               <div
-                className="flex-shrink-0 rounded-sm"
-                style={{ width: 8, height: 8, backgroundColor: item.color }}
+                className="flex-shrink-0"
+                style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: item.color }}
               />
               <span className="text-xs flex-1" style={{ color: "var(--text-secondary)" }}>
                 {item.name}
               </span>
               <span
                 className="text-xs font-semibold tabular-nums"
-                style={{ color: "var(--text-primary)" }}
+                style={{ color: "var(--text-primary)", minWidth: "32px", textAlign: "right" }}
               >
                 {pct}%
               </span>
               <span
                 className="text-xs tabular-nums"
-                style={{ color: "var(--text-muted)", minWidth: 50, textAlign: "right" }}
+                style={{ color: "var(--text-muted)", minWidth: "58px", textAlign: "right" }}
               >
                 {d.clientes.toLocaleString("pt-BR")} vendas
               </span>
