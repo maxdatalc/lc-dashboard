@@ -122,18 +122,13 @@ export function Sidebar({ isAdmin }: Props) {
             gap: "10px",
           }}
         >
-          <div
-            className="flex-shrink-0 rounded-lg flex items-center justify-center font-bold select-none"
-            style={{
-              width: 32,
-              height: 32,
-              backgroundColor: "var(--accent-cyan)",
-              color: "#0d1117",
-              fontSize: "13px",
-            }}
-          >
-            LC
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/lc-logo.ico"
+            alt="LC Gestor"
+            className="flex-shrink-0 rounded-lg"
+            style={{ width: 32, height: 32, objectFit: "contain" }}
+          />
           <span
             style={{
               fontSize: "15px",
