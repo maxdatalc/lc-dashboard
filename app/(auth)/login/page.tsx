@@ -87,7 +87,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="login-logo-wrap">
           <div className="login-logo">
-            <img src="/lc-logo.ico" alt="LC Gestor" width={32} height={32} style={{ display: "block" }} />
+            <img src="/lc-logo.ico" alt="LC Gestor" width={96} height={96} className="login-logo-img" />
           </div>
         </div>
 
@@ -348,13 +348,24 @@ export default function LoginPage() {
         }
 
         .login-logo {
-          width: 52px;
-          height: 52px;
-          border-radius: 14px;
+          width: 96px;
+          height: 96px;
           background: transparent;
           display: flex;
           align-items: center;
           justify-content: center;
+        }
+
+        .login-logo-img {
+          display: block;
+          animation: float 3.5s ease-in-out infinite;
+          filter: drop-shadow(0 8px 24px rgba(0, 229, 255, 0.18));
+        }
+
+        @keyframes float {
+          0%   { transform: translateY(0px); }
+          50%  { transform: translateY(-10px); }
+          100% { transform: translateY(0px); }
         }
 
         /* ── Título ── */
@@ -646,7 +657,7 @@ export default function LoginPage() {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .login-spin {
+          .login-spin, .login-logo-img {
             animation: none;
           }
         }
