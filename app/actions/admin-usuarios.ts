@@ -24,8 +24,12 @@ export async function resetarSenhaUsuario(
       return { error: "Senha deve ter no mínimo 6 caracteres" };
     }
     const adminClient = createAdminClient();
+    // Merge existing metadata to preserve fields like full_name
+    const { data: authData } = await adminClient.auth.admin.getUserById(userId);
+    const existingMeta = authData?.user?.user_metadata ?? {};
     const { error } = await adminClient.auth.admin.updateUserById(userId, {
       password: novaSenha,
+      user_metadata: { ...existingMeta, must_change_password: true },
     });
     if (error) return { error: error.message };
     revalidatePath("/admin/usuarios");
@@ -33,6 +37,48 @@ export async function resetarSenhaUsuario(
   } catch (err) {
     return {
       error: err instanceof Error ? err.message : "Erro ao resetar senha",
+    };
+  }
+}
+
+export async function criarUsuario(data: {
+  email: string;
+  senha: string;
+  nome: string;
+}): Promise<{ error?: string; userId?: string }> {
+  try {
+    await verificarAdmin();
+    if (!data.email || !data.email.includes("@")) {
+      return { error: "E-mail inválido" };
+    }
+    if (data.senha.length < 6) {
+      return { error: "Senha deve ter no mínimo 6 caracteres" };
+    }
+    const adminClient = createAdminClient();
+    const { data: created, error } = await adminClient.auth.admin.createUser({
+      email: data.email,
+      password: data.senha,
+      email_confirm: true,
+      user_metadata: {
+        must_change_password: true,
+        full_name: data.nome || "",
+      },
+    });
+    if (error) return { error: error.message };
+
+    if (data.nome) {
+      await adminClient.from("profiles").upsert({
+        id: created.user.id,
+        full_name: data.nome,
+        is_system_admin: false,
+      });
+    }
+
+    revalidatePath("/admin/usuarios");
+    return { userId: created.user.id };
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Erro ao criar usuário",
     };
   }
 }
