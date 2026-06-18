@@ -15,6 +15,7 @@ export interface VendasMensalData {
   vendaLiquidaDevolucao: number;
   taxaDevolucao?: number;
   qtdVendas?: number;
+  qtdDevolucoes?: number;
   ticketMedio?: number;
 }
 
@@ -200,6 +201,14 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
                         {d.taxaDevolucao.toFixed(2).replace(".", ",")}%
                       </span>
                     </div>
+                    {(d.qtdDevolucoes ?? 0) > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>Qtd. Devoluções</span>
+                        <span style={{ fontWeight: 600, color: "#ef4444", fontVariantNumeric: "tabular-nums" }}>
+                          {(d.qtdDevolucoes ?? 0).toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                    )}
                     {d.qtdVendas !== undefined && (
                       <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
                         <span style={{ color: "var(--text-secondary)" }}>Quantidade de Vendas</span>

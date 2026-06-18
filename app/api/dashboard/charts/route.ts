@@ -102,11 +102,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ORDER BY mes`,
             { start: inicio12m, end, ...ep(config), ...vp, ...cp }
           ),
-          queryBridge<{ mes: string; total: number }>(
+          queryBridge<{ mes: string; total: number; qtd: number }>(
             config,
             `SELECT
               FORMAT(vedFechamento, 'yyyy-MM')   AS mes,
-              ISNULL(SUM(vedTotalNf), 0)         AS total
+              ISNULL(SUM(vedTotalNf), 0)         AS total,
+              COUNT(*)                           AS qtd
             FROM venda
             WHERE vedStatus = 'F'
               AND vedTipo = 'DV'
@@ -120,30 +121,36 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           ),
         ]);
 
-        const vendasMap = new Map<string, number>();
-        const qtdMap    = new Map<string, number>();
-        const devMap    = new Map<string, number>();
+        const vendasMap  = new Map<string, number>();
+        const qtdMap     = new Map<string, number>();
+        const devMap     = new Map<string, number>();
+        const qtdDevMap  = new Map<string, number>();
         const cursor = new Date(startDate);
         while (cursor <= endDate) {
           const key = cursor.toISOString().slice(0, 7);
           vendasMap.set(key, 0);
           qtdMap.set(key, 0);
           devMap.set(key, 0);
+          qtdDevMap.set(key, 0);
           cursor.setMonth(cursor.getMonth() + 1);
         }
         for (const r of rowsVendas) {
           vendasMap.set(r.mes, Number(r.total));
           qtdMap.set(r.mes, Number(r.qtd));
         }
-        for (const r of rowsDev) devMap.set(r.mes, Number(r.total));
+        for (const r of rowsDev) {
+          devMap.set(r.mes, Number(r.total));
+          qtdDevMap.set(r.mes, Number(r.qtd));
+        }
 
         const resultado = Array.from(vendasMap.keys())
           .sort()
           .map((mesKey) => {
-            const [ano, mes] = mesKey.split("-");
-            const vendas     = vendasMap.get(mesKey) ?? 0;
-            const devolucoes = devMap.get(mesKey)    ?? 0;
-            const qtdVendas  = qtdMap.get(mesKey)    ?? 0;
+            const [ano, mes]    = mesKey.split("-");
+            const vendas        = vendasMap.get(mesKey)  ?? 0;
+            const devolucoes    = devMap.get(mesKey)     ?? 0;
+            const qtdVendas     = qtdMap.get(mesKey)     ?? 0;
+            const qtdDevolucoes = qtdDevMap.get(mesKey)  ?? 0;
             return {
               mes: `${NOMES_MES[parseInt(mes) - 1]}/${ano.slice(2)}`,
               mesCompleto: `${NOMES_MES[parseInt(mes) - 1]}/${ano}`,
@@ -153,6 +160,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               vendaLiquidaDevolucao: vendas - devolucoes,
               taxaDevolucao: vendas > 0 ? (devolucoes / vendas) * 100 : 0,
               qtdVendas,
+              qtdDevolucoes,
               ticketMedio: qtdVendas > 0 ? vendas / qtdVendas : 0,
             };
           });
