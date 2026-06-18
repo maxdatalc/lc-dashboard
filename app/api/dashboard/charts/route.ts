@@ -115,9 +115,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               AND empId = @empId
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
+              ${vClause}${cClause}${pClause}
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
-            { start: inicio12m, end, ...ep(config) }
+            { start: inicio12m, end, ...ep(config), ...vp, ...cp }
           ),
         ]);
 

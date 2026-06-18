@@ -257,6 +257,7 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
               );
             }}
             cursor={{ fill: "rgba(255,255,255,0.04)", radius: 4 }}
+          wrapperStyle={{ overflow: "visible" }}
           />
 
           <Bar
