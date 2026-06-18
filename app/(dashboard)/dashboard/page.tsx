@@ -245,50 +245,47 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* ── Linha 1.5: Top Fabricantes | PF vs PJ | Novos vs Recorrentes ─────── */}
+      {/* ── Linha 2: Top Vendedores | Vendas Mensal ──────────────────────────── */}
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2">
+        <ChartCard title="Top 10 Vendedores" animationDelay={140} className="h-full">
+          {chartsLoading ? <ChartSkeleton height={280} /> : (
+            <TopVendedoresChart
+              data={topVendedores}
+              selectedId={activeFilter?.type === "vendedor" ? activeFilter.id as number : null}
+              onSelect={(id, nome) => {
+                if (id === null) {
+                  setFilter(null);
+                } else {
+                  setFilter({ type: "vendedor", id, label: nome ?? "" });
+                }
+              }}
+            />
+          )}
+        </ChartCard>
+
+        <ChartCard title="Vendas | Devolução por Mês/Ano" subtitle="últimos 12 meses a partir do período selecionado" animationDelay={160} className="h-full">
+          {chartsLoading ? <ChartSkeleton height={200} /> : <VendasMensalChart data={vendasMensal} />}
+        </ChartCard>
+      </div>
+
+      {/* ── Linha 3: Top Fabricantes | PF vs PJ | Novos vs Recorrentes ─────── */}
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-3">
-        <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={140}>
+        <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
 
-        <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={145}>
+        <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={185}>
           {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
         </ChartCard>
 
-        <ChartCard title="Novos vs Recorrentes" subtitle="retenção de clientes — período selecionado" animationDelay={150}>
+        <ChartCard title="Novos vs Recorrentes" subtitle="retenção de clientes — período selecionado" animationDelay={190}>
           {chartsLoading ? <ChartSkeleton height={260} /> : <ClientesRetencaoChart data={retencao} />}
         </ChartCard>
       </div>
 
-      {/* ── Linha 2: Formas de Pagamento (40%) | Vendas Mensal (60%) ──────────── */}
-      <div className="grid gap-2 grid-cols-1 lg:grid-cols-5">
-        <div className="lg:col-span-2">
-          <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={160} className="h-full">
-            {chartsLoading ? <ChartSkeleton height={280} /> : <FormasPagamentoChart data={formasPagamento} />}
-          </ChartCard>
-        </div>
-        <div className="lg:col-span-3">
-          <ChartCard title="Vendas | Devolução por Mês/Ano" subtitle="últimos 12 meses a partir do período selecionado" animationDelay={180} className="h-full">
-            {chartsLoading ? <ChartSkeleton height={200} /> : <VendasMensalChart data={vendasMensal} />}
-          </ChartCard>
-        </div>
-      </div>
-
-      {/* ── Linha 3: Top Vendedores ──────────────────────────────────────────── */}
-      <ChartCard title="Top 10 Vendedores" animationDelay={220}>
-        {chartsLoading ? <ChartSkeleton height={280} /> : (
-          <TopVendedoresChart
-            data={topVendedores}
-            selectedId={activeFilter?.type === "vendedor" ? activeFilter.id as number : null}
-            onSelect={(id, nome) => {
-              if (id === null) {
-                setFilter(null);
-              } else {
-                setFilter({ type: "vendedor", id, label: nome ?? "" });
-              }
-            }}
-          />
-        )}
+      {/* ── Linha 4: Formas de Pagamento ─────────────────────────────────────── */}
+      <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={210}>
+        {chartsLoading ? <ChartSkeleton height={200} /> : <FormasPagamentoChart data={formasPagamento} />}
       </ChartCard>
 
       </div>{/* fim do wrapper de dimming */}
