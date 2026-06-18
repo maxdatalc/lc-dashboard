@@ -284,9 +284,11 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 4: Formas de Pagamento ─────────────────────────────────────── */}
-      <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={210}>
-        {chartsLoading ? <ChartSkeleton height={200} /> : <FormasPagamentoChart data={formasPagamento} />}
-      </ChartCard>
+      <div style={{ maxWidth: "520px" }}>
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={210}>
+          {chartsLoading ? <ChartSkeleton height={160} /> : <FormasPagamentoChart data={formasPagamento} />}
+        </ChartCard>
+      </div>
 
       </div>{/* fim do wrapper de dimming */}
     </div>
