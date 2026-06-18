@@ -76,9 +76,10 @@ function SemLoja() {
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { period, customRange } = usePeriod();
+  const { period, customRange, setPeriod, setCustomRange } = usePeriod();
   const { selectedLojaId, lojasDisponiveis, lojasSelecionadas } = useLoja();
 
+  const [selectedMes, setSelectedMes] = useState<string | null>(null);
   const [kpiLoading, setKpiLoading] = useState(true);
   const [chartsLoading, setChartsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -263,8 +264,27 @@ export default function DashboardPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Vendas | Devolução por Mês/Ano" subtitle="últimos 12 meses a partir do período selecionado" animationDelay={160} className="h-full">
-          {chartsLoading ? <ChartSkeleton height={200} /> : <VendasMensalChart data={vendasMensal} />}
+        <ChartCard title="Vendas Brutas e Taxa de Devolução" subtitle="Últimos 12 meses com base no filtro selecionado" animationDelay={160} className="h-full">
+          {chartsLoading ? <ChartSkeleton height={230} /> : (
+            <VendasMensalChart
+              data={vendasMensal}
+              selectedMes={selectedMes}
+              onMesClick={(mesKey) => {
+                if (selectedMes === mesKey) {
+                  setSelectedMes(null);
+                  setPeriod("month");
+                  setCustomRange(null);
+                } else {
+                  setSelectedMes(mesKey);
+                  const [y, m] = mesKey.split("-").map(Number);
+                  const start = new Date(y, m - 1, 1);
+                  const end = new Date(y, m, 0);
+                  setPeriod("custom");
+                  setCustomRange({ start, end });
+                }
+              }}
+            />
+          )}
         </ChartCard>
       </div>
 
