@@ -181,7 +181,6 @@ export function Header() {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { period, setPeriod, customRange, setCustomRange } = usePeriod();
-  const { selectedLoja } = useLoja();
 
   // Estado do popover de período personalizado
   const [mounted, setMounted] = useState(false);
