@@ -153,7 +153,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const rows = await queryBridge<{
           nome: string; valor: number; quantidade: number;
           codigo: string | null; fabricante: string | null; grupo: string | null;
-          custoMedio: number; margem: number;
+          custoMedio: number; margem: number; proTipo: string | null;
         }>(
           config,
           `SELECT TOP 50
@@ -161,6 +161,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             MIN(p.zzz_proCodigo)                                                   AS codigo,
             MIN(f.fabNome)                                                         AS fabricante,
             MIN(gp.gdpNome)                                                        AS grupo,
+            MIN(p.proTipo)                                                         AS proTipo,
             ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0)                             AS valor,
             ISNULL(SUM(vi.vdiQtde), 0)                                            AS quantidade,
             ISNULL(AVG(vi.vdiProCustoFinal), 0)                                   AS custoMedio,
@@ -199,6 +200,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             valorCusto: Number(r.custoMedio) || null,
             margem: Number(r.margem),
             estoqueAtual: null,
+            proTipo: (r.proTipo as "P" | "S" | null) || null,
           }))
         );
       }
@@ -239,20 +241,43 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const rows = await queryBridge<{
           nome: string; total: number; compras: number;
           ultimaCompra: string; tipoCad: number;
-          cidade: string | null; email: string | null;
-          fone: string | null; cpfCgc: string | null;
+          cidade: string | null; estado: string | null;
+          email: string | null; fone: string | null; cpfCgc: string | null;
+          mesesAtivos: number; devolucoes: number; margemCliente: number | null;
         }>(
           config,
           `SELECT TOP 50
-            c.cliNome                           AS nome,
-            ISNULL(SUM(v.vedTotalNf), 0)       AS total,
-            COUNT(*)                            AS compras,
-            MAX(v.vedFechamento)                AS ultimaCompra,
-            c.cliTipoCad                        AS tipoCad,
-            MIN(c.cliFatCidade)                 AS cidade,
-            MIN(c.cliEmail)                     AS email,
-            MIN(c.cliFone)                      AS fone,
-            MIN(c.cliCpfCgc)                    AS cpfCgc
+            c.cliNome                                AS nome,
+            ISNULL(SUM(v.vedTotalNf), 0)            AS total,
+            COUNT(*)                                 AS compras,
+            MAX(v.vedFechamento)                     AS ultimaCompra,
+            c.cliTipoCad                             AS tipoCad,
+            MIN(c.cliFatCidade)                      AS cidade,
+            MIN(c.cliFatUf)                          AS estado,
+            MIN(c.cliEmail)                          AS email,
+            MIN(c.cliFone)                           AS fone,
+            MIN(c.cliCpfCgc)                         AS cpfCgc,
+            COUNT(DISTINCT YEAR(v.vedFechamento) * 100 + MONTH(v.vedFechamento)) AS mesesAtivos,
+            ISNULL((
+              SELECT COUNT(*) FROM venda vd
+              WHERE vd.vedClienteId = c.cliId
+                AND vd.vedStatus = 'F' AND vd.vedTipo = 'DV' AND vd.empId = @empId
+                AND CONVERT(date, vd.vedFechamento) BETWEEN @start AND @end
+            ), 0) AS devolucoes,
+            (
+              SELECT CASE WHEN SUM(vi2.vdiQtde * vi2.vdiValor) > 0
+                THEN CAST(
+                  (SUM(vi2.vdiQtde * vi2.vdiValor) - SUM(vi2.vdiQtde * vi2.vdiProCustoFinal))
+                  / SUM(vi2.vdiQtde * vi2.vdiValor) * 100 AS decimal(10,2))
+                ELSE NULL END
+              FROM vendaItem vi2
+              JOIN venda v2 ON vi2.vdiVedId = v2.vedId
+              WHERE v2.vedClienteId = c.cliId
+                AND v2.vedStatus = 'F' AND v2.vedTipo IN ('OS','VE') AND v2.vedTotalNf > 0
+                AND v2.empId = @empId
+                AND CONVERT(date, v2.vedFechamento) BETWEEN @start AND @end
+                AND vi2.vdiCancel = 0
+            ) AS margemCliente
           FROM venda v
           JOIN cliente c ON v.vedClienteId = c.cliId
           WHERE v.vedStatus = 'F'
@@ -261,7 +286,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}${cClauseJ}${pClauseJ}
-          GROUP BY c.cliNome, c.cliTipoCad
+          GROUP BY c.cliNome, c.cliTipoCad, c.cliId
           ORDER BY total DESC`,
           { start, end, ...ep(config), ...vp, ...cp }
         );
@@ -277,10 +302,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               : "",
             tipoPessoa: (Number(r.tipoCad) === 1 ? "PJ" : "PF") as "PF" | "PJ",
             cidade: r.cidade || null,
-            estado: null,
+            estado: r.estado || null,
             email: r.email || null,
             telefone: r.fone || null,
             cnpjCpf: r.cpfCgc || null,
+            mesesAtivos: Number(r.mesesAtivos),
+            devolucoes: Number(r.devolucoes),
+            margemCliente: r.margemCliente != null ? Number(r.margemCliente) : null,
           }))
         );
       }

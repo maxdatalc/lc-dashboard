@@ -18,6 +18,7 @@ export interface ProdutoItem {
   valorCusto?: number | null;
   margem?: number | null;
   estoqueAtual?: number | null;
+  proTipo?: "P" | "S" | null;
 }
 
 export type TopProdutoData = ProdutoItem;
@@ -59,6 +60,7 @@ export function TopProdutosChart({
   selectedNome?: string | null;
 }) {
   const [modo, setModo] = useState<"valor" | "qtd">("valor");
+  const [tipoFilter, setTipoFilter] = useState<"P" | "S" | null>(null);
   const [expandido, setExpandido] = useState<number | null>(null);
 
   const formatMoeda = (v: number) =>
@@ -75,12 +77,13 @@ export function TopProdutosChart({
     );
   }
 
-  const lista = [...data].sort((a, b) =>
+  const listaBase = [...data].sort((a, b) =>
     modo === "valor" ? b.valor - a.valor : b.quantidade - a.quantidade
   );
+  const lista = tipoFilter ? listaBase.filter(p => p.proTipo === tipoFilter) : listaBase;
 
-  const maxValor = lista[0]?.valor ?? 1;
-  const maxQtd = lista[0]?.quantidade ?? 1;
+  const maxValor = lista[0]?.valor ?? listaBase[0]?.valor ?? 1;
+  const maxQtd = lista[0]?.quantidade ?? listaBase[0]?.quantidade ?? 1;
 
   const corMargem = (m: number) => {
     if (m > 30) return { bg: "rgba(16,185,129,0.15)", text: "#10b981" };
@@ -97,20 +100,16 @@ export function TopProdutosChart({
 
   return (
     <div>
-      {/* Toggle Valor/Qtd */}
-      <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+      {/* Toggles — Valor/Qtd e Produto/Serviço */}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
         {(["valor", "qtd"] as const).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setModo(m)}
             style={{
-              padding: "3px 12px",
-              borderRadius: "20px",
-              fontSize: "11px",
-              fontWeight: 500,
-              border: "1px solid",
-              cursor: "pointer",
+              padding: "3px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: 500,
+              border: "1px solid", cursor: "pointer",
               background: modo === m ? "var(--accent-cyan)" : "transparent",
               borderColor: modo === m ? "var(--accent-cyan)" : "var(--toggle-inactive-border)",
               color: modo === m ? "#0a0f1e" : "var(--toggle-inactive-color)",
@@ -118,6 +117,24 @@ export function TopProdutosChart({
             }}
           >
             {m === "valor" ? "Valor" : "Qtd"}
+          </button>
+        ))}
+        <div style={{ width: "1px", background: "var(--toggle-inactive-border)", margin: "2px 2px" }} />
+        {(["P", "S"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => { setTipoFilter(tipoFilter === t ? null : t); setExpandido(null); }}
+            style={{
+              padding: "3px 12px", borderRadius: "20px", fontSize: "11px", fontWeight: 500,
+              border: "1px solid", cursor: "pointer",
+              background: tipoFilter === t ? (t === "P" ? "rgba(124,58,237,0.85)" : "rgba(16,185,129,0.85)") : "transparent",
+              borderColor: tipoFilter === t ? (t === "P" ? "#7c3aed" : "#10b981") : "var(--toggle-inactive-border)",
+              color: tipoFilter === t ? "#fff" : "var(--toggle-inactive-color)",
+              transition: "all 0.15s",
+            }}
+          >
+            {t === "P" ? "Produto" : "Serviço"}
           </button>
         ))}
       </div>
