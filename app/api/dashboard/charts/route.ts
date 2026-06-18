@@ -362,18 +362,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         const rows = await queryBridge<{ forma: string; total: number; qtdVendas: number }>(
           config,
           `SELECT
-            cv.cavPgtTipoDesc                       AS forma,
-            ISNULL(SUM(cv.cavPgtValor), 0)         AS total,
-            COUNT(DISTINCT cv.cavVedId)             AS qtdVendas
-          FROM caixaVendas cv
-          JOIN venda v ON cv.cavVedId = v.vedId
+            ISNULL(vp.pgtTipoDesc, 'Outros')        AS forma,
+            ISNULL(SUM(vp.pgtValor), 0)             AS total,
+            COUNT(DISTINCT vp.pgtVendaId)           AS qtdVendas
+          FROM vendaPgto vp
+          JOIN venda v ON vp.pgtVendaId = v.vedId
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
             AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}${cClauseJ}${pClauseJ}
-          GROUP BY cv.cavPgtTipoDesc
+          GROUP BY vp.pgtTipoDesc
           ORDER BY total DESC`,
           { start, end, ...ep(config), ...vp, ...cp }
         );
