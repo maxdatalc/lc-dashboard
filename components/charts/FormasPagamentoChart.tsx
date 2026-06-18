@@ -67,17 +67,17 @@ export function FormasPagamentoChart({ data }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4" style={{ minHeight: 120 }}>
       {/* Donut com hover expand */}
-      <div className="relative flex-shrink-0" style={{ width: 130, height: 130 }}>
-        <ResponsiveContainer width={130} height={130}>
+      <div className="relative flex-shrink-0" style={{ width: 110, height: 110 }}>
+        <ResponsiveContainer width={110} height={110}>
           <PieChart>
             <Pie
               data={top6}
-              cx={60}
-              cy={60}
-              innerRadius={40}
-              outerRadius={60}
+              cx={50}
+              cy={50}
+              innerRadius={32}
+              outerRadius={50}
               paddingAngle={3}
               dataKey="valor"
               strokeWidth={0}
@@ -99,10 +99,9 @@ export function FormasPagamentoChart({ data }: Props) {
         {/* Total no centro */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <p
-            className="tabular-nums font-medium text-sm leading-tight"
+            className="tabular-nums font-medium leading-tight"
             style={{
-              fontFamily: "var(--font-display, 'DM Serif Display', serif)",
-              fontSize: "1.1rem",
+              fontSize: "0.7rem",
               color: "var(--text-primary)",
             }}
           >
