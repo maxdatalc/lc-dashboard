@@ -1,183 +1,318 @@
 "use client";
 
 import {
-  BarChart, Bar, XAxis, YAxis,
-  Tooltip, ResponsiveContainer,
+  ComposedChart, Bar, Line, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, ReferenceLine,
+  CartesianGrid, LabelList, Cell,
 } from "recharts";
 
 export interface VendasMensalData {
   mes: string;
   mesCompleto: string;
+  mesKey?: string;
   vendas: number;
   devolucoes: number;
   vendaLiquidaDevolucao: number;
+  taxaDevolucao?: number;
+  qtdVendas?: number;
+  ticketMedio?: number;
 }
 
 interface Props {
   data: VendasMensalData[];
+  onMesClick?: (mesKey: string) => void;
+  selectedMes?: string | null;
 }
 
-const fmt = (v: number) =>
-  new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    minimumFractionDigits: 2,
-  }).format(v);
+const fmtMoeda = (v: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 }).format(v);
 
-function formatYAxis(value: number): string {
-  if (value >= 1_000_000) return `R$ ${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `R$ ${(value / 1_000).toFixed(0)}k`;
-  return `R$ ${value.toFixed(0)}`;
+function fmtCompact(v: number): string {
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")}M`;
+  if (v >= 1_000) return `R$ ${Math.round(v / 1_000)}k`;
+  return `R$ 0`;
 }
 
-export function VendasMensalChart({ data }: Props) {
-  const temDevolucoes = data.some((d) => d.devolucoes > 0);
+function fmtYLeft(v: number): string {
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(0)}M`;
+  if (v >= 1_000) return `R$ ${Math.round(v / 1_000)}k`;
+  return "R$ 0";
+}
 
+function fmtYRight(v: number): string {
+  const n = Number(v);
+  if (n === 0) return "0%";
+  return `${n % 1 === 0 ? n.toFixed(0) : n.toFixed(1).replace(".", ",")}%`;
+}
+
+export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
   if (!data.length) {
     return (
-      <div
-        className="flex items-center justify-center text-xs"
-        style={{ height: 200, color: "var(--text-muted)" }}
-      >
+      <div className="flex items-center justify-center text-xs" style={{ height: 220, color: "var(--text-muted)" }}>
         Sem dados disponíveis
       </div>
     );
   }
 
-  // Largura mínima por mês para garantir legibilidade com 12 barras
-  const MIN_WIDTH_PER_MES = 72;
-  const totalWidth = Math.max(data.length * MIN_WIDTH_PER_MES, 600);
+  const enriched = data.map((d) => ({
+    ...d,
+    taxaDevolucao: d.taxaDevolucao ?? (d.vendas > 0 ? (d.devolucoes / d.vendas) * 100 : 0),
+  }));
+
+  const mediaVendas = enriched.reduce((s, d) => s + d.vendas, 0) / enriched.length;
+  const maxVendas = Math.max(...enriched.map((d) => d.vendas));
+  const maxIdx = enriched.findIndex((d) => d.vendas === maxVendas);
+  const lastIdx = enriched.length - 1;
+  const labelSet = new Set([maxIdx]);
+  if (lastIdx !== maxIdx) labelSet.add(lastIdx);
+
+  const hasSelected = !!selectedMes;
 
   return (
-    <div className="flex flex-col gap-2">
-      {/* Legenda */}
+    <div>
+      {/* Legend */}
       <div
-        className="flex items-center gap-4 justify-end px-1 text-xs"
-        style={{ color: "var(--text-muted)" }}
+        className="flex items-center gap-5 justify-end px-1 mb-2"
+        style={{ fontSize: "11px", color: "var(--text-muted)" }}
       >
         <div className="flex items-center gap-1.5">
           <span
-            className="inline-block rounded-sm"
-            style={{ width: 10, height: 10, background: "#00e5ff" }}
+            style={{
+              width: 10, height: 10, borderRadius: 2,
+              background: "linear-gradient(180deg, #00e5ff 0%, rgba(0,229,255,0.35) 100%)",
+              display: "inline-block",
+            }}
           />
-          Vendas
+          Vendas Brutas
         </div>
-        {temDevolucoes && (
-          <div className="flex items-center gap-1.5">
-            <span
-              className="inline-block rounded-sm"
-              style={{ width: 10, height: 10, background: "#ef4444" }}
-            />
-            Devoluções
-          </div>
-        )}
+        <div className="flex items-center gap-1.5">
+          <svg width="16" height="10" style={{ display: "inline-block", verticalAlign: "middle" }}>
+            <line x1="0" y1="5" x2="16" y2="5" stroke="#ef4444" strokeWidth="1.5" />
+            <circle cx="8" cy="5" r="2.5" fill="#ef4444" />
+          </svg>
+          Taxa de Devolução
+        </div>
       </div>
 
-      {/* Scroll horizontal para 12 barras */}
-      <div style={{ overflowX: "auto", overflowY: "visible" }} className="custom-scroll">
-        <div style={{ width: totalWidth, minWidth: "100%" }}>
-          <ResponsiveContainer width="100%" height={155}>
-            <BarChart
-              data={data}
-              margin={{ top: 4, right: 8, bottom: 0, left: -10 }}
-              barGap={3}
-              barCategoryGap="25%"
-            >
-              <defs>
-                <linearGradient id="vendasGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#00e5ff" stopOpacity={1} />
-                  <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.35} />
-                </linearGradient>
-              </defs>
+      <ResponsiveContainer width="100%" height={210}>
+        <ComposedChart
+          data={enriched}
+          margin={{ top: 20, right: 44, bottom: 0, left: 4 }}
+          barCategoryGap="32%"
+          style={{ cursor: onMesClick ? "pointer" : "default" }}
+        >
+          <defs>
+            <linearGradient id="vMensalGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00e5ff" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.35} />
+            </linearGradient>
+            <linearGradient id="vMensalGradDim" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#00e5ff" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.1} />
+            </linearGradient>
+          </defs>
 
-              <XAxis
-                dataKey="mes"
-                tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                tickFormatter={formatYAxis}
-                tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
-                axisLine={false}
-                tickLine={false}
-                width={52}
-              />
+          <CartesianGrid horizontal vertical={false} stroke="rgba(255,255,255,0.04)" />
 
-              {/* Tooltip nativo do Recharts sem delay */}
-              <Tooltip
-                content={({ active, payload, label }) => {
-                  if (!active || !payload?.length) return null;
-                  const vendas = (payload.find((p) => p.dataKey === "vendas")?.value as number) ?? 0;
-                  const devolucoes = (payload.find((p) => p.dataKey === "devolucoes")?.value as number) ?? 0;
-                  const liquido = vendas - devolucoes;
-                  const item = data.find((d) => d.mes === label);
-                  return (
-                    <div
-                      className="rounded-xl px-4 py-3 shadow-xl text-xs"
+          <XAxis
+            dataKey="mes"
+            tick={{ fontSize: 11, fill: "var(--text-secondary)" }}
+            axisLine={false}
+            tickLine={false}
+          />
+
+          <YAxis
+            yAxisId="left"
+            orientation="left"
+            tickFormatter={fmtYLeft}
+            tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
+            axisLine={false}
+            tickLine={false}
+            width={52}
+          />
+
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            tickFormatter={fmtYRight}
+            tick={{ fontSize: 10, fill: "rgba(239,68,68,0.6)" }}
+            axisLine={false}
+            tickLine={false}
+            width={40}
+            domain={[0, "auto"]}
+          />
+
+          <ReferenceLine
+            yAxisId="left"
+            y={mediaVendas}
+            stroke="rgba(0,229,255,0.28)"
+            strokeDasharray="6 3"
+            label={{
+              value: "Média",
+              position: "insideTopLeft",
+              fill: "rgba(0,229,255,0.5)",
+              fontSize: 10,
+              fontWeight: 500,
+            }}
+          />
+
+          <Tooltip
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const d = payload[0].payload as VendasMensalData & { taxaDevolucao: number };
+              return (
+                <div
+                  className="rounded-xl shadow-xl"
+                  style={{
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-subtle)",
+                    padding: "12px 16px",
+                    minWidth: "220px",
+                    fontSize: "12px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontWeight: 600,
+                      fontSize: "13px",
+                      color: "var(--text-primary)",
+                      marginBottom: "10px",
+                    }}
+                  >
+                    {d.mesCompleto ?? label}
+                  </p>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Vendas Brutas</span>
+                      <span style={{ fontWeight: 600, color: "#00e5ff", fontVariantNumeric: "tabular-nums" }}>
+                        {fmtMoeda(d.vendas)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
+                      <span style={{ color: "var(--text-secondary)" }}>Devoluções</span>
+                      <span style={{ fontWeight: 600, color: "#ef4444", fontVariantNumeric: "tabular-nums" }}>
+                        {fmtMoeda(d.devolucoes)}
+                      </span>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
+                      <span style={{ color: "#ef4444" }}>Taxa de Devolução</span>
+                      <span style={{ fontWeight: 600, color: "#ef4444", fontVariantNumeric: "tabular-nums" }}>
+                        {d.taxaDevolucao.toFixed(2).replace(".", ",")}%
+                      </span>
+                    </div>
+                    {d.qtdVendas !== undefined && (
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>Quantidade de Vendas</span>
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {d.qtdVendas.toLocaleString("pt-BR")}
+                        </span>
+                      </div>
+                    )}
+                    {d.ticketMedio !== undefined && d.ticketMedio > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
+                        <span style={{ color: "var(--text-secondary)" }}>Ticket Médio</span>
+                        <span
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--text-primary)",
+                            fontVariantNumeric: "tabular-nums",
+                          }}
+                        >
+                          {fmtMoeda(d.ticketMedio)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {onMesClick && (
+                    <p
                       style={{
-                        background: "var(--bg-card)",
-                        border: "1px solid var(--border-subtle)",
-                        minWidth: "200px",
+                        marginTop: "8px",
+                        fontSize: "10px",
+                        color: "var(--text-muted)",
+                        borderTop: "1px solid var(--border-subtle)",
+                        paddingTop: "6px",
                       }}
                     >
-                      <p className="font-semibold mb-2" style={{ color: "var(--text-primary)", fontSize: "13px" }}>
-                        {item?.mesCompleto ?? label}
-                      </p>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                        <div className="flex justify-between gap-4">
-                          <span style={{ color: "var(--text-secondary)" }}>Vendas</span>
-                          <span className="font-semibold tabular-nums" style={{ color: "#00e5ff" }}>
-                            {fmt(vendas)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between gap-4">
-                          <span style={{ color: "var(--text-secondary)" }}>Devolução</span>
-                          <span className="font-semibold tabular-nums" style={{ color: "#ef4444" }}>
-                            {fmt(devolucoes)}
-                          </span>
-                        </div>
-                        <div
-                          className="flex justify-between gap-4 pt-1.5 mt-0.5"
-                          style={{ borderTop: "1px solid var(--border-subtle)" }}
-                        >
-                          <span style={{ color: "var(--text-secondary)" }}>Venda (−) Devolução</span>
-                          <span
-                            className="font-bold tabular-nums"
-                            style={{ color: liquido >= 0 ? "#10b981" : "#ef4444" }}
-                          >
-                            {fmt(liquido)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }}
-                cursor={{ fill: "var(--chart-cursor-bg)", radius: 4 }}
-              />
+                      {selectedMes && d.mesKey === selectedMes
+                        ? "Clique para remover o filtro"
+                        : "Clique para filtrar por este mês"}
+                    </p>
+                  )}
+                </div>
+              );
+            }}
+            cursor={{ fill: "rgba(255,255,255,0.04)", radius: 4 }}
+          />
 
-              {/* Barras de vendas */}
-              <Bar
-                dataKey="vendas"
-                fill="url(#vendasGrad)"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={temDevolucoes ? 32 : 44}
+          <Bar
+            yAxisId="left"
+            dataKey="vendas"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={44}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            onClick={(barData: any) => {
+              if (onMesClick && barData.mesKey) onMesClick(barData.mesKey as string);
+            }}
+          >
+            {enriched.map((d, i) => (
+              <Cell
+                key={i}
+                fill={
+                  hasSelected && d.mesKey
+                    ? d.mesKey === selectedMes
+                      ? "url(#vMensalGrad)"
+                      : "url(#vMensalGradDim)"
+                    : "url(#vMensalGrad)"
+                }
               />
+            ))}
+            <LabelList
+              dataKey="vendas"
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            content={(props: any) => {
+                const { x, y, width, value, index } = props as {
+                  x: number; y: number; width: number; value: number; index: number;
+                };
+                if (index === undefined || !labelSet.has(index)) return null;
+                const cx = Number(x) + Number(width) / 2;
+                const cy = Number(y) - 5;
+                return (
+                  <text
+                    x={cx}
+                    y={cy}
+                    textAnchor="middle"
+                    fontSize={10}
+                    fontWeight={600}
+                    fill={
+                      hasSelected && enriched[index]?.mesKey !== selectedMes
+                        ? "rgba(0,229,255,0.35)"
+                        : "#00e5ff"
+                    }
+                  >
+                    {fmtCompact(Number(value))}
+                  </text>
+                );
+              }}
+            />
+          </Bar>
 
-              {/* Barras de devoluções — só exibe se houver dados */}
-              {temDevolucoes && (
-                <Bar
-                  dataKey="devolucoes"
-                  fill="#ef4444"
-                  fillOpacity={0.75}
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={32}
-                />
-              )}
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+          <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="taxaDevolucao"
+            stroke="#ef4444"
+            strokeWidth={1.5}
+            dot={{ r: 3, fill: "#ef4444", strokeWidth: 0 }}
+            activeDot={{ r: 5, fill: "#ef4444" }}
+          />
+        </ComposedChart>
+      </ResponsiveContainer>
     </div>
   );
 }
