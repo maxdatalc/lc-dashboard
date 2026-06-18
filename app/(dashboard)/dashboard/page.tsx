@@ -306,7 +306,7 @@ export default function DashboardPage() {
       {/* ── Linha 4: Formas de Pagamento ─────────────────────────────────────── */}
       <div style={{ maxWidth: "520px" }}>
         <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={210}>
-          {chartsLoading ? <ChartSkeleton height={160} /> : <FormasPagamentoChart data={formasPagamento} />}
+          {chartsLoading ? <ChartSkeleton height={130} /> : <FormasPagamentoChart data={formasPagamento} />}
         </ChartCard>
       </div>
 
