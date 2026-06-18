@@ -300,7 +300,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ultimaCompra: r.ultimaCompra
               ? new Date(r.ultimaCompra).toISOString().split("T")[0]
               : "",
-            tipoPessoa: (Number(r.tipoCad) === 1 ? "PJ" : "PF") as "PF" | "PJ",
+            tipoPessoa: (Number(r.tipoCad) === 1 ? "PF" : "PJ") as "PF" | "PJ",
             cidade: r.cidade || null,
             estado: r.estado || null,
             email: r.email || null,
@@ -372,11 +372,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         let pfTotal = 0, pfCount = 0, pjTotal = 0, pjCount = 0;
         for (const r of rows) {
           if (Number(r.tipoCad) === 1) {
-            pjTotal += Number(r.total);
-            pjCount += Number(r.qtd);
-          } else {
             pfTotal += Number(r.total);
             pfCount += Number(r.qtd);
+          } else {
+            pjTotal += Number(r.total);
+            pjCount += Number(r.qtd);
           }
         }
 
