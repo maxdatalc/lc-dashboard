@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Image from "next/image";
 import { definirSenhaPermanente } from "@/app/actions/auth";
 
 export default function PrimeiroAcessoPage() {
@@ -39,7 +40,7 @@ export default function PrimeiroAcessoPage() {
       <div className="pa-content">
         <div className="pa-logo-wrap">
           <div className="pa-logo">
-            <img src="/lc-logo.ico" alt="LC Gestor" width={96} height={96} className="pa-logo-img" />
+            <Image src="/lc-logo.ico" alt="LC Gestor" width={96} height={96} className="pa-logo-img" unoptimized />
           </div>
         </div>
 
