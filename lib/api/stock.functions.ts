@@ -8,6 +8,7 @@ import { statusToRiskLevel } from "@/lib/fiscal/stock-status";
 import { queryBridge } from "@/lib/bridge/bridge-client";
 import type { BridgeConfig } from "@/lib/bridge/bridge-client";
 import { resolveNamedQuery } from "@/lib/bridge/named-queries";
+import { assertLojaAccess } from "@/lib/api/access";
 
 const SearchInput = z.object({
   loja_id: z.string().uuid(),
@@ -62,14 +63,6 @@ interface ProductRow {
   proTipo: string;
 }
 
-async function assertLojaAccess(userId: string, loja_id: string) {
-  const supabase = await createClient();
-  const { data: ok } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: loja_id,
-  });
-  if (!ok) throw new Error("Acesso negado a esta loja");
-}
 
 async function getLojaConfigs(lojaId: string) {
   const supabaseAdmin = createAdminClient();

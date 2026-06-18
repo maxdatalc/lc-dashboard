@@ -13,6 +13,7 @@ import {
   type MaxApiConfig,
 } from "@/lib/maxapi/maxapi-client";
 import { validateStockForOsItem } from "@/lib/fiscal/calculate-fiscal-stock";
+import { assertLojaAccess } from "@/lib/api/access";
 
 const ListInput = z.object({
   loja_id: z.string().uuid(),
@@ -199,13 +200,9 @@ function displayToVedStatus(s: string): string {
 
 export async function listServiceOrders(input: unknown) {
   const data = ListInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
-  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canAccess) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   const { bridge, empId } = await getLojaConfig(data.loja_id);
 
@@ -250,13 +247,9 @@ export async function listServiceOrders(input: unknown) {
 
 export async function getServiceOrderDetail(input: unknown) {
   const data = DetailInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
-  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canAccess) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   const { bridge, empId } = await getLojaConfig(data.loja_id);
   const osId = parseInt(data.os_id, 10);
@@ -286,13 +279,9 @@ export async function getServiceOrderDetail(input: unknown) {
 
 export async function getServiceOrderItems(input: unknown) {
   const data = DetailInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
-  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canAccess) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   const { bridge, empId } = await getLojaConfig(data.loja_id);
   const osId = parseInt(data.os_id, 10);
@@ -316,13 +305,9 @@ export async function getServiceOrderItems(input: unknown) {
 
 export async function listTiposAtendimento(input: unknown) {
   const data = TiposInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
-  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canAccess) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   const { bridge } = await getLojaConfig(data.loja_id);
   const { sql, params } = resolveNamedQuery("LIST_TIPOS_ATENDIMENTO", {});
@@ -339,13 +324,9 @@ export async function listTiposAtendimento(input: unknown) {
 
 export async function addItemToServiceOrder(input: unknown) {
   const data = AddItemInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
-  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canAccess) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   // Busca mapeamento ERP do usuário logado em todas as lojas (fallback se loja específica não tiver mapeamento)
   const supabaseAdmin = createAdminClient();
@@ -479,13 +460,9 @@ const RemoveItemInput = z.object({
 
 export async function removeItemFromServiceOrder(input: unknown) {
   const data = RemoveItemInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
-  const { data: canAccess } = await supabase.rpc("fs_user_can_access_loja", {
-    _user_id: userId,
-    _loja_id: data.loja_id,
-  });
-  if (!canAccess) throw new Error("Acesso negado a esta loja");
+  await assertLojaAccess(userId, data.loja_id);
 
   const { loja, maxApi } = await getLojaConfig(data.loja_id);
   if (!maxApi) throw new Error("MaxAPI não configurada para esta loja");
