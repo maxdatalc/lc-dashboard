@@ -135,11 +135,10 @@ export default function DashboardPage() {
       end = range.end;
     }
 
-    // Incluir vendedorId nos params quando filtro de vendedor estiver ativo
     const paramsObj: Record<string, string> = { lojaIds: lojaIds.join(","), period, start, end };
-    if (activeFilter?.type === "vendedor") {
-      paramsObj.vendedorId = String(activeFilter.id);
-    }
+    if (activeFilter?.type === "vendedor") paramsObj.vendedorId = String(activeFilter.id);
+    if (activeFilter?.type === "cliente")  paramsObj.clienteNome = String(activeFilter.id);
+    if (activeFilter?.type === "produto")  paramsObj.produtoNome = String(activeFilter.id);
     const params = new URLSearchParams(paramsObj);
 
     const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes, retencaoRes] =
@@ -228,13 +227,25 @@ export default function DashboardPage() {
       />
 
       {/* ── Linha 1: Top Clientes | Top Produtos ──────────────────────────────── */}
-      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2 items-start">
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2">
         <ChartCard title="Top 50 Clientes" subtitle="por faturamento — período selecionado" animationDelay={80}>
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopClientesChart data={topClientes} />}
+          {chartsLoading ? <ChartSkeleton height={280} /> : (
+            <TopClientesChart
+              data={topClientes}
+              selectedNome={activeFilter?.type === "cliente" ? String(activeFilter.id) : null}
+              onSelect={(nome) => nome ? setFilter({ type: "cliente", id: nome, label: nome }) : setFilter(null)}
+            />
+          )}
         </ChartCard>
 
         <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={120}>
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopProdutosChart data={topProdutos} />}
+          {chartsLoading ? <ChartSkeleton height={280} /> : (
+            <TopProdutosChart
+              data={topProdutos}
+              selectedNome={activeFilter?.type === "produto" ? String(activeFilter.id) : null}
+              onSelect={(nome) => nome ? setFilter({ type: "produto", id: nome, label: nome }) : setFilter(null)}
+            />
+          )}
         </ChartCard>
       </div>
 
