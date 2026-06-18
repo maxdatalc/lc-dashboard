@@ -31,8 +31,9 @@ export async function createClient() {
         setAll(cookiesToSet) {
           // Em Server Components os cookies são read-only — ignorar sem lançar erro
           try {
+            const domain = process.env.NODE_ENV === "production" ? ".lcgestor.com.br" : undefined;
             cookiesToSet.forEach(({ name, value, options }) =>
-              cookieStore.set(name, value, options)
+              cookieStore.set(name, value, { ...options, ...(domain ? { domain } : {}) })
             );
           } catch {
             // silencioso: ocorre em Server Components onde não é possível escrever cookies

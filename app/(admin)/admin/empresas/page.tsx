@@ -38,12 +38,14 @@ async function acessarDashboard(formData: FormData) {
     .maybeSingle();
 
   const cookieStore = await cookies();
+  const domain = process.env.NODE_ENV === "production" ? ".lcgestor.com.br" : undefined;
   const opts = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
     maxAge: 60 * 60 * 24 * 30,
     path: "/",
+    ...(domain ? { domain } : {}),
   };
   cookieStore.set("selected_tenant_id", tenantId, opts);
   if (loja?.id) cookieStore.set("selected_loja_id", loja.id, opts);
