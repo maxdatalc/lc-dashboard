@@ -259,18 +259,6 @@ export function Header() {
         >
           {title}
         </h1>
-        {selectedLoja && (
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap truncate max-w-[140px]"
-            style={{
-              backgroundColor: "var(--bg-primary)",
-              color: "var(--text-secondary)",
-              border: "1px solid var(--border-subtle)",
-            }}
-          >
-            {selectedLoja.name}
-          </span>
-        )}
       </div>
 
       {/* Multi-select de lojas */}
