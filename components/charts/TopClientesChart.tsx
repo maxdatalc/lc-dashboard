@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MapPin, Phone, Mail, CreditCard, ShoppingCart, Wallet, ChevronDown, X } from "lucide-react";
+import { MapPin, Phone, Mail, CreditCard, ShoppingCart, Wallet, ChevronDown, X, TrendingUp, RotateCcw, CalendarDays, Hash } from "lucide-react";
 
 export interface ClienteItem {
   nome: string;
@@ -15,6 +15,9 @@ export interface ClienteItem {
   email?: string | null;
   telefone?: string | null;
   cnpjCpf?: string | null;
+  mesesAtivos?: number | null;
+  devolucoes?: number | null;
+  margemCliente?: number | null;
 }
 
 export type TopClienteData = ClienteItem;
@@ -364,18 +367,38 @@ export function TopClientesChart({
                     {cliente.cnpjCpf && (
                       <InfoLinha icon={CreditCard} texto={formatDoc(cliente.cnpjCpf)} />
                     )}
-                    <InfoLinha
-                      icon={ShoppingCart}
-                      texto={
-                        ultimaCompra
-                          ? `${comprasTexto}  ·  Última: ${ultimaCompra}`
-                          : comprasTexto
-                      }
-                    />
-                    <InfoLinha
-                      icon={Wallet}
-                      texto={`Ticket médio: ${formatMoeda(cliente.ticketMedio)}`}
-                    />
+                    <InfoLinha icon={Hash} texto={`${comprasTexto}`} />
+                    <InfoLinha icon={Wallet} texto={`Ticket médio: ${formatMoeda(cliente.ticketMedio)}`} />
+                    {ultimaCompra && (
+                      <InfoLinha icon={CalendarDays} texto={`Última compra: ${ultimaCompra}`} />
+                    )}
+                    {cliente.mesesAtivos != null && (
+                      <InfoLinha
+                        icon={ShoppingCart}
+                        texto={`Recorrência: ativo em ${cliente.mesesAtivos} ${cliente.mesesAtivos === 1 ? "mês" : "meses"} do período`}
+                      />
+                    )}
+                    {cliente.margemCliente != null && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <TrendingUp style={{ width: 13, height: 13, flexShrink: 0, color: "var(--text-muted)" }} />
+                        <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                          Margem:{" "}
+                          <span style={{
+                            padding: "2px 8px", borderRadius: "4px", fontWeight: 600, fontSize: "11px",
+                            background: cliente.margemCliente > 30 ? "rgba(16,185,129,0.15)" : cliente.margemCliente > 15 ? "rgba(245,158,11,0.15)" : "rgba(239,68,68,0.15)",
+                            color: cliente.margemCliente > 30 ? "#10b981" : cliente.margemCliente > 15 ? "#f59e0b" : "#ef4444",
+                          }}>
+                            {cliente.margemCliente.toFixed(1)}%
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {(cliente.devolucoes ?? 0) > 0 && (
+                      <InfoLinha
+                        icon={RotateCcw}
+                        texto={`${cliente.devolucoes} devolução${(cliente.devolucoes ?? 0) !== 1 ? "ões" : ""} no período`}
+                      />
+                    )}
                   </div>
                 </div>
               </div>

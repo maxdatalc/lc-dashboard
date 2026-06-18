@@ -234,7 +234,7 @@ export default function DashboardPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Top 50 Produtos" subtitle="por faturamento — período selecionado" animationDelay={120}>
+        <ChartCard title="Top 50 Produtos/Serviços" subtitle="por faturamento — período selecionado" animationDelay={120}>
           {chartsLoading ? <ChartSkeleton height={280} /> : (
             <TopProdutosChart
               data={topProdutos}
