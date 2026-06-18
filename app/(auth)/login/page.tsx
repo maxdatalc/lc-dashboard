@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useEffect, useRef } from "react";
+import Image from "next/image";
 import { login, getTenantsByEmail } from "@/app/actions/auth";
 import type { TenantOption } from "@/app/actions/auth";
 
@@ -87,7 +88,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="login-logo-wrap">
           <div className="login-logo">
-            <img src="/lc-logo.ico" alt="LC Gestor" width={96} height={96} className="login-logo-img" />
+            <Image src="/lc-logo.ico" alt="LC Gestor" width={96} height={96} className="login-logo-img" unoptimized />
           </div>
         </div>
 

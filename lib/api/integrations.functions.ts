@@ -52,7 +52,7 @@ export async function getIntegrationStatus(
   input: unknown,
 ): Promise<IntegrationStatusInfo | null> {
   const data = LojaInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
   await assertLojaAccess(userId, data.loja_id);
 
@@ -91,7 +91,7 @@ export async function getIntegrationStatus(
 
 export async function testBridgeConnection(input: unknown) {
   const data = LojaInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
   await assertManageLoja(userId, data.loja_id);
 
@@ -149,7 +149,7 @@ export async function testBridgeConnection(input: unknown) {
 
 export async function testMaxApiConnection(input: unknown) {
   const data = LojaInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
   await assertManageLoja(userId, data.loja_id);
 
@@ -237,7 +237,7 @@ export type InventarioInfo = {
 
 export async function listInventories(input: unknown): Promise<InventarioInfo[]> {
   const data = LojaInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
   await assertManageLoja(userId, data.loja_id);
 
@@ -284,7 +284,7 @@ export type IntegrationConfig = {
 
 export async function getIntegrationConfig(input: unknown): Promise<IntegrationConfig | null> {
   const data = LojaInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
   await assertManageLoja(userId, data.loja_id);
 
@@ -328,7 +328,7 @@ const SaveConfigInput = z.object({
 
 export async function saveIntegrationConfig(input: unknown) {
   const data = SaveConfigInput.parse(input);
-  const { userId, supabase } = await getAuthContext();
+  const { userId } = await getAuthContext();
 
   await assertManageLoja(userId, data.loja_id);
 
