@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { X } from 'lucide-react'
 
 export interface VendedorItem {
   vendedorId: number
@@ -88,6 +89,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
               key={v.vendedorId}
               onClick={() => onSelect?.(isSelected ? null : v.vendedorId, isSelected ? null : v.nome)}
               style={{
+                position: 'relative',
                 borderRadius: '6px',
                 padding: '6px 8px',
                 marginBottom: '4px',
@@ -99,6 +101,29 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
                 transition: 'all 0.15s',
               }}
             >
+              {isSelected && onSelect && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSelect(null, null); }}
+                  style={{
+                    position: 'absolute',
+                    top: '4px',
+                    right: '4px',
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '50%',
+                    background: 'rgba(239,68,68,0.18)',
+                    color: '#ef4444',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={10} />
+                </button>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {/* Badge ranking */}
                 <span style={{

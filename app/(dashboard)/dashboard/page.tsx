@@ -13,7 +13,6 @@ import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
 import { TopGruposChart } from "@/components/charts/TopGruposChart";
 import { ClientesRetencaoChart } from "@/components/charts/ClientesRetencaoChart";
-import { ActiveFilterBar } from "@/components/ui/ActiveFilterBar";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { useFilter } from "@/lib/contexts/filter-context";
 import type { VendasMensalData } from "@/components/charts/VendasMensalChart";
@@ -198,9 +197,6 @@ export default function DashboardPage() {
   return (
     <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
       <TopProgressBar loading={isRefreshing} />
-
-      {/* ── Filtro ativo — aparece quando um vendedor/produto está selecionado ── */}
-      <ActiveFilterBar />
 
       {/* ── Conteúdo — dimming suave durante refresh ───────────────────────── */}
       <div
