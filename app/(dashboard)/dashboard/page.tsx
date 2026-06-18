@@ -12,7 +12,6 @@ import { TopClientesChart } from "@/components/charts/TopClientesChart";
 import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
 import { TopGruposChart } from "@/components/charts/TopGruposChart";
-import { ClientesRetencaoChart } from "@/components/charts/ClientesRetencaoChart";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { useFilter } from "@/lib/contexts/filter-context";
 import type { VendasMensalData } from "@/components/charts/VendasMensalChart";
@@ -22,7 +21,6 @@ import type { TopClienteData } from "@/components/charts/TopClientesChart";
 import type { VendasTipoData } from "@/components/charts/VendasTipoChart";
 import type { VendedorItem } from "@/components/charts/TopVendedoresChart";
 import type { GrupoItem } from "@/components/charts/TopGruposChart";
-import type { ClientesRetencaoData } from "@/components/charts/ClientesRetencaoChart";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -92,9 +90,6 @@ export default function DashboardPage() {
   const [topClientes, setTopClientes] = useState<TopClienteData[]>([]);
   const [topVendedores, setTopVendedores] = useState<VendedorItem[]>([]);
   const [topGrupos, setTopGrupos] = useState<GrupoItem[]>([]);
-  const [retencao, setRetencao] = useState<ClientesRetencaoData>({
-    novos: 0, recorrentes: 0, faturamentoNovos: 0, faturamentoRecorrentes: 0,
-  });
   const [vendasTipo, setVendasTipo] = useState<VendasTipoData>({
     pf: { total: 0, clientes: 0 },
     pj: { total: 0, clientes: 0 },
@@ -141,7 +136,7 @@ export default function DashboardPage() {
     if (activeFilter?.type === "produto")  paramsObj.produtoNome = String(activeFilter.id);
     const params = new URLSearchParams(paramsObj);
 
-    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes, retencaoRes] =
+    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes] =
       await Promise.allSettled([
         fetch(`/api/dashboard/kpis?${params}`).then((r) =>
           r.ok ? (r.json() as Promise<KpiResponse>) : null
@@ -167,9 +162,6 @@ export default function DashboardPage() {
         fetch(`/api/dashboard/charts?${params}&type=top-fabricantes`).then((r) =>
           r.ok ? (r.json() as Promise<GrupoItem[]>) : []
         ),
-        fetch(`/api/dashboard/charts?${params}&type=clientes-retencao`).then((r) =>
-          r.ok ? (r.json() as Promise<ClientesRetencaoData>) : { novos: 0, recorrentes: 0, faturamentoNovos: 0, faturamentoRecorrentes: 0 }
-        ),
       ]);
 
     setKpiLoading(false);
@@ -185,7 +177,6 @@ export default function DashboardPage() {
     if (tipoRes.status === "fulfilled") setVendasTipo(tipoRes.value as VendasTipoData);
     if (vendedoresRes.status === "fulfilled") setTopVendedores(vendedoresRes.value as VendedorItem[]);
     if (gruposRes.status === "fulfilled") setTopGrupos(gruposRes.value as GrupoItem[]);
-    if (retencaoRes.status === "fulfilled") setRetencao(retencaoRes.value as ClientesRetencaoData);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaIds.join(","), period, customRange, activeFilter]);
 
@@ -288,7 +279,7 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* ── Linha 3: Top Fabricantes | PF vs PJ | Novos vs Recorrentes ─────── */}
+      {/* ── Linha 3: Top Fabricantes | PF vs PJ | Formas de Pagamento ─────── */}
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-3">
         <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
@@ -298,15 +289,8 @@ export default function DashboardPage() {
           {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
         </ChartCard>
 
-        <ChartCard title="Novos vs Recorrentes" subtitle="retenção de clientes — período selecionado" animationDelay={190}>
-          {chartsLoading ? <ChartSkeleton height={260} /> : <ClientesRetencaoChart data={retencao} />}
-        </ChartCard>
-      </div>
-
-      {/* ── Linha 4: Formas de Pagamento ─────────────────────────────────────── */}
-      <div style={{ maxWidth: "520px" }}>
-        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={210}>
-          {chartsLoading ? <ChartSkeleton height={130} /> : <FormasPagamentoChart data={formasPagamento} />}
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={190}>
+          {chartsLoading ? <ChartSkeleton height={260} /> : <FormasPagamentoChart data={formasPagamento} />}
         </ChartCard>
       </div>
 
