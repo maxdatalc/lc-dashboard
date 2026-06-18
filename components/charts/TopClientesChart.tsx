@@ -100,6 +100,7 @@ export function TopClientesChart({
   selectedNome?: string | null;
 }) {
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [tipoFilter, setTipoFilter] = useState<"PF" | "PJ" | null>(null);
 
   if (!data.length) {
     return (
@@ -113,27 +114,43 @@ export function TopClientesChart({
   }
 
   const clientes = [...data].sort((a, b) => b.total - a.total);
-  const maxTotal = clientes[0]?.total ?? 1;
+  const clientesFiltrados = tipoFilter
+    ? clientes.filter((c) => c.tipoPessoa === tipoFilter)
+    : clientes;
+  const maxTotal = clientesFiltrados[0]?.total ?? clientes[0]?.total ?? 1;
 
   return (
     <div>
-      {/* Hint bar — mesma altura que o toggle Valor/Qtd do TopProdutos */}
-      <div style={{ marginBottom: "12px", height: "28px", display: "flex", alignItems: "center" }}>
-        {selectedNome && (
-          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
-            Filtro ativo:{" "}
-            <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
-              {selectedNome.length > 30 ? selectedNome.slice(0, 30) + "…" : selectedNome}
-            </span>
-          </span>
-        )}
+      {/* Toggle PF / PJ — mesma altura que o Valor/Qtd do TopProdutos */}
+      <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+        {(["PF", "PJ"] as const).map((tipo) => (
+          <button
+            key={tipo}
+            type="button"
+            onClick={() => setTipoFilter(tipoFilter === tipo ? null : tipo)}
+            style={{
+              padding: "3px 12px",
+              borderRadius: "20px",
+              fontSize: "11px",
+              fontWeight: 500,
+              border: "1px solid",
+              cursor: "pointer",
+              background: tipoFilter === tipo ? "var(--accent-cyan)" : "transparent",
+              borderColor: tipoFilter === tipo ? "var(--accent-cyan)" : "var(--toggle-inactive-border)",
+              color: tipoFilter === tipo ? "#0a0f1e" : "var(--toggle-inactive-color)",
+              transition: "all 0.15s",
+            }}
+          >
+            {tipo === "PF" ? "Pessoa Física" : "Pessoa Jurídica"}
+          </button>
+        ))}
       </div>
 
       <div
         className="custom-scroll"
         style={{ height: "210px", overflowY: "auto", paddingRight: "4px" }}
       >
-        {clientes.map((cliente, i) => {
+        {clientesFiltrados.map((cliente, i) => {
           const isExpanded = expandido === i;
           const isSelected = selectedNome === cliente.nome;
           const progresso = maxTotal > 0 ? Math.min((cliente.total / maxTotal) * 100, 100) : 0;
