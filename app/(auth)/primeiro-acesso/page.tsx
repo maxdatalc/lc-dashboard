@@ -39,7 +39,7 @@ export default function PrimeiroAcessoPage() {
       <div className="pa-content">
         <div className="pa-logo-wrap">
           <div className="pa-logo">
-            <span>LC</span>
+            <img src="/lc-logo.ico" alt="LC Gestor" width={32} height={32} style={{ display: "block" }} />
           </div>
         </div>
 
@@ -244,22 +244,13 @@ export default function PrimeiroAcessoPage() {
         }
 
         .pa-logo {
-          width: 46px;
-          height: 46px;
-          border-radius: 12px;
-          background: #111827;
-          border: 1px solid rgba(255, 255, 255, 0.10);
+          width: 52px;
+          height: 52px;
+          border-radius: 14px;
+          background: transparent;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 0 0 1px rgba(0, 229, 255, 0.08);
-        }
-
-        .pa-logo span {
-          font-size: 15px;
-          font-weight: 700;
-          color: #f1f5f9;
-          letter-spacing: -0.5px;
         }
 
         .pa-badge {
