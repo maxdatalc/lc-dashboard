@@ -1,7 +1,5 @@
 "use client";
 
-import { useState } from "react";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { formatCurrency } from "@/lib/utils/format";
 
 export interface FormasPagamentoData {
@@ -24,42 +22,22 @@ const CORES = [
   "#ef4444",
 ];
 
-
-interface TooltipProps {
-  active?: boolean;
-  payload?: { value: number; payload: FormasPagamentoData }[];
-}
-
-function CustomTooltip({ active, payload }: TooltipProps) {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div
-      className="rounded-xl px-3 py-2.5 text-xs shadow-xl"
-      style={{
-        backgroundColor: "var(--bg-card)",
-        border: "1px solid var(--border-subtle)",
-        color: "var(--text-primary)",
-      }}
-    >
-      <p className="font-medium mb-1">{d.nome}</p>
-      <p className="tabular-nums">{formatCurrency(d.valor)}</p>
-      <p style={{ color: "var(--text-muted)" }}>{d.percentual.toFixed(1)}% do total</p>
-    </div>
-  );
+function fmtCompact(v: number): string {
+  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")}M`;
+  if (v >= 1_000) return `R$ ${Math.round(v / 1_000)}k`;
+  return formatCurrency(v);
 }
 
 export function FormasPagamentoChart({ data }: Props) {
-  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
-
   const top6 = data.slice(0, 6);
   const total = data.reduce((acc, d) => acc + d.valor, 0);
+  const maxVal = Math.max(...top6.map((d) => d.valor), 1);
 
   if (!top6.length) {
     return (
       <div
-        className="flex items-center justify-center h-[220px] text-xs"
-        style={{ color: "var(--text-muted)" }}
+        className="flex items-center justify-center text-xs"
+        style={{ height: 80, color: "var(--text-muted)" }}
       >
         Sem dados disponíveis
       </div>
@@ -67,81 +45,143 @@ export function FormasPagamentoChart({ data }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-4" style={{ minHeight: 120 }}>
-      {/* Donut com hover expand */}
-      <div className="relative flex-shrink-0" style={{ width: 110, height: 110 }}>
-        <ResponsiveContainer width={110} height={110}>
-          <PieChart>
-            <Pie
-              data={top6}
-              cx={50}
-              cy={50}
-              innerRadius={32}
-              outerRadius={50}
-              paddingAngle={3}
-              dataKey="valor"
-              strokeWidth={0}
-              onMouseEnter={(_: unknown, index: number) => setActiveIndex(index)}
-              onMouseLeave={() => setActiveIndex(undefined)}
-            >
-              {top6.map((_, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={CORES[index % CORES.length]}
-                  opacity={activeIndex === undefined || activeIndex === index ? 1 : 0.45}
-                />
-              ))}
-            </Pie>
-            <Tooltip content={<CustomTooltip />} />
-          </PieChart>
-        </ResponsiveContainer>
-
-        {/* Total no centro */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-          <p
-            className="tabular-nums font-medium leading-tight"
-            style={{
-              fontSize: "0.7rem",
-              color: "var(--text-primary)",
-            }}
-          >
-            {formatCurrency(total)}
-          </p>
-          <p className="text-[10px] mt-0.5" style={{ color: "var(--text-muted)" }}>
-            total
-          </p>
-        </div>
+    <div>
+      {/* Cabeçalho com total */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: "8px",
+          marginBottom: "14px",
+          paddingBottom: "12px",
+          borderBottom: "1px solid var(--border-subtle)",
+        }}
+      >
+        <span
+          style={{
+            fontSize: "20px",
+            fontWeight: 700,
+            color: "var(--text-primary)",
+            fontFamily: "var(--font-numeric)",
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {fmtCompact(total)}
+        </span>
+        <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+          total recebido no período
+        </span>
       </div>
 
-      {/* Legenda lado direito */}
-      <div className="flex flex-col gap-2.5 flex-1 min-w-0">
-        {top6.map((d, index) => (
-          <div
-            key={d.nome}
-            className="flex items-center gap-2 min-w-0 cursor-default"
-            onMouseEnter={() => setActiveIndex(index)}
-            onMouseLeave={() => setActiveIndex(undefined)}
-            style={{ opacity: activeIndex === undefined || activeIndex === index ? 1 : 0.45, transition: "opacity 0.15s" }}
-          >
+      {/* Linhas */}
+      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+        {top6.map((d, i) => {
+          const barWidth = maxVal > 0 ? (d.valor / maxVal) * 100 : 0;
+          const cor = CORES[i % CORES.length];
+
+          return (
             <div
-              className="flex-shrink-0 rounded-sm"
-              style={{ width: 8, height: 8, backgroundColor: CORES[index % CORES.length] }}
-            />
-            <span className="text-xs truncate flex-1" style={{ color: "var(--text-secondary)" }}>
-              {d.nome}
-            </span>
-            <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-              <span className="text-xs font-semibold tabular-nums" style={{ color: "var(--text-primary)" }}>
-                {d.percentual.toFixed(0)}%
+              key={d.nome}
+              style={{ display: "flex", alignItems: "center", gap: "10px" }}
+            >
+              {/* Indicador de cor */}
+              <div
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: cor,
+                  flexShrink: 0,
+                }}
+              />
+
+              {/* Nome */}
+              <span
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text-secondary)",
+                  minWidth: "72px",
+                  maxWidth: "90px",
+                  flexShrink: 0,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={d.nome}
+              >
+                {d.nome}
               </span>
+
+              {/* Barra de progresso */}
+              <div
+                style={{
+                  flex: 1,
+                  height: "4px",
+                  background: "var(--chart-track-bg)",
+                  borderRadius: "2px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${barWidth}%`,
+                    height: "100%",
+                    background: cor,
+                    borderRadius: "2px",
+                    transition: "width 0.6s ease",
+                    opacity: barWidth === 0 ? 0.25 : 1,
+                  }}
+                />
+              </div>
+
+              {/* Percentual — destaque principal */}
+              <span
+                style={{
+                  fontSize: "13px",
+                  fontWeight: 700,
+                  color: barWidth > 0 ? "var(--text-primary)" : "var(--text-muted)",
+                  fontFamily: "var(--font-numeric)",
+                  minWidth: "36px",
+                  textAlign: "right",
+                  flexShrink: 0,
+                }}
+              >
+                {d.percentual < 1 && d.percentual > 0
+                  ? `<1%`
+                  : `${Math.round(d.percentual)}%`}
+              </span>
+
+              {/* Valor compacto */}
+              <span
+                style={{
+                  fontSize: "11px",
+                  color: barWidth > 0 ? "var(--text-secondary)" : "var(--text-muted)",
+                  fontFamily: "var(--font-numeric)",
+                  minWidth: "60px",
+                  textAlign: "right",
+                  flexShrink: 0,
+                }}
+              >
+                {fmtCompact(d.valor)}
+              </span>
+
+              {/* Qtd. vendas */}
               {d.qtdVendas != null && (
-                <span className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
-                  {d.qtdVendas} vd.
+                <span
+                  style={{
+                    fontSize: "10px",
+                    color: "var(--text-muted)",
+                    minWidth: "46px",
+                    textAlign: "right",
+                    flexShrink: 0,
+                  }}
+                >
+                  {d.qtdVendas.toLocaleString("pt-BR")} vd.
                 </span>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
