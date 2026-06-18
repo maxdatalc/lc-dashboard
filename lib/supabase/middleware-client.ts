@@ -20,8 +20,10 @@ export async function updateSession(request: NextRequest) {
           // Escrever nos cookies do request e da response para manter a sessão sincronizada
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           supabaseResponse = NextResponse.next({ request });
+          // Em produção, usa domínio pai para compartilhar sessão entre admpainel e app
+          const domain = process.env.NODE_ENV === "production" ? ".lcgestor.com.br" : undefined;
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, { ...options, ...(domain ? { domain } : {}) })
           );
         },
       },
