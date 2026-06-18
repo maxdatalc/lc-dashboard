@@ -75,7 +75,7 @@ interface DevRow {
   valorDevolvido: number;
 }
 
-function buildSqlKpis(vClause: string) {
+function buildSqlKpis(vClause: string, extra = "") {
   return `
   SELECT
     ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
@@ -88,10 +88,10 @@ function buildSqlKpis(vClause: string) {
     AND vedTotalNf > 0
     AND empId = @empId
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
-    ${vClause}`;
+    ${vClause}${extra}`;
 }
 
-function buildSqlCusto(vClause: string) {
+function buildSqlCusto(vClause: string, extra = "") {
   return `
   SELECT ISNULL(SUM(vi.vdiQtde * vi.vdiProCustoFinal), 0) AS custo
   FROM vendaItem vi
@@ -102,10 +102,10 @@ function buildSqlCusto(vClause: string) {
     AND v.empId = @empId
     AND vi.vdiCancel = 0
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-    ${vClause}`;
+    ${vClause}${extra}`;
 }
 
-function buildSqlDev(vClause: string) {
+function buildSqlDev(vClause: string, extra = "") {
   return `
   SELECT
     COUNT(*)                       AS totalDevolucoes,
@@ -116,7 +116,7 @@ function buildSqlDev(vClause: string) {
     AND vedTotalNf > 0
     AND empId = @empId
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
-    ${vClause}`;
+    ${vClause}${extra}`;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -128,6 +128,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const vendedorId = vendedorIdRaw ? parseInt(vendedorIdRaw) : null;
   const vendedorClause  = vendedorId ? "AND vedAtendente = @vendedorId" : "";
   const vendedorClauseJ = vendedorId ? "AND v.vedAtendente = @vendedorId" : "";
+
+  const clienteNomeRaw = searchParams.get("clienteNome");
+  const produtoNomeRaw = searchParams.get("produtoNome");
+  const cClause  = clienteNomeRaw ? "AND vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId = @empId)" : "";
+  const cClauseJ = clienteNomeRaw ? "AND v.vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId = @empId)" : "";
+  const pClause  = produtoNomeRaw ? "AND vedId IN (SELECT vdiVedId FROM vendaItem WHERE vdiProNome = @produtoNome AND vdiCancel = 0)" : "";
+  const pClauseJ = produtoNomeRaw ? "AND v.vedId IN (SELECT vdiVedId FROM vendaItem WHERE vdiProNome = @produtoNome AND vdiCancel = 0)" : "";
+  const cp = {
+    ...(clienteNomeRaw ? { clienteNome: clienteNomeRaw } : {}),
+    ...(produtoNomeRaw ? { produtoNome: produtoNomeRaw } : {}),
+  };
 
   const lojaIds = lojaIdsParam
     ? lojaIdsParam.split(",").filter(Boolean)
@@ -176,16 +187,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
       const vp = vendedorId ? { vendedorId } : {};
       const ep = { empId: config.empId };
-      const SQL_KPIS = buildSqlKpis(vendedorClause);
-      const SQL_CUSTO = buildSqlCusto(vendedorClauseJ);
-      const SQL_DEV   = buildSqlDev(vendedorClause);
+      const SQL_KPIS = buildSqlKpis(vendedorClause, `${cClause}${pClause}`);
+      const SQL_CUSTO = buildSqlCusto(vendedorClauseJ, `${cClauseJ}${pClauseJ}`);
+      const SQL_DEV   = buildSqlDev(vendedorClause, `${cClause}${pClause}`);
 
       const [atual, ant, custoAtual, custoAnterior, dev] = await Promise.all([
-        queryBridge<KpiRow>(config, SQL_KPIS, { start, end, ...ep, ...vp }),
-        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end, ...ep, ...vp }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...ep, ...vp }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...ep, ...vp }),
-        queryBridge<DevRow>(config, SQL_DEV, { start, end, ...ep, ...vp }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start, end, ...ep, ...vp, ...cp }),
+        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...ep, ...vp, ...cp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp }),
+        queryBridge<DevRow>(config, SQL_DEV, { start, end, ...ep, ...vp, ...cp }),
       ]);
 
       faturamento     += Number(atual[0]?.faturamento        ?? 0);

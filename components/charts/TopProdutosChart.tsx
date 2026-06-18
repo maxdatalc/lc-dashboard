@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  Package, Tag, Factory, Banknote, Wallet, TrendingUp, Hash, ChevronDown,
+  Package, Tag, Factory, Banknote, Wallet, TrendingUp, Hash, ChevronDown, X,
 } from "lucide-react";
 
 export interface ProdutoItem {
@@ -49,7 +49,15 @@ function InfoLinha({
   );
 }
 
-export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
+export function TopProdutosChart({
+  data,
+  onSelect,
+  selectedNome,
+}: {
+  data: ProdutoItem[];
+  onSelect?: (nome: string | null) => void;
+  selectedNome?: string | null;
+}) {
   const [modo, setModo] = useState<"valor" | "qtd">("valor");
   const [expandido, setExpandido] = useState<number | null>(null);
 
@@ -121,6 +129,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
       >
         {lista.map((produto, i) => {
           const isExpanded = expandido === i;
+          const isSelected = selectedNome === produto.nome;
           const barraWidth =
             modo === "valor"
               ? (produto.valor / maxValor) * 100
@@ -129,14 +138,52 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
           return (
             <div
               key={i}
-              onClick={() => setExpandido(expandido === i ? null : i)}
+              onClick={() => {
+                if (isSelected) {
+                  onSelect?.(null);
+                } else {
+                  setExpandido(null);
+                  onSelect?.(produto.nome);
+                }
+              }}
               style={{
-                borderBottom: "1px solid var(--chart-item-border)",
-                paddingBottom: "5px",
+                position: "relative",
+                borderRadius: isSelected ? "6px" : "0",
+                padding: "5px 8px",
                 marginBottom: "4px",
-                cursor: "pointer",
+                cursor: onSelect ? "pointer" : "default",
+                background: isSelected ? "rgba(0,229,255,0.06)" : "transparent",
+                ...(isSelected
+                  ? { border: "1px solid rgba(0,229,255,0.25)" }
+                  : { border: "1px solid transparent", borderBottom: "1px solid var(--chart-item-border)" }),
+                transition: "background 0.15s, border-color 0.15s",
               }}
             >
+              {/* X button when selected */}
+              {isSelected && onSelect && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onSelect(null); }}
+                  style={{
+                    position: "absolute",
+                    top: "4px",
+                    right: "4px",
+                    width: "16px",
+                    height: "16px",
+                    borderRadius: "50%",
+                    background: "rgba(239,68,68,0.18)",
+                    color: "#ef4444",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <X size={10} />
+                </button>
+              )}
+
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span
                   style={{
@@ -196,6 +243,7 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     flexShrink: 0,
                     fontFamily: "var(--font-numeric)",
                     whiteSpace: "nowrap",
+                    marginRight: isSelected ? "20px" : "0",
                   }}
                 >
                   {modo === "valor"
@@ -203,20 +251,39 @@ export function TopProdutosChart({ data }: { data: ProdutoItem[] }) {
                     : `${produto.quantidade.toFixed(0)} un`}
                 </span>
 
-                <ChevronDown
-                  style={{
-                    width: 12,
-                    height: 12,
-                    color: "var(--text-muted)",
-                    flexShrink: 0,
-                    transition: "transform 0.2s ease",
-                    transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                  }}
-                />
+                {/* Chevron para expandir (escondido quando selecionado) */}
+                {!isSelected && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandido(expandido === i ? null : i);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      flexShrink: 0,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <ChevronDown
+                      style={{
+                        width: 12,
+                        height: 12,
+                        color: "var(--text-muted)",
+                        flexShrink: 0,
+                        transition: "transform 0.2s ease",
+                        transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                      }}
+                    />
+                  </button>
+                )}
               </div>
 
               {/* Painel expandido */}
-              {isExpanded && (
+              {isExpanded && !isSelected && (
                 <div
                   style={{
                     marginTop: "8px",
