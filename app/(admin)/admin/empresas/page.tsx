@@ -48,7 +48,8 @@ async function acessarDashboard(formData: FormData) {
   cookieStore.set("selected_tenant_id", tenantId, opts);
   if (loja?.id) cookieStore.set("selected_loja_id", loja.id, opts);
 
-  redirect("/dashboard");
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.lcgestor.com.br";
+  redirect(`${appUrl}/dashboard`);
 }
 
 export default async function AdminEmpresasPage() {
