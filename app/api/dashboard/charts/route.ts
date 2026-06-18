@@ -319,7 +319,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ultimaCompra: r.ultimaCompra
               ? new Date(r.ultimaCompra).toISOString().split("T")[0]
               : "",
-            tipoPessoa: (Number(r.tipoCad) === 1 ? "PF" : "PJ") as "PF" | "PJ",
+            tipoPessoa: (() => {
+              const doc = (r.cpfCgc ?? "").replace(/\D/g, "");
+              if (doc.length === 11) return "PF";
+              if (doc.length === 14) return "PJ";
+              return "PJ"; // prefeituras sem doc cadastrado → PJ por padrão
+            })() as "PF" | "PJ",
             cidade: r.cidade || null,
             estado: r.estado || null,
             email: r.email || null,
@@ -370,12 +375,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       }
 
       case "vendas-tipo-cliente": {
-        const rows = await queryBridge<{ tipoCad: number; total: number; qtd: number }>(
+        const rows = await queryBridge<{ tipoPessoa: string; total: number; qtd: number }>(
           config,
           `SELECT
-            c.cliTipoCad                        AS tipoCad,
+            CASE
+              WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(c.cliCpfCgc,''),'.',''),'-',''),'/',''),' ','')) = 11 THEN 'PF'
+              ELSE 'PJ'
+            END                                AS tipoPessoa,
             ISNULL(SUM(v.vedTotalNf), 0)       AS total,
-            COUNT(*)                            AS qtd
+            COUNT(*)                           AS qtd
           FROM venda v
           JOIN cliente c ON v.vedClienteId = c.cliId
           WHERE v.vedStatus = 'F'
@@ -384,13 +392,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.empId = @empId
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${cClauseJ}${pClauseJ}
-          GROUP BY c.cliTipoCad`,
+          GROUP BY
+            CASE
+              WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(c.cliCpfCgc,''),'.',''),'-',''),'/',''),' ','')) = 11 THEN 'PF'
+              ELSE 'PJ'
+            END`,
           { start, end, ...ep(config), ...cp }
         );
 
         let pfTotal = 0, pfCount = 0, pjTotal = 0, pjCount = 0;
         for (const r of rows) {
-          if (Number(r.tipoCad) === 1) {
+          if (r.tipoPessoa === "PF") {
             pfTotal += Number(r.total);
             pfCount += Number(r.qtd);
           } else {
