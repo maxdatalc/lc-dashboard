@@ -18,6 +18,7 @@ import {
   resetarSenhaUsuario,
   vincularEmpresaUsuario,
   desvincularEmpresaUsuario,
+  criarUsuario,
 } from "@/app/actions/admin-usuarios";
 
 interface Empresa {
@@ -83,6 +84,10 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
   const [menuAberto, setMenuAberto] = useState<string | null>(null);
   const [modalVincular, setModalVincular] = useState<string | null>(null);
   const [modalSenha, setModalSenha] = useState<string | null>(null);
+  const [modalCriar, setModalCriar] = useState(false);
+  const [novoNome, setNovoNome] = useState("");
+  const [novoEmail, setNovoEmail] = useState("");
+  const [novaSenhaTemp, setNovaSenhaTemp] = useState("");
   const [novaSenha, setNovaSenha] = useState("");
   const [empresaVincular, setEmpresaVincular] = useState("");
   const [roleVincular, setRoleVincular] = useState<"owner" | "admin" | "viewer">("viewer");
@@ -103,6 +108,27 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
     setTimeout(() => setFeedback(null), 3500);
   }
 
+  function handleCriarUsuario() {
+    if (!novoEmail || !novaSenhaTemp || novaSenhaTemp.length < 6) return;
+    startTransition(async () => {
+      const result = await criarUsuario({
+        email: novoEmail,
+        senha: novaSenhaTemp,
+        nome: novoNome,
+      });
+      if (result.error) {
+        mostrarFeedback("erro", result.error);
+      } else {
+        mostrarFeedback("ok", "Usuário criado — ele deverá definir uma senha permanente no primeiro acesso");
+        setModalCriar(false);
+        setNovoNome("");
+        setNovoEmail("");
+        setNovaSenhaTemp("");
+        router.refresh();
+      }
+    });
+  }
+
   function handleResetarSenha() {
     if (!modalSenha || !novaSenha || novaSenha.length < 6) return;
     startTransition(async () => {
@@ -110,7 +136,7 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
       if (result.error) {
         mostrarFeedback("erro", result.error);
       } else {
-        mostrarFeedback("ok", "Senha alterada com sucesso");
+        mostrarFeedback("ok", "Senha resetada — o usuário deverá criar uma nova senha no próximo acesso");
         setModalSenha(null);
         setNovaSenha("");
       }
@@ -162,6 +188,13 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
               : "usuários cadastrados"}
           </p>
         </div>
+        <button
+          onClick={() => setModalCriar(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-500 transition-colors"
+        >
+          <UserPlus className="w-4 h-4" />
+          Novo usuário
+        </button>
       </div>
 
       {/* Barra de busca */}
@@ -347,6 +380,92 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
         </table>
       </div>
 
+      {/* Modal — Criar usuário */}
+      {modalCriar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
+                <UserPlus className="w-4 h-4 text-violet-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 text-sm">Novo usuário</h3>
+                <p className="text-xs text-slate-500">
+                  A senha definida aqui é temporária — o usuário deverá alterá-la no primeiro acesso.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Nome completo
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: João Silva"
+                  value={novoNome}
+                  onChange={(e) => setNovoNome(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  E-mail
+                </label>
+                <input
+                  type="email"
+                  placeholder="usuario@empresa.com"
+                  value={novoEmail}
+                  onChange={(e) => setNovoEmail(e.target.value)}
+                  autoFocus
+                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Senha temporária
+                </label>
+                <input
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={novaSenhaTemp}
+                  onChange={(e) => setNovaSenhaTemp(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                />
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 flex items-start gap-2">
+                <KeyRound className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  O usuário será obrigado a criar uma nova senha no primeiro login.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setModalCriar(false);
+                  setNovoNome("");
+                  setNovoEmail("");
+                  setNovaSenhaTemp("");
+                }}
+                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCriarUsuario}
+                disabled={isPending || !novoEmail || novaSenhaTemp.length < 6}
+                className="flex-1 py-2.5 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-50 transition-colors"
+              >
+                {isPending ? "Criando..." : "Criar usuário"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal — Resetar senha */}
       {modalSenha && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
@@ -365,18 +484,26 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
               </div>
             </div>
 
-            <div className="space-y-1.5 mb-5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Nova senha
-              </label>
-              <input
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
-                autoFocus
-                className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-              />
+            <div className="space-y-3 mb-5">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
+                  Senha temporária
+                </label>
+                <input
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={novaSenha}
+                  onChange={(e) => setNovaSenha(e.target.value)}
+                  autoFocus
+                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                />
+              </div>
+              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 flex items-start gap-2">
+                <KeyRound className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-700 leading-relaxed">
+                  O usuário deverá criar uma nova senha no próximo login.
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-2">

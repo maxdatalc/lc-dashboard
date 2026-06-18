@@ -27,6 +27,19 @@ export async function middleware(request: NextRequest) {
   const host   = request.headers.get("host") ?? "";
   const isAdmin = onAdminDomain(host);
 
+  // ── 0. Primeiro acesso — troca de senha obrigatória ──────────────────────
+  const mustChangePassword = user?.user_metadata?.must_change_password === true;
+
+  if (pathname === "/primeiro-acesso") {
+    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+    if (!mustChangePassword) return NextResponse.redirect(new URL("/dashboard", request.url));
+    return supabaseResponse;
+  }
+
+  if (mustChangePassword && user) {
+    return NextResponse.redirect(new URL("/primeiro-acesso", request.url));
+  }
+
   // ── 1. Roteamento por subdomínio (só em produção) ─────────────────────────
   if (!IS_DEV) {
     if (isAdmin) {

@@ -156,6 +156,39 @@ export async function login(formData: FormData): Promise<{ error?: string }> {
   redirect("/dashboard");
 }
 
+export async function definirSenhaPermanente(
+  novaSenha: string
+): Promise<{ error?: string }> {
+  if (novaSenha.length < 6) {
+    return { error: "A senha deve ter pelo menos 6 caracteres" };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sessão expirada. Faça login novamente." };
+
+  const { error } = await supabase.auth.updateUser({
+    password: novaSenha,
+    data: { must_change_password: false },
+  });
+
+  if (error) return { error: error.message };
+
+  const adminClient = createAdminClient();
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("is_system_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const isSysAdmin =
+    (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+
+  redirect(isSysAdmin ? "/admin" : "/dashboard");
+}
+
 export async function logout(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
