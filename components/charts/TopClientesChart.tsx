@@ -119,16 +119,12 @@ export function TopClientesChart({
     <div>
       {/* Hint bar — mesma altura que o toggle Valor/Qtd do TopProdutos */}
       <div style={{ marginBottom: "12px", height: "28px", display: "flex", alignItems: "center" }}>
-        {selectedNome ? (
+        {selectedNome && (
           <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
             Filtro ativo:{" "}
             <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
               {selectedNome.length > 30 ? selectedNome.slice(0, 30) + "…" : selectedNome}
             </span>
-          </span>
-        ) : (
-          <span style={{ fontSize: "11px", color: "var(--text-muted)", opacity: 0.6 }}>
-            Clique para filtrar o dashboard
           </span>
         )}
       </div>
