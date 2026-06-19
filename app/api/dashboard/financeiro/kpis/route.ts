@@ -45,10 +45,9 @@ export async function GET(request: Request) {
   const prevStart = toStr(prevStartDate);
   const prevEnd   = toStr(prevEndDate);
 
-  // Helpers: qCur = período selecionado, qPrev = período anterior, qNow = estado atual
+  // Helpers: qCur = período selecionado, qPrev = período anterior
   const qCur  = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId, start, end });
   const qPrev = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId, start: prevStart, end: prevEnd });
-  const qNow  = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId });
 
   const [
     fatRes,
