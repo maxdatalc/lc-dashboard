@@ -157,6 +157,7 @@ export function FinFaturamentoChart({ data, selectedMes, onMesClick }: Props) {
           yAxisId="valor"
           dataKey="faturamento"
           name="Faturado"
+          fill="#00e5ff"
           radius={[3, 3, 0, 0]}
           maxBarSize={22}
           cursor="pointer"
@@ -174,6 +175,7 @@ export function FinFaturamentoChart({ data, selectedMes, onMesClick }: Props) {
           yAxisId="valor"
           dataKey="recebido"
           name="Recebido"
+          fill="#22c55e"
           radius={[3, 3, 0, 0]}
           maxBarSize={22}
           cursor="pointer"

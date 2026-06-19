@@ -55,10 +55,10 @@ export async function GET(request: Request) {
     fatPrevRes,
     recRes,
     recPrevRes,
-    inadRes,
-    aVencer30Res,
     saldoRes,
     margemRes,
+    contasReceberRes,
+    contasPagarRes,
   ] = await Promise.allSettled([
     // Faturamento período atual
     qCur<{ valor: number; qtd: number }>(`
@@ -88,22 +88,6 @@ export async function GET(request: Request) {
       WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
         AND CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
     `),
-    // Inadimplência — sempre estado atual (não filtra por período)
-    qNow<{ total: number; qtd_clientes: number; qtd_titulos: number }>(`
-      SELECT ISNULL(SUM(pgtValor),0) AS total,
-             COUNT(DISTINCT pgtCliNome) AS qtd_clientes,
-             COUNT(*) AS qtd_titulos
-      FROM vendaPgto
-      WHERE empId=@empId AND pgtPago IN ('N','F') AND pgtVecmto < CONVERT(date,GETDATE())
-    `),
-    // A vencer em 30 dias — sempre estado atual
-    qNow<{ total: number; qtd: number }>(`
-      SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(*) AS qtd
-      FROM vendaPgto
-      WHERE empId=@empId AND pgtPago IN ('N','F')
-        AND pgtVecmto >= CONVERT(date,GETDATE())
-        AND pgtVecmto <= CONVERT(date,DATEADD(day,30,GETDATE()))
-    `),
     // Saldo líquido (contaMov) no período
     qCur<{ entradas: number; saidas: number }>(`
       SELECT
@@ -123,21 +107,35 @@ export async function GET(request: Request) {
         AND vi.vdiProCustoFinal>0
         AND CONVERT(date,v.vedFechamento) BETWEEN @start AND @end
     `),
+    // Contas a Receber — títulos não pagos com vencimento no período
+    qCur<{ total: number; qtd: number }>(`
+      SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(*) AS qtd
+      FROM vendaPgto
+      WHERE empId=@empId AND pgtPago IN ('N','F')
+        AND CONVERT(date,pgtVecmto) BETWEEN @start AND @end
+    `),
+    // Contas a Pagar — saídas registradas no contaMov no período
+    qCur<{ total: number; qtd: number }>(`
+      SELECT ISNULL(SUM(ABS(ctmValor)),0) AS total, COUNT(*) AS qtd
+      FROM contaMov
+      WHERE empId=@empId AND ctmSinal='-'
+        AND CONVERT(date,ctmData) BETWEEN @start AND @end
+    `),
   ]);
 
-  const fat    = fatRes.status    === "fulfilled" ? (fatRes.value    as { valor: number; qtd: number }[])[0]                                               : { valor: 0, qtd: 0 };
-  const fatPrev= fatPrevRes.status=== "fulfilled" ? (fatPrevRes.value as { valor: number }[])[0]                                                           : { valor: 0 };
-  const rec    = recRes.status    === "fulfilled" ? (recRes.value    as { valor: number; qtd: number }[])[0]                                               : { valor: 0, qtd: 0 };
-  const recPrev= recPrevRes.status=== "fulfilled" ? (recPrevRes.value as { valor: number }[])[0]                                                           : { valor: 0 };
-  const inad   = inadRes.status   === "fulfilled" ? (inadRes.value   as { total: number; qtd_clientes: number; qtd_titulos: number }[])[0]                 : { total: 0, qtd_clientes: 0, qtd_titulos: 0 };
-  const aVenc  = aVencer30Res.status==="fulfilled"? (aVencer30Res.value as { total: number; qtd: number }[])[0]                                            : { total: 0, qtd: 0 };
-  const saldo  = saldoRes.status  === "fulfilled" ? (saldoRes.value  as { entradas: number; saidas: number }[])[0]                                         : { entradas: 0, saidas: 0 };
-  const margem = margemRes.status === "fulfilled" ? (margemRes.value as { receita: number; custo: number }[])[0]                                           : { receita: 0, custo: 0 };
+  const fat         = fatRes.status           === "fulfilled" ? (fatRes.value           as { valor: number; qtd: number }[])[0]          : { valor: 0, qtd: 0 };
+  const fatPrev     = fatPrevRes.status       === "fulfilled" ? (fatPrevRes.value       as { valor: number }[])[0]                        : { valor: 0 };
+  const rec         = recRes.status           === "fulfilled" ? (recRes.value           as { valor: number; qtd: number }[])[0]          : { valor: 0, qtd: 0 };
+  const recPrev     = recPrevRes.status       === "fulfilled" ? (recPrevRes.value       as { valor: number }[])[0]                        : { valor: 0 };
+  const saldo       = saldoRes.status         === "fulfilled" ? (saldoRes.value         as { entradas: number; saidas: number }[])[0]     : { entradas: 0, saidas: 0 };
+  const margem      = margemRes.status        === "fulfilled" ? (margemRes.value        as { receita: number; custo: number }[])[0]       : { receita: 0, custo: 0 };
+  const ctaRec      = contasReceberRes.status === "fulfilled" ? (contasReceberRes.value as { total: number; qtd: number }[])[0]          : { total: 0, qtd: 0 };
+  const ctaPag      = contasPagarRes.status   === "fulfilled" ? (contasPagarRes.value   as { total: number; qtd: number }[])[0]          : { total: 0, qtd: 0 };
 
-  const varFat = fatPrev.valor > 0 ? ((fat.valor - fatPrev.valor) / fatPrev.valor) * 100 : null;
-  const varRec = recPrev.valor > 0 ? ((rec.valor - recPrev.valor) / recPrev.valor) * 100 : null;
+  const varFat      = fatPrev.valor > 0 ? ((fat.valor - fatPrev.valor) / fatPrev.valor) * 100 : null;
+  const varRec      = recPrev.valor > 0 ? ((rec.valor - recPrev.valor) / recPrev.valor) * 100 : null;
   const saldoLiquido = saldo.entradas - saldo.saidas;
-  const margemPct = margem.receita > 0 ? ((margem.receita - margem.custo) / margem.receita) * 100 : null;
+  const margemPct   = margem.receita > 0 ? ((margem.receita - margem.custo) / margem.receita) * 100 : null;
   const ticketMedio = (fat.qtd ?? 0) > 0 ? fat.valor / (fat.qtd ?? 1) : 0;
 
   return NextResponse.json({
@@ -147,16 +145,15 @@ export async function GET(request: Request) {
     ticketMedioMes: ticketMedio,
     recebidoMes: rec.valor,
     varRecebido: varRec,
-    inadimplenciaTotal: inad.total,
-    inadimplenciaClientes: inad.qtd_clientes,
-    inadimplenciaTitulos: inad.qtd_titulos,
-    aVencer30Total: aVenc.total,
-    aVencer30Qtd: aVenc.qtd,
     saldoLiquidoMes: saldoLiquido,
     entradasMes: saldo.entradas,
     saidasMes: saldo.saidas,
     margemPctMes: margemPct,
     receitaBrutaMes: margem.receita,
     custoBrutoMes: margem.custo,
+    contasReceberTotal: ctaRec.total,
+    contasReceberQtd: ctaRec.qtd,
+    contasPagarTotal: ctaPag.total,
+    contasPagarQtd: ctaPag.qtd,
   });
 }
