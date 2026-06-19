@@ -28,10 +28,17 @@ export async function GET(request: Request) {
   if (!cfg) return NextResponse.json({ error: "Bridge não configurada" }, { status: 404 });
 
   const { bridgeUrl, token, empId } = cfg;
-  const q = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId });
 
-  // Base de 12 meses: primeiro dia de 11 meses atrás até hoje
-  const base12m = `DATEADD(MONTH,-11, DATEFROMPARTS(YEAR(GETDATE()),MONTH(GETDATE()),1))`;
+  // Para gráficos temporais: sempre 12 meses terminando em `end`
+  const endParam = searchParams.get("end") ?? new Date().toISOString().split("T")[0];
+  const endDate  = new Date(endParam + "T12:00:00");
+  const base12mDate = new Date(endDate);
+  base12mDate.setMonth(base12mDate.getMonth() - 11);
+  base12mDate.setDate(1);
+  const base12m = base12mDate.toISOString().split("T")[0];
+
+  const q = <T>(sql: string, params?: Record<string, unknown>) =>
+    queryBridge<T>({ bridgeUrl, token }, sql, { empId, ...params });
 
   switch (type) {
     case "faturamento-recebimentos": {
@@ -42,37 +49,49 @@ export async function GET(request: Request) {
                  COUNT(*) AS qtd
           FROM venda
           WHERE vedStatus='F' AND vedTipo IN ('OS','VE') AND vedTotalNf>0 AND empId=@empId
-            AND vedFechamento >= ${base12m}
+            AND CONVERT(date,vedFechamento) >= @base12m
+            AND CONVERT(date,vedFechamento) <= @endDate
           GROUP BY FORMAT(vedFechamento,'yyyy-MM')
           ORDER BY mes
-        `),
-        q<{ mes: string; recebido: number; qtd: number }>(`
+        `, { base12m, endDate: endParam }),
+        q<{ mes: string; recebido: number }>(`
           SELECT FORMAT(pgtDataQuitou,'yyyy-MM') AS mes,
-                 SUM(pgtValor) AS recebido,
-                 COUNT(*) AS qtd
+                 SUM(pgtValor) AS recebido
           FROM vendaPgto
           WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
-            AND pgtDataQuitou >= ${base12m}
+            AND CONVERT(date,pgtDataQuitou) >= @base12m
+            AND CONVERT(date,pgtDataQuitou) <= @endDate
           GROUP BY FORMAT(pgtDataQuitou,'yyyy-MM')
           ORDER BY mes
-        `),
+        `, { base12m, endDate: endParam }),
       ]);
 
-      // Mescla por mês
-      const mesMap = new Map<string, { mes: string; faturamento: number; recebido: number; qtdVendas: number; qtdRec: number }>();
+      // Gera todos os meses do intervalo para preencher lacunas com zero
+      const mesMap = new Map<string, { mes: string; faturamento: number; recebido: number; qtdVendas: number }>();
+      const cursor = new Date(base12mDate);
+      while (cursor <= endDate) {
+        const key = cursor.toISOString().slice(0, 7);
+        mesMap.set(key, { mes: key, faturamento: 0, recebido: 0, qtdVendas: 0 });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+
       for (const r of fatRows) {
-        mesMap.set(r.mes, { mes: r.mes, faturamento: Number(r.faturamento), recebido: 0, qtdVendas: Number(r.qtd), qtdRec: 0 });
+        const entry = mesMap.get(r.mes);
+        if (entry) { entry.faturamento = Number(r.faturamento); entry.qtdVendas = Number(r.qtd); }
       }
       for (const r of recRows) {
-        const existing = mesMap.get(r.mes);
-        if (existing) {
-          existing.recebido = Number(r.recebido);
-          existing.qtdRec   = Number(r.qtd);
-        } else {
-          mesMap.set(r.mes, { mes: r.mes, faturamento: 0, recebido: Number(r.recebido), qtdVendas: 0, qtdRec: Number(r.qtd) });
-        }
+        const entry = mesMap.get(r.mes);
+        if (entry) entry.recebido = Number(r.recebido);
       }
-      return NextResponse.json(Array.from(mesMap.values()).sort((a, b) => a.mes.localeCompare(b.mes)));
+
+      const result = Array.from(mesMap.values())
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .map((r) => ({
+          ...r,
+          taxaRec: r.faturamento > 0 ? Math.round(r.recebido / r.faturamento * 1000) / 10 : null,
+        }));
+
+      return NextResponse.json(result);
     }
 
     case "fluxo-caixa": {
@@ -82,17 +101,33 @@ export async function GET(request: Request) {
                ISNULL(SUM(CASE WHEN ctmSinal='-' THEN ABS(ctmValor) ELSE 0 END),0) AS saidas
         FROM contaMov
         WHERE empId=@empId AND ctmTipoMov IN ('CP','CR')
-          AND ctmData >= ${base12m}
+          AND CONVERT(date,ctmData) >= @base12m
+          AND CONVERT(date,ctmData) <= @endDate
         GROUP BY FORMAT(ctmData,'yyyy-MM')
         ORDER BY mes
-      `);
-      // Calcula saldo acumulado
+      `, { base12m, endDate: endParam });
+
+      // Garante todos os meses no intervalo
+      const mesMap = new Map<string, { mes: string; entradas: number; saidas: number }>();
+      const cursor = new Date(base12mDate);
+      while (cursor <= endDate) {
+        const key = cursor.toISOString().slice(0, 7);
+        mesMap.set(key, { mes: key, entradas: 0, saidas: 0 });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+      for (const r of rows) {
+        const entry = mesMap.get(r.mes);
+        if (entry) { entry.entradas = Number(r.entradas); entry.saidas = Number(r.saidas); }
+      }
+
       let acumulado = 0;
-      const result = rows.map((r) => {
-        const saldo = Number(r.entradas) - Number(r.saidas);
-        acumulado += saldo;
-        return { mes: r.mes, entradas: Number(r.entradas), saidas: Number(r.saidas), saldo, acumulado };
-      });
+      const result = Array.from(mesMap.values())
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .map((r) => {
+          const saldo = r.entradas - r.saidas;
+          acumulado += saldo;
+          return { mes: r.mes, entradas: r.entradas, saidas: r.saidas, saldo, acumulado };
+        });
       return NextResponse.json(result);
     }
 
@@ -104,22 +139,33 @@ export async function GET(request: Request) {
         FROM vendaItem vi JOIN venda v ON vi.vdiVedId=v.vedId
         WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.empId=@empId
           AND vi.vdiProCustoFinal>0
-          AND v.vedFechamento >= ${base12m}
+          AND CONVERT(date,v.vedFechamento) >= @base12m
+          AND CONVERT(date,v.vedFechamento) <= @endDate
         GROUP BY FORMAT(v.vedFechamento,'yyyy-MM')
         ORDER BY mes
-      `);
-      return NextResponse.json(rows.map((r) => {
-        const receita = Number(r.receita);
-        const custo   = Number(r.custo);
-        const lucro   = receita - custo;
-        return {
-          mes: r.mes,
-          receita,
-          custo,
-          lucro,
-          margemPct: receita > 0 ? Math.round((lucro / receita) * 10000) / 100 : 0,
-        };
-      }));
+      `, { base12m, endDate: endParam });
+
+      const mesMap = new Map<string, { mes: string; receita: number; custo: number }>();
+      const cursor = new Date(base12mDate);
+      while (cursor <= endDate) {
+        const key = cursor.toISOString().slice(0, 7);
+        mesMap.set(key, { mes: key, receita: 0, custo: 0 });
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+      for (const r of rows) {
+        const entry = mesMap.get(r.mes);
+        if (entry) { entry.receita = Number(r.receita); entry.custo = Number(r.custo); }
+      }
+
+      return NextResponse.json(
+        Array.from(mesMap.values())
+          .sort((a, b) => a.mes.localeCompare(b.mes))
+          .map((r) => {
+            const lucro = r.receita - r.custo;
+            return { mes: r.mes, receita: r.receita, custo: r.custo, lucro,
+              margemPct: r.receita > 0 ? Math.round((lucro / r.receita) * 10000) / 100 : 0 };
+          })
+      );
     }
 
     case "aging": {
@@ -145,10 +191,7 @@ export async function GET(request: Request) {
         ORDER BY faixa
       `);
       const labels: Record<string, string> = {
-        "01-30d": "1–30 dias",
-        "31-60d": "31–60 dias",
-        "61-90d": "61–90 dias",
-        "+90d":   "+90 dias",
+        "01-30d": "1–30 dias", "31-60d": "31–60 dias", "61-90d": "61–90 dias", "+90d": "+90 dias",
       };
       const order = ["01-30d", "31-60d", "61-90d", "+90d"];
       const mapped = rows.map((r) => ({ faixa: r.faixa, label: labels[r.faixa] ?? r.faixa, qtd: Number(r.qtd), valor: Number(r.valor) }));
@@ -182,41 +225,6 @@ export async function GET(request: Request) {
         maisAntigo: r.mais_antigo,
         maxDias:    Number(r.max_dias),
       })));
-    }
-
-    case "tipo-operacao": {
-      const rows = await q<{ tipo: string; qtd: number; valor: number }>(`
-        SELECT
-          CASE pgtTipoOpr
-            WHEN 'OS' THEN 'Ordem de Serviço'
-            WHEN 'VE' THEN 'Venda'
-            WHEN 'FI' THEN 'Financiamento'
-            WHEN 'RE' THEN 'Recebimento'
-            WHEN 'CO' THEN 'Cobrança'
-            WHEN 'FA' THEN 'Faturamento'
-            WHEN 'NF' THEN 'Nota Fiscal'
-            ELSE ISNULL(NULLIF(pgtTipoOpr,''),'Outros')
-          END AS tipo,
-          COUNT(*) AS qtd,
-          ISNULL(SUM(pgtValor),0) AS valor
-        FROM vendaPgto
-        WHERE empId=@empId AND pgtPago='S'
-          AND pgtDataQuitou >= ${base12m}
-        GROUP BY
-          CASE pgtTipoOpr
-            WHEN 'OS' THEN 'Ordem de Serviço'
-            WHEN 'VE' THEN 'Venda'
-            WHEN 'FI' THEN 'Financiamento'
-            WHEN 'RE' THEN 'Recebimento'
-            WHEN 'CO' THEN 'Cobrança'
-            WHEN 'FA' THEN 'Faturamento'
-            WHEN 'NF' THEN 'Nota Fiscal'
-            ELSE ISNULL(NULLIF(pgtTipoOpr,''),'Outros')
-          END
-        HAVING SUM(pgtValor) > 0
-        ORDER BY valor DESC
-      `);
-      return NextResponse.json(rows.map((r) => ({ tipo: r.tipo, qtd: Number(r.qtd), valor: Number(r.valor) })));
     }
 
     default:

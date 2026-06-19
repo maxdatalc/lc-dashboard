@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useLoja } from "@/lib/contexts/loja-context";
+import { usePeriod, computeRange, type Period } from "@/lib/contexts/period-context";
 import { ChartCard } from "@/components/ui/ChartCard";
+import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { FinFaturamentoChart, type FinFaturamentoData } from "@/components/charts/FinFaturamentoChart";
 import { FinFluxoCaixaChart, type FinFluxoCaixaData } from "@/components/charts/FinFluxoCaixaChart";
 import { FinMargemChart, type FinMargemData } from "@/components/charts/FinMargemChart";
@@ -39,7 +41,22 @@ function fmtR(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 }
 
-// ─── Shimmer ─────────────────────────────────────────────────────────────────
+function periodLabel(period: Period, customRange: { start: Date; end: Date } | null): string {
+  const fmtD = (d: Date) => `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}`;
+  switch (period) {
+    case "today":     return "Hoje";
+    case "7d":        return "7 dias";
+    case "month":     return "Mês atual";
+    case "3m":        return "3 meses";
+    case "year":      return "Ano atual";
+    case "prev-year": return "Ano anterior";
+    case "custom":
+      if (!customRange) return "Período personalizado";
+      return `${fmtD(customRange.start)} – ${fmtD(customRange.end)}`;
+  }
+}
+
+// ─── Skeletons ────────────────────────────────────────────────────────────────
 
 function ChartSkeleton({ height = 220 }: { height?: number }) {
   return <div className="shimmer rounded-lg w-full" style={{ height }} />;
@@ -100,58 +117,39 @@ function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger
       overflow: "hidden",
     }}>
       <div style={{
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 2,
+        position: "absolute", top: 0, left: 0, right: 0, height: 2,
         background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
         opacity: 0.7,
       }} />
-
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
           {label}
         </span>
         <span style={{ color: accent, opacity: 0.85, display: "flex" }}>{icon}</span>
       </div>
-
       <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
         <span style={{
-          fontSize: 22,
-          fontWeight: 800,
-          fontFamily: "var(--font-mono, monospace)",
-          color: "var(--text-primary)",
-          letterSpacing: "-0.03em",
-          lineHeight: 1,
+          fontSize: 22, fontWeight: 800, fontFamily: "var(--font-mono, monospace)",
+          color: "var(--text-primary)", letterSpacing: "-0.03em", lineHeight: 1,
         }}>
           {value}
         </span>
         {badge && (
           <span style={{
-            fontSize: 10,
-            fontWeight: 700,
-            padding: "2px 6px",
-            borderRadius: 20,
-            background: `${accent}18`,
-            color: accent,
-            marginBottom: 1,
-            whiteSpace: "nowrap",
+            fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 20,
+            background: `${accent}18`, color: accent, marginBottom: 1, whiteSpace: "nowrap",
           }}>
             {badge}
           </span>
         )}
       </div>
-
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {variation !== null && variation !== undefined && (
           <span style={{ fontSize: 11, fontWeight: 700, color: varColor, display: "flex", alignItems: "center", gap: 2 }}>
             {variation >= 0 ? "▲" : "▼"} {Math.abs(variation).toFixed(1)}%
           </span>
         )}
-        {sub && (
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{sub}</span>
-        )}
+        {sub && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{sub}</span>}
       </div>
     </div>
   );
@@ -195,22 +193,13 @@ const IconMargem = () => (
 function FilterPill({ label, onClear }: { label: string; onClear: () => void }) {
   return (
     <span style={{
-      display: "inline-flex",
-      alignItems: "center",
-      gap: 6,
+      display: "inline-flex", alignItems: "center", gap: 6,
       padding: "3px 8px 3px 10px",
-      background: "rgba(0,229,255,0.08)",
-      border: "1px solid rgba(0,229,255,0.3)",
-      borderRadius: 20,
-      fontSize: 11,
-      fontWeight: 600,
-      color: "var(--accent-cyan)",
+      background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.3)",
+      borderRadius: 20, fontSize: 11, fontWeight: 600, color: "var(--accent-cyan)",
     }}>
       {label}
-      <button
-        onClick={onClear}
-        style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0, lineHeight: 1, display: "flex" }}
-      >
+      <button onClick={onClear} style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: 0, lineHeight: 1, display: "flex" }}>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
           <path d="M9.5 2.5l-7 7M2.5 2.5l7 7"/>
         </svg>
@@ -223,6 +212,7 @@ function FilterPill({ label, onClear }: { label: string; onClear: () => void }) 
 
 export default function FinanceiroPage() {
   const { selectedLojaId, lojasDisponiveis, lojasSelecionadas } = useLoja();
+  const { period, customRange } = usePeriod();
 
   const lojaIds =
     lojasSelecionadas.length > 0
@@ -241,14 +231,26 @@ export default function FinanceiroPage() {
   const [isRefreshing, setIsRefreshing]   = useState(false);
   const hasLoadedOnce = useRef(false);
 
-  const [kpis, setKpis]                                     = useState<KpiData | null>(null);
-  const [fatRecData, setFatRecData]                         = useState<FinFaturamentoData[]>([]);
-  const [fluxoData, setFluxoData]                           = useState<FinFluxoCaixaData[]>([]);
-  const [margemData, setMargemData]                         = useState<FinMargemData[]>([]);
-  const [agingData, setAgingData]                           = useState<FinAgingData[]>([]);
-  const [topDevedoresFiltrado, setTopDevedoresFiltrado]     = useState<FinTopDevedorData[]>([]);
+  const [kpis, setKpis]                                 = useState<KpiData | null>(null);
+  const [fatRecData, setFatRecData]                     = useState<FinFaturamentoData[]>([]);
+  const [fluxoData, setFluxoData]                       = useState<FinFluxoCaixaData[]>([]);
+  const [margemData, setMargemData]                     = useState<FinMargemData[]>([]);
+  const [agingData, setAgingData]                       = useState<FinAgingData[]>([]);
+  const [topDevedoresFiltrado, setTopDevedoresFiltrado] = useState<FinTopDevedorData[]>([]);
 
   const lojaKey = lojaIds.join(",");
+
+  // Calcula start/end a partir do período selecionado no header
+  function getRange(): { start: string; end: string } {
+    if (period === "custom" && customRange) {
+      return {
+        start: customRange.start.toISOString().split("T")[0],
+        end:   customRange.end.toISOString().split("T")[0],
+      };
+    }
+    if (period === "custom") return computeRange("month");
+    return computeRange(period);
+  }
 
   const fetchDados = useCallback(async () => {
     if (lojaIds.length === 0) return;
@@ -258,7 +260,8 @@ export default function FinanceiroPage() {
       setChartsLoading(true);
     }
 
-    const params = new URLSearchParams({ lojaIds: lojaKey });
+    const { start, end } = getRange();
+    const params = new URLSearchParams({ lojaIds: lojaKey, start, end });
 
     const [kpisRes, fatRecRes, fluxoRes, margemRes, agingRes, topRes] = await Promise.allSettled([
       fetch(`/api/dashboard/financeiro/kpis?${params}`).then((r) => r.ok ? r.json() : null),
@@ -274,258 +277,215 @@ export default function FinanceiroPage() {
     setIsRefreshing(false);
     hasLoadedOnce.current = true;
 
-    if (kpisRes.status === "fulfilled" && kpisRes.value)  setKpis(kpisRes.value);
+    if (kpisRes.status  === "fulfilled" && kpisRes.value)  setKpis(kpisRes.value);
     if (fatRecRes.status === "fulfilled") setFatRecData(fatRecRes.value as FinFaturamentoData[]);
     if (fluxoRes.status  === "fulfilled") setFluxoData(fluxoRes.value   as FinFluxoCaixaData[]);
     if (margemRes.status === "fulfilled") setMargemData(margemRes.value  as FinMargemData[]);
     if (agingRes.status  === "fulfilled") setAgingData(agingRes.value    as FinAgingData[]);
     if (topRes.status    === "fulfilled") setTopDevedoresFiltrado(topRes.value as FinTopDevedorData[]);
-  }, [lojaKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaKey, period, customRange]);
 
   const fetchTopDevedores = useCallback(async (aging: string | null) => {
     if (lojaIds.length === 0) return;
-    const params = new URLSearchParams({ lojaIds: lojaKey, type: "top-devedores" });
+    const { start, end } = getRange();
+    const params = new URLSearchParams({ lojaIds: lojaKey, start, end, type: "top-devedores" });
     if (aging) params.set("aging", aging);
     const res = await fetch(`/api/dashboard/financeiro/charts?${params}`);
     if (res.ok) setTopDevedoresFiltrado(await res.json());
-  }, [lojaKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaKey, period, customRange]);
 
-  useEffect(() => { fetchDados(); }, [fetchDados]);
-  useEffect(() => { fetchTopDevedores(selectedAging); }, [selectedAging, fetchTopDevedores]);
+  useEffect(() => { void fetchDados(); }, [fetchDados]);
+  useEffect(() => { void fetchTopDevedores(selectedAging); }, [selectedAging, fetchTopDevedores]);
 
   if (lojaIds.length === 0) return <SemLoja />;
 
-  const mesesNomes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  const mesPillLabel = selectedMes ? (() => {
-    const [y, m] = selectedMes.split("-");
-    return `${mesesNomes[parseInt(m, 10) - 1]}/${y.slice(2)}`;
-  })() : null;
+  const pLabel = periodLabel(period, customRange);
 
   const agingLabels: Record<string, string> = {
-    "01-30d": "1–30 dias",
-    "31-60d": "31–60 dias",
-    "61-90d": "61–90 dias",
-    "+90d":   "+90 dias",
+    "01-30d": "1–30 dias", "31-60d": "31–60 dias", "61-90d": "61–90 dias", "+90d": "+90 dias",
   };
 
   return (
-    <div style={{ padding: "20px 24px 40px", display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
+      <TopProgressBar loading={isRefreshing} />
 
-      {/* ── Cabeçalho ──────────────────────────────────────────────── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.02em" }}>
-            Painel Financeiro
-          </h1>
-          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "2px 0 0" }}>
-            Faturamento · Recebimentos · Inadimplência · Fluxo de Caixa · Margem
-          </p>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {mesPillLabel && (
-            <FilterPill label={`Mês: ${mesPillLabel}`} onClear={() => setSelectedMes(null)} />
-          )}
-          {selectedAging && (
-            <FilterPill label={`Aging: ${agingLabels[selectedAging] ?? selectedAging}`} onClear={() => setSelectedAging(null)} />
-          )}
-          <button
-            onClick={fetchDados}
-            disabled={isRefreshing}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              borderRadius: 8,
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-subtle)",
-              color: "var(--text-secondary)",
-              fontSize: 12,
-              fontWeight: 600,
-              cursor: isRefreshing ? "not-allowed" : "pointer",
-              opacity: isRefreshing ? 0.6 : 1,
-              transition: "all 0.15s",
-            }}
-          >
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ animation: isRefreshing ? "spin 1s linear infinite" : undefined }}
-            >
-              <polyline points="23 4 23 10 17 10"/>
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-            </svg>
-            Atualizar
-          </button>
-        </div>
-      </div>
-
-      {/* ── KPI Cards ─────────────────────────────────────────────── */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-        gap: 12,
-      }}>
-        {kpiLoading ? (
-          [...Array(6)].map((_, i) => <KpiSkeleton key={i} />)
-        ) : kpis ? (
-          <>
-            <KpiCard
-              label="Faturamento Mês"
-              value={fmtR(kpis.faturamentoMes)}
-              variation={kpis.varFaturamento}
-              sub="vs mês anterior"
-              icon={<IconFat />}
-              accent="var(--accent-cyan)"
-              badge={`${kpis.qtdVendasMes} vendas`}
-              delay={0}
-            />
-            <KpiCard
-              label="Recebido Mês"
-              value={fmtR(kpis.recebidoMes)}
-              variation={kpis.varRecebido}
-              sub="vs mês anterior"
-              icon={<IconRec />}
-              accent="#22c55e"
-              delay={60}
-            />
-            <KpiCard
-              label="Saldo Líquido"
-              value={fmtR(kpis.saldoLiquidoMes)}
-              sub={`Ent ${fmtR(kpis.entradasMes)} · Saí ${fmtR(kpis.saidasMes)}`}
-              icon={<IconSaldo />}
-              accent={kpis.saldoLiquidoMes >= 0 ? "#22c55e" : "#ef4444"}
-              delay={120}
-            />
-            <KpiCard
-              label="Inadimplência"
-              value={fmtR(kpis.inadimplenciaTotal)}
-              sub={`${kpis.inadimplenciaClientes} clientes · ${kpis.inadimplenciaTitulos} títulos`}
-              icon={<IconInad />}
-              accent="#ef4444"
-              danger
-              delay={180}
-            />
-            <KpiCard
-              label="A Vencer (30d)"
-              value={fmtR(kpis.aVencer30Total)}
-              sub={`${kpis.aVencer30Qtd} títulos a vencer`}
-              icon={<IconVencer />}
-              accent="#f59e0b"
-              delay={240}
-            />
-            <KpiCard
-              label="Margem Bruta"
-              value={kpis.margemPctMes !== null ? `${kpis.margemPctMes.toFixed(1)}%` : "—"}
-              sub={kpis.receitaBrutaMes > 0 ? `Receita ${fmtR(kpis.receitaBrutaMes)}` : "Sem dados de custo"}
-              icon={<IconMargem />}
-              accent="#a855f7"
-              delay={300}
-            />
-          </>
-        ) : null}
-      </div>
-
-      {/* ── Row 1: Faturamento vs Recebimentos + Margem ──────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <ChartCard
-          title="Faturamento vs Recebimentos"
-          subtitle={`Últimos 12 meses${mesPillLabel ? ` · filtrando ${mesPillLabel}` : " · clique para filtrar"}`}
-          animationDelay={100}
-        >
-          {chartsLoading ? (
-            <ChartSkeleton height={220} />
-          ) : (
-            <FinFaturamentoChart
-              data={fatRecData}
-              selectedMes={selectedMes}
-              onMesClick={setSelectedMes}
-            />
-          )}
-        </ChartCard>
-
-        <ChartCard
-          title="Margem Bruta"
-          subtitle="Receita, custo e % de margem — últimos 12 meses"
-          animationDelay={150}
-        >
-          {chartsLoading ? (
-            <ChartSkeleton height={220} />
-          ) : (
-            <FinMargemChart
-              data={margemData}
-              selectedMes={selectedMes}
-              onMesClick={setSelectedMes}
-            />
-          )}
-        </ChartCard>
-      </div>
-
-      {/* ── Row 2: Fluxo de Caixa ─────────────────────────────────── */}
-      <ChartCard
-        title="Fluxo de Caixa"
-        subtitle={`Entradas, saídas e saldo líquido — últimos 12 meses${mesPillLabel ? ` · destacando ${mesPillLabel}` : ""}`}
-        animationDelay={200}
+      <div
+        className="flex flex-col gap-3"
+        style={{
+          opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1,
+          transition: "opacity 0.2s ease",
+          pointerEvents: isRefreshing && hasLoadedOnce.current ? "none" : "auto",
+        }}
       >
-        {chartsLoading ? (
-          <ChartSkeleton height={220} />
-        ) : (
-          <FinFluxoCaixaChart
-            data={fluxoData}
-            selectedMes={selectedMes}
-            onMesClick={setSelectedMes}
-          />
-        )}
-      </ChartCard>
 
-      {/* ── Row 3: Aging + Top Devedores ─────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 16 }}>
+        {/* ── Filtros ativos + Atualizar ───────────────────────────────── */}
+        {(selectedMes ?? selectedAging) ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {selectedMes && (
+              <FilterPill label={`Mês: ${selectedMes}`} onClear={() => setSelectedMes(null)} />
+            )}
+            {selectedAging && (
+              <FilterPill label={`Aging: ${agingLabels[selectedAging] ?? selectedAging}`} onClear={() => setSelectedAging(null)} />
+            )}
+          </div>
+        ) : null}
+
+        {/* ── KPI Cards ──────────────────────────────────────────────────── */}
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
+          {kpiLoading ? (
+            [...Array(6)].map((_, i) => <KpiSkeleton key={i} />)
+          ) : kpis ? (
+            <>
+              <KpiCard
+                label="Faturamento"
+                value={fmtR(kpis.faturamentoMes)}
+                variation={kpis.varFaturamento}
+                sub="vs período anterior"
+                icon={<IconFat />}
+                accent="var(--accent-cyan)"
+                badge={`${kpis.qtdVendasMes} vendas`}
+                delay={0}
+              />
+              <KpiCard
+                label="Recebido"
+                value={fmtR(kpis.recebidoMes)}
+                variation={kpis.varRecebido}
+                sub="vs período anterior"
+                icon={<IconRec />}
+                accent="#22c55e"
+                delay={60}
+              />
+              <KpiCard
+                label="Saldo Líquido"
+                value={fmtR(kpis.saldoLiquidoMes)}
+                sub={`Ent ${fmtR(kpis.entradasMes)} · Saí ${fmtR(kpis.saidasMes)}`}
+                icon={<IconSaldo />}
+                accent={kpis.saldoLiquidoMes >= 0 ? "#22c55e" : "#ef4444"}
+                delay={120}
+              />
+              <KpiCard
+                label="Inadimplência"
+                value={fmtR(kpis.inadimplenciaTotal)}
+                sub={`${kpis.inadimplenciaClientes} clientes · ${kpis.inadimplenciaTitulos} títulos`}
+                icon={<IconInad />}
+                accent="#ef4444"
+                danger
+                delay={180}
+              />
+              <KpiCard
+                label="A Vencer (30d)"
+                value={fmtR(kpis.aVencer30Total)}
+                sub={`${kpis.aVencer30Qtd} títulos a vencer`}
+                icon={<IconVencer />}
+                accent="#f59e0b"
+                delay={240}
+              />
+              <KpiCard
+                label="Margem Bruta"
+                value={kpis.margemPctMes !== null ? `${kpis.margemPctMes.toFixed(1)}%` : "—"}
+                sub={kpis.receitaBrutaMes > 0 ? `Receita ${fmtR(kpis.receitaBrutaMes)}` : "Sem dados de custo"}
+                icon={<IconMargem />}
+                accent="#a855f7"
+                delay={300}
+              />
+            </>
+          ) : null}
+        </div>
+
+        {/* ── Row 1: Faturamento vs Recebimentos + Margem ──────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <ChartCard
+            title="Faturamento vs Recebimentos"
+            subtitle={`12 meses · ${pLabel} · linha amarela = taxa de recebimento (recebido ÷ faturado)`}
+            animationDelay={100}
+          >
+            {chartsLoading ? (
+              <ChartSkeleton height={230} />
+            ) : (
+              <FinFaturamentoChart
+                data={fatRecData}
+                selectedMes={selectedMes}
+                onMesClick={setSelectedMes}
+              />
+            )}
+          </ChartCard>
+
+          <ChartCard
+            title="Margem Bruta"
+            subtitle={`12 meses · ${pLabel} · receita, custo e % de margem`}
+            animationDelay={150}
+          >
+            {chartsLoading ? (
+              <ChartSkeleton height={230} />
+            ) : (
+              <FinMargemChart
+                data={margemData}
+                selectedMes={selectedMes}
+                onMesClick={setSelectedMes}
+              />
+            )}
+          </ChartCard>
+        </div>
+
+        {/* ── Row 2: Fluxo de Caixa ──────────────────────────────────────── */}
         <ChartCard
-          title="Aging de Inadimplência"
-          subtitle="Clique numa faixa para filtrar os devedores"
-          animationDelay={250}
+          title="Fluxo de Caixa"
+          subtitle={`12 meses · ${pLabel} · entradas, saídas e saldo líquido mensal`}
+          animationDelay={200}
         >
           {chartsLoading ? (
-            <ChartSkeleton height={280} />
+            <ChartSkeleton height={220} />
           ) : (
-            <FinAgingChart
-              data={agingData}
-              selectedAging={selectedAging}
-              onAgingClick={setSelectedAging}
+            <FinFluxoCaixaChart
+              data={fluxoData}
+              selectedMes={selectedMes}
+              onMesClick={setSelectedMes}
             />
           )}
         </ChartCard>
 
-        <ChartCard
-          title={selectedAging ? `Top Devedores — ${agingLabels[selectedAging] ?? selectedAging}` : "Top Devedores"}
-          subtitle="Maiores valores em aberto e vencidos"
-          animationDelay={300}
-        >
-          {chartsLoading ? (
-            <ChartSkeleton height={280} />
-          ) : (
-            <FinTopDevedoresChart
-              data={topDevedoresFiltrado}
-              selectedAging={selectedAging}
-            />
-          )}
-        </ChartCard>
-      </div>
+        {/* ── Row 3: Aging + Top Devedores ───────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <ChartCard
+            title="Aging de Inadimplência"
+            subtitle="Estado atual · clique numa faixa para filtrar os devedores"
+            animationDelay={250}
+          >
+            {chartsLoading ? (
+              <ChartSkeleton height={280} />
+            ) : (
+              <FinAgingChart
+                data={agingData}
+                selectedAging={selectedAging}
+                onAgingClick={setSelectedAging}
+              />
+            )}
+          </ChartCard>
+
+          <ChartCard
+            title={selectedAging ? `Top Devedores — ${agingLabels[selectedAging] ?? selectedAging}` : "Top Devedores"}
+            subtitle="Estado atual · maiores valores em aberto e vencidos"
+            animationDelay={300}
+          >
+            {chartsLoading ? (
+              <ChartSkeleton height={280} />
+            ) : (
+              <FinTopDevedoresChart
+                data={topDevedoresFiltrado}
+                selectedAging={selectedAging}
+              />
+            )}
+          </ChartCard>
+        </div>
+
+      </div>{/* fim do wrapper de dimming */}
 
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to   { transform: rotate(360deg); }
-        }
-        @media (max-width: 768px) {
-          .fin-row-2col { grid-template-columns: 1fr !important; }
-          .fin-row-aging { grid-template-columns: 1fr !important; }
         }
       `}</style>
     </div>
