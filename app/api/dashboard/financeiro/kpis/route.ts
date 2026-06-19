@@ -5,6 +5,10 @@ import { queryBridge } from "@/lib/mssql/client";
 
 export const dynamic = "force-dynamic";
 
+function isDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
+function toStr(d: Date) { return d.toISOString().split("T")[0]; }
+
 async function getConfig(lojaIds: string[]) {
   for (const id of lojaIds) {
     const cfg = await getLojaDbConfig(id);
@@ -21,118 +25,133 @@ export async function GET(request: Request) {
   const lojaIds = (searchParams.get("lojaIds") ?? "").split(",").filter(Boolean);
   if (lojaIds.length === 0) return NextResponse.json({ error: "lojaIds obrigatório" }, { status: 400 });
 
+  const start = searchParams.get("start") ?? "";
+  const end   = searchParams.get("end")   ?? "";
+  if (!isDate(start) || !isDate(end)) {
+    return NextResponse.json({ error: "start e end obrigatórios (YYYY-MM-DD)" }, { status: 400 });
+  }
+
   const cfg = await getConfig(lojaIds);
   if (!cfg) return NextResponse.json({ error: "Bridge não configurada" }, { status: 404 });
 
   const { bridgeUrl, token, empId } = cfg;
-  const q = (sql: string) => queryBridge({ bridgeUrl, token }, sql, { empId });
 
-  const now = new Date();
-  const ano = now.getFullYear();
-  const mes = now.getMonth() + 1;
-  const anoAnt = mes === 1 ? ano - 1 : ano;
-  const mesAnt = mes === 1 ? 12 : mes - 1;
+  // Período anterior com mesma duração
+  const startMs   = new Date(start + "T12:00:00").getTime();
+  const endMs     = new Date(end   + "T12:00:00").getTime();
+  const durationMs = endMs - startMs;
+  const prevEndDate   = new Date(startMs - 86400000);
+  const prevStartDate = new Date(prevEndDate.getTime() - durationMs);
+  const prevStart = toStr(prevStartDate);
+  const prevEnd   = toStr(prevEndDate);
+
+  // Helpers: qCur = período selecionado, qPrev = período anterior, qNow = estado atual
+  const qCur  = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId, start, end });
+  const qPrev = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId, start: prevStart, end: prevEnd });
+  const qNow  = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId });
 
   const [
-    fatMesRes,
-    fatMesAntRes,
-    recMesRes,
-    recMesAntRes,
+    fatRes,
+    fatPrevRes,
+    recRes,
+    recPrevRes,
     inadRes,
     aVencer30Res,
-    saldoMesRes,
-    margemMesRes,
+    saldoRes,
+    margemRes,
   ] = await Promise.allSettled([
-    // Faturamento mês atual
-    q(`
+    // Faturamento período atual
+    qCur<{ valor: number; qtd: number }>(`
       SELECT ISNULL(SUM(vedTotalNf),0) AS valor, COUNT(*) AS qtd
       FROM venda
       WHERE vedStatus='F' AND vedTipo IN ('OS','VE') AND vedTotalNf>0 AND empId=@empId
-        AND YEAR(vedFechamento)=${ano} AND MONTH(vedFechamento)=${mes}
+        AND CONVERT(date,vedFechamento) BETWEEN @start AND @end
     `),
-    // Faturamento mês anterior
-    q(`
+    // Faturamento período anterior
+    qPrev<{ valor: number }>(`
       SELECT ISNULL(SUM(vedTotalNf),0) AS valor
       FROM venda
       WHERE vedStatus='F' AND vedTipo IN ('OS','VE') AND vedTotalNf>0 AND empId=@empId
-        AND YEAR(vedFechamento)=${anoAnt} AND MONTH(vedFechamento)=${mesAnt}
+        AND CONVERT(date,vedFechamento) BETWEEN @start AND @end
     `),
-    // Recebimentos mês atual
-    q(`
+    // Recebimentos período atual
+    qCur<{ valor: number; qtd: number }>(`
       SELECT ISNULL(SUM(pgtValor),0) AS valor, COUNT(*) AS qtd
       FROM vendaPgto
       WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
-        AND YEAR(pgtDataQuitou)=${ano} AND MONTH(pgtDataQuitou)=${mes}
+        AND CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
     `),
-    // Recebimentos mês anterior
-    q(`
+    // Recebimentos período anterior
+    qPrev<{ valor: number }>(`
       SELECT ISNULL(SUM(pgtValor),0) AS valor
       FROM vendaPgto
       WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
-        AND YEAR(pgtDataQuitou)=${anoAnt} AND MONTH(pgtDataQuitou)=${mesAnt}
+        AND CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
     `),
-    // Inadimplência total
-    q(`
-      SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(DISTINCT pgtCliNome) AS qtd_clientes, COUNT(*) AS qtd_titulos
+    // Inadimplência — sempre estado atual (não filtra por período)
+    qNow<{ total: number; qtd_clientes: number; qtd_titulos: number }>(`
+      SELECT ISNULL(SUM(pgtValor),0) AS total,
+             COUNT(DISTINCT pgtCliNome) AS qtd_clientes,
+             COUNT(*) AS qtd_titulos
       FROM vendaPgto
       WHERE empId=@empId AND pgtPago IN ('N','F') AND pgtVecmto < CONVERT(date,GETDATE())
     `),
-    // A vencer em 30 dias
-    q(`
+    // A vencer em 30 dias — sempre estado atual
+    qNow<{ total: number; qtd: number }>(`
       SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(*) AS qtd
       FROM vendaPgto
       WHERE empId=@empId AND pgtPago IN ('N','F')
         AND pgtVecmto >= CONVERT(date,GETDATE())
         AND pgtVecmto <= CONVERT(date,DATEADD(day,30,GETDATE()))
     `),
-    // Saldo líquido do mês (contaMov)
-    q(`
+    // Saldo líquido (contaMov) no período
+    qCur<{ entradas: number; saidas: number }>(`
       SELECT
         ISNULL(SUM(CASE WHEN ctmSinal='+' THEN ctmValor ELSE 0 END),0) AS entradas,
         ISNULL(SUM(CASE WHEN ctmSinal='-' THEN ABS(ctmValor) ELSE 0 END),0) AS saidas
       FROM contaMov
       WHERE empId=@empId AND ctmTipoMov IN ('CP','CR')
-        AND YEAR(ctmData)=${ano} AND MONTH(ctmData)=${mes}
+        AND CONVERT(date,ctmData) BETWEEN @start AND @end
     `),
-    // Margem mês atual
-    q(`
+    // Margem bruta no período
+    qCur<{ receita: number; custo: number }>(`
       SELECT
         ISNULL(SUM(vi.vdiQtde*vi.vdiValor),0) AS receita,
         ISNULL(SUM(vi.vdiQtde*vi.vdiProCustoFinal),0) AS custo
       FROM vendaItem vi JOIN venda v ON vi.vdiVedId=v.vedId
       WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.empId=@empId
         AND vi.vdiProCustoFinal>0
-        AND YEAR(v.vedFechamento)=${ano} AND MONTH(v.vedFechamento)=${mes}
+        AND CONVERT(date,v.vedFechamento) BETWEEN @start AND @end
     `),
   ]);
 
-  const fatMes   = fatMesRes.status   === "fulfilled" ? (fatMesRes.value   as { valor: number; qtd: number }[])[0]   : { valor: 0, qtd: 0 };
-  const fatAnt   = fatMesAntRes.status === "fulfilled" ? (fatMesAntRes.value as { valor: number }[])[0]               : { valor: 0 };
-  const recMes   = recMesRes.status   === "fulfilled" ? (recMesRes.value   as { valor: number; qtd: number }[])[0]   : { valor: 0, qtd: 0 };
-  const recAnt   = recMesAntRes.status === "fulfilled" ? (recMesAntRes.value as { valor: number }[])[0]               : { valor: 0 };
-  const inad     = inadRes.status     === "fulfilled" ? (inadRes.value     as { total: number; qtd_clientes: number; qtd_titulos: number }[])[0] : { total: 0, qtd_clientes: 0, qtd_titulos: 0 };
-  const aVencer  = aVencer30Res.status === "fulfilled" ? (aVencer30Res.value as { total: number; qtd: number }[])[0]  : { total: 0, qtd: 0 };
-  const saldo    = saldoMesRes.status  === "fulfilled" ? (saldoMesRes.value  as { entradas: number; saidas: number }[])[0] : { entradas: 0, saidas: 0 };
-  const margem   = margemMesRes.status === "fulfilled" ? (margemMesRes.value as { receita: number; custo: number }[])[0]   : { receita: 0, custo: 0 };
+  const fat    = fatRes.status    === "fulfilled" ? (fatRes.value    as { valor: number; qtd: number }[])[0]                                               : { valor: 0, qtd: 0 };
+  const fatPrev= fatPrevRes.status=== "fulfilled" ? (fatPrevRes.value as { valor: number }[])[0]                                                           : { valor: 0 };
+  const rec    = recRes.status    === "fulfilled" ? (recRes.value    as { valor: number; qtd: number }[])[0]                                               : { valor: 0, qtd: 0 };
+  const recPrev= recPrevRes.status=== "fulfilled" ? (recPrevRes.value as { valor: number }[])[0]                                                           : { valor: 0 };
+  const inad   = inadRes.status   === "fulfilled" ? (inadRes.value   as { total: number; qtd_clientes: number; qtd_titulos: number }[])[0]                 : { total: 0, qtd_clientes: 0, qtd_titulos: 0 };
+  const aVenc  = aVencer30Res.status==="fulfilled"? (aVencer30Res.value as { total: number; qtd: number }[])[0]                                            : { total: 0, qtd: 0 };
+  const saldo  = saldoRes.status  === "fulfilled" ? (saldoRes.value  as { entradas: number; saidas: number }[])[0]                                         : { entradas: 0, saidas: 0 };
+  const margem = margemRes.status === "fulfilled" ? (margemRes.value as { receita: number; custo: number }[])[0]                                           : { receita: 0, custo: 0 };
 
-  const varFat = fatAnt.valor > 0 ? ((fatMes.valor - fatAnt.valor) / fatAnt.valor) * 100 : null;
-  const varRec = recAnt.valor > 0 ? ((recMes.valor - recAnt.valor) / recAnt.valor) * 100 : null;
+  const varFat = fatPrev.valor > 0 ? ((fat.valor - fatPrev.valor) / fatPrev.valor) * 100 : null;
+  const varRec = recPrev.valor > 0 ? ((rec.valor - recPrev.valor) / recPrev.valor) * 100 : null;
   const saldoLiquido = saldo.entradas - saldo.saidas;
   const margemPct = margem.receita > 0 ? ((margem.receita - margem.custo) / margem.receita) * 100 : null;
-  const ticketMedio = (fatMes.qtd ?? 0) > 0 ? fatMes.valor / (fatMes.qtd ?? 1) : 0;
+  const ticketMedio = (fat.qtd ?? 0) > 0 ? fat.valor / (fat.qtd ?? 1) : 0;
 
   return NextResponse.json({
-    faturamentoMes: fatMes.valor,
+    faturamentoMes: fat.valor,
     varFaturamento: varFat,
-    qtdVendasMes: fatMes.qtd,
+    qtdVendasMes: fat.qtd,
     ticketMedioMes: ticketMedio,
-    recebidoMes: recMes.valor,
+    recebidoMes: rec.valor,
     varRecebido: varRec,
     inadimplenciaTotal: inad.total,
     inadimplenciaClientes: inad.qtd_clientes,
     inadimplenciaTitulos: inad.qtd_titulos,
-    aVencer30Total: aVencer.total,
-    aVencer30Qtd: aVencer.qtd,
+    aVencer30Total: aVenc.total,
+    aVencer30Qtd: aVenc.qtd,
     saldoLiquidoMes: saldoLiquido,
     entradasMes: saldo.entradas,
     saidasMes: saldo.saidas,
