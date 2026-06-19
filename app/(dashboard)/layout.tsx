@@ -47,7 +47,7 @@ export default async function DashboardLayout({
     selectedTenantId
       ? adminClient
           .from("tenants")
-          .select("id, name, plan")
+          .select("id, name, plan, features")
           .eq("id", selectedTenantId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -62,9 +62,10 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const empresaData = empresaRes.data as { id: string; name: string; plan: string } | null;
-  const plan     = (empresaData?.plan ?? "free") as Plan;
-  const userRole = ((tenantAccessRes.data as { role?: string } | null)?.role ?? "viewer") as UserRole;
+  const empresaData = empresaRes.data as { id: string; name: string; plan: string; features?: string[] } | null;
+  const plan         = (empresaData?.plan ?? "free") as Plan;
+  const userRole     = ((tenantAccessRes.data as { role?: string } | null)?.role ?? "viewer") as UserRole;
+  const tenantFeatures = (empresaData?.features ?? null) as string[] | null;
 
   const { data: lojasData } = selectedTenantId
     ? await adminClient
@@ -88,6 +89,7 @@ export default async function DashboardLayout({
       empresaNome={empresaData?.name ?? ""}
       plan={plan}
       userRole={isAdmin ? "owner" : userRole}
+      features={tenantFeatures ?? undefined}
     >
       <DashLojaSync lojaId={selectedLojaId} />
       <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>

@@ -25,19 +25,21 @@ export function EmpresaProvider({
   empresaNome,
   plan,
   userRole,
+  features,
 }: {
   children:    React.ReactNode;
   empresaId:   string;
   empresaNome: string;
   plan:        Plan;
   userRole:    UserRole;
+  features?:   string[];
 }) {
   const value: EmpresaContextValue = {
     empresaId,
     empresaNome,
     plan,
     userRole,
-    hasFeature:     (key) => planHasFeature(plan, key),
+    hasFeature:     (key) => features ? features.includes(key) : planHasFeature(plan, key),
     canEdit:        roleCanEdit(userRole),
     canManageUsers: roleCanManageUsers(userRole),
   };
