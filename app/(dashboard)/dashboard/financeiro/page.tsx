@@ -20,17 +20,13 @@ interface KpiData {
   ticketMedioMes: number;
   recebidoMes: number;
   varRecebido: number | null;
-  inadimplenciaTotal: number;
-  inadimplenciaClientes: number;
-  inadimplenciaTitulos: number;
-  aVencer30Total: number;
-  aVencer30Qtd: number;
   saldoLiquidoMes: number;
   entradasMes: number;
   saidasMes: number;
-  margemPctMes: number | null;
-  receitaBrutaMes: number;
-  custoBrutoMes: number;
+  contasReceberTotal: number;
+  contasReceberQtd: number;
+  contasPagarTotal: number;
+  contasPagarQtd: number;
 }
 
 // ─── Utilitários ─────────────────────────────────────────────────────────────
@@ -172,6 +168,7 @@ function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger
         <span style={{
           fontSize: 22, fontWeight: 800, fontFamily: "var(--font-mono, monospace)",
           color: "var(--text-primary)", letterSpacing: "-0.03em", lineHeight: 1,
+          whiteSpace: "nowrap",
         }}>
           {value}
         </span>
@@ -252,19 +249,14 @@ const IconSaldo = () => (
     <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
   </svg>
 );
-const IconInad = () => (
+const IconCtaRec = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
   </svg>
 );
-const IconVencer = () => (
+const IconCtaPag = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-  </svg>
-);
-const IconMargem = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="7" cy="15" r="1" fill="currentColor"/>
   </svg>
 );
 
@@ -415,7 +407,7 @@ export default function FinanceiroPage() {
         {/* ── KPI Cards ──────────────────────────────────────────────────── */}
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))" }}>
           {kpiLoading ? (
-            [...Array(6)].map((_, i) => <KpiSkeleton key={i} />)
+            [...Array(5)].map((_, i) => <KpiSkeleton key={i} />)
           ) : kpis ? (
             <>
               <KpiCard
@@ -427,7 +419,6 @@ export default function FinanceiroPage() {
                 accent="var(--accent-cyan)"
                 badge={`${kpis.qtdVendasMes} vendas`}
                 delay={0}
-                info="Total gerado em vendas e ordens de serviço no período. A seta compara com o período imediatamente anterior de mesma duração. Se o valor cresceu mas o número de vendas caiu, o ticket médio subiu — geralmente um sinal positivo. Se caiu, verifique se houve queda de volume ou redução de preços."
               />
               <KpiCard
                 label="Recebido"
@@ -437,7 +428,6 @@ export default function FinanceiroPage() {
                 icon={<IconRec />}
                 accent="#22c55e"
                 delay={60}
-                info="Dinheiro que efetivamente entrou no caixa no período — apenas o que foi pago pelos clientes. Compare com o Faturamento: se o Recebido for bem menor, há valores vendidos mas ainda não recebidos. No gráfico abaixo, a linha amarela mostra exatamente essa proporção mês a mês."
               />
               <KpiCard
                 label="Saldo Líquido"
@@ -446,35 +436,23 @@ export default function FinanceiroPage() {
                 icon={<IconSaldo />}
                 accent={kpis.saldoLiquidoMes >= 0 ? "#22c55e" : "#ef4444"}
                 delay={120}
-                info="Resultado real do caixa no período: entradas menos saídas registradas no financeiro. Verde significa que entrou mais do que saiu. Vermelho significa que a empresa gastou mais do que recebeu — atenção redobrada. Esse número reflete o movimento de caixa, não o lucro contábil."
               />
               <KpiCard
-                label="Inadimplência"
-                value={fmtR(kpis.inadimplenciaTotal)}
-                sub={`${kpis.inadimplenciaClientes} clientes · ${kpis.inadimplenciaTitulos} títulos`}
-                icon={<IconInad />}
+                label="Contas a Receber"
+                value={fmtR(kpis.contasReceberTotal)}
+                sub={`${kpis.contasReceberQtd} título${kpis.contasReceberQtd !== 1 ? "s" : ""} no período`}
+                icon={<IconCtaRec />}
+                accent="var(--accent-cyan)"
+                delay={180}
+              />
+              <KpiCard
+                label="Contas a Pagar"
+                value={fmtR(kpis.contasPagarTotal)}
+                sub={`${kpis.contasPagarQtd} lançamento${kpis.contasPagarQtd !== 1 ? "s" : ""} no período`}
+                icon={<IconCtaPag />}
                 accent="#ef4444"
                 danger
-                delay={180}
-                info="Total de cobranças vencidas e não pagas até hoje — independente do período selecionado no filtro. Quanto maior, maior o risco para o caixa. Priorize clientes com maior valor em aberto e títulos mais antigos. O gráfico de Aging logo abaixo mostra quanto está vencido há 30, 60, 90 ou mais dias."
-              />
-              <KpiCard
-                label="A Vencer (30d)"
-                value={fmtR(kpis.aVencer30Total)}
-                sub={`${kpis.aVencer30Qtd} títulos a vencer`}
-                icon={<IconVencer />}
-                accent="#f59e0b"
                 delay={240}
-                info="Cobranças que ainda estão dentro do prazo, mas vencem nos próximos 30 dias. Representam a receita esperada de curto prazo. Se o valor for alto, o caixa deve melhorar em breve — mas lembre-se: nem tudo que vence é pago no prazo. Use esse número para planejar compromissos futuros."
-              />
-              <KpiCard
-                label="Margem Bruta"
-                value={kpis.margemPctMes !== null ? `${kpis.margemPctMes.toFixed(1)}%` : "—"}
-                sub={kpis.receitaBrutaMes > 0 ? `Receita ${fmtR(kpis.receitaBrutaMes)}` : "Sem dados de custo"}
-                icon={<IconMargem />}
-                accent="#a855f7"
-                delay={300}
-                info="Percentual que sobra da receita depois de descontar o custo dos produtos e serviços vendidos. Exemplo: 40% de margem significa que de cada R$ 100 faturados, R$ 40 sobram para cobrir despesas e gerar lucro. Se a margem cair, pode indicar que os custos subiram, que está vendendo com desconto excessivo, ou uma mistura dos dois."
               />
             </>
           ) : null}
@@ -486,6 +464,7 @@ export default function FinanceiroPage() {
             title="Faturamento vs Recebimentos"
             subtitle={`12 meses · ${pLabel} · linha amarela = taxa de recebimento (recebido ÷ faturado)`}
             animationDelay={100}
+            info="O azul mostra o que foi faturado (emitido) em cada mês; o verde, o que realmente entrou no caixa. Quando o recebido fica abaixo do faturado, existe dinheiro ainda a receber de clientes. A linha amarela é a taxa de recebimento — idealmente próxima de 100%. Acima de 100% significa que foram recebidos valores de vendas de meses anteriores."
           >
             {chartsLoading ? (
               <ChartSkeleton height={230} />
@@ -502,6 +481,7 @@ export default function FinanceiroPage() {
             title="Margem Bruta"
             subtitle={`12 meses · ${pLabel} · receita, custo e % de margem`}
             animationDelay={150}
+            info="A área azul é a receita total dos itens vendidos; a vermelha é o custo. O espaço entre as duas áreas é o lucro bruto de cada mês. A linha roxa mostra em porcentagem quanto sobra após os custos — margem caindo mês a mês indica aumento de custo ou desconto excessivo nos preços."
           >
             {chartsLoading ? (
               <ChartSkeleton height={230} />
@@ -520,6 +500,7 @@ export default function FinanceiroPage() {
           title="Fluxo de Caixa"
           subtitle={`12 meses · ${pLabel} · entradas, saídas e saldo líquido mensal`}
           animationDelay={200}
+          info="Barras verdes mostram o dinheiro que entrou (recebimentos); barras vermelhas, o que saiu (despesas). A linha azul é o saldo do mês: positiva significa que as entradas superaram as saídas. Meses com linha abaixo de zero indicam que a empresa gastou mais do que recebeu — acompanhe a tendência para evitar consumir reservas."
         >
           {chartsLoading ? (
             <ChartSkeleton height={220} />
@@ -538,6 +519,7 @@ export default function FinanceiroPage() {
             title="Aging de Inadimplência"
             subtitle="Estado atual · clique numa faixa para filtrar os devedores"
             animationDelay={250}
+            info="Divide os títulos vencidos e não pagos pelo tempo de atraso: amarelo = até 30 dias, laranja = 31–60 dias, vermelho = 61–90 dias, vermelho escuro = acima de 90 dias. Quanto mais antigo o vencimento, menor a probabilidade de recebimento. Clique numa faixa para ver quais clientes fazem parte daquele grupo no painel ao lado."
           >
             {chartsLoading ? (
               <ChartSkeleton height={280} />
@@ -554,6 +536,7 @@ export default function FinanceiroPage() {
             title={selectedAging ? `Top Devedores — ${agingLabels[selectedAging] ?? selectedAging}` : "Top Devedores"}
             subtitle="Estado atual · maiores valores em aberto e vencidos"
             animationDelay={300}
+            info="Lista os clientes com maiores valores em aberto e vencidos. A barra mostra a proporção em relação ao maior devedor. A cor indica há quanto tempo o título está vencido: amarelo = até 30 dias, laranja = 31–60 dias, vermelho = 61–90 dias, vermelho escuro = acima de 90 dias. Priorize a cobrança de quem tem maior valor combinado com mais tempo em atraso."
           >
             {chartsLoading ? (
               <ChartSkeleton height={280} />

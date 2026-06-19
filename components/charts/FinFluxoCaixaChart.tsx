@@ -107,6 +107,7 @@ export function FinFluxoCaixaChart({ data, selectedMes, onMesClick }: Props) {
         <Bar
           dataKey="entradas"
           name="Entradas"
+          fill="#22c55e"
           radius={[3, 3, 0, 0]}
           maxBarSize={22}
           cursor="pointer"
@@ -123,6 +124,7 @@ export function FinFluxoCaixaChart({ data, selectedMes, onMesClick }: Props) {
         <Bar
           dataKey="saidas"
           name="Saídas"
+          fill="#ef4444"
           radius={[3, 3, 0, 0]}
           maxBarSize={22}
           cursor="pointer"
