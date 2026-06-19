@@ -40,6 +40,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/primeiro-acesso", request.url));
   }
 
+  if (pathname === "/selecionar-empresa") {
+    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+    return supabaseResponse;
+  }
+
   // ── 1. Roteamento por subdomínio (só em produção) ─────────────────────────
   if (!IS_DEV) {
     if (isAdmin) {
@@ -90,7 +95,10 @@ export async function middleware(request: NextRequest) {
         : NextResponse.redirect(`${APP_URL}/dashboard`);
     }
 
-    return supabaseResponse;
+    // Sem empresa selecionada: vai para tela de seleção
+    return IS_DEV
+      ? NextResponse.redirect(new URL("/selecionar-empresa", request.url))
+      : NextResponse.redirect(`${APP_URL}/selecionar-empresa`);
   }
 
   // ── 4. Rotas /admin exigem is_system_admin ────────────────────────────────

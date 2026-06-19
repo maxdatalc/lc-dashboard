@@ -1,58 +1,14 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import { useState, useTransition } from "react";
 import Image from "next/image";
-import { login, getTenantsByEmail } from "@/app/actions/auth";
-import type { TenantOption } from "@/app/actions/auth";
+import { login } from "@/app/actions/auth";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
-  const [tenants, setTenants] = useState<TenantOption[]>([]);
-  const [selectedTenantId, setSelectedTenantId] = useState("");
-  const [selectOpen, setSelectOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]       = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [isFetchingTenants, setIsFetchingTenants] = useState(false);
-  const emailDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const selectRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (selectRef.current && !selectRef.current.contains(e.target as Node)) {
-        setSelectOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
-
-    const emailValido = email.includes("@") && email.includes(".");
-    if (!emailValido) {
-      setTenants([]);
-      setSelectedTenantId("");
-      return;
-    }
-
-    emailDebounceRef.current = setTimeout(async () => {
-      setIsFetchingTenants(true);
-      const result = await getTenantsByEmail(email);
-      setTenants(result.tenants ?? []);
-      if (result.tenants?.length === 1) {
-        setSelectedTenantId(result.tenants[0].id);
-      } else {
-        setSelectedTenantId("");
-      }
-      setIsFetchingTenants(false);
-    }, 600);
-
-    return () => {
-      if (emailDebounceRef.current) clearTimeout(emailDebounceRef.current);
-    };
-  }, [email]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,7 +17,6 @@ export default function LoginPage() {
     const formData = new FormData();
     formData.set("email", email);
     formData.set("password", password);
-    if (selectedTenantId) formData.set("tenantId", selectedTenantId);
 
     startTransition(async () => {
       const result = await login(formData);
@@ -69,36 +24,24 @@ export default function LoginPage() {
     });
   }
 
-  const tenantSelecionado = tenants.find((t) => t.id === selectedTenantId);
-  const mostrarSeletorEmpresa = tenants.length > 1;
-  const submitDisabled = isPending || (mostrarSeletorEmpresa && !selectedTenantId);
-
   return (
     <div className="login-root">
-      {/* ── Decorações de fundo ── */}
       <div aria-hidden className="login-bg">
         <div className="login-silk login-silk-tr" />
         <div className="login-silk login-silk-bl" />
         <div className="login-glow" />
       </div>
 
-      {/* ── Conteúdo ── */}
       <div className="login-content">
-
-        {/* Logo */}
         <div className="login-logo-wrap">
           <div className="login-logo">
             <Image src="/lc-logo.ico" alt="LC Gestor" width={96} height={96} className="login-logo-img" unoptimized />
           </div>
         </div>
 
-        {/* Título */}
         <h1 className="login-title">Entrar no LC Gestor</h1>
 
-        {/* Formulário */}
         <form onSubmit={handleSubmit} className="login-form">
-
-          {/* E-mail */}
           <div className="login-field">
             <label className="login-label">E-mail</label>
             <input
@@ -113,7 +56,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Senha */}
           <div className="login-field">
             <label className="login-label">Senha</label>
             <input
@@ -128,74 +70,6 @@ export default function LoginPage() {
             />
           </div>
 
-          {/* Seletor de empresa */}
-          {mostrarSeletorEmpresa && (
-            <div className="login-field">
-              <label className="login-label">Empresa</label>
-              <div className="login-select-wrap" ref={selectRef}>
-                <button
-                  type="button"
-                  onClick={() => setSelectOpen(!selectOpen)}
-                  disabled={isPending}
-                  className={`login-select-btn ${selectOpen ? "login-select-btn--open" : ""}`}
-                >
-                  {tenantSelecionado ? (
-                    <>
-                      <div className="login-tenant-avatar">
-                        {tenantSelecionado.name.charAt(0)}
-                      </div>
-                      <span className="login-select-value">{tenantSelecionado.name}</span>
-                    </>
-                  ) : (
-                    <span className="login-select-placeholder">Selecione a empresa...</span>
-                  )}
-                  <svg
-                    width="14" height="14" viewBox="0 0 14 14" fill="none"
-                    className={`login-chevron ${selectOpen ? "login-chevron--open" : ""}`}
-                  >
-                    <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-
-                {selectOpen && (
-                  <div className="login-dropdown">
-                    {tenants.map((tenant) => (
-                      <button
-                        key={tenant.id}
-                        type="button"
-                        onClick={() => { setSelectedTenantId(tenant.id); setSelectOpen(false); }}
-                        className={`login-dropdown-item ${selectedTenantId === tenant.id ? "login-dropdown-item--active" : ""}`}
-                      >
-                        <div className="login-tenant-avatar">{tenant.name.charAt(0)}</div>
-                        <div className="login-tenant-info">
-                          <p className="login-tenant-name">{tenant.name}</p>
-                          <p className="login-tenant-slug">{tenant.slug}</p>
-                        </div>
-                        {selectedTenantId === tenant.id && (
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ color: "#00e5ff", flexShrink: 0 }}>
-                            <path d="M2.5 7l3.5 3.5L11.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Buscando empresas */}
-          {isFetchingTenants && (
-            <div className="login-fetching">
-              <svg className="login-spin" viewBox="0 0 24 24" fill="none" width="12" height="12">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" opacity="0.25" />
-                <path fill="currentColor" opacity="0.75" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Buscando empresas...
-            </div>
-          )}
-
-          {/* Erro */}
           {error && (
             <div className="login-error">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ flexShrink: 0 }}>
@@ -206,11 +80,10 @@ export default function LoginPage() {
             </div>
           )}
 
-          {/* Botão */}
           <button
             type="submit"
-            disabled={submitDisabled}
-            className={`login-btn ${submitDisabled ? "login-btn--disabled" : ""}`}
+            disabled={isPending}
+            className={`login-btn ${isPending ? "login-btn--disabled" : ""}`}
           >
             {isPending ? (
               <>
@@ -226,7 +99,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Texto legal */}
         <p className="login-legal">
           Ao entrar, você concorda com nossos{" "}
           <a href="#" className="login-legal-link">Termos</a>
@@ -236,7 +108,6 @@ export default function LoginPage() {
       </div>
 
       <style jsx>{`
-        /* ── Base ── */
         .login-root {
           position: relative;
           min-height: 100vh;
@@ -247,7 +118,6 @@ export default function LoginPage() {
           background: #08101e;
         }
 
-        /* ── Background decorativo ── */
         .login-bg {
           pointer-events: none;
           position: absolute;
@@ -271,7 +141,6 @@ export default function LoginPage() {
           overflow: hidden;
         }
 
-        /* Painel superior-direito */
         .login-silk-tr {
           width: 720px;
           height: 660px;
@@ -288,7 +157,6 @@ export default function LoginPage() {
           transform: rotate(-16deg);
         }
 
-        /* Faixa de highlight superior-direito */
         .login-silk-tr::after {
           content: '';
           position: absolute;
@@ -302,7 +170,6 @@ export default function LoginPage() {
           );
         }
 
-        /* Painel inferior-esquerdo */
         .login-silk-bl {
           width: 620px;
           height: 560px;
@@ -332,7 +199,6 @@ export default function LoginPage() {
           );
         }
 
-        /* ── Conteúdo central ── */
         .login-content {
           position: relative;
           z-index: 10;
@@ -341,7 +207,6 @@ export default function LoginPage() {
           padding: 0 20px;
         }
 
-        /* ── Logo ── */
         .login-logo-wrap {
           display: flex;
           justify-content: center;
@@ -369,7 +234,6 @@ export default function LoginPage() {
           100% { transform: translateY(0px); }
         }
 
-        /* ── Título ── */
         .login-title {
           text-align: center;
           font-size: 22px;
@@ -380,14 +244,12 @@ export default function LoginPage() {
           line-height: 1.3;
         }
 
-        /* ── Formulário ── */
         .login-form {
           display: flex;
           flex-direction: column;
           gap: 14px;
         }
 
-        /* ── Campo ── */
         .login-field {
           display: flex;
           flex-direction: column;
@@ -415,9 +277,7 @@ export default function LoginPage() {
           box-sizing: border-box;
         }
 
-        .login-input::placeholder {
-          color: #334155;
-        }
+        .login-input::placeholder { color: #334155; }
 
         .login-input:focus {
           border-color: rgba(0, 229, 255, 0.35);
@@ -427,145 +287,6 @@ export default function LoginPage() {
         .login-input:disabled {
           opacity: 0.5;
           cursor: not-allowed;
-        }
-
-        /* ── Select empresa ── */
-        .login-select-wrap {
-          position: relative;
-        }
-
-        .login-select-btn {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          background: #111827;
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          border-radius: 10px;
-          padding: 10px 14px;
-          font-size: 14px;
-          color: #f1f5f9;
-          cursor: pointer;
-          text-align: left;
-          transition: border-color 0.15s, box-shadow 0.15s;
-        }
-
-        .login-select-btn--open,
-        .login-select-btn:focus-visible {
-          border-color: rgba(0, 229, 255, 0.35);
-          box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.07);
-          outline: none;
-        }
-
-        .login-select-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        .login-select-value {
-          flex: 1;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .login-select-placeholder {
-          flex: 1;
-          color: #334155;
-        }
-
-        .login-chevron {
-          color: #475569;
-          flex-shrink: 0;
-          transition: transform 0.2s;
-        }
-
-        .login-chevron--open {
-          transform: rotate(180deg);
-        }
-
-        .login-tenant-avatar {
-          width: 24px;
-          height: 24px;
-          border-radius: 7px;
-          background: linear-gradient(135deg, #0891b2, #00e5ff22);
-          border: 1px solid rgba(0, 229, 255, 0.25);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 10px;
-          font-weight: 700;
-          color: #00e5ff;
-          flex-shrink: 0;
-          text-transform: uppercase;
-        }
-
-        /* ── Dropdown ── */
-        .login-dropdown {
-          position: absolute;
-          top: calc(100% + 6px);
-          left: 0;
-          right: 0;
-          background: #111827;
-          border: 1px solid rgba(255, 255, 255, 0.10);
-          border-radius: 12px;
-          overflow: hidden;
-          z-index: 20;
-          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-        }
-
-        .login-dropdown-item {
-          width: 100%;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          padding: 10px 14px;
-          font-size: 13px;
-          color: #cbd5e1;
-          cursor: pointer;
-          text-align: left;
-          background: transparent;
-          border: none;
-          transition: background 0.12s;
-        }
-
-        .login-dropdown-item:hover {
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .login-dropdown-item--active {
-          background: rgba(0, 229, 255, 0.07);
-          color: #f1f5f9;
-        }
-
-        .login-tenant-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .login-tenant-name {
-          font-weight: 500;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          font-size: 13px;
-        }
-
-        .login-tenant-slug {
-          font-size: 11px;
-          color: #475569;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        /* ── States ── */
-        .login-fetching {
-          display: flex;
-          align-items: center;
-          gap: 7px;
-          font-size: 12px;
-          color: #475569;
         }
 
         .login-error {
@@ -580,7 +301,6 @@ export default function LoginPage() {
           color: #f87171;
         }
 
-        /* ── Botão ── */
         .login-btn {
           width: 100%;
           display: flex;
@@ -611,7 +331,6 @@ export default function LoginPage() {
           cursor: not-allowed;
         }
 
-        /* ── Texto legal ── */
         .login-legal {
           text-align: center;
           font-size: 12px;
@@ -628,11 +347,8 @@ export default function LoginPage() {
           transition: color 0.12s;
         }
 
-        .login-legal-link:hover {
-          color: #94a3b8;
-        }
+        .login-legal-link:hover { color: #94a3b8; }
 
-        /* ── Spinner ── */
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
@@ -641,26 +357,19 @@ export default function LoginPage() {
           flex-shrink: 0;
         }
 
-        /* ── Mobile ── */
         @media (max-width: 480px) {
-          .login-silk-bl {
-            display: none;
-          }
+          .login-silk-bl { display: none; }
           .login-silk-tr {
             width: 460px;
             height: 420px;
             top: -160px;
             right: -150px;
           }
-          .login-title {
-            font-size: 20px;
-          }
+          .login-title { font-size: 20px; }
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .login-spin, .login-logo-img {
-            animation: none;
-          }
+          .login-spin, .login-logo-img { animation: none; }
         }
       `}</style>
     </div>
