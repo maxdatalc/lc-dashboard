@@ -402,24 +402,6 @@ export default function FinanceiroPage() {
           </div>
         ) : null}
 
-        {/* ── Barra de período ───────────────────────────────────────────── */}
-        {(() => {
-          const { start: rs, end: re } = getRange();
-          const startMs = new Date(rs + "T12:00:00").getTime();
-          const endMs   = new Date(re + "T12:00:00").getTime();
-          const prevEnd   = new Date(startMs - 86400000).toISOString().split("T")[0];
-          const prevStart = new Date(new Date(startMs - 86400000).getTime() - (endMs - startMs)).toISOString().split("T")[0];
-          const fmt = (d: string) => { const [y, m, day] = d.split("-"); return `${day}/${m}/${y}`; };
-          return (
-            <div style={{ fontSize: 11, color: "var(--text-muted)", letterSpacing: "0.01em" }}>
-              Período selecionado:{" "}
-              <strong style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{fmt(rs)} até {fmt(re)}</strong>
-              {" · "}Comparação:{" "}
-              <strong style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{fmt(prevStart)} – {fmt(prevEnd)}</strong>
-            </div>
-          );
-        })()}
-
         {/* ── Executive KPI Grid ─────────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           {kpiLoading ? (

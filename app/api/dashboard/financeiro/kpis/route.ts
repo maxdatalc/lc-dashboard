@@ -6,8 +6,7 @@ import { queryBridge } from "@/lib/mssql/client";
 export const dynamic = "force-dynamic";
 
 function isDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
-
-function toStr(d: Date) { return d.toISOString().split("T")[0]; }
+function toStr(d: Date)    { return d.toISOString().split("T")[0]; }
 
 async function getConfig(lojaIds: string[]) {
   for (const id of lojaIds) {
@@ -37,162 +36,139 @@ export async function GET(request: Request) {
   const { bridgeUrl, token, empId } = cfg;
 
   // Período anterior com mesma duração
-  const startMs   = new Date(start + "T12:00:00").getTime();
-  const endMs     = new Date(end   + "T12:00:00").getTime();
-  const durationMs = endMs - startMs;
-  const prevEndDate   = new Date(startMs - 86400000);
-  const prevStartDate = new Date(prevEndDate.getTime() - durationMs);
+  const startMs    = new Date(start + "T12:00:00").getTime();
+  const endMs      = new Date(end   + "T12:00:00").getTime();
+  const prevEndDate    = new Date(startMs - 86400000);
+  const prevStartDate  = new Date(prevEndDate.getTime() - (endMs - startMs));
   const prevStart = toStr(prevStartDate);
   const prevEnd   = toStr(prevEndDate);
 
-  // Helpers: qCur = período selecionado, qPrev = período anterior, qNow = estado atual
-  const qCur  = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId, start, end });
-  const qPrev = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId, start: prevStart, end: prevEnd });
-  const qNow  = <T>(sql: string) => queryBridge<T>({ bridgeUrl, token }, sql, { empId });
+  const q = <T>(sql: string, params: Record<string, unknown>) =>
+    queryBridge<T>({ bridgeUrl, token }, sql, params);
 
+  // 6 queries paralelas (eram 11 antes da otimização)
   const [
-    fatRes,
-    fatPrevRes,
-    recRes,
-    recPrevRes,
-    saldoRes,
-    saldoPrevRes,
-    margemRes,
+    fatComboRes,
+    recComboRes,
+    saldoComboRes,
     contasReceberRes,
     contasPagarRes,
-    inadRes,
-    aVencer7Res,
+    riscoComboRes,
   ] = await Promise.allSettled([
-    // Faturamento período atual
-    qCur<{ valor: number; qtd: number }>(`
-      SELECT ISNULL(SUM(vedTotalNf),0) AS valor, COUNT(*) AS qtd
+
+    // 1. Faturamento atual + anterior em uma única varredura
+    q<{ valorCur: number; qtdCur: number; valorPrev: number }>(`
+      SELECT
+        ISNULL(SUM(CASE WHEN CONVERT(date,vedFechamento) BETWEEN @start AND @end
+                        THEN vedTotalNf ELSE 0 END),0) AS valorCur,
+        SUM(CASE WHEN CONVERT(date,vedFechamento) BETWEEN @start AND @end
+                 THEN 1 ELSE 0 END) AS qtdCur,
+        ISNULL(SUM(CASE WHEN CONVERT(date,vedFechamento) BETWEEN @prevStart AND @prevEnd
+                        THEN vedTotalNf ELSE 0 END),0) AS valorPrev
       FROM venda
       WHERE vedStatus='F' AND vedTipo IN ('OS','VE') AND vedTotalNf>0 AND empId=@empId
-        AND CONVERT(date,vedFechamento) BETWEEN @start AND @end
-    `),
-    // Faturamento período anterior
-    qPrev<{ valor: number }>(`
-      SELECT ISNULL(SUM(vedTotalNf),0) AS valor
-      FROM venda
-      WHERE vedStatus='F' AND vedTipo IN ('OS','VE') AND vedTotalNf>0 AND empId=@empId
-        AND CONVERT(date,vedFechamento) BETWEEN @start AND @end
-    `),
-    // Recebimentos período atual
-    qCur<{ valor: number; qtd: number }>(`
-      SELECT ISNULL(SUM(pgtValor),0) AS valor, COUNT(*) AS qtd
+        AND CONVERT(date,vedFechamento) BETWEEN @prevStart AND @end
+    `, { empId, start, end, prevStart, prevEnd }),
+
+    // 2. Recebimentos atual + anterior em uma única varredura
+    q<{ valorCur: number; qtdCur: number; valorPrev: number }>(`
+      SELECT
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
+                        THEN pgtValor ELSE 0 END),0) AS valorCur,
+        SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
+                 THEN 1 ELSE 0 END) AS qtdCur,
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @prevStart AND @prevEnd
+                        THEN pgtValor ELSE 0 END),0) AS valorPrev
       FROM vendaPgto
       WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
-        AND CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
-    `),
-    // Recebimentos período anterior
-    qPrev<{ valor: number }>(`
-      SELECT ISNULL(SUM(pgtValor),0) AS valor
-      FROM vendaPgto
-      WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
-        AND CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end
-    `),
-    // Saldo líquido (contaMov) no período atual
-    qCur<{ entradas: number; saidas: number }>(`
+        AND CONVERT(date,pgtDataQuitou) BETWEEN @prevStart AND @end
+    `, { empId, start, end, prevStart, prevEnd }),
+
+    // 3. Saldo contaMov atual + anterior em uma única varredura
+    q<{ entradasCur: number; saidasCur: number; entradasPrev: number; saidasPrev: number }>(`
       SELECT
-        ISNULL(SUM(CASE WHEN ctmSinal='+' THEN ctmValor ELSE 0 END),0) AS entradas,
-        ISNULL(SUM(CASE WHEN ctmSinal='-' THEN ABS(ctmValor) ELSE 0 END),0) AS saidas
+        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @start AND @end AND ctmSinal='+'
+                        THEN ctmValor ELSE 0 END),0) AS entradasCur,
+        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @start AND @end AND ctmSinal='-'
+                        THEN ABS(ctmValor) ELSE 0 END),0) AS saidasCur,
+        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @prevStart AND @prevEnd AND ctmSinal='+'
+                        THEN ctmValor ELSE 0 END),0) AS entradasPrev,
+        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @prevStart AND @prevEnd AND ctmSinal='-'
+                        THEN ABS(ctmValor) ELSE 0 END),0) AS saidasPrev
       FROM contaMov
       WHERE empId=@empId AND ctmTipoMov IN ('CP','CR')
-        AND CONVERT(date,ctmData) BETWEEN @start AND @end
-    `),
-    // Saldo líquido (contaMov) no período anterior — para variação do resultado de caixa
-    qPrev<{ entradas: number; saidas: number }>(`
-      SELECT
-        ISNULL(SUM(CASE WHEN ctmSinal='+' THEN ctmValor ELSE 0 END),0) AS entradas,
-        ISNULL(SUM(CASE WHEN ctmSinal='-' THEN ABS(ctmValor) ELSE 0 END),0) AS saidas
-      FROM contaMov
-      WHERE empId=@empId AND ctmTipoMov IN ('CP','CR')
-        AND CONVERT(date,ctmData) BETWEEN @start AND @end
-    `),
-    // Margem bruta no período
-    qCur<{ receita: number; custo: number }>(`
-      SELECT
-        ISNULL(SUM(vi.vdiQtde*vi.vdiValor),0) AS receita,
-        ISNULL(SUM(vi.vdiQtde*vi.vdiProCustoFinal),0) AS custo
-      FROM vendaItem vi JOIN venda v ON vi.vdiVedId=v.vedId
-      WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.empId=@empId
-        AND vi.vdiProCustoFinal>0
-        AND CONVERT(date,v.vedFechamento) BETWEEN @start AND @end
-    `),
-    // Contas a Receber — títulos não pagos com vencimento no período
-    qCur<{ total: number; qtd: number }>(`
+        AND CONVERT(date,ctmData) BETWEEN @prevStart AND @end
+    `, { empId, start, end, prevStart, prevEnd }),
+
+    // 4. Contas a Receber: títulos não pagos com vencimento no período
+    q<{ total: number; qtd: number }>(`
       SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(*) AS qtd
       FROM vendaPgto
       WHERE empId=@empId AND pgtPago IN ('N','F')
         AND CONVERT(date,pgtVecmto) BETWEEN @start AND @end
-    `),
-    // Contas a Pagar — saídas registradas no contaMov no período
-    qCur<{ total: number; qtd: number }>(`
+    `, { empId, start, end }),
+
+    // 5. Contas a Pagar: saídas contaMov no período
+    q<{ total: number; qtd: number }>(`
       SELECT ISNULL(SUM(ABS(ctmValor)),0) AS total, COUNT(*) AS qtd
       FROM contaMov
       WHERE empId=@empId AND ctmSinal='-'
         AND CONVERT(date,ctmData) BETWEEN @start AND @end
-    `),
-    // Inadimplência — vencidos e não pagos (estado atual, sem filtro de período)
-    qNow<{ total: number; qtd: number }>(`
-      SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(*) AS qtd
+    `, { empId, start, end }),
+
+    // 6. Risco: inadimplência + a vencer 7 dias em uma única varredura (estado atual)
+    q<{ inadTotal: number; inadQtd: number; aVencer7Total: number; aVencer7Qtd: number }>(`
+      SELECT
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) < CONVERT(date,GETDATE())
+                        THEN pgtValor ELSE 0 END),0) AS inadTotal,
+        SUM(CASE WHEN CONVERT(date,pgtVecmto) < CONVERT(date,GETDATE())
+                 THEN 1 ELSE 0 END) AS inadQtd,
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE())
+                          AND CONVERT(date,pgtVecmto) <= CONVERT(date,DATEADD(day,7,GETDATE()))
+                        THEN pgtValor ELSE 0 END),0) AS aVencer7Total,
+        SUM(CASE WHEN CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE())
+                   AND CONVERT(date,pgtVecmto) <= CONVERT(date,DATEADD(day,7,GETDATE()))
+                 THEN 1 ELSE 0 END) AS aVencer7Qtd
       FROM vendaPgto
       WHERE empId=@empId AND pgtPago IN ('N','F')
-        AND CONVERT(date,pgtVecmto) < CONVERT(date,GETDATE())
-    `),
-    // A vencer nos próximos 7 dias (estado atual)
-    qNow<{ total: number; qtd: number }>(`
-      SELECT ISNULL(SUM(pgtValor),0) AS total, COUNT(*) AS qtd
-      FROM vendaPgto
-      WHERE empId=@empId AND pgtPago IN ('N','F')
-        AND CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE())
-        AND CONVERT(date,pgtVecmto) <= CONVERT(date,DATEADD(day,7,GETDATE()))
-    `),
+    `, { empId }),
   ]);
 
-  const fat      = fatRes.status        === "fulfilled" ? (fatRes.value        as { valor: number; qtd: number }[])[0]      : { valor: 0, qtd: 0 };
-  const fatPrev  = fatPrevRes.status    === "fulfilled" ? (fatPrevRes.value    as { valor: number }[])[0]                    : { valor: 0 };
-  const rec      = recRes.status        === "fulfilled" ? (recRes.value        as { valor: number; qtd: number }[])[0]      : { valor: 0, qtd: 0 };
-  const recPrev  = recPrevRes.status    === "fulfilled" ? (recPrevRes.value    as { valor: number }[])[0]                    : { valor: 0 };
-  const saldo    = saldoRes.status      === "fulfilled" ? (saldoRes.value      as { entradas: number; saidas: number }[])[0] : { entradas: 0, saidas: 0 };
-  const saldoPrv = saldoPrevRes.status  === "fulfilled" ? (saldoPrevRes.value  as { entradas: number; saidas: number }[])[0] : { entradas: 0, saidas: 0 };
-  const margem   = margemRes.status     === "fulfilled" ? (margemRes.value     as { receita: number; custo: number }[])[0]   : { receita: 0, custo: 0 };
-  const ctaRec   = contasReceberRes.status === "fulfilled" ? (contasReceberRes.value as { total: number; qtd: number }[])[0] : { total: 0, qtd: 0 };
-  const ctaPag   = contasPagarRes.status   === "fulfilled" ? (contasPagarRes.value   as { total: number; qtd: number }[])[0] : { total: 0, qtd: 0 };
-  const inad     = inadRes.status       === "fulfilled" ? (inadRes.value       as { total: number; qtd: number }[])[0]      : { total: 0, qtd: 0 };
-  const aVenc7   = aVencer7Res.status   === "fulfilled" ? (aVencer7Res.value   as { total: number; qtd: number }[])[0]      : { total: 0, qtd: 0 };
+  // Extração de resultados com fallback
+  const fatC  = fatComboRes.status   === "fulfilled" ? (fatComboRes.value   as { valorCur: number; qtdCur: number; valorPrev: number }[])[0]                                                    : { valorCur: 0, qtdCur: 0, valorPrev: 0 };
+  const recC  = recComboRes.status   === "fulfilled" ? (recComboRes.value   as { valorCur: number; qtdCur: number; valorPrev: number }[])[0]                                                    : { valorCur: 0, qtdCur: 0, valorPrev: 0 };
+  const salC  = saldoComboRes.status === "fulfilled" ? (saldoComboRes.value as { entradasCur: number; saidasCur: number; entradasPrev: number; saidasPrev: number }[])[0]                       : { entradasCur: 0, saidasCur: 0, entradasPrev: 0, saidasPrev: 0 };
+  const ctaR  = contasReceberRes.status === "fulfilled" ? (contasReceberRes.value as { total: number; qtd: number }[])[0]                                                                       : { total: 0, qtd: 0 };
+  const ctaP  = contasPagarRes.status   === "fulfilled" ? (contasPagarRes.value   as { total: number; qtd: number }[])[0]                                                                       : { total: 0, qtd: 0 };
+  const risco = riscoComboRes.status === "fulfilled" ? (riscoComboRes.value as { inadTotal: number; inadQtd: number; aVencer7Total: number; aVencer7Qtd: number }[])[0]                         : { inadTotal: 0, inadQtd: 0, aVencer7Total: 0, aVencer7Qtd: 0 };
 
-  const saldoLiquido    = saldo.entradas - saldo.saidas;
-  const saldoPrevLiq    = saldoPrv.entradas - saldoPrv.saidas;
-  const varFat          = fatPrev.valor > 0 ? ((fat.valor - fatPrev.valor) / fatPrev.valor) * 100 : null;
-  const varRec          = recPrev.valor > 0 ? ((rec.valor - recPrev.valor) / recPrev.valor) * 100 : null;
-  const varSaldoLiquido = saldoPrevLiq !== 0 ? ((saldoLiquido - saldoPrevLiq) / Math.abs(saldoPrevLiq)) * 100 : null;
-  const margemPct       = margem.receita > 0 ? ((margem.receita - margem.custo) / margem.receita) * 100 : null;
-  const ticketMedio     = fat.qtd > 0 ? fat.valor / fat.qtd : 0;
+  const saldoLiquido    = salC.entradasCur - salC.saidasCur;
+  const saldoPrevLiq    = salC.entradasPrev - salC.saidasPrev;
+  const varFat          = fatC.valorPrev  > 0 ? ((fatC.valorCur  - fatC.valorPrev)  / fatC.valorPrev)             * 100 : null;
+  const varRec          = recC.valorPrev  > 0 ? ((recC.valorCur  - recC.valorPrev)  / recC.valorPrev)             * 100 : null;
+  const varSaldoLiquido = saldoPrevLiq   !== 0 ? ((saldoLiquido   - saldoPrevLiq)    / Math.abs(saldoPrevLiq))     * 100 : null;
+  const ticketMedio     = fatC.qtdCur     > 0 ?   fatC.valorCur  / fatC.qtdCur                                          : 0;
 
   return NextResponse.json({
-    faturamentoMes: fat.valor,
-    varFaturamento: varFat,
-    qtdVendasMes: fat.qtd,
-    ticketMedioMes: ticketMedio,
-    recebidoMes: rec.valor,
-    varRecebido: varRec,
-    qtdRecebimentosMes: rec.qtd,
-    saldoLiquidoMes: saldoLiquido,
+    faturamentoMes:    fatC.valorCur,
+    varFaturamento:    varFat,
+    qtdVendasMes:      fatC.qtdCur,
+    ticketMedioMes:    ticketMedio,
+    recebidoMes:       recC.valorCur,
+    varRecebido:       varRec,
+    qtdRecebimentosMes:recC.qtdCur,
+    saldoLiquidoMes:   saldoLiquido,
     varSaldoLiquido,
-    entradasMes: saldo.entradas,
-    saidasMes: saldo.saidas,
-    margemPctMes: margemPct,
-    receitaBrutaMes: margem.receita,
-    custoBrutoMes: margem.custo,
-    contasReceberTotal: ctaRec.total,
-    contasReceberQtd: ctaRec.qtd,
-    contasPagarTotal: ctaPag.total,
-    contasPagarQtd: ctaPag.qtd,
-    inadimplenciaTotal: inad.total,
-    inadimplenciaQtd: inad.qtd,
-    aVencer7Total: aVenc7.total,
-    aVencer7Qtd: aVenc7.qtd,
+    entradasMes:       salC.entradasCur,
+    saidasMes:         salC.saidasCur,
+    contasReceberTotal:ctaR.total,
+    contasReceberQtd:  ctaR.qtd,
+    contasPagarTotal:  ctaP.total,
+    contasPagarQtd:    ctaP.qtd,
+    inadimplenciaTotal:risco.inadTotal,
+    inadimplenciaQtd:  risco.inadQtd,
+    aVencer7Total:     risco.aVencer7Total,
+    aVencer7Qtd:       risco.aVencer7Qtd,
     prevStart,
     prevEnd,
   });
