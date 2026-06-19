@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 interface ChartCardProps {
   title: string;
@@ -9,6 +10,92 @@ interface ChartCardProps {
   className?: string;
   animationDelay?: number;
   info?: string;
+}
+
+function InfoModal({ title, info, onClose }: { title: string; info: string; onClose: () => void }) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 500,
+        background: "rgba(0,0,0,0.6)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24,
+        backdropFilter: "blur(4px)",
+        animation: "fadeIn 0.15s ease-out",
+      }}
+    >
+      <div
+        ref={modalRef}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-card)",
+          border: "1px solid rgba(0,229,255,0.25)",
+          borderRadius: 16,
+          padding: "24px 28px",
+          maxWidth: 420,
+          width: "100%",
+          boxShadow: "0 24px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)",
+          animation: "slideUp 0.2s ease-out",
+        }}
+      >
+        {/* Header do modal */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16, gap: 12 }}>
+          <div>
+            <span style={{
+              display: "block", fontSize: 10, fontWeight: 700,
+              letterSpacing: "0.08em", textTransform: "uppercase",
+              color: "var(--accent-cyan)", marginBottom: 4,
+            }}>
+              Como analisar
+            </span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.3 }}>
+              {title}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              flexShrink: 0, background: "rgba(255,255,255,0.06)",
+              border: "1px solid var(--border-subtle)",
+              cursor: "pointer", color: "var(--text-muted)",
+              padding: 6, borderRadius: 8, display: "flex",
+              transition: "background 0.15s",
+            }}
+            title="Fechar"
+          >
+            <svg width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M9.5 2.5l-7 7M2.5 2.5l7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, background: "var(--border-subtle)", marginBottom: 16 }} />
+
+        {/* Texto */}
+        <p style={{ fontSize: 13, lineHeight: 1.8, color: "var(--text-secondary)", margin: 0 }}>
+          {info}
+        </p>
+      </div>
+
+      <style>{`
+        @keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
+      `}</style>
+    </div>,
+    document.body
+  );
 }
 
 export function ChartCard({
@@ -20,41 +107,6 @@ export function ChartCard({
   info,
 }: ChartCardProps) {
   const [showInfo, setShowInfo] = useState(false);
-  const [popupStyle, setPopupStyle] = useState<React.CSSProperties>({});
-  const btnRef = useRef<HTMLButtonElement>(null);
-  const popupRef = useRef<HTMLDivElement>(null);
-
-  function handleInfoClick(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (!btnRef.current) return;
-    const rect = btnRef.current.getBoundingClientRect();
-    const vw = window.innerWidth;
-    let left = rect.right - 280;
-    if (left < 8) left = 8;
-    if (left + 280 > vw - 8) left = vw - 288;
-    setPopupStyle({
-      position: "fixed",
-      top: rect.bottom + 8,
-      left,
-      zIndex: 300,
-      width: 280,
-    });
-    setShowInfo((v) => !v);
-  }
-
-  useEffect(() => {
-    if (!showInfo) return;
-    function handleOutside(e: MouseEvent) {
-      if (
-        popupRef.current && !popupRef.current.contains(e.target as Node) &&
-        btnRef.current && !btnRef.current.contains(e.target as Node)
-      ) {
-        setShowInfo(false);
-      }
-    }
-    document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [showInfo]);
 
   return (
     <div
@@ -109,8 +161,7 @@ export function ChartCard({
 
         {info && (
           <button
-            ref={btnRef}
-            onClick={handleInfoClick}
+            onClick={() => setShowInfo(true)}
             style={{
               flexShrink: 0,
               marginTop: 1,
@@ -118,7 +169,7 @@ export function ChartCard({
               border: "none",
               cursor: "pointer",
               padding: 3,
-              color: showInfo ? "var(--accent-cyan)" : "var(--text-muted)",
+              color: "var(--text-muted)",
               display: "flex",
               alignItems: "center",
               borderRadius: 4,
@@ -138,37 +189,9 @@ export function ChartCard({
       {/* Conteúdo */}
       <div className="px-4 py-3 flex-1">{children}</div>
 
-      {/* Popup — renderizado com position:fixed para escapar do overflow:hidden */}
+      {/* Modal centralizado */}
       {showInfo && info && (
-        <div
-          ref={popupRef}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            ...popupStyle,
-            background: "var(--bg-card)",
-            border: "1px solid rgba(0,229,255,0.3)",
-            borderRadius: 12,
-            padding: "14px 16px",
-            boxShadow: "0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--accent-cyan)" }}>
-              Como analisar
-            </span>
-            <button
-              onClick={() => setShowInfo(false)}
-              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 0, display: "flex" }}
-            >
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                <path d="M9.5 2.5l-7 7M2.5 2.5l7 7"/>
-              </svg>
-            </button>
-          </div>
-          <p style={{ fontSize: 12, lineHeight: 1.75, color: "var(--text-secondary)", margin: 0 }}>
-            {info}
-          </p>
-        </div>
+        <InfoModal title={title} info={info} onClose={() => setShowInfo(false)} />
       )}
     </div>
   );
