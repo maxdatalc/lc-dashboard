@@ -65,7 +65,12 @@ export default async function GerenciarEmpresaPage({
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenantDetalhado(id) : [];
 
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
-  const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
+  const MODULOS_PRINCIPAIS_KEYS = ["modulo_vendas", "modulo_financeiro", "modulo_produtos"];
+  const modulosPrincipais = FEATURES_CATALOG.filter((f) => MODULOS_PRINCIPAIS_KEYS.includes(f.key));
+  const outrosModulos = FEATURES_CATALOG.filter(
+    (f) => f.categoria === "premium" && !MODULOS_PRINCIPAIS_KEYS.includes(f.key)
+  );
+  const algumOutroAtivo = outrosModulos.some((f) => tenant.features.includes(f.key));
 
   const ABAS: { valor: Aba; label: string }[] = [
     { valor: "lojas", label: "Lojas" },
@@ -169,35 +174,70 @@ export default async function GerenciarEmpresaPage({
             </div>
           </div>
 
-        <form action={salvarFeatures.bind(null, id)} className="space-y-6">
-          {/* Core — sempre ativas, sem toggle */}
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">
-              Core (sempre incluídos)
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {coreFeatures.map((f) => (
-                <div
+        <form action={salvarFeatures.bind(null, id)} className="space-y-4">
+
+          {/* ── Dashboard — sempre ativo ──────────────────────────── */}
+          {coreFeatures.map((f) => (
+            <div
+              key={f.key}
+              className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100"
+            >
+              <div className="flex-1">
+                <p className="text-sm font-medium text-slate-700">{f.label}</p>
+                <p className="text-xs text-slate-400">{f.descricao}</p>
+              </div>
+              <div className="w-8 h-4 bg-slate-300 rounded-full shrink-0 cursor-not-allowed" title="Sempre ativo" />
+            </div>
+          ))}
+
+          {/* ── Módulos principais (Vendas / Financeiro / Produtos) ── */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {modulosPrincipais.map((f) => {
+              const ativo = tenant.features.includes(f.key);
+              return (
+                <label
                   key={f.key}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100"
+                  className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    ativo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
+                  } ${!f.disponivel ? "opacity-60 cursor-not-allowed" : ""}`}
                 >
+                  <input
+                    type="checkbox"
+                    name="feature"
+                    value={f.key}
+                    defaultChecked={ativo}
+                    disabled={!f.disponivel}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-700">{f.label}</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-medium text-slate-700">{f.label}</p>
+                      {!f.disponivel && (
+                        <span className="text-xs bg-slate-100 text-slate-500 px-1.5 rounded">Em breve</span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-400">{f.descricao}</p>
                   </div>
-                  <div className="w-8 h-4 bg-slate-300 rounded-full shrink-0 cursor-not-allowed" />
-                </div>
-              ))}
-            </div>
+                </label>
+              );
+            })}
           </div>
 
-          {/* Premium — checkboxes */}
-          <div>
-            <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-3">
-              Premium
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {premiumFeatures.map((f) => {
+          {/* ── Outros módulos (accordion) ────────────────────────── */}
+          <details open={algumOutroAtivo} className="group rounded-xl border border-slate-200 overflow-hidden">
+            <summary className="flex items-center justify-between px-4 py-3 bg-slate-50 cursor-pointer select-none list-none hover:bg-slate-100 transition-colors">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                Módulos
+              </span>
+              <svg
+                className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}
+              >
+                <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </summary>
+            <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
+              {outrosModulos.map((f) => {
                 const ativo = tenant.features.includes(f.key);
                 return (
                   <label
@@ -215,12 +255,10 @@ export default async function GerenciarEmpresaPage({
                       className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
                     />
                     <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-slate-700">{f.label}</p>
                         {!f.disponivel && (
-                          <span className="text-xs bg-slate-100 text-slate-500 px-1.5 rounded">
-                            Em breve
-                          </span>
+                          <span className="text-xs bg-slate-100 text-slate-500 px-1.5 rounded">Em breve</span>
                         )}
                         {f.key === "modulo_os" && f.disponivel && (
                           <Link
@@ -239,7 +277,7 @@ export default async function GerenciarEmpresaPage({
                 );
               })}
             </div>
-          </div>
+          </details>
 
           <button
             type="submit"

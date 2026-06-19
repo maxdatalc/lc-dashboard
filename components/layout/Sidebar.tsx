@@ -9,7 +9,6 @@ import {
   Landmark,
   Users,
   LogOut,
-  Lock,
   Package,
   ShoppingCart,
   ClipboardList,
@@ -222,10 +221,12 @@ export function Sidebar({ isAdmin }: Props) {
                   }}
                 >
                   {grupo.items.map((item, si) => {
-                    const locked = !!item.featureKey && !hasFeature(item.featureKey);
-                    const active =
-                      !locked &&
-                      (item.exact ? pathname === item.href : pathname.startsWith(item.href));
+                    const hidden = !isAdmin && !!item.featureKey && !hasFeature(item.featureKey);
+                    if (hidden) return null;
+
+                    const active = item.exact
+                      ? pathname === item.href
+                      : pathname.startsWith(item.href);
                     const SubIcon = item.icon;
 
                     const subStyle: React.CSSProperties = {
@@ -234,47 +235,8 @@ export function Sidebar({ isAdmin }: Props) {
                         ? "3px solid var(--accent-cyan)"
                         : "3px solid transparent",
                       backgroundColor: active ? "var(--sidebar-item-active-bg)" : "transparent",
-                      color: locked
-                        ? "var(--text-muted)"
-                        : active
-                        ? "var(--accent-cyan)"
-                        : "var(--text-secondary)",
-                      opacity: locked ? 0.45 : 1,
+                      color: active ? "var(--accent-cyan)" : "var(--text-secondary)",
                     };
-
-                    const content = (
-                      <>
-                        <SubIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
-                        <span
-                          style={{
-                            fontSize: 12,
-                            fontWeight: active ? 600 : 400,
-                            whiteSpace: "nowrap",
-                            flex: 1,
-                            opacity: sidebarExpanded ? 1 : 0,
-                            transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
-                            transition: `opacity 0.15s ease ${0.02 + si * 0.02}s, transform 0.15s ease`,
-                          }}
-                        >
-                          {item.label}
-                        </span>
-                        {locked && sidebarExpanded && (
-                          <Lock style={{ width: 10, height: 10, opacity: 0.6, flexShrink: 0 }} />
-                        )}
-                      </>
-                    );
-
-                    if (locked) {
-                      return (
-                        <div
-                          key={item.href}
-                          style={{ ...subStyle, cursor: "default" }}
-                          title="Disponível no plano Premium"
-                        >
-                          {content}
-                        </div>
-                      );
-                    }
 
                     return (
                       <Link
@@ -294,7 +256,20 @@ export function Sidebar({ isAdmin }: Props) {
                           }
                         }}
                       >
-                        {content}
+                        <SubIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                        <span
+                          style={{
+                            fontSize: 12,
+                            fontWeight: active ? 600 : 400,
+                            whiteSpace: "nowrap",
+                            flex: 1,
+                            opacity: sidebarExpanded ? 1 : 0,
+                            transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                            transition: `opacity 0.15s ease ${0.02 + si * 0.02}s, transform 0.15s ease`,
+                          }}
+                        >
+                          {item.label}
+                        </span>
                       </Link>
                     );
                   })}
@@ -434,38 +409,24 @@ export function Sidebar({ isAdmin }: Props) {
           { href: "/dashboard/clientes",   label: "Clientes",   icon: Users,           exact: false, featureKey: "modulo_clientes"   },
           { href: "/os",                   label: "OS",         icon: ClipboardList,   exact: false, featureKey: "modulo_os"         },
           ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false, featureKey: undefined }] : []),
-        ].map(({ href, label, icon: Icon, exact, featureKey }) => {
-          const locked = featureKey ? !hasFeature(featureKey) : false;
-          const active = !locked && (exact ? pathname === href : pathname.startsWith(href));
-
-          if (locked) {
+        ]
+          .filter(({ featureKey }) => isAdmin || !featureKey || hasFeature(featureKey))
+          .map(({ href, label, icon: Icon, exact }) => {
+            const active = exact ? pathname === href : pathname.startsWith(href);
             return (
-              <div
+              <Link
                 key={href}
-                className="flex flex-col items-center gap-1 px-3 py-1 rounded-lg opacity-40"
-                style={{ color: "var(--text-muted)" }}
-                title="Disponível no plano Premium"
+                href={href}
+                className="flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors"
+                style={{ color: active ? "var(--accent-cyan)" : "var(--text-muted)" }}
               >
                 <Icon size={20} />
-                <span style={{ fontSize: "10px" }}>{label}</span>
-              </div>
+                <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400 }}>
+                  {label}
+                </span>
+              </Link>
             );
-          }
-
-          return (
-            <Link
-              key={href}
-              href={href}
-              className="flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors"
-              style={{ color: active ? "var(--accent-cyan)" : "var(--text-muted)" }}
-            >
-              <Icon size={20} />
-              <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400 }}>
-                {label}
-              </span>
-            </Link>
-          );
-        })}
+          })}
       </nav>
     </>
   );
