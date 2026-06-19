@@ -333,13 +333,10 @@ export default function FinanceiroPage() {
     const { start, end } = getRange();
     const params = new URLSearchParams({ lojaIds: lojaKey, start, end });
 
-    const [kpisRes, fatRecRes, fluxoRes, margemRes, agingRes, topRes] = await Promise.allSettled([
+    // 2 chamadas HTTP em vez de 6 — charts consolidados em type=bulk
+    const [kpisRes, chartsRes] = await Promise.allSettled([
       fetch(`/api/dashboard/financeiro/kpis?${params}`).then((r) => r.ok ? r.json() : null),
-      fetch(`/api/dashboard/financeiro/charts?${params}&type=faturamento-recebimentos`).then((r) => r.ok ? r.json() : []),
-      fetch(`/api/dashboard/financeiro/charts?${params}&type=fluxo-caixa`).then((r) => r.ok ? r.json() : []),
-      fetch(`/api/dashboard/financeiro/charts?${params}&type=margem`).then((r) => r.ok ? r.json() : []),
-      fetch(`/api/dashboard/financeiro/charts?${params}&type=aging`).then((r) => r.ok ? r.json() : []),
-      fetch(`/api/dashboard/financeiro/charts?${params}&type=top-devedores`).then((r) => r.ok ? r.json() : []),
+      fetch(`/api/dashboard/financeiro/charts?${params}&type=bulk`).then((r) => r.ok ? r.json() : {}),
     ]);
 
     setKpiLoading(false);
@@ -347,12 +344,21 @@ export default function FinanceiroPage() {
     setIsRefreshing(false);
     hasLoadedOnce.current = true;
 
-    if (kpisRes.status  === "fulfilled" && kpisRes.value)  setKpis(kpisRes.value);
-    if (fatRecRes.status === "fulfilled") setFatRecData(fatRecRes.value as FinFaturamentoData[]);
-    if (fluxoRes.status  === "fulfilled") setFluxoData(fluxoRes.value   as FinFluxoCaixaData[]);
-    if (margemRes.status === "fulfilled") setMargemData(margemRes.value  as FinMargemData[]);
-    if (agingRes.status  === "fulfilled") setAgingData(agingRes.value    as FinAgingData[]);
-    if (topRes.status    === "fulfilled") setTopDevedoresFiltrado(topRes.value as FinTopDevedorData[]);
+    if (kpisRes.status === "fulfilled" && kpisRes.value) setKpis(kpisRes.value as KpiData);
+    if (chartsRes.status === "fulfilled" && chartsRes.value) {
+      const c = chartsRes.value as {
+        faturamentoRecebimentos?: FinFaturamentoData[];
+        fluxoCaixa?: FinFluxoCaixaData[];
+        margem?: FinMargemData[];
+        aging?: FinAgingData[];
+        topDevedores?: FinTopDevedorData[];
+      };
+      if (c.faturamentoRecebimentos) setFatRecData(c.faturamentoRecebimentos);
+      if (c.fluxoCaixa)               setFluxoData(c.fluxoCaixa);
+      if (c.margem)                   setMargemData(c.margem);
+      if (c.aging)                    setAgingData(c.aging);
+      if (c.topDevedores)             setTopDevedoresFiltrado(c.topDevedores);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lojaKey, period, customRange]);
 
