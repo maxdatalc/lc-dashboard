@@ -28,7 +28,7 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
 
-  const [profileRes, tenantAccessRes, empresaRes] = await Promise.all([
+  const [profileRes, tenantAccessRes, empresaRes, featuresRes] = await Promise.all([
     adminClient
       .from("profiles")
       .select("is_system_admin")
@@ -47,10 +47,17 @@ export default async function DashboardLayout({
     selectedTenantId
       ? adminClient
           .from("tenants")
-          .select("id, name, plan, features")
+          .select("id, name, plan")
           .eq("id", selectedTenantId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+
+    selectedTenantId
+      ? adminClient
+          .from("tenant_features")
+          .select("feature_key")
+          .eq("tenant_id", selectedTenantId)
+      : Promise.resolve({ data: [] }),
   ]);
 
   const isAdmin =
@@ -62,10 +69,11 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const empresaData = empresaRes.data as { id: string; name: string; plan: string; features?: string[] } | null;
+  const empresaData = empresaRes.data as { id: string; name: string; plan: string } | null;
   const plan         = (empresaData?.plan ?? "free") as Plan;
   const userRole     = ((tenantAccessRes.data as { role?: string } | null)?.role ?? "viewer") as UserRole;
-  const tenantFeatures = (empresaData?.features ?? null) as string[] | null;
+  const rawFeatures  = (featuresRes.data ?? []) as { feature_key: string }[];
+  const tenantFeatures = rawFeatures.length > 0 ? rawFeatures.map((r) => r.feature_key) : null;
 
   const { data: lojasData } = selectedTenantId
     ? await adminClient
