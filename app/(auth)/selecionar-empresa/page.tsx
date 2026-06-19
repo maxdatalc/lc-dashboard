@@ -95,7 +95,7 @@ export default async function SelecionarEmpresaPage() {
         </form>
       </div>
 
-      <style jsx>{`
+      <style>{`
         .se-root {
           position: relative;
           min-height: 100vh;
