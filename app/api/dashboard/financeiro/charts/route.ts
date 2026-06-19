@@ -227,6 +227,145 @@ export async function GET(request: Request) {
       })));
     }
 
+    // Todas as queries em paralelo, uma única chamada HTTP
+    case "bulk": {
+      const [fatRes, recRes, fluxoRes, margemRes, agingRes, topRes] = await Promise.allSettled([
+        q<{ mes: string; faturamento: number; qtd: number }>(`
+          SELECT FORMAT(vedFechamento,'yyyy-MM') AS mes,
+                 SUM(vedTotalNf) AS faturamento, COUNT(*) AS qtd
+          FROM venda
+          WHERE vedStatus='F' AND vedTipo IN ('OS','VE') AND vedTotalNf>0 AND empId=@empId
+            AND CONVERT(date,vedFechamento) >= @base12m
+            AND CONVERT(date,vedFechamento) <= @endDate
+          GROUP BY FORMAT(vedFechamento,'yyyy-MM') ORDER BY mes
+        `, { base12m, endDate: endParam }),
+
+        q<{ mes: string; recebido: number }>(`
+          SELECT FORMAT(pgtDataQuitou,'yyyy-MM') AS mes, SUM(pgtValor) AS recebido
+          FROM vendaPgto
+          WHERE pgtPago='S' AND empId=@empId AND pgtDataQuitou IS NOT NULL
+            AND CONVERT(date,pgtDataQuitou) >= @base12m
+            AND CONVERT(date,pgtDataQuitou) <= @endDate
+          GROUP BY FORMAT(pgtDataQuitou,'yyyy-MM') ORDER BY mes
+        `, { base12m, endDate: endParam }),
+
+        q<{ mes: string; entradas: number; saidas: number }>(`
+          SELECT FORMAT(ctmData,'yyyy-MM') AS mes,
+                 ISNULL(SUM(CASE WHEN ctmSinal='+' THEN ctmValor ELSE 0 END),0) AS entradas,
+                 ISNULL(SUM(CASE WHEN ctmSinal='-' THEN ABS(ctmValor) ELSE 0 END),0) AS saidas
+          FROM contaMov
+          WHERE empId=@empId AND ctmTipoMov IN ('CP','CR')
+            AND CONVERT(date,ctmData) >= @base12m
+            AND CONVERT(date,ctmData) <= @endDate
+          GROUP BY FORMAT(ctmData,'yyyy-MM') ORDER BY mes
+        `, { base12m, endDate: endParam }),
+
+        q<{ mes: string; receita: number; custo: number }>(`
+          SELECT FORMAT(v.vedFechamento,'yyyy-MM') AS mes,
+                 ISNULL(SUM(vi.vdiQtde*vi.vdiValor),0) AS receita,
+                 ISNULL(SUM(vi.vdiQtde*vi.vdiProCustoFinal),0) AS custo
+          FROM vendaItem vi JOIN venda v ON vi.vdiVedId=v.vedId
+          WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.empId=@empId
+            AND vi.vdiProCustoFinal>0
+            AND CONVERT(date,v.vedFechamento) >= @base12m
+            AND CONVERT(date,v.vedFechamento) <= @endDate
+          GROUP BY FORMAT(v.vedFechamento,'yyyy-MM') ORDER BY mes
+        `, { base12m, endDate: endParam }),
+
+        q<{ faixa: string; qtd: number; valor: number }>(`
+          SELECT
+            CASE
+              WHEN DATEDIFF(DAY,pgtVecmto,GETDATE()) BETWEEN 1  AND 30 THEN '01-30d'
+              WHEN DATEDIFF(DAY,pgtVecmto,GETDATE()) BETWEEN 31 AND 60 THEN '31-60d'
+              WHEN DATEDIFF(DAY,pgtVecmto,GETDATE()) BETWEEN 61 AND 90 THEN '61-90d'
+              ELSE '+90d'
+            END AS faixa,
+            COUNT(*) AS qtd, ISNULL(SUM(pgtValor),0) AS valor
+          FROM vendaPgto
+          WHERE empId=@empId AND pgtPago IN ('N','F') AND pgtVecmto < CONVERT(date,GETDATE())
+          GROUP BY
+            CASE
+              WHEN DATEDIFF(DAY,pgtVecmto,GETDATE()) BETWEEN 1  AND 30 THEN '01-30d'
+              WHEN DATEDIFF(DAY,pgtVecmto,GETDATE()) BETWEEN 31 AND 60 THEN '31-60d'
+              WHEN DATEDIFF(DAY,pgtVecmto,GETDATE()) BETWEEN 61 AND 90 THEN '61-90d'
+              ELSE '+90d'
+            END
+          ORDER BY faixa
+        `),
+
+        q<{ cliente: string; qtd: number; valor: number; mais_antigo: string; max_dias: number }>(`
+          SELECT TOP 15
+            pgtCliNome AS cliente, COUNT(*) AS qtd,
+            ISNULL(SUM(pgtValor),0) AS valor,
+            MIN(pgtVecmto) AS mais_antigo,
+            MAX(DATEDIFF(DAY,pgtVecmto,GETDATE())) AS max_dias
+          FROM vendaPgto
+          WHERE empId=@empId AND pgtPago IN ('N','F') AND pgtVecmto < CONVERT(date,GETDATE())
+          GROUP BY pgtCliNome ORDER BY valor DESC
+        `),
+      ]);
+
+      // — Faturamento vs Recebimentos —
+      const fatRows  = fatRes.status  === "fulfilled" ? fatRes.value  as { mes: string; faturamento: number; qtd: number }[]          : [];
+      const recRows  = recRes.status  === "fulfilled" ? recRes.value  as { mes: string; recebido: number }[]                          : [];
+      const fatRecMap = new Map<string, { mes: string; faturamento: number; recebido: number; qtdVendas: number }>();
+      const cur1 = new Date(base12mDate);
+      while (cur1 <= endDate) {
+        const k = cur1.toISOString().slice(0, 7);
+        fatRecMap.set(k, { mes: k, faturamento: 0, recebido: 0, qtdVendas: 0 });
+        cur1.setMonth(cur1.getMonth() + 1);
+      }
+      for (const r of fatRows) { const e = fatRecMap.get(r.mes); if (e) { e.faturamento = Number(r.faturamento); e.qtdVendas = Number(r.qtd); } }
+      for (const r of recRows) { const e = fatRecMap.get(r.mes); if (e) e.recebido = Number(r.recebido); }
+      const faturamentoRecebimentos = Array.from(fatRecMap.values())
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .map((r) => ({ ...r, taxaRec: r.faturamento > 0 ? Math.round(r.recebido / r.faturamento * 1000) / 10 : null }));
+
+      // — Fluxo de Caixa —
+      const fluxoRows = fluxoRes.status === "fulfilled" ? fluxoRes.value as { mes: string; entradas: number; saidas: number }[] : [];
+      const fluxoMap  = new Map<string, { mes: string; entradas: number; saidas: number }>();
+      const cur2 = new Date(base12mDate);
+      while (cur2 <= endDate) {
+        const k = cur2.toISOString().slice(0, 7);
+        fluxoMap.set(k, { mes: k, entradas: 0, saidas: 0 });
+        cur2.setMonth(cur2.getMonth() + 1);
+      }
+      for (const r of fluxoRows) { const e = fluxoMap.get(r.mes); if (e) { e.entradas = Number(r.entradas); e.saidas = Number(r.saidas); } }
+      let acumulado = 0;
+      const fluxoCaixa = Array.from(fluxoMap.values())
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .map((r) => { const saldo = r.entradas - r.saidas; acumulado += saldo; return { ...r, saldo, acumulado }; });
+
+      // — Margem —
+      const marRows   = margemRes.status === "fulfilled" ? margemRes.value as { mes: string; receita: number; custo: number }[] : [];
+      const margemMap = new Map<string, { mes: string; receita: number; custo: number }>();
+      const cur3 = new Date(base12mDate);
+      while (cur3 <= endDate) {
+        const k = cur3.toISOString().slice(0, 7);
+        margemMap.set(k, { mes: k, receita: 0, custo: 0 });
+        cur3.setMonth(cur3.getMonth() + 1);
+      }
+      for (const r of marRows) { const e = margemMap.get(r.mes); if (e) { e.receita = Number(r.receita); e.custo = Number(r.custo); } }
+      const margem = Array.from(margemMap.values())
+        .sort((a, b) => a.mes.localeCompare(b.mes))
+        .map((r) => { const lucro = r.receita - r.custo; return { ...r, lucro, margemPct: r.receita > 0 ? Math.round((lucro / r.receita) * 10000) / 100 : 0 }; });
+
+      // — Aging —
+      const agingRows   = agingRes.status === "fulfilled" ? agingRes.value as { faixa: string; qtd: number; valor: number }[] : [];
+      const agingLabels: Record<string, string> = { "01-30d": "1–30 dias", "31-60d": "31–60 dias", "61-90d": "61–90 dias", "+90d": "+90 dias" };
+      const agingOrder  = ["01-30d", "31-60d", "61-90d", "+90d"];
+      const agingMapped = agingRows.map((r) => ({ faixa: r.faixa, label: agingLabels[r.faixa] ?? r.faixa, qtd: Number(r.qtd), valor: Number(r.valor) }));
+      const aging = agingOrder.map((k) => agingMapped.find((r) => r.faixa === k) ?? { faixa: k, label: agingLabels[k], qtd: 0, valor: 0 });
+
+      // — Top Devedores —
+      const topRows = topRes.status === "fulfilled"
+        ? (topRes.value as { cliente: string; qtd: number; valor: number; mais_antigo: string; max_dias: number }[])
+            .map((r) => ({ cliente: r.cliente, qtd: Number(r.qtd), valor: Number(r.valor), maisAntigo: r.mais_antigo, maxDias: Number(r.max_dias) }))
+        : [];
+
+      return NextResponse.json({ faturamentoRecebimentos, fluxoCaixa, margem, aging, topDevedores: topRows });
+    }
+
     default:
       return NextResponse.json({ error: `Tipo desconhecido: ${type}` }, { status: 400 });
   }
