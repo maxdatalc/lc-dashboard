@@ -155,26 +155,34 @@ export default function NovaLojaPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="space-y-2" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
-          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Voltar para lojas
         </Link>
-        <span className="text-slate-300">/</span>
-        <h1 className="text-xl font-bold text-slate-900">Adicionar Loja</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Adicionar Loja</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Configure a nova loja e a conexão com o banco.
+          </p>
+        </div>
       </div>
 
       {erro && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
+        <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {erro}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
+        style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "50ms" }}
+      >
 
         {/* ── Banner de auto-detecção ────────────────────────────────── */}
         {buscandoEmpresas && !autoDetectado && (
@@ -221,7 +229,7 @@ export default function NovaLojaPage() {
                 id="sql-enabled"
                 checked={sqlEnabled}
                 onChange={(e) => setSqlEnabled(e.target.checked)}
-                className="mt-0.5 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+                className="mt-0.5 rounded border-slate-300 text-slate-700 focus:ring-slate-400"
               />
               <label htmlFor="sql-enabled" className="cursor-pointer">
                 <p className="text-sm font-medium text-slate-700">Habilitar Dashboard SQL (lc-sql-bridge)</p>
@@ -232,7 +240,7 @@ export default function NovaLojaPage() {
             </div>
 
             {sqlEnabled && (
-              <div className="space-y-4 pl-6 border-l-2 border-cyan-100">
+              <div className="space-y-4 pl-6 border-l-2 border-slate-200">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 mb-1">
                     URL da Bridge <span className="text-red-500">*</span>
@@ -242,9 +250,9 @@ export default function NovaLojaPage() {
                     value={bridgeUrl}
                     onChange={(e) => setBridgeUrl(e.target.value)}
                     placeholder="https://sql-cliente.lctecnologias.com.br"
-                    className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+                    className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
                   />
-                  <p className="text-xs text-slate-400 mt-0.5">
+                  <p className="text-xs text-slate-400 mt-1">
                     Cloudflare Tunnel apontando para porta 3055 da bridge.
                   </p>
                 </div>
@@ -259,7 +267,7 @@ export default function NovaLojaPage() {
                       value={bridgeToken}
                       onChange={(e) => setBridgeToken(e.target.value)}
                       placeholder="Token gerado pelo instalar-bridge.ps1"
-                      className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
                     />
                     <button
                       type="button"
@@ -320,18 +328,18 @@ export default function NovaLojaPage() {
                     type="button"
                     onClick={() => selecionarEmpresa(emp)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
-                      selected ? "bg-cyan-50 border-l-2 border-l-cyan-500" : "hover:bg-slate-50"
+                      selected ? "bg-slate-50 border-l-2 border-l-slate-900" : "hover:bg-slate-50/60"
                     }`}
                   >
                     <span
                       className={`text-xs font-mono font-semibold min-w-[28px] text-center rounded px-1 py-0.5 ${
-                        selected ? "bg-cyan-100 text-cyan-700" : "bg-slate-100 text-slate-500"
+                        selected ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500"
                       }`}
                     >
                       {emp.empId}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${selected ? "text-cyan-700" : "text-slate-800"}`}>
+                      <p className={`text-sm font-medium truncate ${selected ? "text-slate-900 font-semibold" : "text-slate-800"}`}>
                         {emp.fantasia || emp.razao}
                       </p>
                       {emp.fantasia && emp.razao !== emp.fantasia && (
@@ -339,7 +347,7 @@ export default function NovaLojaPage() {
                       )}
                     </div>
                     {selected && (
-                      <span className="text-xs text-cyan-600 font-medium shrink-0">Selecionada</span>
+                      <span className="text-xs text-slate-500 font-medium shrink-0">✓ Selecionada</span>
                     )}
                   </button>
                 );
@@ -362,7 +370,7 @@ export default function NovaLojaPage() {
               onChange={(e) => setNome(e.target.value)}
               required
               placeholder="Ex: Comercial Aliança — Centro"
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+              className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
             />
             {empresaSelecionada && (
               <p className="text-xs text-slate-400 mt-0.5">Pré-preenchido da empresa selecionada. Edite se quiser.</p>
@@ -380,7 +388,7 @@ export default function NovaLojaPage() {
               onChange={(e) => setEmpId(e.target.value)}
               required
               placeholder={listaExibida.length ? "Selecione acima ou digite" : "Ex: 2"}
-              className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+              className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
             />
             <p className="text-xs text-slate-400 mt-0.5">
               {listaExibida.length ? "Preenchido ao selecionar a empresa acima." : "ID da empresa no MaxManager"}
@@ -398,7 +406,7 @@ export default function NovaLojaPage() {
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:-translate-y-px"
           >
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {loading ? "Salvando..." : "Adicionar Loja"}
