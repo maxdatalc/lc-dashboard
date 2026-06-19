@@ -28,7 +28,7 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
 
-  const [profileRes, tenantAccessRes, empresaRes, featuresRes] = await Promise.all([
+  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes] = await Promise.all([
     adminClient
       .from("profiles")
       .select("is_system_admin")
@@ -58,13 +58,21 @@ export default async function DashboardLayout({
           .select("feature_key")
           .eq("tenant_id", selectedTenantId)
       : Promise.resolve({ data: [] }),
+
+    // Configurações por usuário: módulos liberados individualmente
+    selectedTenantId
+      ? adminClient
+          .from("user_tenant_settings")
+          .select("modulos")
+          .eq("user_id", user.id)
+          .eq("tenant_id", selectedTenantId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   const isAdmin =
     (profileRes.data as { is_system_admin?: boolean } | null)?.is_system_admin === true;
 
-  // Redireciona somente quando a empresa está selecionada mas o usuário não tem acesso a ela.
-  // Quando não há cookie de empresa (expirado/novo login), deixa passar e mostra estado vazio.
   if (!isAdmin && selectedTenantId && !tenantAccessRes.data) {
     redirect("/login");
   }
@@ -72,8 +80,28 @@ export default async function DashboardLayout({
   const empresaData = empresaRes.data as { id: string; name: string; plan: string } | null;
   const plan         = (empresaData?.plan ?? "free") as Plan;
   const userRole     = ((tenantAccessRes.data as { role?: string } | null)?.role ?? "viewer") as UserRole;
+
+  // Features do tenant (source of truth para o que está ativado)
   const rawFeatures  = (featuresRes.data ?? []) as { feature_key: string }[];
-  const tenantFeatures = rawFeatures.length > 0 ? rawFeatures.map((r) => r.feature_key) : null;
+  const tenantFeatures = rawFeatures.map((r) => r.feature_key);
+
+  // Restrições por usuário: proprietários e admins globais vêem tudo
+  // Outros usuários são filtrados pelas permissões individuais
+  const userModulos = (userSettingsRes.data as { modulos?: Record<string, boolean> } | null)?.modulos ?? null;
+  const effectiveRole = isAdmin ? "owner" : userRole;
+
+  let effectiveFeatures: string[] | undefined;
+  if (tenantFeatures.length === 0) {
+    effectiveFeatures = undefined; // sem features = usa planHasFeature como fallback
+  } else if (isAdmin || effectiveRole === "owner") {
+    effectiveFeatures = tenantFeatures; // proprietários e admins globais: acesso total
+  } else if (userModulos) {
+    // Usuário com restrições: interseção entre features do tenant e módulos liberados
+    effectiveFeatures = tenantFeatures.filter((k) => userModulos[k] === true);
+  } else {
+    // Sem configuração individual = sem acesso a módulos restritos (somente core)
+    effectiveFeatures = tenantFeatures.filter((k) => k === "dashboard_visao_geral");
+  }
 
   const { data: lojasData } = selectedTenantId
     ? await adminClient
@@ -97,7 +125,7 @@ export default async function DashboardLayout({
       empresaNome={empresaData?.name ?? ""}
       plan={plan}
       userRole={isAdmin ? "owner" : userRole}
-      features={tenantFeatures ?? undefined}
+      features={effectiveFeatures}
     >
       <DashLojaSync lojaId={selectedLojaId} />
       <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>
