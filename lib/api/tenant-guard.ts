@@ -87,16 +87,20 @@ export async function requireTenantAccess(
     }
   }
 
-  // Fire-and-forget: registra acesso (throttle 60s por usuário+tenant)
+  // Registra acesso (throttle 60s em memória, await garante execução no serverless)
   const cacheKey = `${user.id}:${tenantId}`;
   if ((Date.now() - (_accessCache.get(cacheKey) ?? 0)) > 60_000) {
     _accessCache.set(cacheKey, Date.now());
     const userName = profileData?.full_name ?? user.email ?? "Usuário";
-    void admin.rpc("track_tenant_access", {
-      p_tenant_id: tenantId,
-      p_user_id: user.id,
-      p_user_name: userName,
-    });
+    try {
+      await admin.rpc("track_tenant_access", {
+        p_tenant_id: tenantId,
+        p_user_id: user.id,
+        p_user_name: userName,
+      });
+    } catch (e) {
+      console.error("[access-tracking] falha ao registrar acesso:", e);
+    }
   }
 
   return { userId: user.id, tenantId, role, isSystemAdmin };
