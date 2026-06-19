@@ -22,7 +22,7 @@ function SubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-60 transition-colors"
+      className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md disabled:opacity-60 transition-all hover:-translate-y-px"
     >
       {pending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
       {pending ? "Salvando..." : "Salvar configuração"}
@@ -64,7 +64,11 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
   }
 
   return (
-    <form action={formAction} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+    <form
+      action={formAction}
+      className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
+      style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "50ms" }}
+    >
 
       {state.erro && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2">
@@ -81,7 +85,7 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
           value={maxApiUrl}
           onChange={(e) => setMaxApiUrl(e.target.value)}
           placeholder="https://maxapi.exemplo.com:8080"
-          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
         />
         <p className="text-xs text-slate-400 mt-0.5">
           Cloudflare Tunnel apontando para a porta da MaxAPI no servidor MaxManager.
@@ -97,7 +101,7 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
           value={terminal}
           onChange={(e) => setTerminal(e.target.value)}
           placeholder="1"
-          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
         />
         <p className="text-xs text-slate-400 mt-0.5">
           Número do terminal configurado no MaxManager. Padrão: 1.
@@ -110,7 +114,7 @@ export default function MaxApiForm({ action, loja, tenantId }: Props) {
           type="button"
           onClick={testarConexao}
           disabled={testStatus === "testing" || !maxApiUrl || !terminal}
-          className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-2 border border-slate-200 rounded-lg px-3.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {testStatus === "idle"    && <Plug         className="h-3.5 w-3.5" />}
           {testStatus === "testing" && <Loader2      className="h-3.5 w-3.5 animate-spin" />}
