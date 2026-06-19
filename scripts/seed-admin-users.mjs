@@ -3,9 +3,11 @@
  * Uso: node scripts/seed-admin-users.mjs
  *
  * Executa uma única vez (idempotente — pode rodar novamente sem duplicar).
+ * As senhas temporárias são geradas aleatoriamente e impressas no console.
  */
 
 import { createClient } from "@supabase/supabase-js";
+import { randomBytes } from "crypto";
 import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
@@ -38,9 +40,13 @@ const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
 });
 
 const ADMINS = [
-  { email: "lucasruana.f@gmail.com",        nome: "Lucas Ruan",       senha: "123456" },
-  { email: "lucas.lamounier@maxdata.com.br", nome: "Lucas Lamounier",  senha: "123456" },
-];
+  { email: "lucasruana.f@gmail.com",        nome: "Lucas Ruan" },
+  { email: "lucas.lamounier@maxdata.com.br", nome: "Lucas Lamounier" },
+].map((u) => ({ ...u, senha: randomBytes(10).toString("hex") }));
+
+console.log("\n── Senhas temporárias geradas (salve antes de continuar) ──");
+for (const u of ADMINS) console.log(`  ${u.email}  →  ${u.senha}`);
+console.log("────────────────────────────────────────────────────────\n");
 
 const { data: listData } = await admin.auth.admin.listUsers({ perPage: 1000 });
 const existingUsers = listData?.users ?? [];

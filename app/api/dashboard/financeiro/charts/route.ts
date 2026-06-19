@@ -14,15 +14,15 @@ async function getConfig(lojaIds: string[]) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireTenantAccess();
-  if (auth instanceof NextResponse) return auth;
-
   const { searchParams } = new URL(request.url);
   const lojaIds = (searchParams.get("lojaIds") ?? "").split(",").filter(Boolean);
   const type    = searchParams.get("type") ?? "";
   const aging   = searchParams.get("aging") ?? "";
 
   if (lojaIds.length === 0) return NextResponse.json({ error: "lojaIds obrigatório" }, { status: 400 });
+
+  const auth = await requireTenantAccess(lojaIds);
+  if (auth instanceof NextResponse) return auth;
 
   const cfg = await getConfig(lojaIds);
   if (!cfg) return NextResponse.json({ error: "Bridge não configurada" }, { status: 404 });
@@ -367,6 +367,6 @@ export async function GET(request: Request) {
     }
 
     default:
-      return NextResponse.json({ error: `Tipo desconhecido: ${type}` }, { status: 400 });
+      return NextResponse.json({ error: "Tipo de gráfico inválido" }, { status: 400 });
   }
 }

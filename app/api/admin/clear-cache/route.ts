@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
+import { createClient } from "@/lib/supabase/server";
+import { isSystemAdmin } from "@/lib/db/admin";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -7,20 +9,17 @@ const redis = new Redis({
 });
 
 export async function POST(request: Request) {
-  const { lojaId } = (await request.json()) as { lojaId?: string };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
 
-  // Listar todas as chaves e deletar as relacionadas à loja
+  const admin = await isSystemAdmin(user.id);
+  if (!admin) return NextResponse.json({ error: "Acesso negado" }, { status: 403 });
+
   const keys = await redis.keys("*");
-  console.log("[clear-cache] lojaId:", lojaId);
-  console.log("[clear-cache] Todas as chaves Redis:", keys);
-
-  // Deletar todas as chaves (reset completo do cache)
   if (keys.length > 0) {
     await redis.del(...keys);
   }
 
-  return NextResponse.json({
-    deletadas: keys.length,
-    chaves: keys,
-  });
+  return NextResponse.json({ deletadas: keys.length });
 }

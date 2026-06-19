@@ -8,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 const PAGE_LIMIT = 20;
 
+function isDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
 function mapStatus(vedStatus: string): string {
   switch (vedStatus) {
     case "F": return "finalizada";
@@ -49,6 +51,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const period = searchParams.get("period") ?? "month";
   const startParam = searchParams.get("start");
   const endParam = searchParams.get("end");
+  if (startParam && endParam && (!isDate(startParam) || !isDate(endParam))) {
+    return NextResponse.json({ error: "start e end devem ser YYYY-MM-DD" }, { status: 400 });
+  }
   const { start, end } = startParam && endParam
     ? { start: startParam, end: endParam }
     : getDateRange(period);
@@ -57,7 +62,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const tipoFiltro   = searchParams.get("tipo");
   const search       = (searchParams.get("search") ?? "").trim();
   const page         = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
-  const limit        = parseInt(searchParams.get("limit") ?? String(PAGE_LIMIT), 10);
+  const limit        = Math.min(parseInt(searchParams.get("limit") ?? String(PAGE_LIMIT), 10), 200);
   const offset       = (page - 1) * limit;
 
   // Usa o primeiro bridge configurado entre as lojas disponíveis

@@ -17,12 +17,12 @@ async function getConfig(lojaIds: string[]) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireTenantAccess();
-  if (auth instanceof NextResponse) return auth;
-
   const { searchParams } = new URL(request.url);
   const lojaIds = (searchParams.get("lojaIds") ?? "").split(",").filter(Boolean);
   if (lojaIds.length === 0) return NextResponse.json({ error: "lojaIds obrigatório" }, { status: 400 });
+
+  const auth = await requireTenantAccess(lojaIds);
+  if (auth instanceof NextResponse) return auth;
 
   const start = searchParams.get("start") ?? "";
   const end   = searchParams.get("end")   ?? "";

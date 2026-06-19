@@ -4,6 +4,9 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import type { UserRole } from "@/lib/plans";
 
+// Throttle: evita gravar no banco mais de 1x por minuto por usuário+tenant
+const _accessCache = new Map<string, number>();
+
 export type TenantContext = {
   userId: string;
   tenantId: string;
@@ -49,7 +52,7 @@ export async function requireTenantAccess(
   const [profileRes, membershipRes] = await Promise.all([
     admin
       .from("profiles")
-      .select("is_system_admin")
+      .select("is_system_admin, full_name")
       .eq("id", user.id)
       .maybeSingle(),
     admin
@@ -60,8 +63,8 @@ export async function requireTenantAccess(
       .maybeSingle(),
   ]);
 
-  const isSystemAdmin =
-    (profileRes.data as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+  const profileData = profileRes.data as { is_system_admin?: boolean; full_name?: string } | null;
+  const isSystemAdmin = profileData?.is_system_admin === true;
 
   if (!isSystemAdmin && !membershipRes.data) {
     return NextResponse.json({ error: "Sem acesso a esta empresa" }, { status: 403 });
@@ -82,6 +85,18 @@ export async function requireTenantAccess(
     if ((lojas ?? []).length !== lojaIds.length) {
       return NextResponse.json({ error: "Acesso negado a esta loja" }, { status: 403 });
     }
+  }
+
+  // Fire-and-forget: registra acesso (throttle 60s por usuário+tenant)
+  const cacheKey = `${user.id}:${tenantId}`;
+  if ((Date.now() - (_accessCache.get(cacheKey) ?? 0)) > 60_000) {
+    _accessCache.set(cacheKey, Date.now());
+    const userName = profileData?.full_name ?? user.email ?? "Usuário";
+    void admin.rpc("track_tenant_access", {
+      p_tenant_id: tenantId,
+      p_user_id: user.id,
+      p_user_name: userName,
+    });
   }
 
   return { userId: user.id, tenantId, role, isSystemAdmin };

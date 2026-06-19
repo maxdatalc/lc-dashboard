@@ -2,6 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isSystemAdmin } from "@/lib/db/admin";
 
+function isSafeUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr);
+    if (!["http:", "https:"].includes(u.protocol)) return false;
+    const h = u.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(h)) return false;
+    const blocked = ["169.254.", "127.", "localhost", "metadata.google"];
+    return !blocked.some((b) => h === b || h.startsWith(b));
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -15,6 +28,10 @@ export async function POST(req: NextRequest) {
 
   if (!maxApiUrl || !terminal || empId == null) {
     return NextResponse.json({ success: false, erro: "maxApiUrl, terminal e empId são obrigatórios" });
+  }
+
+  if (!isSafeUrl(maxApiUrl)) {
+    return NextResponse.json({ success: false, erro: "URL inválida ou não permitida" });
   }
 
   const baseUrl = maxApiUrl.replace(/\/$/, "");
