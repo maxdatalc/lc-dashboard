@@ -133,7 +133,11 @@ export function hasFeature(features: string[], featureKey: string): boolean {
   return features.includes(featureKey);
 }
 
-/** Retorna os keys de todas as features core (sempre incluídas no free) */
+/** Retorna os keys de features sempre incluídas (independente de plano) */
 export function getCoreFeatures(): string[] {
-  return FEATURES_CATALOG.filter((f) => f.categoria === "core").map((f) => f.key);
+  return [
+    "dashboard_visao_geral",
+    "modulo_financeiro",
+    "modulo_produtos",
+  ];
 }
