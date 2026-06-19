@@ -72,7 +72,7 @@ export function EmpresasListClient({
             </p>
             {!busca && (
               <p className="text-xs text-slate-400 mt-1">
-                Clique em "+ Nova Empresa" para começar.
+                Clique em &ldquo;+ Nova Empresa&rdquo; para começar.
               </p>
             )}
           </div>
