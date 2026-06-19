@@ -99,7 +99,7 @@ export default async function AdminAcessosPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50">
             <tr>
-              {["Status", "Empresa", "Último Acesso", "Acessos (total)", "Último Usuário"].map((col) => (
+              {["Status", "Empresa", "Último Acesso", "Requisições (total)", "Último Usuário"].map((col) => (
                 <th
                   key={col}
                   className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500"
@@ -148,6 +148,7 @@ export default async function AdminAcessosPage() {
                             {new Date(stats.last_seen_at).toLocaleString("pt-BR", {
                               day: "2-digit", month: "2-digit", year: "numeric",
                               hour: "2-digit", minute: "2-digit",
+                              timeZone: "America/Sao_Paulo",
                             })}
                           </div>
                         </div>
