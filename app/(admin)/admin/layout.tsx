@@ -1,6 +1,3 @@
-// Layout do painel administrativo LC Tecnologias
-// Sidebar escura com navegação técnica — separado visualmente do dashboard do cliente
-
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
@@ -12,13 +9,13 @@ import {
   Activity,
 } from "lucide-react";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
+import { AdminNavLink } from "@/components/admin/AdminNavLink";
 
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Verificar sessão e privilégio admin
   const supabase = await createClient();
   const {
     data: { user },
@@ -39,13 +36,13 @@ export default async function AdminLayout({
 
   return (
     <div className="flex min-h-screen">
-      {/* Sidebar escura */}
+      {/* Sidebar */}
       <aside className="w-56 bg-slate-900 flex flex-col shrink-0">
 
-        {/* Logo e badge */}
-        <div className="px-4 py-5 border-b border-slate-800">
+        {/* Logo */}
+        <div className="px-4 py-5 border-b border-white/5">
           <div className="flex items-center gap-2">
-            <span className="text-white font-bold text-lg">LC Admin</span>
+            <span className="text-white font-bold text-lg tracking-tight">LC Admin</span>
             <span className="text-xs font-semibold bg-amber-400 text-slate-900 px-1.5 py-0.5 rounded">
               ADMIN
             </span>
@@ -56,49 +53,35 @@ export default async function AdminLayout({
         {/* Navegação */}
         <nav className="flex-1 px-3 py-4 space-y-6">
 
-          {/* Seção Gestão */}
           <div>
-            <p className="text-slate-600 text-xs uppercase font-semibold tracking-wider mb-2 px-1">
+            <p className="text-slate-600 text-xs uppercase font-semibold tracking-wider mb-2 px-3">
               Gestão
             </p>
             <div className="space-y-0.5">
-              <Link
-                href="/admin"
-                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
-              >
+              <AdminNavLink href="/admin" exact>
                 <LayoutDashboard className="h-4 w-4 shrink-0" />
                 Visão Geral
-              </Link>
-              <Link
-                href="/admin/empresas"
-                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
-              >
+              </AdminNavLink>
+              <AdminNavLink href="/admin/empresas">
                 <Building2 className="h-4 w-4 shrink-0" />
                 Empresas
-              </Link>
-              <Link
-                href="/admin/acessos"
-                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
-              >
+              </AdminNavLink>
+              <AdminNavLink href="/admin/acessos">
                 <Activity className="h-4 w-4 shrink-0" />
                 Acessos
-              </Link>
+              </AdminNavLink>
             </div>
           </div>
 
-          {/* Seção Sistema (futuro) */}
           <div>
-            <p className="text-slate-600 text-xs uppercase font-semibold tracking-wider mb-2 px-1">
+            <p className="text-slate-600 text-xs uppercase font-semibold tracking-wider mb-2 px-3">
               Sistema
             </p>
             <div className="space-y-0.5">
-              <Link
-                href="/admin/usuarios"
-                className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white text-sm transition-colors"
-              >
+              <AdminNavLink href="/admin/usuarios">
                 <Users className="h-4 w-4 shrink-0" />
                 Usuários
-              </Link>
+              </AdminNavLink>
               <div className="flex items-center gap-2.5 px-3 py-2 rounded-md text-slate-600 text-sm cursor-default">
                 <CreditCard className="h-4 w-4 shrink-0" />
                 <span>Planos</span>
@@ -110,11 +93,11 @@ export default async function AdminLayout({
           </div>
         </nav>
 
-        {/* Rodapé — link de volta */}
-        <div className="px-3 py-4 border-t border-slate-800">
+        {/* Rodapé */}
+        <div className="px-3 py-4 border-t border-white/5">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2 px-3 py-2 text-slate-400 hover:text-white text-sm transition-colors"
+            className="flex items-center gap-2 px-3 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors rounded-md hover:bg-white/5"
           >
             <ArrowLeft className="h-4 w-4 shrink-0" />
             Voltar ao Dashboard
@@ -122,7 +105,7 @@ export default async function AdminLayout({
         </div>
       </aside>
 
-      {/* Área de conteúdo */}
+      {/* Conteúdo */}
       <main className="flex-1 bg-slate-50 min-h-screen overflow-auto">{children}</main>
     </div>
   );
