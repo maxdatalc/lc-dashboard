@@ -25,20 +25,6 @@ async function salvarFeatures(tenantId: string, formData: FormData) {
   redirect(`/admin/empresas/${tenantId}?aba=features`);
 }
 
-async function ativarPremium(tenantId: string) {
-  "use server";
-  const todasPremium = FEATURES_CATALOG.filter((f) => f.disponivel).map((f) => f.key);
-  const featuresFinais = Array.from(new Set([...getCoreFeatures(), ...todasPremium]));
-  await updateTenantFeatures(tenantId, featuresFinais);
-  redirect(`/admin/empresas/${tenantId}?aba=features`);
-}
-
-async function downgradeFree(tenantId: string) {
-  "use server";
-  await updateTenantFeatures(tenantId, getCoreFeatures());
-  redirect(`/admin/empresas/${tenantId}?aba=features`);
-}
-
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default async function GerenciarEmpresaPage({
@@ -59,15 +45,9 @@ export default async function GerenciarEmpresaPage({
 
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenantDetalhado(id) : [];
 
-  const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
-  const MODULOS_PRINCIPAIS_KEYS = ["modulo_vendas", "modulo_financeiro", "modulo_produtos"];
-  const modulosPrincipais = FEATURES_CATALOG.filter((f) =>
-    MODULOS_PRINCIPAIS_KEYS.includes(f.key)
-  );
-  const outrosModulos = FEATURES_CATALOG.filter(
-    (f) => f.categoria === "premium" && !MODULOS_PRINCIPAIS_KEYS.includes(f.key)
-  );
-  const algumOutroAtivo = outrosModulos.some((f) => tenant.features.includes(f.key));
+  const moduloOs = FEATURES_CATALOG.find((f) => f.key === "modulo_os")!;
+  const osAtivo = tenant.features.includes("modulo_os");
+  const emBreveFeatures = FEATURES_CATALOG.filter((f) => !f.disponivel);
 
   const ABAS = [
     { valor: "lojas" as Aba, label: "Lojas", icon: Building2, count: tenant.lojas.length },
@@ -176,169 +156,116 @@ export default async function GerenciarEmpresaPage({
 
         {/* ── Aba Módulos ──────────────────────────────────────────────────── */}
         {abaAtiva === "features" && (
-          <div className="space-y-5">
+          <div className="space-y-4">
 
-            {/* Seletor rápido de plano */}
+            {/* Incluídos gratuitamente — read-only */}
             <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Plano atual</p>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Atalho para ativar ou remover todos os módulos de uma vez.
-                  </p>
+                  <h3 className="text-sm font-semibold text-slate-900">Incluídos em todos os planos</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Disponíveis para todos os clientes sem custo adicional.</p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <form action={downgradeFree.bind(null, id)}>
-                    <button
-                      type="submit"
-                      disabled={tenant.plan === "free"}
-                      className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={
-                        tenant.plan === "free"
-                          ? { backgroundColor: "#0f172a", color: "#fff", borderColor: "#0f172a" }
-                          : { backgroundColor: "transparent", color: "#64748b", borderColor: "#e2e8f0" }
-                      }
-                    >
-                      Free
-                    </button>
-                  </form>
-                  <form action={ativarPremium.bind(null, id)}>
-                    <button
-                      type="submit"
-                      disabled={tenant.plan === "premium"}
-                      className="px-4 py-2 rounded-lg text-sm font-medium border transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={
-                        tenant.plan === "premium"
-                          ? { backgroundColor: "#d97706", color: "#fff", borderColor: "#d97706" }
-                          : { backgroundColor: "transparent", color: "#64748b", borderColor: "#e2e8f0" }
-                      }
-                    >
-                      ★ Premium
-                    </button>
-                  </form>
-                </div>
+                <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-semibold shrink-0">
+                  Grátis
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { label: "Dashboard Visão Geral", descricao: "KPIs, gráficos e indicadores gerenciais" },
+                  { label: "Financeiro", descricao: "Contas a receber, inadimplência e fluxo de caixa" },
+                  { label: "Produtos & Estoque", descricao: "Catálogo, níveis de estoque e alertas de ruptura" },
+                ].map((m) => (
+                  <div key={m.label} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-100">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-slate-700">{m.label}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">{m.descricao}</p>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <form action={salvarFeatures.bind(null, id)} className="space-y-4">
+            {/* Add-on: Ordens de Serviço */}
+            <form action={salvarFeatures.bind(null, id)} className="space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-white p-5">
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">Add-ons opcionais</h3>
+                <p className="text-xs text-slate-400 mb-4">Módulos que requerem ativação e configuração específica por empresa.</p>
 
-              {/* Core features — sempre ativas */}
-              {coreFeatures.map((f) => (
-                <div
-                  key={f.key}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100"
+                <label
+                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
+                    osAtivo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
+                  }`}
                 >
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-700">{f.label}</p>
-                    <p className="text-xs text-slate-400">{f.descricao}</p>
+                  <input
+                    type="checkbox"
+                    name="feature"
+                    value="modulo_os"
+                    defaultChecked={osAtivo}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">{moduloOs.label}</p>
+                    <p className="text-xs text-slate-500 mt-0.5">{moduloOs.descricao}</p>
                   </div>
-                  <div className="w-8 h-4 bg-slate-300 rounded-full shrink-0 cursor-not-allowed" title="Sempre ativo" />
-                </div>
-              ))}
+                </label>
 
-              {/* Módulos principais */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {modulosPrincipais.map((f) => {
-                  const ativo = tenant.features.includes(f.key);
-                  return (
-                    <label
-                      key={f.key}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
-                        ativo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
-                      } ${!f.disponivel ? "opacity-60 cursor-not-allowed" : ""}`}
+                {osAtivo && (
+                  <div className="mt-3 pl-4 border-l-2 border-blue-200">
+                    <Link
+                      href={`/admin/empresas/${id}/modulo-os`}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
                     >
-                      <input
-                        type="checkbox"
-                        name="feature"
-                        value={f.key}
-                        defaultChecked={ativo}
-                        disabled={!f.disponivel}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-medium text-slate-700">{f.label}</p>
-                          {!f.disponivel && (
-                            <span className="text-xs bg-slate-100 text-slate-500 px-1.5 rounded">
-                              Em breve
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-slate-400">{f.descricao}</p>
-                      </div>
-                    </label>
-                  );
-                })}
+                      <Settings className="h-3 w-3" />
+                      Configurar inventários e tipos fiscais
+                    </Link>
+                  </div>
+                )}
               </div>
-
-              {/* Outros módulos */}
-              <details open={algumOutroAtivo} className="group rounded-xl border border-slate-200 overflow-hidden">
-                <summary className="flex items-center justify-between px-4 py-3 bg-slate-50 cursor-pointer select-none list-none hover:bg-slate-100 transition-colors">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                    Outros módulos
-                  </span>
-                  <svg
-                    className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={2}
-                  >
-                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </summary>
-                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
-                  {outrosModulos.map((f) => {
-                    const ativo = tenant.features.includes(f.key);
-                    return (
-                      <label
-                        key={f.key}
-                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
-                          ativo ? "bg-purple-50 border-purple-200" : "bg-white border-slate-200"
-                        } ${!f.disponivel ? "opacity-60 cursor-not-allowed" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          name="feature"
-                          value={f.key}
-                          defaultChecked={ativo}
-                          disabled={!f.disponivel}
-                          className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium text-slate-700">{f.label}</p>
-                            {!f.disponivel && (
-                              <span className="text-xs bg-slate-100 text-slate-500 px-1.5 rounded">
-                                Em breve
-                              </span>
-                            )}
-                            {f.key === "modulo_os" && f.disponivel && (
-                              <Link
-                                href={`/admin/empresas/${id}/modulo-os`}
-                                className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors"
-                                title="Configurações do módulo OS"
-                              >
-                                <Settings className="h-3.5 w-3.5" />
-                                Configurar
-                              </Link>
-                            )}
-                          </div>
-                          <p className="text-xs text-slate-400">{f.descricao}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
-              </details>
 
               <button
                 type="submit"
                 className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
               >
-                Salvar módulos
+                Salvar
               </button>
             </form>
+
+            {/* Em breve */}
+            <details className="group rounded-xl border border-slate-200 overflow-hidden">
+              <summary className="flex items-center justify-between px-5 py-3.5 bg-slate-50 cursor-pointer select-none list-none hover:bg-slate-100 transition-colors">
+                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                  Em breve — {emBreveFeatures.length} módulos
+                </span>
+                <svg
+                  className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </summary>
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
+                {emBreveFeatures.map((f) => (
+                  <div
+                    key={f.key}
+                    className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-medium text-slate-400">{f.label}</p>
+                        <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-medium">
+                          Em breve
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5">{f.descricao}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </details>
           </div>
         )}
 
