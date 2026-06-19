@@ -15,7 +15,7 @@ import {
   ChevronRight,
   ArrowLeftRight,
 } from "lucide-react";
-import { trocarEmpresa } from "@/app/actions/auth";
+import { logout } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 import { PLAN_LABELS } from "@/lib/plans";
 
@@ -355,7 +355,7 @@ export function Sidebar({ isAdmin }: Props) {
             </div>
           )}
 
-          <form action={trocarEmpresa}>
+          <form action={logout}>
             <button
               type="submit"
               className="w-full flex items-center"
