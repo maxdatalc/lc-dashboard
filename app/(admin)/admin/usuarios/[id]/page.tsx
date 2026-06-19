@@ -19,7 +19,7 @@ export default async function UsuarioDetalhePage({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const admin = await isSystemAdmin(user.id);
+  const admin = isSystemAdmin(user.id);
   if (!admin) redirect("/dashboard");
 
   const adminClient = createAdminClient();
