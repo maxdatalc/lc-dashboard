@@ -95,9 +95,24 @@ interface KpiCardProps {
   delay?: number;
   danger?: boolean;
   badge?: string;
+  info?: string;
 }
 
-function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger = false, badge }: KpiCardProps) {
+function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger = false, badge, info }: KpiCardProps) {
+  const [showInfo, setShowInfo] = useState(false);
+  const popupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showInfo) return;
+    function handleOutside(e: MouseEvent) {
+      if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+        setShowInfo(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [showInfo]);
+
   const varColor = danger
     ? (variation !== null && variation !== undefined ? (variation > 0 ? "#ef4444" : "#22c55e") : "var(--text-muted)")
     : (variation !== null && variation !== undefined ? (variation >= 0 ? "#22c55e" : "#ef4444") : "var(--text-muted)");
@@ -114,19 +129,45 @@ function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger
       animation: "fadeInUp 0.4s ease-out both",
       animationDelay: `${delay}ms`,
       position: "relative",
-      overflow: "hidden",
+      overflow: "visible",
     }}>
+      {/* Linha de cor no topo */}
       <div style={{
         position: "absolute", top: 0, left: 0, right: 0, height: 2,
+        borderRadius: "16px 16px 0 0",
         background: `linear-gradient(90deg, transparent, ${accent}, transparent)`,
         opacity: 0.7,
       }} />
+
+      {/* Header: label + botão info + ícone */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
           {label}
         </span>
-        <span style={{ color: accent, opacity: 0.85, display: "flex" }}>{icon}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          {info && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowInfo((v) => !v); }}
+              style={{
+                background: "none", border: "none", cursor: "pointer", padding: 2,
+                color: showInfo ? accent : "var(--text-muted)",
+                display: "flex", alignItems: "center", borderRadius: 4,
+                transition: "color 0.15s",
+              }}
+              title="Como analisar este indicador"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="16" x2="12" y2="12"/>
+                <line x1="12" y1="8" x2="12.01" y2="8"/>
+              </svg>
+            </button>
+          )}
+          <span style={{ color: accent, opacity: 0.85, display: "flex" }}>{icon}</span>
+        </div>
       </div>
+
+      {/* Valor + badge */}
       <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
         <span style={{
           fontSize: 22, fontWeight: 800, fontFamily: "var(--font-mono, monospace)",
@@ -143,6 +184,8 @@ function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger
           </span>
         )}
       </div>
+
+      {/* Variação + sub */}
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         {variation !== null && variation !== undefined && (
           <span style={{ fontSize: 11, fontWeight: 700, color: varColor, display: "flex", alignItems: "center", gap: 2 }}>
@@ -151,6 +194,43 @@ function KpiCard({ label, value, sub, variation, icon, accent, delay = 0, danger
         )}
         {sub && <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{sub}</span>}
       </div>
+
+      {/* Popup de informação */}
+      {showInfo && info && (
+        <div
+          ref={popupRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: "calc(100% + 8px)",
+            right: 0,
+            zIndex: 200,
+            width: 272,
+            background: "var(--bg-card)",
+            border: `1px solid ${accent}45`,
+            borderRadius: 12,
+            padding: "14px 16px",
+            boxShadow: "0 16px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: accent }}>
+              Como analisar
+            </span>
+            <button
+              onClick={() => setShowInfo(false)}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 0, display: "flex" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M9.5 2.5l-7 7M2.5 2.5l7 7"/>
+              </svg>
+            </button>
+          </div>
+          <p style={{ fontSize: 12, lineHeight: 1.7, color: "var(--text-secondary)", margin: 0 }}>
+            {info}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -347,6 +427,7 @@ export default function FinanceiroPage() {
                 accent="var(--accent-cyan)"
                 badge={`${kpis.qtdVendasMes} vendas`}
                 delay={0}
+                info="Total gerado em vendas e ordens de serviço no período. A seta compara com o período imediatamente anterior de mesma duração. Se o valor cresceu mas o número de vendas caiu, o ticket médio subiu — geralmente um sinal positivo. Se caiu, verifique se houve queda de volume ou redução de preços."
               />
               <KpiCard
                 label="Recebido"
@@ -356,6 +437,7 @@ export default function FinanceiroPage() {
                 icon={<IconRec />}
                 accent="#22c55e"
                 delay={60}
+                info="Dinheiro que efetivamente entrou no caixa no período — apenas o que foi pago pelos clientes. Compare com o Faturamento: se o Recebido for bem menor, há valores vendidos mas ainda não recebidos. No gráfico abaixo, a linha amarela mostra exatamente essa proporção mês a mês."
               />
               <KpiCard
                 label="Saldo Líquido"
@@ -364,6 +446,7 @@ export default function FinanceiroPage() {
                 icon={<IconSaldo />}
                 accent={kpis.saldoLiquidoMes >= 0 ? "#22c55e" : "#ef4444"}
                 delay={120}
+                info="Resultado real do caixa no período: entradas menos saídas registradas no financeiro. Verde significa que entrou mais do que saiu. Vermelho significa que a empresa gastou mais do que recebeu — atenção redobrada. Esse número reflete o movimento de caixa, não o lucro contábil."
               />
               <KpiCard
                 label="Inadimplência"
@@ -373,6 +456,7 @@ export default function FinanceiroPage() {
                 accent="#ef4444"
                 danger
                 delay={180}
+                info="Total de cobranças vencidas e não pagas até hoje — independente do período selecionado no filtro. Quanto maior, maior o risco para o caixa. Priorize clientes com maior valor em aberto e títulos mais antigos. O gráfico de Aging logo abaixo mostra quanto está vencido há 30, 60, 90 ou mais dias."
               />
               <KpiCard
                 label="A Vencer (30d)"
@@ -381,6 +465,7 @@ export default function FinanceiroPage() {
                 icon={<IconVencer />}
                 accent="#f59e0b"
                 delay={240}
+                info="Cobranças que ainda estão dentro do prazo, mas vencem nos próximos 30 dias. Representam a receita esperada de curto prazo. Se o valor for alto, o caixa deve melhorar em breve — mas lembre-se: nem tudo que vence é pago no prazo. Use esse número para planejar compromissos futuros."
               />
               <KpiCard
                 label="Margem Bruta"
@@ -389,6 +474,7 @@ export default function FinanceiroPage() {
                 icon={<IconMargem />}
                 accent="#a855f7"
                 delay={300}
+                info="Percentual que sobra da receita depois de descontar o custo dos produtos e serviços vendidos. Exemplo: 40% de margem significa que de cada R$ 100 faturados, R$ 40 sobram para cobrir despesas e gerar lucro. Se a margem cair, pode indicar que os custos subiram, que está vendendo com desconto excessivo, ou uma mistura dos dois."
               />
             </>
           ) : null}
