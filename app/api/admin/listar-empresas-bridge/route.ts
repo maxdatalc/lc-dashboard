@@ -4,6 +4,19 @@ import { isSystemAdmin } from "@/lib/db/admin";
 import { decrypt } from "@/lib/crypto";
 import { queryBridge, BridgeError } from "@/lib/mssql/client";
 
+function isSafeUrl(urlStr: string): boolean {
+  try {
+    const u = new URL(urlStr);
+    if (!["http:", "https:"].includes(u.protocol)) return false;
+    const h = u.hostname.toLowerCase();
+    if (/^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(h)) return false;
+    const blocked = ["169.254.", "127.", "localhost", "metadata.google"];
+    return !blocked.some((b) => h === b || h.startsWith(b));
+  } catch {
+    return false;
+  }
+}
+
 export interface EmpresaBridge {
   empId: number;
   razao: string;
@@ -83,6 +96,10 @@ export async function POST(req: NextRequest) {
 
   if (!bridgeUrl || !token) {
     return NextResponse.json({ success: false, error: "bridgeUrl e token são obrigatórios" });
+  }
+
+  if (!isSafeUrl(bridgeUrl)) {
+    return NextResponse.json({ success: false, error: "URL inválida ou não permitida" });
   }
 
   try {

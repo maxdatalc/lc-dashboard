@@ -6,6 +6,8 @@ import { queryBridge, BridgeError } from "@/lib/mssql/client";
 
 export const dynamic = "force-dynamic";
 
+function isDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
+
 const NOMES_MES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
 async function getConfig(lojaIds: string[]) {
@@ -61,6 +63,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const startParam = searchParams.get("start");
   const endParam = searchParams.get("end");
+  if (startParam && endParam && (!isDate(startParam) || !isDate(endParam))) {
+    return NextResponse.json({ error: "start e end devem ser YYYY-MM-DD" }, { status: 400 });
+  }
   const { start, end } =
     startParam && endParam
       ? { start: startParam, end: endParam }
