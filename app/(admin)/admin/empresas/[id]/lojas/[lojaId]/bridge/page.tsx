@@ -42,18 +42,21 @@ export default async function BridgePage({
 
   return (
     <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="space-y-2" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
-          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" />
-          Voltar
+          <ArrowLeft className="h-3.5 w-3.5" />
+          Voltar para lojas
         </Link>
-        <span className="text-slate-300">/</span>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Configurar Bridge SQL</h1>
-          <p className="text-xs text-slate-400 font-mono mt-0.5">{loja.name} · EmpId {loja.empId}</p>
+          <h1 className="text-2xl font-bold text-slate-900">Bridge SQL</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            <span className="font-mono">{loja.name}</span>{" "}
+            <span className="text-slate-300">·</span>{" "}
+            EmpId {loja.empId}
+          </p>
         </div>
       </div>
 

@@ -61,7 +61,11 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
   }
 
   return (
-    <form action={action} className="bg-white rounded-xl border border-slate-200 p-6 space-y-5">
+    <form
+      action={action}
+      className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
+      style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "50ms" }}
+    >
 
       {/* ── Habilitar ─────────────────────────────────────────────────── */}
       <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
@@ -71,7 +75,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
           name="enabled"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
-          className="rounded border-slate-300 text-cyan-600 focus:ring-cyan-500"
+          className="rounded border-slate-300 text-slate-700 focus:ring-slate-400"
         />
         <label htmlFor="enabled" className="cursor-pointer">
           <p className="text-sm font-medium text-slate-700">Bridge SQL habilitada</p>
@@ -88,9 +92,9 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
           value={bridgeUrl}
           onChange={(e) => setBridgeUrl(e.target.value)}
           placeholder="https://sql-cliente.lctecnologias.com.br"
-          className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300"
+          className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
         />
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="text-xs text-slate-400 mt-1">
           Cloudflare Tunnel apontando para porta 3055 da bridge.
         </p>
       </div>
@@ -109,7 +113,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="Token gerado pelo instalar-bridge.ps1"
-              className="w-full border border-slate-300 rounded-md px-3 py-2 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-300"
+              className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
             />
             <button
               type="button"
@@ -123,7 +127,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
             <button
               type="button"
               onClick={copiarToken}
-              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-md text-xs text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
+              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
             >
               {copiado ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
               {copiado ? "Copiado" : "Copiar"}
@@ -141,7 +145,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
           type="button"
           onClick={testarConexao}
           disabled={testStatus === "testing" || !bridgeUrl || !token}
-          className="inline-flex items-center gap-2 border border-slate-300 rounded-md px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-2 border border-slate-200 rounded-lg px-3.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {testStatus === "idle"    && <Plug         className="h-3.5 w-3.5" />}
           {testStatus === "testing" && <Loader2      className="h-3.5 w-3.5 animate-spin" />}
@@ -188,7 +192,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
         </Link>
         <button
           type="submit"
-          className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors"
+          className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
         >
           Salvar configuração
         </button>
