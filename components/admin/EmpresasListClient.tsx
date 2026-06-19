@@ -67,7 +67,7 @@ export function EmpresasListClient({
             <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
             <p className="font-medium text-slate-500 text-sm">
               {busca
-                ? `Nenhuma empresa encontrada para "${busca}"`
+                ? <>Nenhuma empresa encontrada para &ldquo;{busca}&rdquo;</>
                 : "Nenhuma empresa cadastrada"}
             </p>
             {!busca && (
