@@ -15,7 +15,7 @@ import {
   ChevronRight,
   ArrowLeftRight,
 } from "lucide-react";
-import { logout } from "@/app/actions/auth";
+import { trocarEmpresa } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 import { PLAN_LABELS } from "@/lib/plans";
 
@@ -355,7 +355,7 @@ export function Sidebar({ isAdmin }: Props) {
             </div>
           )}
 
-          <form action={logout}>
+          <form action={trocarEmpresa}>
             <button
               type="submit"
               className="w-full flex items-center"
@@ -367,8 +367,8 @@ export function Sidebar({ isAdmin }: Props) {
                 borderLeft: "3px solid transparent",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = "#ef4444";
-                e.currentTarget.style.backgroundColor = "rgba(239,68,68,0.06)";
+                e.currentTarget.style.color = "var(--text-primary)";
+                e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.color = "var(--text-muted)";
@@ -385,7 +385,7 @@ export function Sidebar({ isAdmin }: Props) {
                   transition: "opacity 0.2s ease 0.1s, transform 0.2s ease 0.1s",
                 }}
               >
-                Sair da conta
+                Sair
               </span>
             </button>
           </form>

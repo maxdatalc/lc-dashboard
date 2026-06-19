@@ -11,162 +11,159 @@ export interface TenantOption {
   plan: string;
 }
 
-export interface GetTenantsResult {
-  error?: string;
-  tenants?: TenantOption[];
+// ── Helpers de cookie ──────────────────────────────────────────────────────────
+
+function tenantCookieOpts() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    maxAge: 60 * 60 * 24 * 30,
+    path: "/",
+    ...(process.env.NODE_ENV === "production" ? { domain: ".lcgestor.com.br" } : {}),
+  };
 }
 
-// Busca tenants do usuário pelo email — chamada após digitar email
-// Não valida senha ainda — apenas retorna opções de empresa para popular o select
-export async function getTenantsByEmail(
-  email: string
-): Promise<GetTenantsResult> {
-  if (!email || !email.includes("@")) return { tenants: [] };
+function tenantCookieDelete() {
+  return {
+    maxAge: 0,
+    path: "/",
+    ...(process.env.NODE_ENV === "production" ? { domain: ".lcgestor.com.br" } : {}),
+  };
+}
 
+async function fetchUserTenants(userId: string): Promise<TenantOption[]> {
   const adminClient = createAdminClient();
-
-  const { data: authUsers } = await adminClient.auth.admin.listUsers();
-  const authUser = authUsers?.users?.find(
-    (u) => u.email?.toLowerCase() === email.toLowerCase()
-  );
-
-  if (!authUser) return { tenants: [] };
-
   const { data: tenantUsers } = await adminClient
     .from("tenant_users")
     .select("tenant_id, tenants ( id, name, slug, plan )")
-    .eq("user_id", authUser.id);
+    .eq("user_id", userId);
 
-  const tenants: TenantOption[] = (
+  return (
     (tenantUsers ?? []) as unknown as Array<{
       tenant_id: string;
       tenants: { id: string; name: string; slug: string; plan: string } | null;
     }>
   )
-    .map((tu) => {
-      const t = tu.tenants;
-      if (!t) return null;
-      return { id: t.id, name: t.name, slug: t.slug, plan: t.plan };
-    })
-    .filter((x): x is TenantOption => x !== null);
-
-  return { tenants };
+    .map((tu) => tu.tenants)
+    .filter((t): t is TenantOption => t !== null);
 }
 
-// Login completo: valida credenciais + tenant selecionado + grava cookies
+// ── Login ─────────────────────────────────────────────────────────────────────
+
 export async function login(formData: FormData): Promise<{ error?: string }> {
-  const email = formData.get("email") as string;
+  const email    = formData.get("email")    as string;
   const password = formData.get("password") as string;
-  const tenantId = formData.get("tenantId") as string | null;
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user) {
     return { error: "E-mail ou senha inválidos" };
   }
 
   const adminClient = createAdminClient();
-
   const { data: profile } = await adminClient
     .from("profiles")
     .select("is_system_admin")
     .eq("id", data.user.id)
     .maybeSingle();
 
-  const isAdmin =
-    (profile as { is_system_admin?: boolean } | null)?.is_system_admin;
-
-  if (isAdmin) {
+  if ((profile as { is_system_admin?: boolean } | null)?.is_system_admin) {
     redirect("/admin");
   }
 
-  const { data: tenantUsers } = await adminClient
-    .from("tenant_users")
-    .select("tenant_id, tenants ( id, name, slug, plan )")
-    .eq("user_id", data.user.id);
-
-  const tenants: TenantOption[] = (
-    (tenantUsers ?? []) as unknown as Array<{
-      tenant_id: string;
-      tenants: { id: string; name: string; slug: string; plan: string } | null;
-    }>
-  )
-    .map((tu) => {
-      const t = tu.tenants;
-      if (!t) return null;
-      return { id: t.id, name: t.name, slug: t.slug, plan: t.plan };
-    })
-    .filter((x): x is TenantOption => x !== null);
+  const tenants = await fetchUserTenants(data.user.id);
 
   if (tenants.length === 0) {
     await supabase.auth.signOut();
-    return {
-      error:
-        "Sua conta não está vinculada a nenhuma empresa. Contate o suporte.",
-    };
+    return { error: "Sua conta não está vinculada a nenhuma empresa. Contate o suporte." };
   }
 
-  let tenantFinal: TenantOption | null = null;
-
-  if (tenantId) {
-    tenantFinal = tenants.find((t) => t.id === tenantId) ?? null;
+  // Multi-tenant: vai para tela de seleção (sessão já está ativa)
+  if (tenants.length > 1) {
+    redirect("/selecionar-empresa");
   }
 
-  if (!tenantFinal) {
-    if (tenants.length === 1) {
-      tenantFinal = tenants[0];
-    } else {
-      await supabase.auth.signOut();
-      return { error: "Selecione uma empresa para continuar" };
-    }
-  }
+  // Single tenant: entra direto
+  await setTenantCookies(tenants[0].id);
+  redirect("/dashboard");
+}
 
+// ── Selecionar empresa (na tela de seleção) ───────────────────────────────────
+
+export async function selecionarEmpresa(formData: FormData): Promise<void> {
+  const tenantId = formData.get("tenantId") as string;
+  if (!tenantId) redirect("/selecionar-empresa");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const adminClient = createAdminClient();
+  const { data: acesso } = await adminClient
+    .from("tenant_users")
+    .select("tenant_id")
+    .eq("user_id", user.id)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+
+  if (!acesso) redirect("/selecionar-empresa");
+
+  await setTenantCookies(tenantId);
+  redirect("/dashboard");
+}
+
+async function setTenantCookies(tenantId: string): Promise<void> {
+  const adminClient = createAdminClient();
   const { data: loja } = await adminClient
     .from("lojas")
     .select("id")
-    .eq("tenant_id", tenantFinal.id)
+    .eq("tenant_id", tenantId)
     .eq("is_active", true)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
+  const opts = tenantCookieOpts();
   const cookieStore = await cookies();
-  cookieStore.set("selected_tenant_id", tenantFinal.id, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 30,
-    path: "/",
-  });
-
-  if (loja?.id) {
-    cookieStore.set("selected_loja_id", loja.id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60 * 24 * 30,
-      path: "/",
-    });
-  }
-
-  redirect("/dashboard");
+  cookieStore.set("selected_tenant_id", tenantId, opts);
+  if (loja?.id) cookieStore.set("selected_loja_id", loja.id, opts);
 }
 
-export async function definirSenhaPermanente(
-  novaSenha: string
-): Promise<{ error?: string }> {
+// ── Trocar empresa (sidebar → volta para seleção sem deslogar) ────────────────
+
+export async function trocarEmpresa(): Promise<void> {
+  const cookieStore = await cookies();
+  const del = tenantCookieDelete();
+  cookieStore.set("selected_tenant_id", "", del);
+  cookieStore.set("selected_loja_id",   "", del);
+  redirect("/selecionar-empresa");
+}
+
+// ── Logout completo ───────────────────────────────────────────────────────────
+
+export async function logout(): Promise<void> {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+
+  const cookieStore = await cookies();
+  const del = tenantCookieDelete();
+  cookieStore.set("selected_tenant_id", "", del);
+  cookieStore.set("selected_loja_id",   "", del);
+
+  redirect("/login");
+}
+
+// ── Primeiro acesso — definir senha permanente ────────────────────────────────
+
+export async function definirSenhaPermanente(novaSenha: string): Promise<{ error?: string }> {
   if (novaSenha.length < 6) {
     return { error: "A senha deve ter pelo menos 6 caracteres" };
   }
 
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Sessão expirada. Faça login novamente." };
 
   const { error } = await supabase.auth.updateUser({
@@ -183,19 +180,14 @@ export async function definirSenhaPermanente(
     .eq("id", user.id)
     .maybeSingle();
 
-  const isSysAdmin =
-    (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+  const isSysAdmin = (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+  if (isSysAdmin) redirect("/admin");
 
-  redirect(isSysAdmin ? "/admin" : "/dashboard");
-}
+  const tenants = await fetchUserTenants(user.id);
+  if (tenants.length === 0) redirect("/login");
+  if (tenants.length > 1) redirect("/selecionar-empresa");
 
-export async function logout(): Promise<void> {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
-
-  const cookieStore = await cookies();
-  cookieStore.delete("selected_tenant_id");
-  cookieStore.delete("selected_loja_id");
-
-  redirect("/login");
+  // Single tenant: entra direto
+  await setTenantCookies(tenants[0].id);
+  redirect("/dashboard");
 }
