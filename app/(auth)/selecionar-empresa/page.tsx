@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { selecionarEmpresa, logout } from "@/app/actions/auth";
+import { selecionarEmpresa, selecionarEmpresaAdmin, logout } from "@/app/actions/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -18,25 +18,35 @@ export default async function SelecionarEmpresaPage() {
     .eq("id", user.id)
     .maybeSingle();
 
-  if ((profile as { is_system_admin?: boolean } | null)?.is_system_admin) {
-    redirect("/admin");
+  const isSystemAdmin = (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+
+  let tenants: { id: string; name: string; slug: string; plan: string }[];
+
+  if (isSystemAdmin) {
+    // Admin vê TODAS as empresas cadastradas
+    const { data: allTenants } = await adminClient
+      .from("tenants")
+      .select("id, name, slug, plan")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+    tenants = (allTenants ?? []) as { id: string; name: string; slug: string; plan: string }[];
+  } else {
+    const { data: tenantUsers } = await adminClient
+      .from("tenant_users")
+      .select("tenant_id, tenants ( id, name, slug, plan )")
+      .eq("user_id", user.id);
+
+    tenants = (
+      (tenantUsers ?? []) as unknown as Array<{
+        tenant_id: string;
+        tenants: { id: string; name: string; slug: string; plan: string } | null;
+      }>
+    )
+      .map((tu) => tu.tenants)
+      .filter((t): t is { id: string; name: string; slug: string; plan: string } => t !== null);
+
+    if (tenants.length === 0) redirect("/login");
   }
-
-  const { data: tenantUsers } = await adminClient
-    .from("tenant_users")
-    .select("tenant_id, tenants ( id, name, slug, plan )")
-    .eq("user_id", user.id);
-
-  const tenants = (
-    (tenantUsers ?? []) as unknown as Array<{
-      tenant_id: string;
-      tenants: { id: string; name: string; slug: string; plan: string } | null;
-    }>
-  )
-    .map((tu) => tu.tenants)
-    .filter((t): t is { id: string; name: string; slug: string; plan: string } => t !== null);
-
-  if (tenants.length === 0) redirect("/login");
 
   return (
     <div className="se-root">
@@ -60,14 +70,34 @@ export default async function SelecionarEmpresaPage() {
 
         <h1 className="se-title">Selecione a empresa</h1>
         <p className="se-subtitle">
-          {tenants.length === 1
+          {isSystemAdmin
+            ? `${tenants.length} empresa${tenants.length !== 1 ? "s" : ""} cadastrada${tenants.length !== 1 ? "s" : ""} — modo admin`
+            : tenants.length === 1
             ? "Clique para acessar seu ambiente."
             : "Escolha em qual ambiente você deseja entrar."}
         </p>
 
+        {isSystemAdmin && (
+          <div style={{
+            marginBottom: 16,
+            padding: "8px 12px",
+            borderRadius: 8,
+            background: "rgba(245, 158, 11, 0.08)",
+            border: "1px solid rgba(245, 158, 11, 0.2)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 12,
+            color: "#f59e0b",
+          }}>
+            <span>★</span>
+            <span>Você está acessando como administrador do sistema. Selecione qualquer empresa para visualizar seu dashboard.</span>
+          </div>
+        )}
+
         <div className="se-list">
           {tenants.map((t) => (
-            <form key={t.id} action={selecionarEmpresa}>
+            <form key={t.id} action={isSystemAdmin ? selecionarEmpresaAdmin : selecionarEmpresa}>
               <input type="hidden" name="tenantId" value={t.id} />
               <button type="submit" className="se-card">
                 <div className="se-avatar">
@@ -88,11 +118,18 @@ export default async function SelecionarEmpresaPage() {
           ))}
         </div>
 
-        <form action={logout} className="se-logout-wrap">
-          <button type="submit" className="se-logout">
-            Sair da conta
-          </button>
-        </form>
+        <div className="se-logout-wrap" style={{ gap: 16 }}>
+          {isSystemAdmin && (
+            <a href="/admin" className="se-logout" style={{ textDecoration: "none" }}>
+              ← Voltar ao Admin
+            </a>
+          )}
+          <form action={logout}>
+            <button type="submit" className="se-logout">
+              Sair da conta
+            </button>
+          </form>
+        </div>
       </div>
 
       <style>{`

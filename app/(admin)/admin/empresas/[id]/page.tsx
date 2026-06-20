@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Building2, Settings, Users, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, Settings, Users, Zap } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
@@ -12,6 +12,7 @@ import {
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
+import { selecionarEmpresaAdmin } from "@/app/actions/auth";
 
 type Aba = "lojas" | "features" | "usuarios";
 
@@ -99,16 +100,30 @@ export default async function GerenciarEmpresaPage({
             </div>
           </div>
 
-          {/* Badge de plano */}
-          {tenant.plan === "premium" ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-700 shrink-0">
-              ★ Premium
-            </span>
-          ) : (
-            <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-500 shrink-0">
-              Free
-            </span>
-          )}
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Badge de plano */}
+            {tenant.plan === "premium" ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-700">
+                ★ Premium
+              </span>
+            ) : (
+              <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-500">
+                Free
+              </span>
+            )}
+
+            {/* Acessar dashboard desta empresa */}
+            <form action={selecionarEmpresaAdmin}>
+              <input type="hidden" name="tenantId" value={id} />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Ver dashboard
+              </button>
+            </form>
+          </div>
         </div>
       </div>
 
