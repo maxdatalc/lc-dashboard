@@ -15,6 +15,7 @@ export const PLAN_FEATURES: Record<Plan, ReadonlySet<string>> = {
     "modulo_vendas",
     "modulo_clientes",
     "modulo_os",
+    "modulo_relatorios",
     "consolidado_multilojas",
     "cobrador_whatsapp",
     "alertas_inteligentes",

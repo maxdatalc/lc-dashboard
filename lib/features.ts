@@ -47,6 +47,14 @@ export const FEATURES_CATALOG: Feature[] = [
     disponivel: true,
   },
   {
+    key: "modulo_relatorios",
+    label: "Relatórios",
+    descricao: "Relatórios gerenciais de comissões por forma de pagamento",
+    categoria: "premium",
+    icone: "FileText",
+    disponivel: true,
+  },
+  {
     key: "modulo_vendas",
     label: "Vendas",
     descricao: "Histórico, análise e drill-down de vendas",

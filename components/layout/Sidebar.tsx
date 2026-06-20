@@ -56,6 +56,7 @@ type NavGroup = {
   key: string;
   label: string;
   icon: React.ElementType;
+  featureKey?: string;
   items?: NavLeaf[];
   categories?: NavCategory[];
 };
@@ -86,6 +87,7 @@ const GRUPOS: NavGroup[] = [
     key: "relatorios",
     label: "Relatórios",
     icon: FileText,
+    featureKey: "modulo_relatorios",
     categories: [
       {
         key: "vendas",
@@ -216,6 +218,8 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
         <nav className="flex-1 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
 
           {GRUPOS.map((grupo, gi) => {
+            if (!isAdmin && grupo.featureKey && !hasFeature(grupo.featureKey)) return null;
+
             const grupoAtivo  = isGroupActive(grupo);
             const grupoAberto = openGroups[grupo.key] ?? false;
             const GrupoIcon   = grupo.icon;
@@ -728,7 +732,7 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
           { href: "/dashboard/financeiro",               label: "Financeiro", icon: Landmark,        exact: false, featureKey: "modulo_financeiro" },
           { href: "/dashboard/clientes",                 label: "Clientes",   icon: Users,           exact: false, featureKey: "modulo_clientes"   },
           { href: "/os",                                 label: "OS",         icon: ClipboardList,   exact: false, featureKey: "modulo_os"         },
-          { href: "/relatorios/comissao-recebimento",    label: "Relatórios", icon: FileText,        exact: false, featureKey: undefined           },
+          { href: "/relatorios/comissao-recebimento",    label: "Relatórios", icon: FileText,        exact: false, featureKey: "modulo_relatorios" },
           ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false, featureKey: undefined }] : []),
         ]
           .filter(({ featureKey }) => isAdmin || !featureKey || hasFeature(featureKey))
