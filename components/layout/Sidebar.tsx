@@ -15,6 +15,9 @@ import {
   ChevronRight,
   ArrowLeftRight,
   Building2,
+  FileText,
+  BadgeDollarSign,
+  Receipt,
 } from "lucide-react";
 import { logout, trocarEmpresa } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
@@ -27,7 +30,7 @@ interface Props {
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
-type SubItem = {
+type NavLeaf = {
   href: string;
   label: string;
   icon: React.ElementType;
@@ -35,11 +38,26 @@ type SubItem = {
   featureKey?: string;
 };
 
+type NavSection = {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  items: NavLeaf[];
+};
+
+type NavCategory = {
+  key: string;
+  label: string;
+  icon: React.ElementType;
+  sections: NavSection[];
+};
+
 type NavGroup = {
   key: string;
   label: string;
   icon: React.ElementType;
-  items: SubItem[];
+  items?: NavLeaf[];
+  categories?: NavCategory[];
 };
 
 // ─── Estrutura de navegação ───────────────────────────────────────────────────
@@ -64,6 +82,28 @@ const GRUPOS: NavGroup[] = [
       { href: "/os", label: "Ordens de Serviço", icon: ClipboardList, featureKey: "modulo_os" },
     ],
   },
+  {
+    key: "relatorios",
+    label: "Relatórios",
+    icon: FileText,
+    categories: [
+      {
+        key: "vendas",
+        label: "Vendas",
+        icon: ShoppingCart,
+        sections: [
+          {
+            key: "comissoes",
+            label: "Comissões",
+            icon: BadgeDollarSign,
+            items: [
+              { href: "/relatorios/comissao-recebimento", label: "Comissão por Recebimento", icon: Receipt },
+            ],
+          },
+        ],
+      },
+    ],
+  },
 ];
 
 // ─── Estilos base ─────────────────────────────────────────────────────────────
@@ -83,18 +123,44 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const { hasFeature, plan } = useEmpresa();
 
-  const isAnyChildActive = (grupo: NavGroup) =>
-    grupo.items.some((item) =>
-      item.exact ? pathname === item.href : pathname.startsWith(item.href)
-    );
+  // ── Helpers de estado ativo ────────────────────────────────────────────────
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
+  const isLeafActive = (item: NavLeaf) =>
+    item.exact ? pathname === item.href : pathname.startsWith(item.href);
+
+  const isSectionActive = (sec: NavSection) => sec.items.some(isLeafActive);
+
+  const isCategoryActive = (cat: NavCategory) => cat.sections.some(isSectionActive);
+
+  const isGroupActive = (grupo: NavGroup): boolean => {
+    if (grupo.items) return grupo.items.some(isLeafActive);
+    if (grupo.categories) return grupo.categories.some(isCategoryActive);
+    return false;
+  };
+
+  // ── Estado dos grupos / categorias / seções ────────────────────────────────
+
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => ({
     dashboard: true,
-    movimentacao: isAnyChildActive(GRUPOS[1]),
+    movimentacao: isGroupActive(GRUPOS[1]),
+    relatorios: isGroupActive(GRUPOS[2]),
+  }));
+
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    GRUPOS.forEach(g => g.categories?.forEach(cat => { init[cat.key] = isCategoryActive(cat); }));
+    return init;
   });
 
-  const toggleGroup = (key: string) =>
-    setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    GRUPOS.forEach(g => g.categories?.forEach(cat => cat.sections.forEach(sec => { init[sec.key] = isSectionActive(sec); })));
+    return init;
+  });
+
+  const toggleGroup    = (key: string) => setOpenGroups(p => ({ ...p, [key]: !p[key] }));
+  const toggleCategory = (key: string) => setOpenCategories(p => ({ ...p, [key]: !p[key] }));
+  const toggleSection  = (key: string) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
 
   const adminActive = pathname.startsWith("/admin");
 
@@ -150,9 +216,9 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
         <nav className="flex-1 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
 
           {GRUPOS.map((grupo, gi) => {
-            const grupoAtivo = isAnyChildActive(grupo);
+            const grupoAtivo  = isGroupActive(grupo);
             const grupoAberto = openGroups[grupo.key] ?? false;
-            const GrupoIcon = grupo.icon;
+            const GrupoIcon   = grupo.icon;
 
             return (
               <div key={grupo.key}>
@@ -169,9 +235,7 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
                     width: "100%",
                     cursor: "pointer",
                     background: grupoAtivo ? "var(--sidebar-item-active-bg)" : "transparent",
-                    borderLeft: grupoAtivo
-                      ? "3px solid var(--accent-cyan)"
-                      : "3px solid transparent",
+                    borderLeft: grupoAtivo ? "3px solid var(--accent-cyan)" : "3px solid transparent",
                     color: grupoAtivo ? "var(--accent-cyan)" : "var(--text-secondary)",
                   }}
                   onMouseEnter={(e) => {
@@ -214,68 +278,288 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
                   />
                 </button>
 
-                {/* ── Sub-itens ───────────────────────────────────── */}
-                <div
-                  style={{
-                    maxHeight: (grupoAberto && sidebarExpanded) ? `${grupo.items.length * 34 + 4}px` : "0px",
-                    overflow: "hidden",
-                    transition: "max-height 0.22s ease",
-                  }}
-                >
-                  {grupo.items.map((item, si) => {
-                    const hidden = !isAdmin && !!item.featureKey && !hasFeature(item.featureKey);
-                    if (hidden) return null;
+                {/* ── Sub-itens diretos (Dashboard / Movimentação) ─── */}
+                {grupo.items && (
+                  <div
+                    style={{
+                      maxHeight: (grupoAberto && sidebarExpanded) ? `${grupo.items.length * 34 + 4}px` : "0px",
+                      overflow: "hidden",
+                      transition: "max-height 0.22s ease",
+                    }}
+                  >
+                    {grupo.items.map((item, si) => {
+                      const hidden = !isAdmin && !!item.featureKey && !hasFeature(item.featureKey);
+                      if (hidden) return null;
 
-                    const active = item.exact
-                      ? pathname === item.href
-                      : pathname.startsWith(item.href);
-                    const SubIcon = item.icon;
+                      const active  = isLeafActive(item);
+                      const SubIcon = item.icon;
 
-                    const subStyle: React.CSSProperties = {
-                      ...SUBITEM_BASE,
-                      borderLeft: active
-                        ? "3px solid var(--accent-cyan)"
-                        : "3px solid transparent",
-                      backgroundColor: active ? "var(--sidebar-item-active-bg)" : "transparent",
-                      color: active ? "var(--accent-cyan)" : "var(--text-secondary)",
-                    };
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        style={subStyle}
-                        onMouseEnter={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
-                            e.currentTarget.style.color = "var(--text-primary)";
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!active) {
-                            e.currentTarget.style.backgroundColor = "transparent";
-                            e.currentTarget.style.color = "var(--text-secondary)";
-                          }
-                        }}
-                      >
-                        <SubIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
-                        <span
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
                           style={{
-                            fontSize: 12,
-                            fontWeight: active ? 600 : 400,
-                            whiteSpace: "nowrap",
-                            flex: 1,
-                            opacity: sidebarExpanded ? 1 : 0,
-                            transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
-                            transition: `opacity 0.15s ease ${0.02 + si * 0.02}s, transform 0.15s ease`,
+                            ...SUBITEM_BASE,
+                            borderLeft: active ? "3px solid var(--accent-cyan)" : "3px solid transparent",
+                            backgroundColor: active ? "var(--sidebar-item-active-bg)" : "transparent",
+                            color: active ? "var(--accent-cyan)" : "var(--text-secondary)",
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                              e.currentTarget.style.color = "var(--text-primary)";
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!active) {
+                              e.currentTarget.style.backgroundColor = "transparent";
+                              e.currentTarget.style.color = "var(--text-secondary)";
+                            }
                           }}
                         >
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
-                </div>
+                          <SubIcon style={{ width: 14, height: 14, flexShrink: 0 }} />
+                          <span
+                            style={{
+                              fontSize: 12,
+                              fontWeight: active ? 600 : 400,
+                              whiteSpace: "nowrap",
+                              flex: 1,
+                              opacity: sidebarExpanded ? 1 : 0,
+                              transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                              transition: `opacity 0.15s ease ${0.02 + si * 0.02}s, transform 0.15s ease`,
+                            }}
+                          >
+                            {item.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* ── Categorias aninhadas (Relatórios) ───────────── */}
+                {grupo.categories && (() => {
+                  const maxH = grupo.categories.reduce((t, cat) => {
+                    const secH = cat.sections.reduce((s, sec) => s + 32 + sec.items.length * 30 + 4, 0);
+                    return t + 36 + secH;
+                  }, 0);
+
+                  return (
+                    <div
+                      style={{
+                        maxHeight: (grupoAberto && sidebarExpanded) ? `${maxH}px` : "0px",
+                        overflow: "hidden",
+                        transition: "max-height 0.22s ease",
+                      }}
+                    >
+                      {grupo.categories.map((cat, ci) => {
+                        const catAtivo  = isCategoryActive(cat);
+                        const catAberta = openCategories[cat.key] ?? false;
+                        const CatIcon   = cat.icon;
+
+                        const maxSecH = cat.sections.reduce((t, sec) => t + 32 + sec.items.length * 30 + 4, 0);
+
+                        return (
+                          <div key={cat.key}>
+
+                            {/* Categoria */}
+                            <button
+                              onClick={() => toggleCategory(cat.key)}
+                              style={{
+                                height: 36,
+                                paddingLeft: 24,
+                                paddingRight: 14,
+                                gap: 10,
+                                display: "flex",
+                                alignItems: "center",
+                                width: "100%",
+                                cursor: "pointer",
+                                background: catAtivo ? "var(--sidebar-item-active-bg)" : "transparent",
+                                borderLeft: catAtivo ? "3px solid var(--accent-cyan)" : "3px solid transparent",
+                                color: catAtivo ? "var(--accent-cyan)" : "var(--text-secondary)",
+                              }}
+                              onMouseEnter={(e) => {
+                                if (!catAtivo) {
+                                  e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                                  e.currentTarget.style.color = "var(--text-primary)";
+                                }
+                              }}
+                              onMouseLeave={(e) => {
+                                if (!catAtivo) {
+                                  e.currentTarget.style.backgroundColor = "transparent";
+                                  e.currentTarget.style.color = "var(--text-secondary)";
+                                }
+                              }}
+                            >
+                              <CatIcon style={{ width: 15, height: 15, flexShrink: 0 }} />
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: catAtivo ? 600 : 400,
+                                  whiteSpace: "nowrap",
+                                  flex: 1,
+                                  textAlign: "left",
+                                  opacity: sidebarExpanded ? 1 : 0,
+                                  transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                                  transition: `opacity 0.15s ease ${0.02 + ci * 0.03}s, transform 0.15s ease`,
+                                }}
+                              >
+                                {cat.label}
+                              </span>
+                              <ChevronRight
+                                style={{
+                                  width: 11,
+                                  height: 11,
+                                  flexShrink: 0,
+                                  opacity: sidebarExpanded ? 0.5 : 0,
+                                  transform: catAberta ? "rotate(90deg)" : "rotate(0deg)",
+                                  transition: "transform 0.2s ease, opacity 0.15s ease",
+                                }}
+                              />
+                            </button>
+
+                            {/* Seções dentro da categoria */}
+                            <div
+                              style={{
+                                maxHeight: (catAberta && sidebarExpanded) ? `${maxSecH}px` : "0px",
+                                overflow: "hidden",
+                                transition: "max-height 0.2s ease",
+                              }}
+                            >
+                              {cat.sections.map((sec, si) => {
+                                const secAtivo  = isSectionActive(sec);
+                                const secAberta = openSections[sec.key] ?? false;
+                                const SecIcon   = sec.icon;
+
+                                return (
+                                  <div key={sec.key}>
+
+                                    {/* Seção */}
+                                    <button
+                                      onClick={() => toggleSection(sec.key)}
+                                      style={{
+                                        height: 32,
+                                        paddingLeft: 34,
+                                        paddingRight: 14,
+                                        gap: 8,
+                                        display: "flex",
+                                        alignItems: "center",
+                                        width: "100%",
+                                        cursor: "pointer",
+                                        background: secAtivo ? "var(--sidebar-item-active-bg)" : "transparent",
+                                        borderLeft: secAtivo ? "3px solid var(--accent-cyan)" : "3px solid transparent",
+                                        color: secAtivo ? "var(--accent-cyan)" : "var(--text-secondary)",
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        if (!secAtivo) {
+                                          e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                                          e.currentTarget.style.color = "var(--text-primary)";
+                                        }
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (!secAtivo) {
+                                          e.currentTarget.style.backgroundColor = "transparent";
+                                          e.currentTarget.style.color = "var(--text-secondary)";
+                                        }
+                                      }}
+                                    >
+                                      <SecIcon style={{ width: 13, height: 13, flexShrink: 0 }} />
+                                      <span
+                                        style={{
+                                          fontSize: 11,
+                                          fontWeight: secAtivo ? 600 : 400,
+                                          whiteSpace: "nowrap",
+                                          flex: 1,
+                                          textAlign: "left",
+                                          opacity: sidebarExpanded ? 1 : 0,
+                                          transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                                          transition: `opacity 0.15s ease ${0.01 + si * 0.02}s, transform 0.15s ease`,
+                                        }}
+                                      >
+                                        {sec.label}
+                                      </span>
+                                      <ChevronRight
+                                        style={{
+                                          width: 10,
+                                          height: 10,
+                                          flexShrink: 0,
+                                          opacity: sidebarExpanded ? 0.4 : 0,
+                                          transform: secAberta ? "rotate(90deg)" : "rotate(0deg)",
+                                          transition: "transform 0.2s ease, opacity 0.15s ease",
+                                        }}
+                                      />
+                                    </button>
+
+                                    {/* Itens folha */}
+                                    <div
+                                      style={{
+                                        maxHeight: (secAberta && sidebarExpanded) ? `${sec.items.length * 30 + 4}px` : "0px",
+                                        overflow: "hidden",
+                                        transition: "max-height 0.18s ease",
+                                      }}
+                                    >
+                                      {sec.items.map((leaf, li) => {
+                                        const hidden = !isAdmin && !!leaf.featureKey && !hasFeature(leaf.featureKey);
+                                        if (hidden) return null;
+                                        const active   = isLeafActive(leaf);
+                                        const LeafIcon = leaf.icon;
+
+                                        return (
+                                          <Link
+                                            key={leaf.href}
+                                            href={leaf.href}
+                                            style={{
+                                              height: 30,
+                                              paddingLeft: 44,
+                                              paddingRight: 14,
+                                              gap: 8,
+                                              display: "flex",
+                                              alignItems: "center",
+                                              borderLeft: active ? "3px solid var(--accent-cyan)" : "3px solid transparent",
+                                              backgroundColor: active ? "var(--sidebar-item-active-bg)" : "transparent",
+                                              color: active ? "var(--accent-cyan)" : "var(--text-secondary)",
+                                            }}
+                                            onMouseEnter={(e) => {
+                                              if (!active) {
+                                                e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                                                e.currentTarget.style.color = "var(--text-primary)";
+                                              }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                              if (!active) {
+                                                e.currentTarget.style.backgroundColor = "transparent";
+                                                e.currentTarget.style.color = "var(--text-secondary)";
+                                              }
+                                            }}
+                                          >
+                                            <LeafIcon style={{ width: 12, height: 12, flexShrink: 0 }} />
+                                            <span
+                                              style={{
+                                                fontSize: 11,
+                                                fontWeight: active ? 600 : 400,
+                                                whiteSpace: "nowrap",
+                                                flex: 1,
+                                                opacity: sidebarExpanded ? 1 : 0,
+                                                transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                                                transition: `opacity 0.12s ease ${0.01 + li * 0.02}s, transform 0.12s ease`,
+                                              }}
+                                            >
+                                              {leaf.label}
+                                            </span>
+                                          </Link>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })}
@@ -290,9 +574,7 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
                 gap: 12,
                 display: "flex",
                 alignItems: "center",
-                borderLeft: adminActive
-                  ? "3px solid var(--accent-cyan)"
-                  : "3px solid transparent",
+                borderLeft: adminActive ? "3px solid var(--accent-cyan)" : "3px solid transparent",
                 backgroundColor: adminActive ? "var(--sidebar-item-active-bg)" : "transparent",
                 color: adminActive ? "var(--accent-cyan)" : "var(--text-secondary)",
               }}
@@ -348,8 +630,7 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
                   fontWeight: 600,
                   letterSpacing: "0.05em",
                   textTransform: "uppercase",
-                  color:
-                    plan === "premium" ? "var(--accent-cyan)" : "var(--text-muted)",
+                  color: plan === "premium" ? "var(--accent-cyan)" : "var(--text-muted)",
                 }}
               >
                 {PLAN_LABELS[plan]}
@@ -443,10 +724,11 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
         }}
       >
         {[
-          { href: "/dashboard",            label: "Dashboard",  icon: LayoutDashboard, exact: true,  featureKey: undefined },
-          { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark,        exact: false, featureKey: "modulo_financeiro" },
-          { href: "/dashboard/clientes",   label: "Clientes",   icon: Users,           exact: false, featureKey: "modulo_clientes"   },
-          { href: "/os",                   label: "OS",         icon: ClipboardList,   exact: false, featureKey: "modulo_os"         },
+          { href: "/dashboard",                          label: "Dashboard",  icon: LayoutDashboard, exact: true,  featureKey: undefined },
+          { href: "/dashboard/financeiro",               label: "Financeiro", icon: Landmark,        exact: false, featureKey: "modulo_financeiro" },
+          { href: "/dashboard/clientes",                 label: "Clientes",   icon: Users,           exact: false, featureKey: "modulo_clientes"   },
+          { href: "/os",                                 label: "OS",         icon: ClipboardList,   exact: false, featureKey: "modulo_os"         },
+          { href: "/relatorios/comissao-recebimento",    label: "Relatórios", icon: FileText,        exact: false, featureKey: undefined           },
           ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false, featureKey: undefined }] : []),
         ]
           .filter(({ featureKey }) => isAdmin || !featureKey || hasFeature(featureKey))
