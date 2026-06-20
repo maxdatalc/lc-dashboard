@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PieChart, Pie, Cell, Sector, ResponsiveContainer } from "recharts";
 import { formatCurrency } from "@/lib/utils/format";
+import { Clock, Zap } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const PieAny = Pie as any;
@@ -19,18 +20,23 @@ interface Props {
 }
 
 const CORES = [
-  "#2563eb",
-  "#f59e0b",
-  "#10b981",
-  "#7c3aed",
-  "#f97316",
-  "#ef4444",
+  "#2563eb", "#f59e0b", "#10b981", "#7c3aed",
+  "#f97316", "#ef4444", "#06b6d4", "#84cc16",
+  "#ec4899", "#6366f1",
 ];
 
-function fmtCompact(v: number): string {
-  if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")}M`;
-  if (v >= 1_000) return `R$ ${Math.round(v / 1_000)}k`;
-  return formatCurrency(v);
+const KEYWORDS_PRAZO = ["carteira", "credito", "cheque", "boleto", "financ", "crediario", "convenio", "promissoria", "parcel", "prazo", "faturado"];
+const KEYWORDS_VISTA = ["dinheiro", "debito", "pix", "deposito", "ted", "doc", "transfer", "especie", "voucher", "vista", "espécie"];
+
+function norm(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+function classificar(nome: string): "prazo" | "vista" {
+  const n = norm(nome);
+  if (KEYWORDS_PRAZO.some((k) => n.includes(k))) return "prazo";
+  if (KEYWORDS_VISTA.some((k) => n.includes(k))) return "vista";
+  return "prazo";
 }
 
 function fmtPct(p: number): string {
@@ -46,8 +52,8 @@ function ActiveSlice(props: any) {
     <Sector
       cx={cx}
       cy={cy}
-      innerRadius={innerRadius - 3}
-      outerRadius={outerRadius + 5}
+      innerRadius={innerRadius - 2}
+      outerRadius={outerRadius + 7}
       startAngle={startAngle}
       endAngle={endAngle}
       fill={fill}
@@ -58,35 +64,41 @@ function ActiveSlice(props: any) {
 export function FormasPagamentoChart({ data }: Props) {
   const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
-  const top6 = data.slice(0, 6);
+  const top10 = data.slice(0, 10);
 
-  if (!top6.length) {
+  if (!top10.length) {
     return (
-      <div
-        className="flex items-center justify-center text-xs"
-        style={{ height: 220, color: "var(--text-muted)" }}
-      >
+      <div className="flex items-center justify-center text-xs" style={{ height: 220, color: "var(--text-muted)" }}>
         Sem dados disponíveis
       </div>
     );
   }
 
-  const displayed = activeIndex !== undefined ? top6[activeIndex] : top6[0];
-  const displayedColor =
-    activeIndex !== undefined ? CORES[activeIndex % CORES.length] : CORES[0];
+  // atribui índice global para manter cor consistente donut ↔ lista
+  const withIdx = top10.map((d, i) => ({ ...d, idx: i }));
+  const prazo   = withIdx.filter((d) => classificar(d.nome) === "prazo");
+  const vista   = withIdx.filter((d) => classificar(d.nome) === "vista");
+  const grupos  = [
+    { key: "prazo", label: "A prazo",  Icon: Clock, items: prazo },
+    { key: "vista", label: "À vista",  Icon: Zap,   items: vista },
+  ].filter((g) => g.items.length > 0);
+
+  const displayed      = activeIndex !== undefined ? top10[activeIndex] : top10[0];
+  const displayedColor = activeIndex !== undefined ? CORES[activeIndex % CORES.length] : CORES[0];
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      {/* Donut — mesmas dimensões do VendasTipoChart */}
-      <div className="relative flex-shrink-0" style={{ width: 120, height: 120 }}>
-        <ResponsiveContainer width={120} height={120}>
+    <div className="flex gap-4 items-start">
+
+      {/* ── Donut ────────────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 relative" style={{ width: 160, height: 160 }}>
+        <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <PieAny
-              data={top6}
-              cx={55}
-              cy={55}
-              innerRadius={35}
-              outerRadius={52}
+              data={top10}
+              cx="50%"
+              cy="50%"
+              innerRadius={50}
+              outerRadius={73}
               paddingAngle={2}
               dataKey="valor"
               strokeWidth={0}
@@ -95,13 +107,11 @@ export function FormasPagamentoChart({ data }: Props) {
               onMouseEnter={(_: unknown, index: number) => setActiveIndex(index)}
               onMouseLeave={() => setActiveIndex(undefined)}
             >
-              {top6.map((_, index) => (
+              {top10.map((_, i) => (
                 <Cell
-                  key={`cell-${index}`}
-                  fill={CORES[index % CORES.length]}
-                  opacity={
-                    activeIndex !== undefined && activeIndex !== index ? 0.35 : 1
-                  }
+                  key={i}
+                  fill={CORES[i % CORES.length]}
+                  opacity={activeIndex !== undefined && activeIndex !== i ? 0.25 : 1}
                 />
               ))}
             </PieAny>
@@ -111,25 +121,20 @@ export function FormasPagamentoChart({ data }: Props) {
         {/* Centro */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <span
-            className="tabular-nums leading-none"
             style={{
+              fontSize: "1.4rem", fontWeight: 700, lineHeight: 1,
+              color: displayedColor, fontVariantNumeric: "tabular-nums",
               fontFamily: "var(--font-numeric)",
-              fontSize: "1.25rem",
-              fontWeight: 700,
-              color: displayedColor,
+              transition: "color 0.15s",
             }}
           >
             {fmtPct(displayed?.percentual ?? 0)}
           </span>
           <span
-            className="text-[10px] mt-0.5"
             style={{
-              color: "var(--text-muted)",
-              maxWidth: "62px",
-              textAlign: "center",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              fontSize: 10, color: "var(--text-muted)", marginTop: 4,
+              maxWidth: 76, textAlign: "center",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}
           >
             {displayed?.nome ?? ""}
@@ -137,53 +142,91 @@ export function FormasPagamentoChart({ data }: Props) {
         </div>
       </div>
 
-      {/* Legenda */}
-      <div className="flex flex-col gap-2 w-full">
-        {top6.map((d, i) => {
-          const cor = CORES[i % CORES.length];
-          const isActive = activeIndex === i;
+      {/* ── Grupos A prazo / À vista ─────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 gap-2">
+        {grupos.map((grupo, gi) => {
+          const GIcon = grupo.Icon;
           return (
-            <div
-              key={d.nome}
-              className="flex items-center gap-2"
-              style={{
-                opacity: activeIndex !== undefined && !isActive ? 0.4 : 1,
-                transition: "opacity 0.15s",
-                cursor: "default",
-              }}
-              onMouseEnter={() => setActiveIndex(i)}
-              onMouseLeave={() => setActiveIndex(undefined)}
-            >
-              <div
-                className="flex-shrink-0"
-                style={{ width: 7, height: 7, borderRadius: "50%", background: cor }}
-              />
-              <span
-                className="text-xs flex-1 truncate"
-                style={{ color: "var(--text-secondary)" }}
-              >
-                {d.nome}
-              </span>
-              <span
-                className="text-xs font-semibold tabular-nums"
-                style={{ color: "var(--text-primary)", minWidth: "32px", textAlign: "right" }}
-              >
-                {fmtPct(d.percentual)}
-              </span>
-              <span
-                className="text-xs tabular-nums"
-                style={{ color: "var(--text-muted)", minWidth: "52px", textAlign: "right" }}
-              >
-                {fmtCompact(d.valor)}
-              </span>
-              {d.qtdVendas != null && (
-                <span
-                  className="text-[10px] tabular-nums"
-                  style={{ color: "var(--text-muted)", minWidth: "44px", textAlign: "right" }}
-                >
-                  {d.qtdVendas.toLocaleString("pt-BR")} vd.
-                </span>
+            <div key={grupo.key}>
+              {gi > 0 && (
+                <div style={{ height: 1, background: "var(--border-subtle)", margin: "6px 0" }} />
               )}
+
+              {/* Cabeçalho do grupo */}
+              <div className="flex items-center gap-1.5 mb-2">
+                <div
+                  style={{
+                    display: "inline-flex", alignItems: "center", justifyContent: "center",
+                    width: 20, height: 20, borderRadius: 6,
+                    background: "var(--card-header-bg)",
+                    border: "1px solid var(--card-header-border)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <GIcon style={{ width: 11, height: 11, color: "var(--accent-cyan)" }} />
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", letterSpacing: "0.01em" }}>
+                  {grupo.label}
+                </span>
+              </div>
+
+              {/* Linhas de pagamento */}
+              {grupo.items.map((d) => {
+                const cor     = CORES[d.idx % CORES.length];
+                const isActive = activeIndex === d.idx;
+                return (
+                  <div
+                    key={d.nome}
+                    style={{
+                      opacity: activeIndex !== undefined && !isActive ? 0.35 : 1,
+                      transition: "opacity 0.15s",
+                      cursor: "default",
+                      marginBottom: 6,
+                    }}
+                    onMouseEnter={() => setActiveIndex(d.idx)}
+                    onMouseLeave={() => setActiveIndex(undefined)}
+                  >
+                    {/* Linha 1: dot + nome + % */}
+                    <div className="flex items-center gap-1.5">
+                      <div style={{
+                        width: 7, height: 7, borderRadius: "50%",
+                        background: cor, flexShrink: 0,
+                      }} />
+                      <span style={{
+                        fontSize: 11, color: "var(--text-secondary)",
+                        flex: 1, minWidth: 0,
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      }}>
+                        {d.nome}
+                      </span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, color: cor,
+                        fontVariantNumeric: "tabular-nums", flexShrink: 0,
+                      }}>
+                        {fmtPct(d.percentual)}
+                      </span>
+                    </div>
+
+                    {/* Linha 2: valor + vendas */}
+                    <div
+                      className="flex items-center justify-between"
+                      style={{ paddingLeft: 14, marginTop: 1 }}
+                    >
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, color: "var(--text-primary)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}>
+                        {formatCurrency(d.valor)}
+                      </span>
+                      {d.qtdVendas != null && (
+                        <span style={{ fontSize: 10, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                          {d.qtdVendas.toLocaleString("pt-BR")} {d.qtdVendas === 1 ? "venda" : "vendas"}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           );
         })}

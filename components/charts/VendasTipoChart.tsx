@@ -1,7 +1,27 @@
 "use client";
 
-import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { useState } from "react";
+import { PieChart, Pie, Cell, Sector, ResponsiveContainer } from "recharts";
 import { DollarSign } from "lucide-react";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const PieAny = Pie as any;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function ActiveSlice(props: any) {
+  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+  return (
+    <Sector
+      cx={cx}
+      cy={cy}
+      innerRadius={innerRadius}
+      outerRadius={outerRadius + 8}
+      startAngle={startAngle}
+      endAngle={endAngle}
+      fill={fill}
+    />
+  );
+}
 
 export interface VendasTipoData {
   pf: { total: number; clientes: number };
@@ -41,6 +61,8 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
     { key: "PJ" as const, label: "Pessoa Jurídica",  color: CORES.PJ, d: data.pj },
   ];
 
+  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+
   function toggle(tipo: "PF" | "PJ") {
     if (!onSelect) return;
     onSelect(selectedTipo === tipo ? null : tipo);
@@ -58,7 +80,7 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
         <div className="flex-shrink-0" style={{ width: 175, height: 175 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie
+              <PieAny
                 data={chartData}
                 cx="50%"
                 cy="50%"
@@ -67,8 +89,11 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
                 paddingAngle={2}
                 dataKey="value"
                 strokeWidth={0}
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                onClick={(entry: any) => toggle((entry as { name: string }).name as "PF" | "PJ")}
+                activeIndex={activeIndex}
+                activeShape={ActiveSlice}
+                onClick={(entry: { name: string }) => toggle(entry.name as "PF" | "PJ")}
+                onMouseEnter={(_: unknown, index: number) => setActiveIndex(index)}
+                onMouseLeave={() => setActiveIndex(undefined)}
                 style={{ cursor: onSelect ? "pointer" : "default" }}
               >
                 {chartData.map((entry, i) => (
@@ -78,7 +103,7 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
                     opacity={hasSelected && selectedTipo !== entry.name ? 0.25 : 1}
                   />
                 ))}
-              </Pie>
+              </PieAny>
             </PieChart>
           </ResponsiveContainer>
         </div>
