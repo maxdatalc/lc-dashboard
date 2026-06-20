@@ -19,7 +19,7 @@ interface Props {
 }
 
 const CORES = [
-  "#00e5ff",
+  "#2563eb",
   "#f59e0b",
   "#10b981",
   "#7c3aed",

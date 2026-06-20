@@ -68,7 +68,7 @@ function CustomLegend() {
   return (
     <div className="flex items-center gap-4 justify-end px-1 pb-1 text-xs" style={{ color: "var(--text-muted)" }}>
       <div className="flex items-center gap-1.5">
-        <span className="inline-block rounded-sm" style={{ width: 10, height: 10, backgroundColor: "#00e5ff" }} />
+        <span className="inline-block rounded-sm" style={{ width: 10, height: 10, backgroundColor: "#2563eb" }} />
         Faturamento
       </div>
       <div className="flex items-center gap-1.5">
@@ -100,8 +100,8 @@ export function FaturamentoMensalChart({ data }: Props) {
         <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -10 }} barGap={3}>
           <defs>
             <linearGradient id="faturGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00e5ff" stopOpacity={1} />
-              <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.35} />
+              <stop offset="0%" stopColor="#2563eb" stopOpacity={1} />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity={0.35} />
             </linearGradient>
           </defs>
           <XAxis

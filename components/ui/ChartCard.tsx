@@ -40,7 +40,7 @@ function InfoModal({ title, info, onClose }: { title: string; info: string; onCl
         onClick={(e) => e.stopPropagation()}
         style={{
           background: "var(--bg-card)",
-          border: "1px solid rgba(0,229,255,0.25)",
+          border: "1px solid var(--card-header-border)",
           borderRadius: 16,
           padding: "24px 28px",
           maxWidth: 420,

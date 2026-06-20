@@ -10,7 +10,7 @@ export interface GrupoItem {
 }
 
 const CORES = [
-  "#00e5ff", "#f59e0b", "#10b981", "#7c3aed",
+  "#2563eb", "#f59e0b", "#10b981", "#7c3aed",
   "#f97316", "#ef4444", "#06b6d4", "#84cc16",
   "#ec4899", "#6366f1",
 ];

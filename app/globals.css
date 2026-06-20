@@ -80,8 +80,8 @@
     --text-secondary: #475569;
     --text-muted: #94a3b8;
 
-    /* Accents — mais saturados no light para ter presença */
-    --accent-cyan: #0891b2;
+    /* Accents — azul profundo para alto contraste no modo claro */
+    --accent-cyan: #1d4ed8;
     --accent-green: #059669;
     --accent-red: #dc2626;
     --accent-yellow: #d97706;
@@ -91,14 +91,14 @@
     /* Sidebar no light — acompanha o tema */
     --sidebar-bg: #f8fafc;
     --sidebar-text: #475569;
-    --sidebar-active: #0891b2;
+    --sidebar-active: #1d4ed8;
     --sidebar-item-hover-bg: rgba(0, 0, 0, 0.05);
-    --sidebar-item-active-bg: rgba(8, 145, 178, 0.1);
+    --sidebar-item-active-bg: rgba(29, 78, 216, 0.08);
     --sidebar-badge-bg: rgba(0, 0, 0, 0.04);
 
     /* Chart / Card tokens — tema claro */
-    --card-header-bg: #eff6ff;
-    --card-header-border: #bfdbfe;
+    --card-header-bg: #eef2ff;
+    --card-header-border: #c7d2fe;
     --card-title-color: #1e3a8a;
     --bg-elevated: #f1f5f9;
     --chart-track-bg: rgba(0, 0, 0, 0.08);
@@ -276,6 +276,13 @@ main, [data-page] {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+.light ::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+}
+.light ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .custom-scroll::-webkit-scrollbar {

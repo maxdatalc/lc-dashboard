@@ -169,9 +169,9 @@ export function TopProdutosChart({
                 padding: "5px 8px",
                 marginBottom: "4px",
                 cursor: onSelect ? "pointer" : "default",
-                background: isSelected ? "rgba(0,229,255,0.06)" : "transparent",
+                background: isSelected ? "rgba(37,99,235,0.07)" : "transparent",
                 ...(isSelected
-                  ? { border: "1px solid rgba(0,229,255,0.25)" }
+                  ? { border: "1px solid rgba(37,99,235,0.25)" }
                   : { border: "1px solid transparent", borderBottom: "1px solid var(--chart-item-border)" }),
                 transition: "background 0.15s, border-color 0.15s",
               }}
@@ -245,7 +245,7 @@ export function TopProdutosChart({
                         width: `${barraWidth}%`,
                         height: "100%",
                         borderRadius: "2px",
-                        background: "linear-gradient(90deg, var(--accent-cyan) 0%, rgba(0,229,255,0.25) 100%)",
+                        background: "linear-gradient(90deg, var(--accent-cyan) 0%, rgba(37,99,235,0.2) 100%)",
                         transition: "width 0.8s ease",
                       }}
                     />
@@ -308,7 +308,7 @@ export function TopProdutosChart({
                     padding: "10px 14px",
                     borderRadius: "8px",
                     borderLeft: "2px solid var(--accent-cyan)",
-                    background: "rgba(0,229,255,0.04)",
+                    background: "rgba(37,99,235,0.04)",
                     animation: "fadeInUp 0.15s ease-out",
                   }}
                 >

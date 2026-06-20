@@ -260,7 +260,7 @@ export default async function SelecionarEmpresaPage() {
           justify-content: center;
           font-size: 16px;
           font-weight: 700;
-          color: #00e5ff;
+          color: var(--accent-cyan);
           flex-shrink: 0;
         }
 
@@ -312,7 +312,7 @@ export default async function SelecionarEmpresaPage() {
         }
 
         .se-card:hover .se-arrow {
-          color: #00e5ff;
+          color: var(--accent-cyan);
           transform: translateX(2px);
         }
 

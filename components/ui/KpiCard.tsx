@@ -77,7 +77,7 @@ export function KpiCard({
       onMouseEnter={(e) => {
         const el = e.currentTarget;
         el.style.borderColor = `${accentColor}66`;
-        el.style.boxShadow = "0 0 20px rgba(0,229,255,0.08)";
+        el.style.boxShadow = `0 0 20px ${accentColor}18`;
       }}
       onMouseLeave={(e) => {
         const el = e.currentTarget;

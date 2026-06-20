@@ -162,7 +162,7 @@ export default function PrimeiroAcessoPage() {
           width: 640px;
           height: 640px;
           transform: translate(-50%, -50%);
-          background: radial-gradient(ellipse at center, rgba(0, 229, 255, 0.04) 0%, transparent 65%);
+          background: radial-gradient(ellipse at center, rgba(37, 99, 235, 0.04) 0%, transparent 65%);
           border-radius: 50%;
         }
 
@@ -256,7 +256,7 @@ export default function PrimeiroAcessoPage() {
         .pa-logo-img {
           display: block;
           animation: float 3.5s ease-in-out infinite;
-          filter: drop-shadow(0 8px 24px rgba(0, 229, 255, 0.18));
+          filter: drop-shadow(0 8px 24px rgba(37, 99, 235, 0.18));
         }
 
         @keyframes float {
@@ -277,9 +277,9 @@ export default function PrimeiroAcessoPage() {
           font-weight: 600;
           letter-spacing: 0.06em;
           text-transform: uppercase;
-          color: #00e5ff;
-          background: rgba(0, 229, 255, 0.08);
-          border: 1px solid rgba(0, 229, 255, 0.18);
+          color: var(--accent-cyan);
+          background: rgba(37, 99, 235, 0.08);
+          border: 1px solid rgba(37, 99, 235, 0.18);
           border-radius: 20px;
           padding: 4px 12px;
           width: fit-content;
@@ -342,8 +342,8 @@ export default function PrimeiroAcessoPage() {
         }
 
         .pa-input:focus {
-          border-color: rgba(0, 229, 255, 0.35);
-          box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.07);
+          border-color: rgba(37, 99, 235, 0.35);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.07);
         }
 
         .pa-input:disabled {
@@ -413,8 +413,8 @@ export default function PrimeiroAcessoPage() {
 
         .pa-btn:hover:not(:disabled) {
           background: #1e2a40;
-          border-color: rgba(0, 229, 255, 0.2);
-          box-shadow: 0 0 0 3px rgba(0, 229, 255, 0.06);
+          border-color: rgba(37, 99, 235, 0.2);
+          box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.06);
         }
 
         .pa-btn--disabled,
