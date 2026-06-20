@@ -28,7 +28,7 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
 
-  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes] = await Promise.all([
+  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes, tenantCountRes] = await Promise.all([
     adminClient
       .from("profiles")
       .select("is_system_admin")
@@ -68,6 +68,12 @@ export default async function DashboardLayout({
           .eq("tenant_id", selectedTenantId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+
+    // Contagem de empresas do usuário (para exibir "Trocar empresa" no sidebar)
+    adminClient
+      .from("tenant_users")
+      .select("tenant_id", { count: "exact", head: true })
+      .eq("user_id", user.id),
   ]);
 
   const isAdmin =
@@ -103,6 +109,8 @@ export default async function DashboardLayout({
     effectiveFeatures = tenantFeatures.filter((k) => k === "dashboard_visao_geral");
   }
 
+  const multiEmpresa = (tenantCountRes.count ?? 0) > 1;
+
   const { data: lojasData } = selectedTenantId
     ? await adminClient
         .from("lojas")
@@ -135,7 +143,7 @@ export default async function DashboardLayout({
               className="min-h-screen"
               style={{ backgroundColor: "var(--bg-primary)" }}
             >
-              <Sidebar isAdmin={isAdmin} />
+              <Sidebar isAdmin={isAdmin} multiEmpresa={multiEmpresa} />
 
               <div
                 style={{ marginLeft: "var(--sidebar-width)" }}

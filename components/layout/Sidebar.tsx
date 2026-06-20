@@ -14,13 +14,15 @@ import {
   ClipboardList,
   ChevronRight,
   ArrowLeftRight,
+  Building2,
 } from "lucide-react";
-import { logout } from "@/app/actions/auth";
+import { logout, trocarEmpresa } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 import { PLAN_LABELS } from "@/lib/plans";
 
 interface Props {
   isAdmin: boolean;
+  multiEmpresa?: boolean;
 }
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -76,7 +78,7 @@ const SUBITEM_BASE: React.CSSProperties = {
   borderLeft: "3px solid transparent",
 };
 
-export function Sidebar({ isAdmin }: Props) {
+export function Sidebar({ isAdmin, multiEmpresa }: Props) {
   const pathname = usePathname();
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const { hasFeature, plan } = useEmpresa();
@@ -353,6 +355,43 @@ export function Sidebar({ isAdmin }: Props) {
                 {PLAN_LABELS[plan]}
               </span>
             </div>
+          )}
+
+          {multiEmpresa && (
+            <form action={trocarEmpresa}>
+              <button
+                type="submit"
+                className="w-full flex items-center"
+                style={{
+                  height: "38px",
+                  padding: "0 14px",
+                  gap: "12px",
+                  color: "var(--text-muted)",
+                  borderLeft: "3px solid transparent",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = "var(--text-primary)";
+                  e.currentTarget.style.backgroundColor = "var(--sidebar-item-hover-bg)";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = "var(--text-muted)";
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                <Building2 style={{ width: 16, height: 16, flexShrink: 0 }} />
+                <span
+                  style={{
+                    fontSize: "13px",
+                    whiteSpace: "nowrap",
+                    opacity: sidebarExpanded ? 1 : 0,
+                    transform: sidebarExpanded ? "translateX(0)" : "translateX(-6px)",
+                    transition: "opacity 0.2s ease 0.1s, transform 0.2s ease 0.1s",
+                  }}
+                >
+                  Trocar empresa
+                </span>
+              </button>
+            </form>
           )}
 
           <form action={logout}>
