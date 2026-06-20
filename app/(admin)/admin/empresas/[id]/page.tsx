@@ -45,9 +45,10 @@ export default async function GerenciarEmpresaPage({
 
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenantDetalhado(id) : [];
 
-  const moduloOs = FEATURES_CATALOG.find((f) => f.key === "modulo_os")!;
-  const osAtivo = tenant.features.includes("modulo_os");
-  const emBreveFeatures = FEATURES_CATALOG.filter((f) => !f.disponivel);
+  const emBreveFeatures  = FEATURES_CATALOG.filter((f) => !f.disponivel);
+  const addonFeatures    = FEATURES_CATALOG.filter(
+    (f) => f.disponivel && f.categoria === "premium"
+  );
 
   const ABAS = [
     { valor: "lojas" as Aba, label: "Lojas", icon: Building2, count: tenant.lojas.length },
@@ -186,41 +187,51 @@ export default async function GerenciarEmpresaPage({
               </div>
             </div>
 
-            {/* Add-on: Ordens de Serviço */}
+            {/* Add-ons opcionais — dinâmico via FEATURES_CATALOG */}
             <form action={salvarFeatures.bind(null, id)} className="space-y-3">
               <div className="rounded-xl border border-slate-200 bg-white p-5">
                 <h3 className="text-sm font-semibold text-slate-900 mb-1">Add-ons opcionais</h3>
                 <p className="text-xs text-slate-400 mb-4">Módulos que requerem ativação e configuração específica por empresa.</p>
 
-                <label
-                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
-                    osAtivo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    name="feature"
-                    value="modulo_os"
-                    defaultChecked={osAtivo}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">{moduloOs.label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{moduloOs.descricao}</p>
-                  </div>
-                </label>
+                <div className="space-y-3">
+                  {addonFeatures.map((f) => {
+                    const ativo = tenant.features.includes(f.key);
+                    return (
+                      <div key={f.key}>
+                        <label
+                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
+                            ativo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            name="feature"
+                            value={f.key}
+                            defaultChecked={ativo}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-slate-800">{f.label}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">{f.descricao}</p>
+                          </div>
+                        </label>
 
-                {osAtivo && (
-                  <div className="mt-3 pl-4 border-l-2 border-blue-200">
-                    <Link
-                      href={`/admin/empresas/${id}/modulo-os`}
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                      <Settings className="h-3 w-3" />
-                      Configurar inventários e tipos fiscais
-                    </Link>
-                  </div>
-                )}
+                        {/* Link de configuração específica do módulo OS */}
+                        {f.key === "modulo_os" && ativo && (
+                          <div className="mt-2 pl-4 border-l-2 border-blue-200">
+                            <Link
+                              href={`/admin/empresas/${id}/modulo-os`}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                            >
+                              <Settings className="h-3 w-3" />
+                              Configurar inventários e tipos fiscais
+                            </Link>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               <button
