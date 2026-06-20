@@ -17,6 +17,8 @@ import {
   Mail,
   Crown,
   Check,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import {
   resetarSenhaUsuario,
@@ -25,8 +27,14 @@ import {
   alterarRoleUsuario,
   excluirUsuario,
 } from "@/app/actions/admin-usuarios";
+import { salvarAcessoUsuario } from "@/lib/actions/admin-lojas";
 
 type UserRole = "owner" | "admin" | "viewer";
+
+interface LojaSimples {
+  id: string;
+  name: string;
+}
 
 interface EmpresaVinculada {
   tenant_id: string;
@@ -34,6 +42,12 @@ interface EmpresaVinculada {
   tenant_slug: string;
   tenant_plan: string;
   tenant_ativo: boolean;
+  tenant_features: string[];
+  lojas: LojaSimples[];
+  settings: {
+    modulos: Record<string, boolean>;
+    lojaIds: string[];
+  };
   role: UserRole;
 }
 
@@ -82,7 +96,7 @@ function RoleBadge({ role, onClick }: { role: UserRole; onClick?: () => void }) 
   const Icon = cfg.icon;
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
       className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors ${cfg.className} ${onClick ? "cursor-pointer" : "cursor-default"}`}
       title={onClick ? "Clique para alternar permissão" : undefined}
     >
@@ -112,6 +126,7 @@ export function UsuarioDetalheClient({
   const [modalExcluir, setModalExcluir] = useState(false);
   const [confirmacaoNome, setConfirmacaoNome] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
 
   const empresasDisponiveis = todasEmpresas.filter(
     (e) => !empresas.some((ev) => ev.tenant_id === e.id)
@@ -157,6 +172,9 @@ export function UsuarioDetalheClient({
               tenant_slug: empresa.slug,
               tenant_plan: empresa.plan,
               tenant_ativo: true,
+              tenant_features: [],
+              lojas: [],
+              settings: { modulos: {}, lojaIds: [] },
               role: roleVincular,
             },
           ]);
@@ -381,60 +399,86 @@ export function UsuarioDetalheClient({
         ) : (
           <div className="divide-y divide-slate-50">
             {empresas.map((empresa, i) => (
-              <div
-                key={empresa.tenant_id}
-                className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors group"
-                style={{
-                  animation: "fadeInUp 0.3s ease-out both",
-                  animationDelay: `${i * 40}ms`,
-                }}
-              >
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
-                  <span className="text-sm font-bold text-white uppercase">
-                    {empresa.tenant_name.charAt(0)}
-                  </span>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900 truncate">
-                      {empresa.tenant_name}
-                    </p>
-                    <span
-                      className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                        empresa.tenant_ativo
-                          ? "bg-emerald-50 text-emerald-600"
-                          : "bg-slate-100 text-slate-400"
-                      }`}
-                    >
-                      {empresa.tenant_ativo ? "Ativa" : "Inativa"}
-                    </span>
-                    <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium capitalize">
-                      {empresa.tenant_plan}
+              <div key={empresa.tenant_id}>
+                <div
+                  className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors group cursor-pointer"
+                  style={{
+                    animation: "fadeInUp 0.3s ease-out both",
+                    animationDelay: `${i * 40}ms`,
+                  }}
+                  onClick={() =>
+                    setExpandedTenantId(
+                      expandedTenantId === empresa.tenant_id ? null : empresa.tenant_id
+                    )
+                  }
+                >
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
+                    <span className="text-sm font-bold text-white uppercase">
+                      {empresa.tenant_name.charAt(0)}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    {empresa.tenant_slug}
-                  </p>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-900 truncate">
+                        {empresa.tenant_name}
+                      </p>
+                      <span
+                        className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                          empresa.tenant_ativo
+                            ? "bg-emerald-50 text-emerald-600"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {empresa.tenant_ativo ? "Ativa" : "Inativa"}
+                      </span>
+                      <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium capitalize">
+                        {empresa.tenant_plan}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {empresa.tenant_slug}
+                    </p>
+                  </div>
+
+                  <RoleBadge
+                    role={empresa.role}
+                    onClick={() => handleAlterarRole(empresa.tenant_id, empresa.role)}
+                  />
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDesvincular(empresa.tenant_id, empresa.tenant_name);
+                    }}
+                    disabled={isPending}
+                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    title="Remover acesso"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+
+                  <ChevronDown
+                    className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
+                      expandedTenantId === empresa.tenant_id ? "rotate-180" : ""
+                    }`}
+                  />
                 </div>
 
-                <RoleBadge
-                  role={empresa.role}
-                  onClick={() =>
-                    handleAlterarRole(empresa.tenant_id, empresa.role)
-                  }
-                />
-
-                <button
-                  onClick={() =>
-                    handleDesvincular(empresa.tenant_id, empresa.tenant_name)
-                  }
-                  disabled={isPending}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                  title="Remover acesso"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                {expandedTenantId === empresa.tenant_id && (
+                  <EmpresaAcessoPanel
+                    tenantId={empresa.tenant_id}
+                    userId={usuario.id}
+                    features={empresa.tenant_features}
+                    lojas={empresa.lojas}
+                    settings={empresa.settings}
+                    onSaved={() => {
+                      mostrarFeedback("ok", "Acesso salvo para essa empresa");
+                      setExpandedTenantId(null);
+                      router.refresh();
+                    }}
+                  />
+                )}
               </div>
             ))}
           </div>
@@ -665,6 +709,134 @@ export function UsuarioDetalheClient({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Painel de acesso por empresa ──────────────────────────────────────────────
+
+const MODULES_LABEL: Record<string, string> = {
+  dashboard_visao_geral: "Dashboard",
+  modulo_os: "O.S",
+  modulo_financeiro: "Financeiro",
+  modulo_produtos: "Produtos",
+};
+
+function EmpresaAcessoPanel({
+  tenantId,
+  userId,
+  features,
+  lojas,
+  settings,
+  onSaved,
+}: {
+  tenantId: string;
+  userId: string;
+  features: string[];
+  lojas: LojaSimples[];
+  settings: { modulos: Record<string, boolean>; lojaIds: string[] };
+  onSaved: () => void;
+}) {
+  const configurableModules = features.filter((k) => k in MODULES_LABEL);
+
+  const [modulos, setModulos] = useState<Record<string, boolean>>(
+    Object.fromEntries(
+      configurableModules.map((k) => [k, settings.modulos[k] ?? false])
+    )
+  );
+  const [lojaIds, setLojaIds] = useState<string[]>(settings.lojaIds);
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const handleSave = async () => {
+    setLoading(true);
+    setErro(null);
+    const result = await salvarAcessoUsuario(tenantId, userId, { lojaIds, modulos });
+    setLoading(false);
+    if (result.error) { setErro(result.error); return; }
+    onSaved();
+  };
+
+  return (
+    <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-4">
+      {erro && (
+        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          {erro}
+        </div>
+      )}
+
+      {/* Módulos */}
+      {configurableModules.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2 flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5" /> Módulos
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {configurableModules.map((k) => (
+              <label key={k} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={modulos[k] ?? false}
+                  onChange={() =>
+                    setModulos((prev) => ({ ...prev, [k]: !prev[k] }))
+                  }
+                  className="rounded border-slate-300 text-slate-800"
+                />
+                <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Lojas */}
+      {lojas.length > 1 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2 flex items-center gap-1.5">
+            <Building2 className="h-3.5 w-3.5" /> Lojas visíveis{" "}
+            <span className="font-normal normal-case tracking-normal text-slate-400">
+              (vazio = todas)
+            </span>
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {lojas.map((l) => (
+              <label key={l.id} className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={lojaIds.includes(l.id)}
+                  onChange={() =>
+                    setLojaIds((prev) =>
+                      prev.includes(l.id)
+                        ? prev.filter((x) => x !== l.id)
+                        : [...prev, l.id]
+                    )
+                  }
+                  className="rounded border-slate-300 text-slate-800"
+                />
+                <span className="text-sm text-slate-700">{l.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {configurableModules.length === 0 && lojas.length <= 1 && (
+        <p className="text-xs text-slate-400">
+          Sem módulos ou múltiplas lojas para configurar nesta empresa.
+        </p>
+      )}
+
+      <div className="flex justify-end pt-2 border-t border-slate-200">
+        <button
+          onClick={handleSave}
+          disabled={loading}
+          className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 disabled:opacity-60 transition-colors"
+        >
+          {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+          {loading ? "Salvando..." : "Salvar acesso para essa empresa"}
+        </button>
+      </div>
     </div>
   );
 }
