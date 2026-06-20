@@ -12,7 +12,7 @@ interface Props {
   data: VendasTipoData;
 }
 
-const CORES = { PF: "#00e5ff", PJ: "#7c3aed" };
+const CORES = { PF: "#2563eb", PJ: "#7c3aed" };
 
 export function VendasTipoChart({ data }: Props) {
   const totalVendas = data.pf.clientes + data.pj.clientes;

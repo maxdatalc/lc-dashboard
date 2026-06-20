@@ -255,7 +255,7 @@ export default function DashboardPage() {
           )}
         </ChartCard>
 
-        <ChartCard title="Vendas Brutas e Taxa de Devolução" subtitle="Últimos 12 meses com base no filtro selecionado" animationDelay={160} className="h-full">
+        <ChartCard title="Vendas Brutas e Taxa de Devolução" animationDelay={160} className="h-full">
           {chartsLoading ? <ChartSkeleton height={230} /> : (
             <VendasMensalChart
               data={vendasMensal}

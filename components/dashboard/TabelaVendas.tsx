@@ -166,9 +166,9 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
   };
 
   const filterBtnStyle = (active: boolean): React.CSSProperties => ({
-    backgroundColor: active ? "rgba(0,229,255,0.12)" : "transparent",
-    color: active ? "#00e5ff" : "var(--text-muted)",
-    border: `1px solid ${active ? "rgba(0,229,255,0.3)" : "var(--border-subtle)"}`,
+    backgroundColor: active ? "rgba(37,99,235,0.1)" : "transparent",
+    color: active ? "var(--accent-cyan)" : "var(--text-muted)",
+    border: `1px solid ${active ? "rgba(37,99,235,0.3)" : "var(--border-subtle)"}`,
   });
 
   return (
@@ -263,7 +263,7 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
                 <div
                   className="tabela-vendas-grid grid items-center px-4 py-2.5 cursor-pointer transition-colors"
                   style={{
-                    backgroundColor: isExpanded ? "rgba(0,229,255,0.03)" : "transparent",
+                    backgroundColor: isExpanded ? "rgba(37,99,235,0.04)" : "transparent",
                   }}
                   onClick={() => void handleRowClick(rowKey, venda.external_id, venda.loja_id)}
                   onMouseEnter={(e) => {
@@ -305,8 +305,8 @@ export function TabelaVendas({ lojaIds, period, start, end }: TabelaVendasProps)
                   <div
                     className="px-4"
                     style={{
-                      backgroundColor: "rgba(0,229,255,0.02)",
-                      borderTop: "1px solid rgba(0,229,255,0.07)",
+                      backgroundColor: "rgba(37,99,235,0.02)",
+                      borderTop: "1px solid var(--border-subtle)",
                     }}
                   >
                     {drillLoading === rowKey ? (

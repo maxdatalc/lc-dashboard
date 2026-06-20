@@ -80,7 +80,7 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
           <span
             style={{
               width: 10, height: 10, borderRadius: 2,
-              background: "linear-gradient(180deg, #00e5ff 0%, rgba(0,229,255,0.35) 100%)",
+              background: "linear-gradient(180deg, #2563eb 0%, rgba(37,99,235,0.35) 100%)",
               display: "inline-block",
             }}
           />
@@ -104,12 +104,12 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
         >
           <defs>
             <linearGradient id="vMensalGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00e5ff" stopOpacity={0.95} />
-              <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.35} />
+              <stop offset="0%" stopColor="#2563eb" stopOpacity={0.95} />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity={0.35} />
             </linearGradient>
             <linearGradient id="vMensalGradDim" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#00e5ff" stopOpacity={0.35} />
-              <stop offset="100%" stopColor="#00e5ff" stopOpacity={0.1} />
+              <stop offset="0%" stopColor="#2563eb" stopOpacity={0.35} />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity={0.1} />
             </linearGradient>
           </defs>
 
@@ -146,12 +146,12 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
           <ReferenceLine
             yAxisId="left"
             y={mediaVendas}
-            stroke="rgba(0,229,255,0.28)"
+            stroke="rgba(37,99,235,0.28)"
             strokeDasharray="6 3"
             label={{
               value: "Média",
               position: "insideTopLeft",
-              fill: "rgba(0,229,255,0.5)",
+              fill: "rgba(37,99,235,0.5)",
               fontSize: 10,
               fontWeight: 500,
             }}
@@ -185,7 +185,7 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
                   <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: "24px" }}>
                       <span style={{ color: "var(--text-secondary)" }}>Vendas Brutas</span>
-                      <span style={{ fontWeight: 600, color: "#00e5ff", fontVariantNumeric: "tabular-nums" }}>
+                      <span style={{ fontWeight: 600, color: "#2563eb", fontVariantNumeric: "tabular-nums" }}>
                         {fmtMoeda(d.vendas)}
                       </span>
                     </div>
@@ -301,8 +301,8 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
                     fontWeight={600}
                     fill={
                       hasSelected && enriched[index]?.mesKey !== selectedMes
-                        ? "rgba(0,229,255,0.35)"
-                        : "#00e5ff"
+                        ? "rgba(37,99,235,0.35)"
+                        : "#2563eb"
                     }
                   >
                     {fmtCompact(Number(value))}

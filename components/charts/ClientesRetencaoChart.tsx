@@ -10,7 +10,7 @@ export interface ClientesRetencaoData {
   faturamentoRecorrentes: number;
 }
 
-const COR_NOVO = "#00e5ff";
+const COR_NOVO = "#2563eb";
 const COR_REC  = "#f59e0b";
 
 interface TooltipProps {

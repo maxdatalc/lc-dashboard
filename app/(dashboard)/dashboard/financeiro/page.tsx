@@ -265,7 +265,7 @@ function FilterPill({ label, onClear }: { label: string; onClear: () => void }) 
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 6,
       padding: "3px 8px 3px 10px",
-      background: "rgba(0,229,255,0.08)", border: "1px solid rgba(0,229,255,0.3)",
+      background: "rgba(37,99,235,0.07)", border: "1px solid rgba(37,99,235,0.25)",
       borderRadius: 20, fontSize: 11, fontWeight: 600, color: "var(--accent-cyan)",
     }}>
       {label}

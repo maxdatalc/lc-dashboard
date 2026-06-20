@@ -25,7 +25,7 @@ const fmtNum = (v: number) =>
 
 // Paleta de cores por posição no ranking
 const CORES = [
-  '#f59e0b', '#94a3b8', '#a78bfa', '#00e5ff',
+  '#f59e0b', '#94a3b8', '#a78bfa', '#2563eb',
   '#10b981', '#f97316', '#ec4899', '#3b82f6',
   '#84cc16', '#e11d48',
 ]
@@ -96,7 +96,7 @@ export function TopVendedoresChart({ data, onSelect, selectedId }: Props) {
                 cursor: onSelect ? 'pointer' : 'default',
                 background: isSelected ? 'var(--sidebar-item-active-bg)' : 'transparent',
                 border: isSelected
-                  ? '1px solid rgba(0,229,255,0.3)'
+                  ? '1px solid rgba(37,99,235,0.3)'
                   : '1px solid transparent',
                 transition: 'all 0.15s',
               }}

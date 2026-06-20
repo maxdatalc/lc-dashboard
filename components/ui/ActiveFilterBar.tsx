@@ -18,8 +18,8 @@ export function ActiveFilterBar() {
     <div
       className="flex items-center gap-2 px-4 py-2 mb-3 rounded-lg"
       style={{
-        background: 'rgba(0,229,255,0.08)',
-        border: '1px solid rgba(0,229,255,0.2)',
+        background: 'rgba(37,99,235,0.07)',
+        border: '1px solid rgba(37,99,235,0.2)',
         fontFamily: 'var(--font-inter)',
       }}
     >

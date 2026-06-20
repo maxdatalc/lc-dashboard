@@ -91,9 +91,9 @@ function LojaMultiSelect() {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all"
         style={{
-          backgroundColor: !allSelected ? "rgba(0,229,255,0.12)" : "transparent",
-          color: !allSelected ? "#00e5ff" : "var(--text-secondary)",
-          border: `1px solid ${!allSelected ? "rgba(0,229,255,0.3)" : "var(--border-subtle)"}`,
+          backgroundColor: !allSelected ? "rgba(37,99,235,0.1)" : "transparent",
+          color: !allSelected ? "var(--accent-cyan)" : "var(--text-secondary)",
+          border: `1px solid ${!allSelected ? "rgba(37,99,235,0.3)" : "var(--border-subtle)"}`,
         }}
       >
         <Building2 className="h-3 w-3 flex-shrink-0" />
@@ -131,7 +131,7 @@ function LojaMultiSelect() {
               style={{
                 width: 14, height: 14,
                 border: allSelected ? "none" : "1.5px solid rgba(255,255,255,0.2)",
-                backgroundColor: allSelected ? "#00e5ff" : "transparent",
+                backgroundColor: allSelected ? "var(--accent-cyan)" : "transparent",
               }}
             >
               {allSelected && <Check style={{ width: 10, height: 10, color: "#0d1117", strokeWidth: 3 }} />}
@@ -161,7 +161,7 @@ function LojaMultiSelect() {
                   style={{
                     width: 14, height: 14,
                     border: checked ? "none" : "1.5px solid rgba(255,255,255,0.2)",
-                    backgroundColor: checked ? "#00e5ff" : "transparent",
+                    backgroundColor: checked ? "var(--accent-cyan)" : "transparent",
                   }}
                 >
                   {checked && <Check style={{ width: 10, height: 10, color: "#0d1117", strokeWidth: 3 }} />}
