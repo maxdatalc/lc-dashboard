@@ -90,7 +90,7 @@ export async function login(formData: FormData): Promise<{ error?: string }> {
   redirect("/dashboard");
 }
 
-// ── Selecionar empresa (na tela de seleção) ───────────────────────────────────
+// ── Selecionar empresa (na tela de seleção — usuários regulares) ─────────────
 
 export async function selecionarEmpresa(formData: FormData): Promise<void> {
   const tenantId = formData.get("tenantId") as string;
@@ -109,6 +109,31 @@ export async function selecionarEmpresa(formData: FormData): Promise<void> {
     .maybeSingle();
 
   if (!acesso) redirect("/selecionar-empresa");
+
+  await setTenantCookies(tenantId);
+  redirect("/dashboard");
+}
+
+// ── Selecionar empresa como admin (sem verificar tenant_users) ────────────────
+
+export async function selecionarEmpresaAdmin(formData: FormData): Promise<void> {
+  const tenantId = formData.get("tenantId") as string;
+  if (!tenantId) redirect("/selecionar-empresa");
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const adminClient = createAdminClient();
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("is_system_admin")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!(profile as { is_system_admin?: boolean } | null)?.is_system_admin) {
+    redirect("/selecionar-empresa");
+  }
 
   await setTenantCookies(tenantId);
   redirect("/dashboard");
