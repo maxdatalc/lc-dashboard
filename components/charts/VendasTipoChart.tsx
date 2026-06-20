@@ -40,6 +40,8 @@ const fmtK = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(v);
 
 export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
+  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
+
   const totalVendas = data.pf.clientes + data.pj.clientes;
   const totalFat    = data.pf.total + data.pj.total;
 
@@ -60,8 +62,6 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
     { key: "PF" as const, label: "Pessoa Física",   color: CORES.PF, d: data.pf },
     { key: "PJ" as const, label: "Pessoa Jurídica",  color: CORES.PJ, d: data.pj },
   ];
-
-  const [activeIndex, setActiveIndex] = useState<number | undefined>(undefined);
 
   function toggle(tipo: "PF" | "PJ") {
     if (!onSelect) return;
