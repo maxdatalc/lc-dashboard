@@ -29,7 +29,6 @@ function buildQuery(vendedorClause: string): string {
         p.pgtAtendente, p.pgtTipoVista, p.pgtTipoPrazo
       FROM vendapgto p
       WHERE p.pgtRef IS NULL
-        AND p.empId = @empId
 
       UNION ALL
 
@@ -78,7 +77,7 @@ function buildQuery(vendedorClause: string): string {
 
     FROM CTE_OrigemVenda pgtoFinal
     INNER JOIN venda ON venda.vedId = pgtoFinal.pgtVendaId AND venda.empId = @empId
-    INNER JOIN cliente cli ON cli.cliId = venda.vedAtendente AND cli.empId = @empId
+    INNER JOIN cliente cli ON cli.cliId = venda.vedAtendente
 
     OUTER APPLY (
       SELECT SUM((vi.vdiValor - (vi.vdiValor * ISNULL(vi.vdiDesc, 0))) * vi.vdiQtde) AS Total
@@ -99,7 +98,7 @@ function buildQuery(vendedorClause: string): string {
     WHERE
       NOT EXISTS (
         SELECT 1 FROM vendaPgto p2
-        WHERE p2.pgtRef = pgtoFinal.pgtId AND p2.empId = @empId
+        WHERE p2.pgtRef = pgtoFinal.pgtId
       )
       AND CONVERT(date, pgtoFinal.pgtDataQuitou) BETWEEN @start AND @end
       ${vendedorClause}
