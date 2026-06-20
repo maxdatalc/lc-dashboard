@@ -4,6 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
+  Download,
+  FileSpreadsheet,
+  FileText as FilePdf,
   Loader2,
   Receipt,
   SlidersHorizontal,
@@ -463,17 +466,262 @@ export default function ComissaoRecebimentoPage() {
 
   const multiVendedor  = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
 
+  // ── Exportação ───────────────────────────────────────────────────────────
+  const [exportOpen, setExportOpen] = useState(false);
+  const exportRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node))
+        setExportOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const periodLabel = `${start}_${end}`;
+
+  const buildTableData = () => {
+    const head = [
+      "Data",
+      ...(multiVendedor ? ["Vendedor"] : []),
+      "Tipo",
+      "Forma de Pagamento",
+      "Valor Venda",
+      "Base Comissão",
+      "% Comissão",
+      "Recebido Líq.",
+      "Comissão",
+    ];
+    const body = enrichedRows.map((row) => [
+      fmtData(row.DataPagamento),
+      ...(multiVendedor ? [row.NomeVendedor] : []),
+      row.TipoVenda,
+      row.TipoPagamento,
+      row.ValorTotalVenda,
+      row.BaseCalculoComissao,
+      row.PercentualAplicado,
+      row.ValorRecebidoLiquido,
+      row.ComissaoPaga,
+    ]);
+    return { head, body };
+  };
+
+  const handleExportXlsx = async () => {
+    setExportOpen(false);
+    const XLSX = await import("xlsx");
+    const { body, head } = buildTableData();
+
+    const wsData = [
+      head,
+      ...body,
+      [],
+      [
+        "TOTAL",
+        ...(multiVendedor ? [""] : []),
+        "", "", "", "", "",
+        totalRecebido,
+        totalComissao,
+      ],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Larguras das colunas
+    ws["!cols"] = [
+      { wch: 12 },
+      ...(multiVendedor ? [{ wch: 22 }] : []),
+      { wch: 8 },
+      { wch: 18 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 14 },
+      { wch: 13 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Comissões");
+    XLSX.writeFile(wb, `comissao-recebimento-${periodLabel}.xlsx`);
+  };
+
+  const handleExportPdf = async () => {
+    setExportOpen(false);
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Comissão por Recebimento", 14, 16);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100);
+    doc.text(`Período: ${start.split("-").reverse().join("/")} a ${end.split("-").reverse().join("/")}`, 14, 23);
+    doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 14, 29);
+    doc.setTextColor(0);
+
+    const { head, body } = buildTableData();
+    const numColIdx = multiVendedor ? [4, 5, 6, 7, 8] : [3, 4, 5, 6, 7];
+    const colStyles: Record<number, object> = {};
+    numColIdx.forEach((i) => { colStyles[i] = { halign: "right" }; });
+    // Comissão em negrito
+    colStyles[numColIdx[numColIdx.length - 1]] = { halign: "right", fontStyle: "bold" };
+
+    const bodyFormatted = body.map((row) =>
+      row.map((cell, i) =>
+        numColIdx.includes(i) && i !== numColIdx[numColIdx.length - 4]
+          ? typeof cell === "number" ? fmtMoeda(cell) : cell
+          : i === numColIdx[numColIdx.length - 4]
+          ? `${(cell as number).toFixed(2).replace(".", ",")}%`
+          : cell
+      )
+    );
+
+    autoTable(doc, {
+      head: [head],
+      body: [
+        ...bodyFormatted,
+        [
+          "TOTAL",
+          ...(multiVendedor ? [""] : []),
+          "", "", "", "", "",
+          fmtMoeda(totalRecebido),
+          fmtMoeda(totalComissao),
+        ],
+      ],
+      startY: 34,
+      styles: { fontSize: 7.5, cellPadding: 2 },
+      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [248, 250, 252] },
+      columnStyles: colStyles,
+      didDrawPage: () => {
+        const pageCount = (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1;
+        doc.setFontSize(7.5);
+        doc.setTextColor(150);
+        doc.text(
+          `Página ${pageCount}`,
+          doc.internal.pageSize.getWidth() - 20,
+          doc.internal.pageSize.getHeight() - 8
+        );
+        doc.setTextColor(0);
+      },
+    });
+
+    doc.save(`comissao-recebimento-${periodLabel}.pdf`);
+  };
+
   return (
     <div style={{ padding: "24px", maxWidth: 1200 }}>
 
       {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
-          Comissão por Recebimento
-        </h1>
-        <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
-          Comissões calculadas sobre os valores efetivamente recebidos, por forma de pagamento
-        </p>
+      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+            Comissão por Recebimento
+          </h1>
+          <p style={{ fontSize: 13, color: "var(--text-muted)" }}>
+            Comissões calculadas sobre os valores efetivamente recebidos, por forma de pagamento
+          </p>
+        </div>
+
+        {/* Botão exportar — só aparece com dados */}
+        {generated && enrichedRows.length > 0 && (
+          <div ref={exportRef} style={{ position: "relative", flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => setExportOpen((o) => !o)}
+              style={{
+                height: 36,
+                padding: "0 14px",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                borderRadius: 8,
+                border: "1px solid var(--border-subtle)",
+                background: "var(--bg-card)",
+                color: "var(--text-primary)",
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              <Download style={{ width: 14, height: 14 }} />
+              Exportar
+              <ChevronDown style={{ width: 12, height: 12, color: "var(--text-muted)" }} />
+            </button>
+
+            {exportOpen && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "calc(100% + 6px)",
+                  right: 0,
+                  background: "var(--bg-card)",
+                  border: "1px solid var(--border-subtle)",
+                  borderRadius: 10,
+                  boxShadow: "0 6px 24px rgba(0,0,0,0.25)",
+                  overflow: "hidden",
+                  zIndex: 50,
+                  minWidth: 180,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={handleExportXlsx}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 13,
+                    color: "var(--text-primary)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    borderBottom: "1px solid var(--border-subtle)",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <FileSpreadsheet style={{ width: 15, height: 15, color: "#22c55e" }} />
+                  <div>
+                    <div style={{ fontWeight: 500 }}>Excel</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.xlsx</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleExportPdf}
+                  style={{
+                    width: "100%",
+                    padding: "10px 14px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 13,
+                    color: "var(--text-primary)",
+                    background: "transparent",
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                >
+                  <FilePdf style={{ width: 15, height: 15, color: "#ef4444" }} />
+                  <div>
+                    <div style={{ fontWeight: 500 }}>PDF</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.pdf</div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Filtros ───────────────────────────────────────────────────── */}
