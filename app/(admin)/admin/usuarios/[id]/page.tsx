@@ -39,7 +39,7 @@ export default async function UsuarioDetalhePage({
       .maybeSingle(),
     adminClient
       .from("tenant_users")
-      .select("tenant_id, role, tenants ( id, name, slug, plan, is_active )")
+      .select("tenant_id, role, tenants ( id, name, slug, plan, is_active, features )")
       .eq("user_id", id),
     adminClient
       .from("tenants")
@@ -63,6 +63,7 @@ export default async function UsuarioDetalhePage({
       slug: string;
       plan: string;
       is_active: boolean;
+      features: string[] | null;
     } | null;
   }>)
     .map((tu) => {
@@ -74,6 +75,7 @@ export default async function UsuarioDetalhePage({
         tenant_slug: t.slug,
         tenant_plan: t.plan,
         tenant_ativo: t.is_active,
+        tenant_features: (t.features as string[] | null) ?? [],
         role: tu.role as "owner" | "admin" | "viewer",
       };
     })
@@ -83,8 +85,52 @@ export default async function UsuarioDetalhePage({
       tenant_slug: string;
       tenant_plan: string;
       tenant_ativo: boolean;
+      tenant_features: string[];
       role: "owner" | "admin" | "viewer";
     }[];
+
+  // Lojas e configurações de acesso do usuário por empresa vinculada
+  const linkedIds = empresasVinculadas.map((e) => e.tenant_id);
+  type LojaRow = { id: string; name: string; tenant_id: string };
+  type SettingsRow = {
+    tenant_id: string;
+    loja_ids: string[] | null;
+    modulos: Record<string, boolean> | null;
+  };
+  let lojasData: LojaRow[] = [];
+  let settingsData: SettingsRow[] = [];
+  if (linkedIds.length > 0) {
+    const [lojasAllRes, settingsAllRes] = await Promise.all([
+      adminClient
+        .from("lojas")
+        .select("id, name, tenant_id")
+        .in("tenant_id", linkedIds)
+        .eq("is_active", true)
+        .order("name"),
+      adminClient
+        .from("user_tenant_settings")
+        .select("tenant_id, loja_ids, modulos")
+        .eq("user_id", id)
+        .in("tenant_id", linkedIds),
+    ]);
+    lojasData = (lojasAllRes.data ?? []) as LojaRow[];
+    settingsData = (settingsAllRes.data ?? []) as SettingsRow[];
+  }
+
+  const lojasMap = new Map<string, { id: string; name: string }[]>();
+  lojasData.forEach((l) => {
+    if (!lojasMap.has(l.tenant_id)) lojasMap.set(l.tenant_id, []);
+    lojasMap.get(l.tenant_id)!.push({ id: l.id, name: l.name });
+  });
+  const settingsMap = new Map<string, { lojaIds: string[]; modulos: Record<string, boolean> }>();
+  settingsData.forEach((s) => {
+    settingsMap.set(s.tenant_id, { lojaIds: s.loja_ids ?? [], modulos: s.modulos ?? {} });
+  });
+  const empresasComDetalhes = empresasVinculadas.map((e) => ({
+    ...e,
+    lojas: lojasMap.get(e.tenant_id) ?? [],
+    settings: settingsMap.get(e.tenant_id) ?? { lojaIds: [], modulos: {} },
+  }));
 
   const usuario = {
     id: authUser.id,
@@ -99,7 +145,7 @@ export default async function UsuarioDetalhePage({
   return (
     <UsuarioDetalheClient
       usuario={usuario}
-      empresasVinculadas={empresasVinculadas}
+      empresasVinculadas={empresasComDetalhes}
       todasEmpresas={
         ((todasEmpresasRes.data ?? []) as {
           id: string;
