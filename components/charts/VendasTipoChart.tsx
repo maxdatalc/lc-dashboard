@@ -1,7 +1,6 @@
 "use client";
 
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
-import { formatCurrency } from "@/lib/utils/format";
 import { DollarSign } from "lucide-react";
 
 export interface VendasTipoData {
