@@ -131,9 +131,10 @@ export default function DashboardPage() {
     }
 
     const paramsObj: Record<string, string> = { lojaIds: lojaIds.join(","), period, start, end };
-    if (activeFilter?.type === "vendedor") paramsObj.vendedorId = String(activeFilter.id);
-    if (activeFilter?.type === "cliente")  paramsObj.clienteNome = String(activeFilter.id);
-    if (activeFilter?.type === "produto")  paramsObj.produtoNome = String(activeFilter.id);
+    if (activeFilter?.type === "vendedor") paramsObj.vendedorId   = String(activeFilter.id);
+    if (activeFilter?.type === "cliente")  paramsObj.clienteNome  = String(activeFilter.id);
+    if (activeFilter?.type === "produto")  paramsObj.produtoNome  = String(activeFilter.id);
+    if (activeFilter?.type === "tipo")     paramsObj.tipoPessoa   = String(activeFilter.id);
     const params = new URLSearchParams(paramsObj);
 
     const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes] =
@@ -286,7 +287,16 @@ export default function DashboardPage() {
         </ChartCard>
 
         <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={185}>
-          {chartsLoading ? <ChartSkeleton height={260} /> : <VendasTipoChart data={vendasTipo} />}
+          {chartsLoading ? <ChartSkeleton height={260} /> : (
+            <VendasTipoChart
+              data={vendasTipo}
+              selectedTipo={activeFilter?.type === "tipo" ? activeFilter.id as "PF" | "PJ" : null}
+              onSelect={(tipo) => tipo
+                ? setFilter({ type: "tipo", id: tipo, label: tipo === "PF" ? "Pessoa Física" : "Pessoa Jurídica" })
+                : setFilter(null)
+              }
+            />
+          )}
         </ChartCard>
 
         <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={190}>
