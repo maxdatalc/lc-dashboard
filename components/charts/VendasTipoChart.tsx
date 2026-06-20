@@ -52,17 +52,17 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
     <div className="flex flex-col gap-3">
 
       {/* ── Linha principal: pizza + stats ─────────────────────────── */}
-      <div className="flex gap-3 items-stretch">
+      <div className="flex gap-4 items-center">
 
-        {/* Pizza */}
-        <div className="flex-shrink-0 flex items-center justify-center" style={{ width: 130, height: 130 }}>
-          <ResponsiveContainer width={130} height={130}>
+        {/* Pizza — grande, ocupa ~45% do card */}
+        <div className="flex-shrink-0" style={{ width: 175, height: 175 }}>
+          <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
                 data={chartData}
-                cx={60}
-                cy={60}
-                outerRadius={62}
+                cx="50%"
+                cy="50%"
+                outerRadius={85}
                 innerRadius={0}
                 paddingAngle={2}
                 dataKey="value"
@@ -92,7 +92,7 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
             return (
               <div key={item.key}>
                 {i > 0 && (
-                  <div style={{ height: 1, backgroundColor: "var(--border-subtle)", margin: "6px 0" }} />
+                  <div style={{ height: 1, backgroundColor: "var(--border-subtle)", margin: "10px 0" }} />
                 )}
                 <div
                   className="flex items-center gap-2 rounded-lg transition-all"
@@ -107,18 +107,19 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
                   onClick={() => toggle(item.key)}
                 >
                   {/* Porcentagem grande */}
-                  <div className="flex-shrink-0" style={{ minWidth: 52 }}>
-                    <div className="flex items-center gap-1.5 mb-0.5">
+                  {/* % + label */}
+                  <div className="flex-shrink-0" style={{ minWidth: 60 }}>
+                    <div className="flex items-center gap-1.5 mb-1">
                       <span style={{
-                        width: 7, height: 7, borderRadius: "50%",
+                        width: 8, height: 8, borderRadius: "50%",
                         backgroundColor: item.color, display: "inline-block", flexShrink: 0,
                       }} />
-                      <span style={{ fontSize: 10, color: "var(--text-muted)", lineHeight: 1 }}>
+                      <span style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1 }}>
                         {item.label}
                       </span>
                     </div>
                     <span style={{
-                      fontSize: "1.8rem", fontWeight: 700, lineHeight: 1,
+                      fontSize: "2rem", fontWeight: 700, lineHeight: 1,
                       color: item.color, fontVariantNumeric: "tabular-nums",
                       fontFamily: "var(--font-numeric)",
                     }}>
@@ -127,31 +128,31 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
                   </div>
 
                   {/* Separador vertical */}
-                  <div style={{ width: 1, height: 40, backgroundColor: "var(--border-subtle)", flexShrink: 0 }} />
+                  <div style={{ width: 1, height: 48, backgroundColor: "var(--border-subtle)", flexShrink: 0 }} />
 
                   {/* Vendas */}
                   <div className="flex-1 text-center min-w-0">
                     <p style={{
-                      fontSize: 14, fontWeight: 700, color: "var(--text-primary)",
+                      fontSize: 16, fontWeight: 700, color: "var(--text-primary)",
                       fontVariantNumeric: "tabular-nums", lineHeight: 1,
                     }}>
                       {item.d.clientes.toLocaleString("pt-BR")}
                     </p>
-                    <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>vendas</p>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>vendas</p>
                   </div>
 
                   {/* Separador vertical */}
-                  <div style={{ width: 1, height: 40, backgroundColor: "var(--border-subtle)", flexShrink: 0 }} />
+                  <div style={{ width: 1, height: 48, backgroundColor: "var(--border-subtle)", flexShrink: 0 }} />
 
                   {/* Faturamento */}
                   <div className="flex-1 text-right min-w-0">
                     <p style={{
-                      fontSize: 11, fontWeight: 700, color: "var(--text-primary)",
+                      fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
                       fontVariantNumeric: "tabular-nums", lineHeight: 1,
                     }}>
                       {fmtK(item.d.total)}
                     </p>
-                    <p style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 2 }}>faturamento</p>
+                    <p style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>faturamento</p>
                   </div>
                 </div>
               </div>
