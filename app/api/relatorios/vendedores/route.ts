@@ -30,12 +30,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
        venda.vedAtendente AS VendedorId,
        cli.cliNome        AS Nome
      FROM venda
-     INNER JOIN cliente cli
-       ON cli.cliId   = venda.vedAtendente
-      AND cli.empId   = @empId
-     WHERE venda.empId     = @empId
-       AND venda.vedAtendente IS NOT NULL
-       AND venda.vedStatus  = 'F'
+     INNER JOIN cliente cli ON cli.cliId = venda.vedAtendente
+     WHERE venda.empId            = @empId
+       AND venda.vedAtendente     IS NOT NULL
+       AND venda.vedStatus        = 'F'
+       AND venda.vedTipo          IN ('OS','VE')
+       AND venda.vedTotalNf       > 0
      ORDER BY cli.cliNome`,
     { empId: config.empId }
   );

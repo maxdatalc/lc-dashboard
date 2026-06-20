@@ -7,6 +7,7 @@ import {
   Loader2,
   Receipt,
   SlidersHorizontal,
+  Store,
   TrendingUp,
   Users,
 } from "lucide-react";
@@ -369,7 +370,14 @@ type EnrichedRow = ComissaoRow & {
 };
 
 export default function ComissaoRecebimentoPage() {
-  const { lojasSelecionadas } = useLoja();
+  const { lojasDisponiveis } = useLoja();
+
+  // Loja local: auto-seleciona se só tem uma disponível
+  const [lojaId, setLojaId] = useState<string>("");
+
+  useEffect(() => {
+    if (lojasDisponiveis.length === 1) setLojaId(lojasDisponiveis[0].id);
+  }, [lojasDisponiveis]);
 
   const [start, setStart]     = useState(firstDayOfMonth);
   const [end, setEnd]         = useState(today);
@@ -386,13 +394,14 @@ export default function ComissaoRecebimentoPage() {
 
   // Fetch vendedores when loja changes
   useEffect(() => {
-    if (lojasSelecionadas.length === 0) return;
+    if (!lojaId) return;
     setVendedoresSel([]);
-    fetch(`/api/relatorios/vendedores?lojaIds=${lojasSelecionadas.join(",")}`)
+    setVendedores([]);
+    fetch(`/api/relatorios/vendedores?lojaIds=${lojaId}`)
       .then((r) => r.json())
       .then((data) => setVendedores(Array.isArray(data) ? data : []))
       .catch(() => setVendedores([]));
-  }, [lojasSelecionadas]);
+  }, [lojaId]);
 
   const handleRateChange = useCallback((key: string, value: number) => {
     setRates((prev) => {
@@ -426,15 +435,11 @@ export default function ComissaoRecebimentoPage() {
   );
 
   const handleGerar = async () => {
-    if (lojasSelecionadas.length === 0) return;
+    if (!lojaId) return;
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({
-        lojaIds: lojasSelecionadas.join(","),
-        start,
-        end,
-      });
+      const params = new URLSearchParams({ lojaIds: lojaId, start, end });
       if (vendedoresSel.length > 0) params.set("vendedorIds", vendedoresSel.join(","));
 
       const res = await fetch(`/api/relatorios/comissao-recebimento?${params}`);
@@ -457,17 +462,6 @@ export default function ComissaoRecebimentoPage() {
   const pctMedio       = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
 
   const multiVendedor  = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
-
-  // ── Guard: sem loja selecionada ──────────────────────────────────────────
-  if (lojasSelecionadas.length === 0) {
-    return (
-      <div style={{ padding: "48px 24px", textAlign: "center" }}>
-        <p style={{ color: "var(--text-muted)", fontSize: 14 }}>
-          Selecione uma loja para gerar o relatório.
-        </p>
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: "24px", maxWidth: 1200 }}>
@@ -497,6 +491,59 @@ export default function ComissaoRecebimentoPage() {
       >
         {/* Linha de filtros */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+          {/* Seletor de loja */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
+              Loja
+            </label>
+            <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+              <Store
+                style={{
+                  position: "absolute",
+                  left: 10,
+                  width: 14,
+                  height: 14,
+                  color: "var(--text-muted)",
+                  pointerEvents: "none",
+                }}
+              />
+              <select
+                value={lojaId}
+                onChange={(e) => setLojaId(e.target.value)}
+                style={{
+                  height: 36,
+                  paddingLeft: 30,
+                  paddingRight: 28,
+                  borderRadius: 8,
+                  border: `1px solid ${!lojaId ? "rgba(239,68,68,0.5)" : "var(--border-subtle)"}`,
+                  background: "var(--bg-card)",
+                  color: lojaId ? "var(--text-primary)" : "var(--text-muted)",
+                  fontSize: 13,
+                  minWidth: 180,
+                  appearance: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="">Selecione uma loja…</option>
+                {lojasDisponiveis.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                style={{
+                  position: "absolute",
+                  right: 8,
+                  width: 13,
+                  height: 13,
+                  color: "var(--text-muted)",
+                  pointerEvents: "none",
+                }}
+              />
+            </div>
+          </div>
+
           {/* Data inicial */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
@@ -555,16 +602,16 @@ export default function ComissaoRecebimentoPage() {
           <button
             type="button"
             onClick={handleGerar}
-            disabled={loading}
+            disabled={loading || !lojaId}
             style={{
               height: 36,
               padding: "0 20px",
               borderRadius: 8,
-              background: loading ? "var(--sidebar-item-active-bg)" : "var(--accent-cyan)",
-              color: loading ? "var(--text-muted)" : "#000",
+              background: (loading || !lojaId) ? "var(--sidebar-item-active-bg)" : "var(--accent-cyan)",
+              color: (loading || !lojaId) ? "var(--text-muted)" : "#000",
               fontSize: 13,
               fontWeight: 600,
-              cursor: loading ? "not-allowed" : "pointer",
+              cursor: (loading || !lojaId) ? "not-allowed" : "pointer",
               display: "flex",
               alignItems: "center",
               gap: 6,
