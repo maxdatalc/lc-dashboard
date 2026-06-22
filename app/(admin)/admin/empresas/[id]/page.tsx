@@ -117,16 +117,16 @@ export default async function GerenciarEmpresaPage({
 
             {/* Código externo — identificador no sistema do cliente */}
             <form action={salvarCodigoExterno.bind(null, id)} className="flex items-center gap-2 mt-3">
-              <label className="text-xs text-slate-400 font-medium shrink-0">Cód. externo:</label>
+              <label className="text-xs text-slate-500 font-semibold shrink-0">Cód. externo:</label>
               <input
                 name="codigo_externo"
                 defaultValue={tenant.codigoExterno ?? ""}
                 placeholder="ex: 15786"
-                className="text-xs font-mono border border-slate-200 rounded px-2 py-1 text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-400 w-28"
+                className="text-xs font-mono border border-slate-300 rounded px-2 py-1 text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 w-28"
               />
               <button
                 type="submit"
-                className="text-xs text-slate-500 border border-slate-200 rounded px-2 py-1 hover:bg-slate-50 transition-colors"
+                className="text-xs font-semibold text-slate-700 border border-slate-300 bg-white rounded px-2.5 py-1 hover:bg-slate-50 hover:border-slate-400 transition-colors"
               >
                 Salvar
               </button>
