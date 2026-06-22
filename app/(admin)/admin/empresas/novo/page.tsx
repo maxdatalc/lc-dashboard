@@ -19,10 +19,10 @@ const ICONE_MAP: Record<string, React.ElementType> = {
 };
 
 const INPUT =
-  "w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white";
-const LABEL = "block text-xs font-medium text-slate-600 mb-1.5";
+  "w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-500 transition-all bg-white";
+const LABEL = "block text-xs font-semibold text-slate-700 mb-1.5";
 const SELECT =
-  "border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white";
+  "border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-500 transition-all bg-white";
 const SECTION_NUM =
   "w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0";
 
@@ -194,13 +194,16 @@ export default function NovaEmpresaPage() {
       }
     }
 
-    if (!form.usuarioNome || !form.usuarioEmail || !form.usuarioSenha) {
-      setErroGeral("Preencha todos os dados do usuário.");
-      return;
-    }
-    if (form.usuarioSenha.length < 8) {
-      setErroGeral("A senha deve ter no mínimo 8 caracteres.");
-      return;
+    const temUsuario = !!(form.usuarioNome || form.usuarioEmail || form.usuarioSenha);
+    if (temUsuario) {
+      if (!form.usuarioNome || !form.usuarioEmail || !form.usuarioSenha) {
+        setErroGeral("Preencha todos os dados do usuário ou deixe todos em branco.");
+        return;
+      }
+      if (form.usuarioSenha.length < 8) {
+        setErroGeral("A senha deve ter no mínimo 8 caracteres.");
+        return;
+      }
     }
 
     const bridgeConectada = bridgeStatus === "connected" && !editandoBridge;
@@ -225,12 +228,14 @@ export default function NovaEmpresaPage() {
             sqlBridgeToken: l.fromBridge && bridgeConectada ? bridgeToken : undefined,
           })),
           features: form.featuresAtivas,
-          usuario: {
-            email: form.usuarioEmail,
-            senha: form.usuarioSenha,
-            nomeCompleto: form.usuarioNome,
-            papel: form.usuarioPapel,
-          },
+          usuario: (form.usuarioNome && form.usuarioEmail && form.usuarioSenha)
+            ? {
+                email: form.usuarioEmail,
+                senha: form.usuarioSenha,
+                nomeCompleto: form.usuarioNome,
+                papel: form.usuarioPapel,
+              }
+            : null,
         }),
       });
 
@@ -662,15 +667,16 @@ export default function NovaEmpresaPage() {
             <div className="flex items-center gap-2">
               <span className={SECTION_NUM}>4</span>
               <h2 className="text-sm font-semibold text-slate-900">Acesso do Gestor</h2>
+              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Opcional</span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5 pl-7">
-              Usuário inicial que receberá acesso à empresa
+              Deixe em branco para cadastrar usuários depois pela aba Usuários.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={LABEL}>Nome Completo <span className="text-red-500">*</span></label>
+              <label className={LABEL}>Nome Completo</label>
               <input
                 type="text"
                 value={form.usuarioNome}
@@ -680,7 +686,7 @@ export default function NovaEmpresaPage() {
               />
             </div>
             <div>
-              <label className={LABEL}>E-mail <span className="text-red-500">*</span></label>
+              <label className={LABEL}>E-mail</label>
               <input
                 type="email"
                 value={form.usuarioEmail}
@@ -693,7 +699,7 @@ export default function NovaEmpresaPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={LABEL}>Senha provisória <span className="text-red-500">*</span></label>
+              <label className={LABEL}>Senha provisória</label>
               <div className="relative">
                 <input
                   type={verSenha ? "text" : "password"}
