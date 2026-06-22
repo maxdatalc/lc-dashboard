@@ -12,6 +12,7 @@ import {
   getCidadesDistintas,
   getClientesBaseStats,
   getCnpjsCadastrados,
+  getCodigosExternosCadastrados,
 } from "@/lib/db/clientes-base";
 
 // ── Cores por segmento ─────────────────────────────────────────────────────────
@@ -70,7 +71,10 @@ export default async function ClientesAdminPage({
   const status   = (sp.status === "cadastrados" || sp.status === "pendentes") ? sp.status : "";
   const page     = Math.max(1, Number(sp.page ?? 1));
 
-  const cnpjsCadastrados = await getCnpjsCadastrados();
+  const [cnpjsCadastrados, codigosExternosCadastrados] = await Promise.all([
+    getCnpjsCadastrados(),
+    getCodigosExternosCadastrados(),
+  ]);
 
   const [{ data: clientes, total }, stats, segmentos, cidades] = await Promise.all([
     getClientesBase({
@@ -79,7 +83,8 @@ export default async function ClientesAdminPage({
       cidade: cidade || undefined,
       page,
       status: status || undefined,
-      cnpjsCadastrados: status ? cnpjsCadastrados : undefined,
+      cnpjsCadastrados,
+      codigosExternosCadastrados,
     }),
     getClientesBaseStats(),
     getSegmentosDistintos(),
@@ -223,7 +228,9 @@ export default async function ClientesAdminPage({
           <div className="divide-y divide-slate-50">
             {clientes.map((cliente) => {
               const cor = getSegmentoCor(cliente.segmento);
-              const cadastrado = !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
+              const cadastrado =
+                !!(cliente.codigo_externo && codigosExternosCadastrados.has(cliente.codigo_externo)) ||
+                !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
               return (
                 <Link
                   key={cliente.id}
@@ -296,7 +303,9 @@ export default async function ClientesAdminPage({
           <div className="sm:hidden divide-y divide-slate-50">
             {clientes.map((cliente) => {
               const cor = getSegmentoCor(cliente.segmento);
-              const cadastrado = !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
+              const cadastrado =
+                !!(cliente.codigo_externo && codigosExternosCadastrados.has(cliente.codigo_externo)) ||
+                !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
               return (
                 <Link
                   key={`mob-${cliente.id}`}

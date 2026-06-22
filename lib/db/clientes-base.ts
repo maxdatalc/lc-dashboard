@@ -27,6 +27,7 @@ export async function getClientesBase(opts?: {
   page?: number;
   status?: "cadastrados" | "pendentes";
   cnpjsCadastrados?: Set<string>;
+  codigosExternosCadastrados?: Map<string, ClienteCadastradoMatch>;
 }): Promise<{ data: ClienteBase[]; total: number }> {
   const supabase = createAdminClient();
   const page = Math.max(1, opts?.page ?? 1);
@@ -44,16 +45,20 @@ export async function getClientesBase(opts?: {
   if (opts?.segmento) query = query.eq("segmento", opts.segmento);
   if (opts?.cidade) query = query.eq("cidade", opts.cidade);
 
+  const isCadastrado = (c: ClienteBase) => {
+    if (c.codigo_externo && opts?.codigosExternosCadastrados?.has(c.codigo_externo)) return true;
+    if (c.cnpj_cpf && opts?.cnpjsCadastrados?.has(c.cnpj_cpf)) return true;
+    return false;
+  };
+
   // Status filter: fetch all and filter in-memory (dataset is small, max ~1000 records)
-  if (opts?.status && opts.cnpjsCadastrados) {
+  if (opts?.status) {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
     const all = (data ?? []) as ClienteBase[];
-    const set = opts.cnpjsCadastrados;
-    const filtered = all.filter((c) => {
-      const isCadastrado = !!(c.cnpj_cpf && set.has(c.cnpj_cpf));
-      return opts.status === "cadastrados" ? isCadastrado : !isCadastrado;
-    });
+    const filtered = all.filter((c) =>
+      opts.status === "cadastrados" ? isCadastrado(c) : !isCadastrado(c)
+    );
     const offset = (page - 1) * PER_PAGE;
     return { data: filtered.slice(offset, offset + PER_PAGE), total: filtered.length };
   }
@@ -160,6 +165,12 @@ export async function getCidadesDistintas(): Promise<string[]> {
   return unique;
 }
 
+export type ClienteCadastradoMatch = {
+  tenantId: string;
+  tenantName: string;
+};
+
+/** Retorna um Map com todos os CNPJs de lojas cadastradas → {tenantId, tenantName} */
 export async function getCnpjsCadastrados(): Promise<Set<string>> {
   const supabase = createAdminClient();
   const { data } = await supabase
@@ -173,24 +184,63 @@ export async function getCnpjsCadastrados(): Promise<Set<string>> {
   );
 }
 
-export async function getGrupoByCnpj(
-  cnpj: string
-): Promise<{ tenantId: string; tenantName: string } | null> {
+/** Retorna um Map com todos os codigo_externo de tenants cadastrados → {tenantId, tenantName} */
+export async function getCodigosExternosCadastrados(): Promise<Map<string, ClienteCadastradoMatch>> {
   const supabase = createAdminClient();
   const { data } = await supabase
-    .from("lojas")
-    .select("tenant_id, tenants(name)")
-    .eq("cnpj", cnpj)
-    .maybeSingle();
-  if (!data) return null;
-  const raw = data.tenants as unknown;
-  const tenantName = Array.isArray(raw)
-    ? ((raw[0] as { name?: string })?.name ?? "")
-    : ((raw as { name?: string } | null)?.name ?? "");
-  return {
-    tenantId: data.tenant_id as string,
-    tenantName,
-  };
+    .from("tenants")
+    .select("id, name, codigo_externo")
+    .not("codigo_externo", "is", null);
+  const map = new Map<string, ClienteCadastradoMatch>();
+  for (const r of (data ?? []) as { id: string; name: string; codigo_externo: string | null }[]) {
+    if (r.codigo_externo) {
+      map.set(r.codigo_externo, { tenantId: r.id, tenantName: r.name });
+    }
+  }
+  return map;
+}
+
+/** Encontra o grupo cadastrado para um cliente, tentando codigo_externo e depois CNPJ */
+export async function getGrupoByCliente(
+  codigoExterno: string | null,
+  cnpj: string | null
+): Promise<ClienteCadastradoMatch | null> {
+  const supabase = createAdminClient();
+
+  // 1. Prioridade: codigo_externo
+  if (codigoExterno) {
+    const { data } = await supabase
+      .from("tenants")
+      .select("id, name")
+      .eq("codigo_externo", codigoExterno)
+      .maybeSingle();
+    if (data) {
+      return { tenantId: (data as { id: string; name: string }).id, tenantName: (data as { id: string; name: string }).name };
+    }
+  }
+
+  // 2. Fallback: CNPJ via lojas
+  if (cnpj) {
+    const { data } = await supabase
+      .from("lojas")
+      .select("tenant_id, tenants(id, name)")
+      .eq("cnpj", cnpj)
+      .maybeSingle();
+    if (data) {
+      const raw = data.tenants as unknown;
+      const t = Array.isArray(raw) ? (raw[0] as { id?: string; name?: string }) : (raw as { id?: string; name?: string } | null);
+      if (t?.id) return { tenantId: t.id, tenantName: t.name ?? "" };
+    }
+  }
+
+  return null;
+}
+
+/** @deprecated use getGrupoByCliente */
+export async function getGrupoByCnpj(
+  cnpj: string
+): Promise<ClienteCadastradoMatch | null> {
+  return getGrupoByCliente(null, cnpj);
 }
 
 export async function getClientesBaseStats(): Promise<{

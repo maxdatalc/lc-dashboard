@@ -15,6 +15,7 @@ export type TenantComLojas = {
   plan: "free" | "premium";
   isActive: boolean;
   createdAt: string;
+  codigoExterno: string | null;
   lojas: {
     id: string;
     name: string;
@@ -123,6 +124,7 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
     plan: t.plan as "free" | "premium",
     isActive: t.is_active as boolean,
     createdAt: t.created_at as string,
+    codigoExterno: (t.codigo_externo as string) ?? null,
     lojas: (lojasPorTenant[t.id as string] ?? []).map((l) => ({
       id: l.id as string,
       name: l.name as string,
@@ -158,6 +160,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
     plan: t.plan as "free" | "premium",
     isActive: t.is_active as boolean,
     createdAt: t.created_at as string,
+    codigoExterno: (t.codigo_externo as string) ?? null,
     lojas: ((lojasRes.data ?? []) as Record<string, unknown>[]).map((l) => ({
       id: l.id as string,
       name: l.name as string,
@@ -303,6 +306,18 @@ export async function updateTenantPlan(
     .update({ plan })
     .eq("id", tenantId);
   if (error) throw new Error(`Erro ao atualizar plano: ${error.message}`);
+}
+
+export async function updateTenantCodigoExterno(
+  tenantId: string,
+  codigoExterno: string | null
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("tenants")
+    .update({ codigo_externo: codigoExterno })
+    .eq("id", tenantId);
+  if (error) throw new Error(`Erro ao atualizar código externo: ${error.message}`);
 }
 
 /** Adiciona uma nova loja a um tenant existente */
