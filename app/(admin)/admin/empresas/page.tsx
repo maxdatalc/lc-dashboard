@@ -4,10 +4,12 @@ export const revalidate = 0;
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
+import { BookUser } from "lucide-react";
 import { getAllTenants } from "@/lib/db/admin";
 import { EmpresasListClient } from "@/components/admin/EmpresasListClient";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { isSystemAdmin } from "@/lib/db/admin";
+import { getClientesBaseStats } from "@/lib/db/clientes-base";
 
 async function acessarDashboard(formData: FormData) {
   "use server";
@@ -47,7 +49,10 @@ async function acessarDashboard(formData: FormData) {
 }
 
 export default async function AdminEmpresasPage() {
-  const tenants = await getAllTenants();
+  const [tenants, clientesStats] = await Promise.all([
+    getAllTenants(),
+    getClientesBaseStats(),
+  ]);
 
   return (
     <div className="p-6 space-y-6">
@@ -57,18 +62,32 @@ export default async function AdminEmpresasPage() {
         style={{ animation: "fadeInUp 0.3s ease-out both" }}
       >
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Empresas</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Grupos</h1>
           <p className="text-slate-500 text-sm mt-1">
             {tenants.length}{" "}
-            {tenants.length === 1 ? "empresa cadastrada" : "empresas cadastradas"}
+            {tenants.length === 1 ? "grupo cadastrado" : "grupos cadastrados"}
           </p>
         </div>
-        <Link
-          href="/admin/empresas/novo"
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
-        >
-          + Nova Empresa
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/clientes"
+            className="inline-flex items-center gap-2 border border-slate-200 text-slate-700 bg-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-50 hover:shadow-sm transition-all"
+          >
+            <BookUser className="h-4 w-4" />
+            Base de Clientes
+            {clientesStats.total > 0 && (
+              <span className="ml-0.5 text-xs bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded-full">
+                {clientesStats.total}
+              </span>
+            )}
+          </Link>
+          <Link
+            href="/admin/empresas/novo"
+            className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
+          >
+            + Novo Grupo
+          </Link>
+        </div>
       </div>
 
       <EmpresasListClient

@@ -8,6 +8,7 @@ import {
   getSegmentosDistintos,
   getCidadesDistintas,
   getClientesBaseStats,
+  getCnpjsCadastrados,
 } from "@/lib/db/clientes-base";
 
 // ── Cores por segmento ─────────────────────────────────────────────────────────
@@ -53,11 +54,12 @@ export default async function ClientesAdminPage({
   const cidade   = sp.cidade ?? "";
   const page     = Math.max(1, Number(sp.page ?? 1));
 
-  const [{ data: clientes, total }, stats, segmentos, cidades] = await Promise.all([
+  const [{ data: clientes, total }, stats, segmentos, cidades, cnpjsCadastrados] = await Promise.all([
     getClientesBase({ q: q || undefined, segmento: segmento || undefined, cidade: cidade || undefined, page }),
     getClientesBaseStats(),
     getSegmentosDistintos(),
     getCidadesDistintas(),
+    getCnpjsCadastrados(),
   ]);
 
   const perPage   = 30;
@@ -185,14 +187,15 @@ export default async function ClientesAdminPage({
           <div className="divide-y divide-slate-50">
             {clientes.map((cliente) => {
               const cor = getSegmentoCor(cliente.segmento);
+              const cadastrado = !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
               return (
                 <Link
                   key={cliente.id}
                   href={`/admin/clientes/${cliente.id}`}
                   className="group flex sm:grid items-center gap-3 sm:gap-0 px-4 py-3 hover:bg-slate-50 transition-colors"
                   style={{
-                    gridTemplateColumns: "56px 1fr 180px 120px 40px",
-                    borderLeft: `3px solid ${cor.border}`,
+                    gridTemplateColumns: "56px 1fr 180px 120px 120px 40px",
+                    borderLeft: `3px solid ${cadastrado ? "#10b981" : cor.border}`,
                   }}
                 >
                   {/* Código */}
@@ -226,6 +229,18 @@ export default async function ClientesAdminPage({
                   <span className="hidden sm:block text-xs text-slate-500 truncate">
                     {cliente.cidade ?? "—"}
                   </span>
+
+                  {/* Status cadastro */}
+                  <div className="hidden sm:flex items-center">
+                    {cadastrado ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                        Cadastrado
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300">Prospecto</span>
+                    )}
+                  </div>
 
                   {/* Seta */}
                   <div className="hidden sm:flex items-center justify-end">

@@ -130,6 +130,39 @@ export async function getCidadesDistintas(): Promise<string[]> {
   return unique;
 }
 
+export async function getCnpjsCadastrados(): Promise<Set<string>> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("lojas")
+    .select("cnpj")
+    .not("cnpj", "is", null);
+  return new Set(
+    (data ?? [])
+      .map((r: { cnpj: string | null }) => r.cnpj ?? "")
+      .filter(Boolean)
+  );
+}
+
+export async function getGrupoByCnpj(
+  cnpj: string
+): Promise<{ tenantId: string; tenantName: string } | null> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("lojas")
+    .select("tenant_id, tenants(name)")
+    .eq("cnpj", cnpj)
+    .maybeSingle();
+  if (!data) return null;
+  const raw = data.tenants as unknown;
+  const tenantName = Array.isArray(raw)
+    ? ((raw[0] as { name?: string })?.name ?? "")
+    : ((raw as { name?: string } | null)?.name ?? "");
+  return {
+    tenantId: data.tenant_id as string,
+    tenantName,
+  };
+}
+
 export async function getClientesBaseStats(): Promise<{
   total: number;
   cidades: number;
