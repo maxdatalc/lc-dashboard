@@ -85,6 +85,7 @@ export default function NovaEmpresaPage() {
   const [loading, setLoading] = useState(false);
   const [erroGeral, setErroGeral] = useState<string | null>(null);
   const [sucesso, setSucesso] = useState(false);
+  const [clientesVinculados, setClientesVinculados] = useState(0);
   const [verSenha, setVerSenha] = useState(false);
 
   async function handleConectarBridge() {
@@ -239,12 +240,13 @@ export default function NovaEmpresaPage() {
         }),
       });
 
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as { error?: string; clientesVinculados?: number };
       if (!res.ok) {
         setErroGeral(data.error ?? "Erro ao cadastrar empresa.");
         return;
       }
 
+      setClientesVinculados(data.clientesVinculados ?? 0);
       setSucesso(true);
       router.refresh();
       setTimeout(() => router.push("/admin/empresas"), 1500);
@@ -268,7 +270,14 @@ export default function NovaEmpresaPage() {
         </div>
         <div className="text-center">
           <p className="text-xl font-bold text-slate-900">Empresa cadastrada!</p>
-          <p className="text-sm text-slate-400 mt-1">Redirecionando para a lista...</p>
+          {clientesVinculados > 0 ? (
+            <p className="text-sm text-emerald-600 mt-1 font-medium">
+              {clientesVinculados} {clientesVinculados === 1 ? "empresa vinculada" : "empresas vinculadas"} automaticamente na base de clientes.
+            </p>
+          ) : (
+            <p className="text-sm text-slate-400 mt-1">Nenhum cliente encontrado na base para vincular.</p>
+          )}
+          <p className="text-xs text-slate-400 mt-2">Redirecionando para a lista...</p>
         </div>
       </div>
     );
