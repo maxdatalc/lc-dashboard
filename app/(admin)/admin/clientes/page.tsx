@@ -41,38 +41,52 @@ function getSegmentoCor(seg: string | null) {
   return SEGMENTO_CORES[seg] ?? { border: "#e2e8f0", bg: "#f8fafc", text: "#64748b" };
 }
 
+// ── Grid ───────────────────────────────────────────────────────────────────────
+const GRID = "56px 1fr 170px 120px 110px 40px";
+
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 export default async function ClientesAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; segmento?: string; cidade?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; segmento?: string; cidade?: string; status?: string; page?: string }>;
 }) {
   const sp = await searchParams;
   const q        = sp.q?.trim() ?? "";
   const segmento = sp.segmento ?? "";
   const cidade   = sp.cidade ?? "";
+  const status   = (sp.status === "cadastrados" || sp.status === "pendentes") ? sp.status : "";
   const page     = Math.max(1, Number(sp.page ?? 1));
 
-  const [{ data: clientes, total }, stats, segmentos, cidades, cnpjsCadastrados] = await Promise.all([
-    getClientesBase({ q: q || undefined, segmento: segmento || undefined, cidade: cidade || undefined, page }),
+  const cnpjsCadastrados = await getCnpjsCadastrados();
+
+  const [{ data: clientes, total }, stats, segmentos, cidades] = await Promise.all([
+    getClientesBase({
+      q: q || undefined,
+      segmento: segmento || undefined,
+      cidade: cidade || undefined,
+      page,
+      status: status || undefined,
+      cnpjsCadastrados: status ? cnpjsCadastrados : undefined,
+    }),
     getClientesBaseStats(),
     getSegmentosDistintos(),
     getCidadesDistintas(),
-    getCnpjsCadastrados(),
   ]);
 
   const perPage   = 30;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   const buildUrl = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams({ q, segmento, cidade, page: String(page) });
+    const params = new URLSearchParams({ q, segmento, cidade, status, page: String(page) });
     Object.entries(overrides).forEach(([k, v]) => {
       if (v) params.set(k, v);
       else params.delete(k);
     });
     return `/admin/clientes?${params.toString()}`;
   };
+
+  const hasFilter = !!(q || segmento || cidade || status);
 
   return (
     <div className="p-6 space-y-5" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
@@ -125,13 +139,22 @@ export default async function ClientesAdminPage({
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
+        <select
+          name="status"
+          defaultValue={status}
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+        >
+          <option value="">Todos os status</option>
+          <option value="cadastrados">Cadastrados</option>
+          <option value="pendentes">Pendentes</option>
+        </select>
         <button
           type="submit"
           className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors"
         >
           Filtrar
         </button>
-        {(q || segmento || cidade) && (
+        {hasFilter && (
           <Link
             href="/admin/clientes"
             className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
@@ -148,9 +171,7 @@ export default async function ClientesAdminPage({
           {stats.total === 0 ? (
             <>
               <p className="text-sm font-medium text-slate-600">Nenhum cliente importado ainda</p>
-              <p className="text-xs text-slate-400 mt-1.5">
-                Importe um arquivo XLSX para começar
-              </p>
+              <p className="text-xs text-slate-400 mt-1.5">Importe um arquivo XLSX para começar</p>
               <Link
                 href="/admin/clientes/importar"
                 className="inline-flex items-center gap-2 mt-4 text-xs font-medium text-slate-700 border border-slate-200 px-4 py-2 rounded-lg hover:bg-slate-50"
@@ -174,12 +195,13 @@ export default async function ClientesAdminPage({
           {/* Cabeçalho da tabela */}
           <div
             className="hidden sm:grid text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5"
-            style={{ gridTemplateColumns: "56px 1fr 180px 120px 40px", borderBottom: "1px solid #f1f5f9" }}
+            style={{ gridTemplateColumns: GRID, borderBottom: "1px solid #f1f5f9" }}
           >
             <span>Código</span>
             <span>Empresa</span>
             <span>Segmento</span>
             <span>Cidade</span>
+            <span>Status</span>
             <span />
           </div>
 
@@ -192,19 +214,19 @@ export default async function ClientesAdminPage({
                 <Link
                   key={cliente.id}
                   href={`/admin/clientes/${cliente.id}`}
-                  className="group flex sm:grid items-center gap-3 sm:gap-0 px-4 py-3 hover:bg-slate-50 transition-colors"
+                  className="group hidden sm:grid items-center px-4 py-3 hover:bg-slate-50 transition-colors"
                   style={{
-                    gridTemplateColumns: "56px 1fr 180px 120px 120px 40px",
+                    gridTemplateColumns: GRID,
                     borderLeft: `3px solid ${cadastrado ? "#10b981" : cor.border}`,
                   }}
                 >
                   {/* Código */}
-                  <span className="text-xs font-mono text-slate-400 shrink-0 w-14">
+                  <span className="text-xs font-mono text-slate-400">
                     {cliente.codigo_externo ?? "—"}
                   </span>
 
                   {/* Nome */}
-                  <div className="min-w-0">
+                  <div className="min-w-0 pr-4">
                     <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-slate-700">
                       {cliente.nome_fantasia || cliente.razao_social}
                     </p>
@@ -214,38 +236,67 @@ export default async function ClientesAdminPage({
                   </div>
 
                   {/* Segmento */}
-                  <div className="hidden sm:flex items-center">
-                    {cliente.segmento && (
+                  <div className="flex items-center pr-3">
+                    {cliente.segmento ? (
                       <span
-                        className="inline-block text-xs font-medium px-2 py-0.5 rounded-full truncate max-w-[160px]"
+                        className="inline-block text-xs font-medium px-2 py-0.5 rounded-full truncate max-w-full"
                         style={{ background: cor.bg, color: cor.text }}
                       >
                         {cliente.segmento}
                       </span>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
                     )}
                   </div>
 
                   {/* Cidade */}
-                  <span className="hidden sm:block text-xs text-slate-500 truncate">
+                  <span className="text-xs text-slate-500 truncate pr-3">
                     {cliente.cidade ?? "—"}
                   </span>
 
-                  {/* Status cadastro */}
-                  <div className="hidden sm:flex items-center">
+                  {/* Status */}
+                  <div className="flex items-center">
                     {cadastrado ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
                         Cadastrado
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-300">Prospecto</span>
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full whitespace-nowrap">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                        Pendente
+                      </span>
                     )}
                   </div>
 
                   {/* Seta */}
-                  <div className="hidden sm:flex items-center justify-end">
+                  <div className="flex items-center justify-end">
                     <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
                   </div>
+                </Link>
+              );
+            })}
+          </div>
+
+          {/* Versão mobile (sem grid) */}
+          <div className="sm:hidden divide-y divide-slate-50">
+            {clientes.map((cliente) => {
+              const cor = getSegmentoCor(cliente.segmento);
+              const cadastrado = !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
+              return (
+                <Link
+                  key={`mob-${cliente.id}`}
+                  href={`/admin/clientes/${cliente.id}`}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
+                  style={{ borderLeft: `3px solid ${cadastrado ? "#10b981" : cor.border}` }}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-slate-900 truncate">
+                      {cliente.nome_fantasia || cliente.razao_social}
+                    </p>
+                    <p className="text-xs text-slate-400 truncate mt-0.5">{cliente.cnpj_cpf}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
                 </Link>
               );
             })}
