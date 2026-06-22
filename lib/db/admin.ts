@@ -3,7 +3,7 @@
 
 import { createAdminClient } from "@/lib/supabase/server";
 import { createTenant, createLoja } from "@/lib/db/tenants";
-import { FEATURES_CATALOG } from "@/lib/features";
+import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import type { UserRole } from "@/lib/plans";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────
@@ -265,12 +265,14 @@ export async function updateTenantFeatures(
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  // Determinar plano com base nas features premium selecionadas
+  // Determinar plano com base nas features premium OPCIONAIS selecionadas.
+  // Features em getCoreFeatures() são sempre incluídas e não afetam o plano.
+  const coreKeys = new Set(getCoreFeatures());
   const premiumKeys = new Set(
     FEATURES_CATALOG.filter((f) => f.categoria === "premium").map((f) => f.key)
   );
-  const temPremium = features.some((k) => premiumKeys.has(k));
-  const novoPlano = temPremium ? "premium" : "free";
+  const temPremiumOpcional = features.some((k) => premiumKeys.has(k) && !coreKeys.has(k));
+  const novoPlano = temPremiumOpcional ? "premium" : "free";
 
   // Substituir features — delete + insert (não upsert para não deixar antigas)
   await supabase.from("tenant_features").delete().eq("tenant_id", tenantId);
@@ -289,6 +291,18 @@ export async function updateTenantFeatures(
     .eq("id", tenantId);
 
   if (planError) throw new Error(`Erro ao atualizar plano: ${planError.message}`);
+}
+
+export async function updateTenantPlan(
+  tenantId: string,
+  plan: "free" | "premium"
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("tenants")
+    .update({ plan })
+    .eq("id", tenantId);
+  if (error) throw new Error(`Erro ao atualizar plano: ${error.message}`);
 }
 
 /** Adiciona uma nova loja a um tenant existente */
