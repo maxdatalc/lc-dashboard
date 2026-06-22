@@ -38,12 +38,12 @@ export type NovoClienteInput = {
     sqlBridgeToken?: string;
   }[];
   features: string[];
-  usuario: {
+  usuario?: {
     email: string;
     senha: string;
     nomeCompleto: string;
-    papel?: UserRole; // padrão: "owner"
-  };
+    papel?: UserRole;
+  } | null;
 };
 
 // ── Funções de consulta ────────────────────────────────────────────────────
@@ -182,7 +182,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
 export async function createNovoCliente(input: NovoClienteInput): Promise<{
   tenantId: string;
   lojaIds: string[];
-  usuarioId: string;
+  usuarioId: string | null;
 }> {
   const supabase = createAdminClient();
   let tenantId: string | null = null;
@@ -220,26 +220,28 @@ export async function createNovoCliente(input: NovoClienteInput): Promise<{
       if (error) throw new Error(`Erro ao salvar features: ${error.message}`);
     }
 
-    // 4. Criar usuário no Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: input.usuario.email,
-      password: input.usuario.senha,
-      user_metadata: { full_name: input.usuario.nomeCompleto },
-      email_confirm: true,
-    });
+    // 4. Criar usuário (opcional)
+    if (input.usuario?.email && input.usuario?.senha && input.usuario?.nomeCompleto) {
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: input.usuario.email,
+        password: input.usuario.senha,
+        user_metadata: { full_name: input.usuario.nomeCompleto },
+        email_confirm: true,
+      });
 
-    if (authError || !authData.user) {
-      throw new Error(authError?.message ?? "Falha ao criar usuário no Auth");
+      if (authError || !authData.user) {
+        throw new Error(authError?.message ?? "Falha ao criar usuário no Auth");
+      }
+      usuarioId = authData.user.id;
+
+      // 5. Vincular usuário ao tenant
+      const { error: linkError } = await supabase.from("tenant_users").insert({
+        tenant_id: tenant.id,
+        user_id: usuarioId,
+        role: input.usuario.papel ?? "owner",
+      });
+      if (linkError) throw new Error(`Erro ao vincular usuário: ${linkError.message}`);
     }
-    usuarioId = authData.user.id;
-
-    // 5. Vincular usuário ao tenant — primeiro usuário sempre como owner
-    const { error: linkError } = await supabase.from("tenant_users").insert({
-      tenant_id: tenant.id,
-      user_id: usuarioId,
-      role: input.usuario.papel ?? "owner",
-    });
-    if (linkError) throw new Error(`Erro ao vincular usuário: ${linkError.message}`);
 
     return { tenantId, lojaIds, usuarioId };
   } catch (err) {

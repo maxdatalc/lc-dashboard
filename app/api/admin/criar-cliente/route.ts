@@ -43,8 +43,10 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    if (!input.usuario?.email || !input.usuario?.senha || !input.usuario?.nomeCompleto) {
-      return NextResponse.json({ error: "Dados do usuário incompletos" }, { status: 400 });
+    // Validar usuário apenas se algum campo foi informado
+    const temUsuario = !!(input.usuario?.email || input.usuario?.senha || input.usuario?.nomeCompleto);
+    if (temUsuario && (!input.usuario?.email || !input.usuario?.senha || !input.usuario?.nomeCompleto)) {
+      return NextResponse.json({ error: "Preencha todos os dados do usuário ou deixe todos em branco." }, { status: 400 });
     }
 
     // 4. Incluir features core automaticamente (não podem ser removidas)
