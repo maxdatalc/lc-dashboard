@@ -65,11 +65,12 @@ export async function login(formData: FormData): Promise<{ error?: string }> {
   const adminClient = createAdminClient();
   const { data: profile } = await adminClient
     .from("profiles")
-    .select("is_system_admin")
+    .select("is_system_admin, is_suporte")
     .eq("id", data.user.id)
     .maybeSingle();
 
-  if ((profile as { is_system_admin?: boolean } | null)?.is_system_admin) {
+  const p = profile as { is_system_admin?: boolean; is_suporte?: boolean } | null;
+  if (p?.is_system_admin || p?.is_suporte) {
     redirect("/admin");
   }
 
