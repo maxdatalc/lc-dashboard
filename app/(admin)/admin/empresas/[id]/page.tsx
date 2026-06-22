@@ -7,6 +7,7 @@ import { ArrowLeft, Building2, ExternalLink, Settings, Users, Zap } from "lucide
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
+  updateTenantPlan,
   getUsuariosTenantDetalhado,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
@@ -25,6 +26,14 @@ async function salvarFeatures(tenantId: string, formData: FormData) {
   const featuresFinais = Array.from(new Set([...getCoreFeatures(), ...features]));
   await updateTenantFeatures(tenantId, featuresFinais);
   redirect(`/admin/empresas/${tenantId}?aba=features`);
+}
+
+async function alterarPlano(tenantId: string, formData: FormData) {
+  "use server";
+  const novoPlano = formData.get("plano") as "free" | "premium";
+  if (novoPlano !== "free" && novoPlano !== "premium") return;
+  await updateTenantPlan(tenantId, novoPlano);
+  redirect(`/admin/empresas/${tenantId}`);
 }
 
 // ── Componente ────────────────────────────────────────────────────────────────
@@ -100,16 +109,28 @@ export default async function GerenciarEmpresaPage({
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
-            {/* Badge de plano */}
-            {tenant.plan === "premium" ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-3 py-1.5 text-sm font-semibold text-amber-700">
-                ★ Premium
-              </span>
-            ) : (
-              <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-500">
-                Free
-              </span>
-            )}
+            {/* Toggle de plano */}
+            <form action={alterarPlano.bind(null, id)}>
+              <input
+                type="hidden"
+                name="plano"
+                value={tenant.plan === "premium" ? "free" : "premium"}
+              />
+              <button
+                type="submit"
+                title={tenant.plan === "premium" ? "Clique para mudar para Free" : "Clique para mudar para Premium"}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-all hover:shadow-sm hover:-translate-y-px ${
+                  tenant.plan === "premium"
+                    ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                    : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
+                }`}
+              >
+                {tenant.plan === "premium" ? "★ Premium" : "Free"}
+                <span className="text-[10px] opacity-60 font-normal">
+                  {tenant.plan === "premium" ? "→ free" : "→ premium"}
+                </span>
+              </button>
+            </form>
 
             {/* Acessar dashboard desta empresa */}
             <form action={selecionarEmpresaAdmin}>
