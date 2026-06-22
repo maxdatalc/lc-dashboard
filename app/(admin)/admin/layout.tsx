@@ -55,7 +55,7 @@ export default async function AdminLayout({
 
           <div>
             <p className="text-slate-600 text-xs uppercase font-semibold tracking-wider mb-2 px-3">
-              Gestão
+              Cadastros
             </p>
             <div className="space-y-0.5">
               <AdminNavLink href="/admin" exact>
