@@ -206,37 +206,11 @@ export async function getCnpjsCadastrados(): Promise<Set<string>> {
   );
 }
 
-export async function getCodigosExternosCadastrados(): Promise<Map<string, ClienteCadastradoMatch>> {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("tenants")
-    .select("id, name, codigo_externo")
-    .not("codigo_externo", "is", null);
-  const map = new Map<string, ClienteCadastradoMatch>();
-  for (const r of (data ?? []) as { id: string; name: string; codigo_externo: string | null }[]) {
-    if (r.codigo_externo) {
-      map.set(r.codigo_externo, { tenantId: r.id, tenantName: r.name });
-    }
-  }
-  return map;
-}
-
 export async function getGrupoByCliente(
-  codigoExterno: string | null,
+  _codigoExterno: string | null,
   cnpj: string | null
 ): Promise<ClienteCadastradoMatch | null> {
   const supabase = createAdminClient();
-
-  if (codigoExterno) {
-    const { data } = await supabase
-      .from("tenants")
-      .select("id, name")
-      .eq("codigo_externo", codigoExterno)
-      .maybeSingle();
-    if (data) {
-      return { tenantId: (data as { id: string; name: string }).id, tenantName: (data as { id: string; name: string }).name };
-    }
-  }
 
   if (cnpj) {
     const { data } = await supabase

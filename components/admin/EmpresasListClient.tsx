@@ -17,7 +17,6 @@ type Tenant = {
   isActive: boolean;
   createdAt: string;
   features: string[];
-  codigoExterno: string | null;
 };
 
 function formatarData(dateStr: string) {
@@ -121,11 +120,6 @@ export function EmpresasListClient({
                           </div>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className="text-xs text-slate-400 font-mono">{t.slug}</span>
-                            {t.codigoExterno && (
-                              <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-mono">
-                                #{t.codigoExterno}
-                              </span>
-                            )}
                           </div>
                         </div>
                       </div>
