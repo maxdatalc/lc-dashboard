@@ -22,17 +22,16 @@ export async function getClientesBase(opts?: {
   segmento?: string;
   cidade?: string;
   page?: number;
+  status?: "cadastrados" | "pendentes";
+  cnpjsCadastrados?: Set<string>;
 }): Promise<{ data: ClienteBase[]; total: number }> {
   const supabase = createAdminClient();
   const page = Math.max(1, opts?.page ?? 1);
-  const from = (page - 1) * PER_PAGE;
-  const to = from + PER_PAGE - 1;
 
   let query = supabase
     .from("clientes_base")
     .select("*", { count: "exact" })
-    .order("razao_social", { ascending: true })
-    .range(from, to);
+    .order("razao_social", { ascending: true });
 
   if (opts?.q) {
     query = query.or(
@@ -42,7 +41,23 @@ export async function getClientesBase(opts?: {
   if (opts?.segmento) query = query.eq("segmento", opts.segmento);
   if (opts?.cidade) query = query.eq("cidade", opts.cidade);
 
-  const { data, count, error } = await query;
+  // Status filter: fetch all and filter in-memory (dataset is small, max ~1000 records)
+  if (opts?.status && opts.cnpjsCadastrados) {
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    const all = (data ?? []) as ClienteBase[];
+    const set = opts.cnpjsCadastrados;
+    const filtered = all.filter((c) => {
+      const isCadastrado = !!(c.cnpj_cpf && set.has(c.cnpj_cpf));
+      return opts.status === "cadastrados" ? isCadastrado : !isCadastrado;
+    });
+    const offset = (page - 1) * PER_PAGE;
+    return { data: filtered.slice(offset, offset + PER_PAGE), total: filtered.length };
+  }
+
+  const from = (page - 1) * PER_PAGE;
+  const to = from + PER_PAGE - 1;
+  const { data, count, error } = await query.range(from, to);
   if (error) throw new Error(error.message);
   return { data: (data ?? []) as ClienteBase[], total: count ?? 0 };
 }
