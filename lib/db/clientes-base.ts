@@ -9,11 +9,14 @@ export type ClienteBase = {
   segmento: string | null;
   cidade: string | null;
   telefone: string | null;
+  sql_bridge_token: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ClienteBaseInput = Omit<ClienteBase, "id" | "created_at" | "updated_at">;
+export type ClienteBaseInput = Omit<ClienteBase, "id" | "created_at" | "updated_at" | "sql_bridge_token"> & {
+  sql_bridge_token?: string | null;
+};
 
 const PER_PAGE = 30;
 
@@ -109,6 +112,18 @@ export async function upsertClientesBase(
   const inseridos = clientes.length - atualizados;
 
   return { inseridos, atualizados };
+}
+
+export async function updateClienteBaseToken(
+  id: string,
+  sql_bridge_token: string | null
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("clientes_base")
+    .update({ sql_bridge_token, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(error.message);
 }
 
 export async function updateClienteBase(

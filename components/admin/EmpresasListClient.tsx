@@ -26,9 +26,11 @@ function formatarData(dateStr: string) {
 export function EmpresasListClient({
   tenants,
   acessarDashboard,
+  isAdmin,
 }: {
   tenants: Tenant[];
-  acessarDashboard: (formData: FormData) => Promise<void>;
+  acessarDashboard?: (formData: FormData) => Promise<void>;
+  isAdmin: boolean;
 }) {
   const [busca, setBusca] = useState("");
 
@@ -70,9 +72,9 @@ export function EmpresasListClient({
                 ? <>Nenhuma empresa encontrada para &ldquo;{busca}&rdquo;</>
                 : "Nenhuma empresa cadastrada"}
             </p>
-            {!busca && (
+            {!busca && isAdmin && (
               <p className="text-xs text-slate-400 mt-1">
-                Clique em &ldquo;+ Nova Empresa&rdquo; para começar.
+                Clique em &ldquo;+ Novo Grupo&rdquo; para começar.
               </p>
             )}
           </div>
@@ -162,30 +164,34 @@ export function EmpresasListClient({
                     {/* Ações */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-2 justify-end">
-                        {/* Dashboard — secundário, aparece no hover */}
-                        <form action={acessarDashboard} className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <input type="hidden" name="tenantId" value={t.id} />
-                          <button
-                            type="submit"
-                            title={`Acessar dashboard de ${t.name}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all"
-                          >
-                            <LayoutDashboard className="h-3.5 w-3.5" />
-                            Dashboard
-                          </button>
-                        </form>
+                        {/* Dashboard — só admin */}
+                        {isAdmin && acessarDashboard && (
+                          <form action={acessarDashboard} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <input type="hidden" name="tenantId" value={t.id} />
+                            <button
+                              type="submit"
+                              title={`Acessar dashboard de ${t.name}`}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all"
+                            >
+                              <LayoutDashboard className="h-3.5 w-3.5" />
+                              Dashboard
+                            </button>
+                          </form>
+                        )}
 
-                        {/* Excluir — secundário, aparece no hover */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                          <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
-                        </div>
+                        {/* Excluir — só admin */}
+                        {isAdmin && (
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                            <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
+                          </div>
+                        )}
 
-                        {/* Gerenciar — CTA primário, sempre visível */}
+                        {/* Gerenciar — todos podem ver */}
                         <Link
                           href={`/admin/empresas/${t.id}`}
                           className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white transition-all hover:bg-slate-700 hover:shadow-md hover:-translate-y-px"
                         >
-                          Gerenciar →
+                          {isAdmin ? "Gerenciar →" : "Ver detalhes →"}
                         </Link>
                       </div>
                     </td>

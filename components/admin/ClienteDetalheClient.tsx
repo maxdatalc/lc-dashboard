@@ -16,9 +16,10 @@ const CAMPOS: { key: keyof ClienteBase; label: string; mono?: boolean }[] = [
 
 interface Props {
   cliente: ClienteBase;
+  isAdmin: boolean;
 }
 
-export function ClienteDetalheClient({ cliente }: Props) {
+export function ClienteDetalheClient({ cliente, isAdmin }: Props) {
   const [values, setValues] = useState<Record<string, string>>({
     codigo_externo: cliente.codigo_externo ?? "",
     razao_social:   cliente.razao_social,
@@ -86,40 +87,42 @@ export function ClienteDetalheClient({ cliente }: Props) {
             <p className="text-xs text-slate-400 mt-0.5">{values.razao_social}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {saved && (
-            <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
-              <Check className="h-3.5 w-3.5" /> Salvo
-            </span>
-          )}
-          {!editing ? (
-            <button
-              onClick={startEdit}
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-              Editar
-            </button>
-          ) : (
-            <div className="flex gap-2">
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            {saved && (
+              <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
+                <Check className="h-3.5 w-3.5" /> Salvo
+              </span>
+            )}
+            {!editing ? (
               <button
-                onClick={cancelEdit}
-                disabled={loading}
-                className="inline-flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                onClick={startEdit}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                <X className="h-3.5 w-3.5" /> Cancelar
+                <Pencil className="h-3.5 w-3.5" />
+                Editar
               </button>
-              <button
-                onClick={saveEdit}
-                disabled={loading}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50"
-              >
-                {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                Salvar
-              </button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={cancelEdit}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                >
+                  <X className="h-3.5 w-3.5" /> Cancelar
+                </button>
+                <button
+                  onClick={saveEdit}
+                  disabled={loading}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50"
+                >
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                  Salvar
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Campos */}
@@ -127,7 +130,7 @@ export function ClienteDetalheClient({ cliente }: Props) {
         {CAMPOS.map(({ key, label, mono }) => (
           <div key={key} className="flex items-center gap-4 px-5 py-3">
             <span className="text-xs font-medium text-slate-400 w-32 shrink-0">{label}</span>
-            {editing ? (
+            {isAdmin && editing ? (
               <input
                 type="text"
                 value={draft[key] ?? ""}
