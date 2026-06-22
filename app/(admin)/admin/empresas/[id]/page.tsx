@@ -13,7 +13,6 @@ import {
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { getClientesByTenantId, vincularClientesPorCnpjs } from "@/lib/db/clientes-base";
-import { createAdminClient } from "@/lib/supabase/server";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
 import { EditNomeTenantClient } from "@/components/admin/EditNomeTenantClient";
@@ -46,15 +45,9 @@ async function salvarCodigoExterno(tenantId: string, formData: FormData) {
   redirect(`/admin/empresas/${tenantId}`);
 }
 
-async function atualizarVinculos(tenantId: string, _formData: FormData) {
+async function atualizarVinculos(tenantId: string, formData: FormData) {
   "use server";
-  const supabase = createAdminClient();
-  const { data: lojasData } = await supabase
-    .from("lojas")
-    .select("cnpj")
-    .eq("tenant_id", tenantId)
-    .not("cnpj", "is", null);
-  const cnpjs = (lojasData ?? []).map((l: { cnpj: string }) => l.cnpj).filter(Boolean);
+  const cnpjs = formData.getAll("cnpj").map(String).filter(Boolean);
   const vinculados = await vincularClientesPorCnpjs(tenantId, cnpjs);
   redirect(`/admin/empresas/${tenantId}?aba=clientes&vinculados=${vinculados}`);
 }
@@ -390,6 +383,11 @@ export default async function GerenciarEmpresaPage({
                 )}
               </div>
               <form action={atualizarVinculos.bind(null, id)}>
+                {tenant.lojas
+                  .filter((l) => l.cnpj)
+                  .map((l) => (
+                    <input key={l.id} type="hidden" name="cnpj" value={l.cnpj!} />
+                  ))}
                 <button
                   type="submit"
                   className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all"
