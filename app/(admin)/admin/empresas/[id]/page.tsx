@@ -8,6 +8,7 @@ import {
   getTenantByIdAdmin,
   updateTenantFeatures,
   updateTenantPlan,
+  updateTenantCodigoExterno,
   getUsuariosTenantDetalhado,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
@@ -33,6 +34,13 @@ async function alterarPlano(tenantId: string, formData: FormData) {
   const novoPlano = formData.get("plano") as "free" | "premium";
   if (novoPlano !== "free" && novoPlano !== "premium") return;
   await updateTenantPlan(tenantId, novoPlano);
+  redirect(`/admin/empresas/${tenantId}`);
+}
+
+async function salvarCodigoExterno(tenantId: string, formData: FormData) {
+  "use server";
+  const codigo = (formData.get("codigo_externo") as string | null)?.trim() || null;
+  await updateTenantCodigoExterno(tenantId, codigo);
   redirect(`/admin/empresas/${tenantId}`);
 }
 
@@ -106,6 +114,23 @@ export default async function GerenciarEmpresaPage({
                 {tenant.isActive ? "Ativa" : "Inativa"}
               </span>
             </div>
+
+            {/* Código externo — identificador no sistema do cliente */}
+            <form action={salvarCodigoExterno.bind(null, id)} className="flex items-center gap-2 mt-3">
+              <label className="text-xs text-slate-400 font-medium shrink-0">Cód. externo:</label>
+              <input
+                name="codigo_externo"
+                defaultValue={tenant.codigoExterno ?? ""}
+                placeholder="ex: 15786"
+                className="text-xs font-mono border border-slate-200 rounded px-2 py-1 text-slate-700 placeholder:text-slate-300 focus:outline-none focus:ring-1 focus:ring-slate-400 w-28"
+              />
+              <button
+                type="submit"
+                className="text-xs text-slate-500 border border-slate-200 rounded px-2 py-1 hover:bg-slate-50 transition-colors"
+              >
+                Salvar
+              </button>
+            </form>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">

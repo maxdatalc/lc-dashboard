@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, CheckCircle2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getAdminRole } from "@/lib/db/admin";
-import { getClienteBaseById, getGrupoByCnpj } from "@/lib/db/clientes-base";
+import { getClienteBaseById, getGrupoByCliente } from "@/lib/db/clientes-base";
 import { ClienteDetalheClient } from "@/components/admin/ClienteDetalheClient";
 import { TokenBridgeInput } from "@/components/admin/TokenBridgeInput";
 
@@ -27,9 +27,10 @@ export default async function ClienteDetalhePage({
   const cliente = await getClienteBaseById(id);
   if (!cliente) notFound();
 
-  const grupoCadastrado = cliente.cnpj_cpf
-    ? await getGrupoByCnpj(cliente.cnpj_cpf)
-    : null;
+  const grupoCadastrado = await getGrupoByCliente(
+    cliente.codigo_externo ?? null,
+    cliente.cnpj_cpf ?? null
+  );
 
   return (
     <div className="p-6 max-w-2xl space-y-5" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
