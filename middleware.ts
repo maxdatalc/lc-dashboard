@@ -73,14 +73,15 @@ export async function middleware(request: NextRequest) {
     const adminClient = makeAdminClient();
     const { data: profile } = await adminClient
       .from("profiles")
-      .select("is_system_admin")
+      .select("is_system_admin, is_suporte")
       .eq("id", user.id)
       .maybeSingle();
 
-    const isSysAdmin = (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+    const p3 = profile as { is_system_admin?: boolean; is_suporte?: boolean } | null;
+    const isAdminOrSuporte = !!p3?.is_system_admin || !!p3?.is_suporte;
 
-    // Admin vai sempre para /admin
-    if (isSysAdmin) {
+    // Admin / suporte vai sempre para /admin
+    if (isAdminOrSuporte) {
       return IS_DEV
         ? NextResponse.redirect(new URL("/admin", request.url))
         : NextResponse.redirect(`${ADMIN_URL}/admin`);
@@ -101,18 +102,19 @@ export async function middleware(request: NextRequest) {
       : NextResponse.redirect(`${APP_URL}/selecionar-empresa`);
   }
 
-  // ── 4. Rotas /admin exigem is_system_admin ────────────────────────────────
+  // ── 4. Rotas /admin exigem is_system_admin ou is_suporte ─────────────────
   if (pathname.startsWith("/admin") && user) {
     const adminClient = makeAdminClient();
     const { data: profile } = await adminClient
       .from("profiles")
-      .select("is_system_admin")
+      .select("is_system_admin, is_suporte")
       .eq("id", user.id)
       .maybeSingle();
 
-    const isSysAdmin = (profile as { is_system_admin?: boolean } | null)?.is_system_admin === true;
+    const p4 = profile as { is_system_admin?: boolean; is_suporte?: boolean } | null;
+    const canAccessAdmin = !!p4?.is_system_admin || !!p4?.is_suporte;
 
-    if (!isSysAdmin) {
+    if (!canAccessAdmin) {
       return IS_DEV
         ? NextResponse.redirect(new URL("/dashboard", request.url))
         : NextResponse.redirect(`${APP_URL}/dashboard`);
