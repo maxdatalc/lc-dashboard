@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { isSystemAdmin, createNovoCliente, type NovoClienteInput } from "@/lib/db/admin";
 import { getCoreFeatures } from "@/lib/features";
+import { vincularClientesPorCnpjs } from "@/lib/db/clientes-base";
 
 export async function POST(req: NextRequest) {
   try {
@@ -55,13 +56,19 @@ export async function POST(req: NextRequest) {
     // 5. Criar cliente completo
     const resultado = await createNovoCliente({ ...input, features: featuresFinais });
 
+    // 6. Auto-vincular clientes_base pelos CNPJs das lojas criadas
+    const cnpjs = input.lojas.map((l) => l.cnpj).filter((c): c is string => !!c);
+    const clientesVinculados = await vincularClientesPorCnpjs(resultado.tenantId, cnpjs);
+
     revalidatePath("/admin/empresas", "layout");
+    revalidatePath("/admin/clientes", "layout");
 
     return NextResponse.json({
       success: true,
       tenantId: resultado.tenantId,
       lojaIds: resultado.lojaIds,
       usuarioId: resultado.usuarioId,
+      clientesVinculados,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro desconhecido";

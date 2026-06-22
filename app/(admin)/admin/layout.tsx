@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Activity,
   ShieldCheck,
+  BookUser,
 } from "lucide-react";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { AdminNavLink } from "@/components/admin/AdminNavLink";
@@ -68,6 +69,10 @@ export default async function AdminLayout({
               <AdminNavLink href="/admin/empresas">
                 <Building2 className="h-4 w-4 shrink-0" />
                 Grupos
+              </AdminNavLink>
+              <AdminNavLink href="/admin/clientes">
+                <BookUser className="h-4 w-4 shrink-0" />
+                Base de Clientes
               </AdminNavLink>
               {isAdmin && (
                 <AdminNavLink href="/admin/acessos">

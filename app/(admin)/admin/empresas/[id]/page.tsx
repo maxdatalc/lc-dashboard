@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Building2, ExternalLink, Settings, Users, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, RefreshCw, Settings, Users, Users2, Zap } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
@@ -12,12 +12,14 @@ import {
   getUsuariosTenantDetalhado,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
+import { getClientesByTenantId, vincularClientesPorCnpjs } from "@/lib/db/clientes-base";
+import { createAdminClient } from "@/lib/supabase/server";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
 import { EditNomeTenantClient } from "@/components/admin/EditNomeTenantClient";
 import { selecionarEmpresaAdmin } from "@/app/actions/auth";
 
-type Aba = "lojas" | "features" | "usuarios";
+type Aba = "lojas" | "features" | "usuarios" | "clientes";
 
 // ── Server Actions ────────────────────────────────────────────────────────────
 
@@ -44,6 +46,19 @@ async function salvarCodigoExterno(tenantId: string, formData: FormData) {
   redirect(`/admin/empresas/${tenantId}`);
 }
 
+async function atualizarVinculos(tenantId: string, _formData: FormData) {
+  "use server";
+  const supabase = createAdminClient();
+  const { data: lojasData } = await supabase
+    .from("lojas")
+    .select("cnpj")
+    .eq("tenant_id", tenantId)
+    .not("cnpj", "is", null);
+  const cnpjs = (lojasData ?? []).map((l: { cnpj: string }) => l.cnpj).filter(Boolean);
+  const vinculados = await vincularClientesPorCnpjs(tenantId, cnpjs);
+  redirect(`/admin/empresas/${tenantId}?aba=clientes&vinculados=${vinculados}`);
+}
+
 // ── Componente ────────────────────────────────────────────────────────────────
 
 export default async function GerenciarEmpresaPage({
@@ -51,11 +66,11 @@ export default async function GerenciarEmpresaPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ aba?: string }>;
+  searchParams: Promise<{ aba?: string; vinculados?: string }>;
 }) {
   const { id } = await params;
-  const { aba: abaParam } = await searchParams;
-  const abaAtiva: Aba = (["lojas", "features", "usuarios"].includes(abaParam ?? "")
+  const { aba: abaParam, vinculados: vinculadosParam } = await searchParams;
+  const abaAtiva: Aba = (["lojas", "features", "usuarios", "clientes"].includes(abaParam ?? "")
     ? abaParam
     : "lojas") as Aba;
 
@@ -63,6 +78,7 @@ export default async function GerenciarEmpresaPage({
   if (!tenant) notFound();
 
   const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenantDetalhado(id) : [];
+  const clientesVinculados = abaAtiva === "clientes" ? await getClientesByTenantId(id) : [];
 
   const emBreveFeatures  = FEATURES_CATALOG.filter((f) => !f.disponivel);
   const addonFeatures    = FEATURES_CATALOG.filter(
@@ -73,6 +89,7 @@ export default async function GerenciarEmpresaPage({
     { valor: "lojas" as Aba, label: "Lojas", icon: Building2, count: tenant.lojas.length },
     { valor: "features" as Aba, label: "Módulos", icon: Zap },
     { valor: "usuarios" as Aba, label: "Usuários", icon: Users },
+    { valor: "clientes" as Aba, label: "Clientes", icon: Users2 },
   ];
 
   return (
@@ -353,6 +370,94 @@ export default async function GerenciarEmpresaPage({
             }))}
             tenantFeatures={tenant.features}
           />
+        )}
+
+        {/* ── Aba Clientes ─────────────────────────────────────────────────── */}
+        {abaAtiva === "clientes" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-slate-700">
+                  {clientesVinculados.length}{" "}
+                  {clientesVinculados.length === 1 ? "empresa vinculada" : "empresas vinculadas"} na base de clientes
+                </p>
+                {vinculadosParam !== undefined && (
+                  <p className={`text-xs mt-0.5 ${Number(vinculadosParam) > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                    {Number(vinculadosParam) > 0
+                      ? `${vinculadosParam} novo(s) vínculo(s) criado(s) agora`
+                      : "Nenhum novo vínculo encontrado — todos já estavam vinculados ou não há correspondência de CNPJ"}
+                  </p>
+                )}
+              </div>
+              <form action={atualizarVinculos.bind(null, id)}>
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Atualizar Vínculos
+                </button>
+              </form>
+            </div>
+
+            {clientesVinculados.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 py-14 text-center">
+                <Users2 className="h-9 w-9 text-slate-200 mx-auto mb-3" />
+                <p className="text-sm font-medium text-slate-600">Nenhuma empresa vinculada ainda</p>
+                <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto">
+                  Clique em &ldquo;Atualizar Vínculos&rdquo; para buscar automaticamente pelas lojas com CNPJ cadastrado.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      {["Código", "Empresa", "CNPJ", "Cidade", ""].map((col) => (
+                        <th
+                          key={col}
+                          className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
+                        >
+                          {col}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {clientesVinculados.map((c) => (
+                      <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
+                        <td className="px-5 py-3.5 text-xs font-mono text-slate-400">
+                          {c.codigo_externo ?? "—"}
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="font-semibold text-slate-800 text-sm">
+                            {c.nome_fantasia || c.razao_social}
+                          </p>
+                          {c.nome_fantasia && (
+                            <p className="text-xs text-slate-400 truncate">{c.razao_social}</p>
+                          )}
+                        </td>
+                        <td className="px-5 py-3.5 text-xs font-mono text-slate-500">
+                          {c.cnpj_cpf ?? "—"}
+                        </td>
+                        <td className="px-5 py-3.5 text-xs text-slate-500">
+                          {c.cidade ?? "—"}
+                        </td>
+                        <td className="px-5 py-3.5 text-right">
+                          <Link
+                            href={`/admin/clientes/${c.id}`}
+                            className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+                          >
+                            Ver →
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

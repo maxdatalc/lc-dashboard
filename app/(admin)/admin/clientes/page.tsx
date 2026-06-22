@@ -11,8 +11,7 @@ import {
   getSegmentosDistintos,
   getCidadesDistintas,
   getClientesBaseStats,
-  getCnpjsCadastrados,
-  getCodigosExternosCadastrados,
+  getTenantsFiltro,
 } from "@/lib/db/clientes-base";
 
 // ── Cores por segmento ─────────────────────────────────────────────────────────
@@ -46,14 +45,14 @@ function getSegmentoCor(seg: string | null) {
 }
 
 // ── Grid ───────────────────────────────────────────────────────────────────────
-const GRID = "56px 1fr 170px 120px 110px 40px";
+const GRID = "56px 1fr 160px 120px 130px 110px 40px";
 
 // ── Componente ─────────────────────────────────────────────────────────────────
 
 export default async function ClientesAdminPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; segmento?: string; cidade?: string; status?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; segmento?: string; cidade?: string; status?: string; grupo?: string; page?: string }>;
 }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -69,33 +68,31 @@ export default async function ClientesAdminPage({
   const segmento = sp.segmento ?? "";
   const cidade   = sp.cidade ?? "";
   const status   = (sp.status === "cadastrados" || sp.status === "pendentes") ? sp.status : "";
+  const grupo    = sp.grupo ?? "";
   const page     = Math.max(1, Number(sp.page ?? 1));
 
-  const [cnpjsCadastrados, codigosExternosCadastrados] = await Promise.all([
-    getCnpjsCadastrados(),
-    getCodigosExternosCadastrados(),
-  ]);
-
-  const [{ data: clientes, total }, stats, segmentos, cidades] = await Promise.all([
+  const [{ data: clientes, total }, stats, segmentos, cidades, tenants] = await Promise.all([
     getClientesBase({
       q: q || undefined,
       segmento: segmento || undefined,
       cidade: cidade || undefined,
       page,
       status: status || undefined,
-      cnpjsCadastrados,
-      codigosExternosCadastrados,
+      tenantId: grupo || undefined,
     }),
     getClientesBaseStats(),
     getSegmentosDistintos(),
     getCidadesDistintas(),
+    getTenantsFiltro(),
   ]);
+
+  const tenantMap = new Map(tenants.map((t) => [t.id, t.name]));
 
   const perPage   = 30;
   const totalPages = Math.max(1, Math.ceil(total / perPage));
 
   const buildUrl = (overrides: Record<string, string>) => {
-    const params = new URLSearchParams({ q, segmento, cidade, status, page: String(page) });
+    const params = new URLSearchParams({ q, segmento, cidade, status, grupo, page: String(page) });
     Object.entries(overrides).forEach(([k, v]) => {
       if (v) params.set(k, v);
       else params.delete(k);
@@ -103,7 +100,7 @@ export default async function ClientesAdminPage({
     return `/admin/clientes?${params.toString()}`;
   };
 
-  const hasFilter = !!(q || segmento || cidade || status);
+  const hasFilter = !!(q || segmento || cidade || status || grupo);
 
   return (
     <div className="p-6 space-y-5" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
@@ -116,15 +113,25 @@ export default async function ClientesAdminPage({
             {stats.total} registros · {stats.segmentos} segmentos · {stats.cidades} cidades
           </p>
         </div>
-        {isAdmin && (
-          <Link
-            href="/admin/clientes/importar"
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
-          >
-            <Upload className="h-4 w-4" />
-            Importar arquivo
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <Link
+              href="/admin/empresas/novo"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              + Novo Grupo
+            </Link>
+          )}
+          {isAdmin && (
+            <Link
+              href="/admin/clientes/importar"
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              Importar arquivo
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Filtros */}
@@ -138,6 +145,16 @@ export default async function ClientesAdminPage({
             className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
           />
         </div>
+        <select
+          name="grupo"
+          defaultValue={grupo}
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+        >
+          <option value="">Todos os grupos</option>
+          {tenants.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
         <select
           name="segmento"
           defaultValue={segmento}
@@ -220,6 +237,7 @@ export default async function ClientesAdminPage({
             <span>Empresa</span>
             <span>Segmento</span>
             <span>Cidade</span>
+            <span>Grupo</span>
             <span>Status</span>
             <span />
           </div>
@@ -228,9 +246,8 @@ export default async function ClientesAdminPage({
           <div className="divide-y divide-slate-50">
             {clientes.map((cliente) => {
               const cor = getSegmentoCor(cliente.segmento);
-              const cadastrado =
-                !!(cliente.codigo_externo && codigosExternosCadastrados.has(cliente.codigo_externo)) ||
-                !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
+              const cadastrado = !!cliente.tenant_id;
+              const nomeGrupo = cliente.tenant_id ? tenantMap.get(cliente.tenant_id) : null;
               return (
                 <Link
                   key={cliente.id}
@@ -275,6 +292,17 @@ export default async function ClientesAdminPage({
                     {cliente.cidade ?? "—"}
                   </span>
 
+                  {/* Grupo */}
+                  <div className="pr-3">
+                    {nomeGrupo ? (
+                      <span className="text-xs font-medium text-slate-600 truncate block">
+                        {nomeGrupo}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-300">—</span>
+                    )}
+                  </div>
+
                   {/* Status */}
                   <div className="flex items-center">
                     {cadastrado ? (
@@ -299,13 +327,11 @@ export default async function ClientesAdminPage({
             })}
           </div>
 
-          {/* Versão mobile (sem grid) */}
+          {/* Versão mobile */}
           <div className="sm:hidden divide-y divide-slate-50">
             {clientes.map((cliente) => {
               const cor = getSegmentoCor(cliente.segmento);
-              const cadastrado =
-                !!(cliente.codigo_externo && codigosExternosCadastrados.has(cliente.codigo_externo)) ||
-                !!(cliente.cnpj_cpf && cnpjsCadastrados.has(cliente.cnpj_cpf));
+              const cadastrado = !!cliente.tenant_id;
               return (
                 <Link
                   key={`mob-${cliente.id}`}

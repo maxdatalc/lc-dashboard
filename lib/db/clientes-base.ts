@@ -10,11 +10,12 @@ export type ClienteBase = {
   cidade: string | null;
   telefone: string | null;
   sql_bridge_token: string | null;
+  tenant_id: string | null;
   created_at: string;
   updated_at: string;
 };
 
-export type ClienteBaseInput = Omit<ClienteBase, "id" | "created_at" | "updated_at" | "sql_bridge_token"> & {
+export type ClienteBaseInput = Omit<ClienteBase, "id" | "created_at" | "updated_at" | "sql_bridge_token" | "tenant_id"> & {
   sql_bridge_token?: string | null;
 };
 
@@ -26,11 +27,12 @@ export async function getClientesBase(opts?: {
   cidade?: string;
   page?: number;
   status?: "cadastrados" | "pendentes";
-  cnpjsCadastrados?: Set<string>;
-  codigosExternosCadastrados?: Map<string, ClienteCadastradoMatch>;
+  tenantId?: string;
 }): Promise<{ data: ClienteBase[]; total: number }> {
   const supabase = createAdminClient();
   const page = Math.max(1, opts?.page ?? 1);
+  const from = (page - 1) * PER_PAGE;
+  const to = from + PER_PAGE - 1;
 
   let query = supabase
     .from("clientes_base")
@@ -44,27 +46,10 @@ export async function getClientesBase(opts?: {
   }
   if (opts?.segmento) query = query.eq("segmento", opts.segmento);
   if (opts?.cidade) query = query.eq("cidade", opts.cidade);
+  if (opts?.tenantId) query = query.eq("tenant_id", opts.tenantId);
+  if (opts?.status === "cadastrados") query = query.not("tenant_id", "is", null);
+  if (opts?.status === "pendentes") query = query.is("tenant_id", null);
 
-  const isCadastrado = (c: ClienteBase) => {
-    if (c.codigo_externo && opts?.codigosExternosCadastrados?.has(c.codigo_externo)) return true;
-    if (c.cnpj_cpf && opts?.cnpjsCadastrados?.has(c.cnpj_cpf)) return true;
-    return false;
-  };
-
-  // Status filter: fetch all and filter in-memory (dataset is small, max ~1000 records)
-  if (opts?.status) {
-    const { data, error } = await query;
-    if (error) throw new Error(error.message);
-    const all = (data ?? []) as ClienteBase[];
-    const filtered = all.filter((c) =>
-      opts.status === "cadastrados" ? isCadastrado(c) : !isCadastrado(c)
-    );
-    const offset = (page - 1) * PER_PAGE;
-    return { data: filtered.slice(offset, offset + PER_PAGE), total: filtered.length };
-  }
-
-  const from = (page - 1) * PER_PAGE;
-  const to = from + PER_PAGE - 1;
   const { data, count, error } = await query.range(from, to);
   if (error) throw new Error(error.message);
   return { data: (data ?? []) as ClienteBase[], total: count ?? 0 };
@@ -81,12 +66,50 @@ export async function getClienteBaseById(id: string): Promise<ClienteBase | null
   return data as ClienteBase | null;
 }
 
+export async function getClientesByTenantId(tenantId: string): Promise<ClienteBase[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("clientes_base")
+    .select("*")
+    .eq("tenant_id", tenantId)
+    .order("razao_social");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ClienteBase[];
+}
+
+/** Vincula clientes_base ao tenant pelos CNPJs das lojas. Retorna a quantidade vinculada. */
+export async function vincularClientesPorCnpjs(
+  tenantId: string,
+  cnpjs: string[]
+): Promise<number> {
+  if (cnpjs.length === 0) return 0;
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("clientes_base")
+    .update({ tenant_id: tenantId, updated_at: new Date().toISOString() })
+    .in("cnpj_cpf", cnpjs)
+    .is("tenant_id", null)
+    .select("id");
+  if (error) throw new Error(error.message);
+  return (data ?? []).length;
+}
+
+/** Lista simplificada de tenants para o filtro de grupo. */
+export async function getTenantsFiltro(): Promise<{ id: string; name: string }[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("id, name")
+    .order("name");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as { id: string; name: string }[];
+}
+
 export async function upsertClientesBase(
   clientes: ClienteBaseInput[]
 ): Promise<{ inseridos: number; atualizados: number }> {
   const supabase = createAdminClient();
 
-  // Busca códigos externos existentes para distinguir insert de update
   const codigos = clientes
     .map((c) => c.codigo_externo)
     .filter((c): c is string => !!c);
@@ -170,7 +193,6 @@ export type ClienteCadastradoMatch = {
   tenantName: string;
 };
 
-/** Retorna um Map com todos os CNPJs de lojas cadastradas → {tenantId, tenantName} */
 export async function getCnpjsCadastrados(): Promise<Set<string>> {
   const supabase = createAdminClient();
   const { data } = await supabase
@@ -184,7 +206,6 @@ export async function getCnpjsCadastrados(): Promise<Set<string>> {
   );
 }
 
-/** Retorna um Map com todos os codigo_externo de tenants cadastrados → {tenantId, tenantName} */
 export async function getCodigosExternosCadastrados(): Promise<Map<string, ClienteCadastradoMatch>> {
   const supabase = createAdminClient();
   const { data } = await supabase
@@ -200,14 +221,12 @@ export async function getCodigosExternosCadastrados(): Promise<Map<string, Clien
   return map;
 }
 
-/** Encontra o grupo cadastrado para um cliente, tentando codigo_externo e depois CNPJ */
 export async function getGrupoByCliente(
   codigoExterno: string | null,
   cnpj: string | null
 ): Promise<ClienteCadastradoMatch | null> {
   const supabase = createAdminClient();
 
-  // 1. Prioridade: codigo_externo
   if (codigoExterno) {
     const { data } = await supabase
       .from("tenants")
@@ -219,7 +238,6 @@ export async function getGrupoByCliente(
     }
   }
 
-  // 2. Fallback: CNPJ via lojas
   if (cnpj) {
     const { data } = await supabase
       .from("lojas")
@@ -237,9 +255,7 @@ export async function getGrupoByCliente(
 }
 
 /** @deprecated use getGrupoByCliente */
-export async function getGrupoByCnpj(
-  cnpj: string
-): Promise<ClienteCadastradoMatch | null> {
+export async function getGrupoByCnpj(cnpj: string): Promise<ClienteCadastradoMatch | null> {
   return getGrupoByCliente(null, cnpj);
 }
 

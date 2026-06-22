@@ -45,6 +45,7 @@ function ToggleLojaButton({
     <button
       onClick={handleToggle}
       disabled={loading}
+      title={ativo ? "Desativar loja" : "Ativar loja"}
       className={`shrink-0 text-xs px-2.5 py-1 rounded-md border font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
         ativo
           ? "border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200"
@@ -56,7 +57,7 @@ function ToggleLojaButton({
   );
 }
 
-function EditLojaPanel({
+function EditLojaRow({
   loja,
   onClose,
   onSaved,
@@ -91,47 +92,49 @@ function EditLojaPanel({
   }
 
   return (
-    <div className="space-y-3 p-1">
-      <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
-        <input
-          type="text"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          autoFocus
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
-        />
+    <td colSpan={5} className="px-5 py-3 bg-slate-50">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-36">
+          <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
+          <input
+            type="text"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            autoFocus
+            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
+          />
+        </div>
+        <div className="flex-1 min-w-36">
+          <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ</label>
+          <input
+            type="text"
+            value={cnpj}
+            onChange={(e) => setCnpj(e.target.value)}
+            placeholder="00.000.000/0000-00"
+            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
+          />
+        </div>
+        <div className="flex gap-2 pb-0.5">
+          {erro && <p className="text-xs text-red-500 self-center">{erro}</p>}
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+          >
+            {loading && <Loader2 className="h-3 w-3 animate-spin" />}
+            Salvar
+          </button>
+          <button
+            onClick={onClose}
+            disabled={loading}
+            className="flex items-center gap-1 text-xs font-medium text-slate-500 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Cancelar
+          </button>
+        </div>
       </div>
-      <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ</label>
-        <input
-          type="text"
-          value={cnpj}
-          onChange={(e) => setCnpj(e.target.value)}
-          placeholder="00.000.000/0000-00"
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
-        />
-      </div>
-      {erro && <p className="text-xs text-red-500">{erro}</p>}
-      <div className="flex gap-2 pt-1">
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
-        >
-          {loading && <Loader2 className="h-3 w-3 animate-spin" />}
-          Salvar
-        </button>
-        <button
-          onClick={onClose}
-          disabled={loading}
-          className="flex items-center gap-1 text-xs font-medium text-slate-500 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors"
-        >
-          <X className="h-3 w-3" />
-          Cancelar
-        </button>
-      </div>
-    </div>
+    </td>
   );
 }
 
@@ -178,94 +181,111 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {lojas.map((loja, i) => (
-            <div
-              key={loja.id}
-              className="rounded-xl border border-slate-200 bg-white p-4 space-y-3 hover:shadow-sm transition-all duration-200"
-              style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: `${i * 70}ms` }}
-            >
-              {editingId === loja.id ? (
-                <EditLojaPanel
-                  loja={loja}
-                  onClose={() => setEditingId(null)}
-                  onSaved={(nome, cnpj) => {
-                    setLojas((prev) =>
-                      prev.map((l) => l.id === loja.id ? { ...l, name: nome, cnpj } : l)
-                    );
-                    setEditingId(null);
-                    router.refresh();
-                  }}
-                />
-              ) : (
-                <>
-                  {/* Card header: nome + toggle */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`h-2 w-2 rounded-full shrink-0 ${loja.isActive ? "bg-emerald-400" : "bg-slate-300"}`} />
-                        <h3 className="font-semibold text-slate-900 text-sm leading-tight truncate">
-                          {loja.name}
-                        </h3>
-                      </div>
-                      <p className="text-xs text-slate-400 font-mono mt-0.5 pl-4">EmpId {loja.empId}</p>
-                      {loja.cnpj && (
-                        <p className="text-xs text-slate-400 mt-0.5 pl-4">CNPJ: {loja.cnpj}</p>
-                      )}
-                    </div>
-                    <ToggleLojaButton
-                      lojaId={loja.id}
-                      isActive={loja.isActive}
-                      onToggled={() => router.refresh()}
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100">
+                {["Loja", "CNPJ", "EmpId", "Bridge", ""].map((col) => (
+                  <th
+                    key={col}
+                    className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
+                  >
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {lojas.map((loja, i) =>
+                editingId === loja.id ? (
+                  <tr key={loja.id} style={{ animation: "fadeInUp 0.2s ease-out both" }}>
+                    <EditLojaRow
+                      loja={loja}
+                      onClose={() => setEditingId(null)}
+                      onSaved={(nome, cnpj) => {
+                        setLojas((prev) =>
+                          prev.map((l) => l.id === loja.id ? { ...l, name: nome, cnpj } : l)
+                        );
+                        setEditingId(null);
+                        router.refresh();
+                      }}
                     />
-                  </div>
+                  </tr>
+                ) : (
+                  <tr
+                    key={loja.id}
+                    className="group hover:bg-slate-50/60 transition-colors"
+                    style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: `${i * 50}ms` }}
+                  >
+                    {/* Loja */}
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full shrink-0 ${loja.isActive ? "bg-emerald-400" : "bg-slate-300"}`}
+                          title={loja.isActive ? "Ativa" : "Inativa"}
+                        />
+                        <span className="font-semibold text-slate-800">{loja.name}</span>
+                      </div>
+                    </td>
 
-                  {/* Status de integração */}
-                  <div className="border-t border-slate-50 pt-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                        <Settings className="h-3 w-3" />
-                        Bridge SQL
-                      </span>
+                    {/* CNPJ */}
+                    <td className="px-5 py-3.5 text-xs font-mono text-slate-500">
+                      {loja.cnpj || <span className="text-slate-300">—</span>}
+                    </td>
+
+                    {/* EmpId */}
+                    <td className="px-5 py-3.5 text-xs text-slate-400">
+                      {loja.empId}
+                    </td>
+
+                    {/* Bridge */}
+                    <td className="px-5 py-3.5">
                       {loja.sqlEnabled ? (
-                        <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                          <Check className="h-3.5 w-3.5" />
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                          <Check className="h-3 w-3" />
                           Conectada
                         </span>
                       ) : (
-                        <span className="text-xs text-slate-400">Não configurada</span>
+                        <span className="text-xs text-slate-400">Não config.</span>
                       )}
-                    </div>
-                  </div>
+                    </td>
 
-                  {/* Links de configuração */}
-                  <div className="border-t border-slate-50 pt-3 flex gap-2">
-                    <Link
-                      href={`/admin/empresas/${tenantId}/lojas/${loja.id}/bridge`}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                    >
-                      <Settings className="h-3.5 w-3.5" />
-                      Bridge
-                    </Link>
-                    <Link
-                      href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`}
-                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-medium py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                    >
-                      <Zap className="h-3.5 w-3.5" />
-                      MaxAPI
-                    </Link>
-                    <button
-                      onClick={() => setEditingId(loja.id)}
-                      className="flex items-center justify-center gap-1 text-xs font-medium py-1.5 px-2.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                      title="Editar nome e CNPJ"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </>
+                    {/* Ações */}
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Link
+                          href={`/admin/empresas/${tenantId}/lojas/${loja.id}/bridge`}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                        >
+                          <Settings className="h-3 w-3" />
+                          Bridge
+                        </Link>
+                        <Link
+                          href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                        >
+                          <Zap className="h-3 w-3" />
+                          MaxAPI
+                        </Link>
+                        <button
+                          onClick={() => setEditingId(loja.id)}
+                          className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                          title="Editar nome e CNPJ"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <ToggleLojaButton
+                          lojaId={loja.id}
+                          isActive={loja.isActive}
+                          onToggled={() => router.refresh()}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                )
               )}
-            </div>
-          ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
