@@ -8,7 +8,6 @@ import {
   getTenantByIdAdmin,
   updateTenantFeatures,
   updateTenantPlan,
-  updateTenantCodigoExterno,
   getUsuariosTenantDetalhado,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
@@ -35,13 +34,6 @@ async function alterarPlano(tenantId: string, formData: FormData) {
   const novoPlano = formData.get("plano") as "free" | "premium";
   if (novoPlano !== "free" && novoPlano !== "premium") return;
   await updateTenantPlan(tenantId, novoPlano);
-  redirect(`/admin/empresas/${tenantId}`);
-}
-
-async function salvarCodigoExterno(tenantId: string, formData: FormData) {
-  "use server";
-  const codigo = (formData.get("codigo_externo") as string | null)?.trim() || null;
-  await updateTenantCodigoExterno(tenantId, codigo);
   redirect(`/admin/empresas/${tenantId}`);
 }
 
@@ -125,22 +117,6 @@ export default async function GerenciarEmpresaPage({
               </span>
             </div>
 
-            {/* Código externo — identificador no sistema do cliente */}
-            <form action={salvarCodigoExterno.bind(null, id)} className="flex items-center gap-2 mt-3">
-              <label className="text-xs text-slate-500 font-semibold shrink-0">Cód. externo:</label>
-              <input
-                name="codigo_externo"
-                defaultValue={tenant.codigoExterno ?? ""}
-                placeholder="ex: 15786"
-                className="text-xs font-mono border border-slate-300 rounded px-2 py-1 text-slate-900 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 w-28"
-              />
-              <button
-                type="submit"
-                className="text-xs font-semibold text-slate-700 border border-slate-300 bg-white rounded px-2.5 py-1 hover:bg-slate-50 hover:border-slate-400 transition-colors"
-              >
-                Salvar
-              </button>
-            </form>
           </div>
 
           <div className="flex items-center gap-3 shrink-0">
