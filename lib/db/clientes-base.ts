@@ -77,21 +77,40 @@ export async function getClientesByTenantId(tenantId: string): Promise<ClienteBa
   return (data ?? []) as ClienteBase[];
 }
 
-/** Vincula clientes_base ao tenant pelos CNPJs das lojas. Retorna a quantidade vinculada. */
+const normalizarCnpj = (cnpj: string) => cnpj.replace(/\D/g, "");
+
+/** Vincula clientes_base ao tenant pelos CNPJs das lojas. Retorna a quantidade vinculada.
+ *  Normaliza ambos os lados (remove pontuação) antes de comparar. */
 export async function vincularClientesPorCnpjs(
   tenantId: string,
   cnpjs: string[]
 ): Promise<number> {
   if (cnpjs.length === 0) return 0;
   const supabase = createAdminClient();
+
+  const cnpjsNorm = new Set(cnpjs.map(normalizarCnpj).filter(Boolean));
+
+  // Busca clientes ainda não vinculados que têm CNPJ
   const { data, error } = await supabase
     .from("clientes_base")
-    .update({ tenant_id: tenantId, updated_at: new Date().toISOString() })
-    .in("cnpj_cpf", cnpjs)
+    .select("id, cnpj_cpf")
     .is("tenant_id", null)
-    .select("id");
+    .not("cnpj_cpf", "is", null);
   if (error) throw new Error(error.message);
-  return (data ?? []).length;
+
+  const idsParaVincular = (data ?? [])
+    .filter((c) => cnpjsNorm.has(normalizarCnpj(c.cnpj_cpf ?? "")))
+    .map((c) => c.id);
+
+  if (idsParaVincular.length === 0) return 0;
+
+  const { error: upErr } = await supabase
+    .from("clientes_base")
+    .update({ tenant_id: tenantId, updated_at: new Date().toISOString() })
+    .in("id", idsParaVincular);
+  if (upErr) throw new Error(upErr.message);
+
+  return idsParaVincular.length;
 }
 
 /** Lista simplificada de tenants para o filtro de grupo. */
