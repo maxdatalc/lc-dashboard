@@ -681,7 +681,6 @@ export default function NovaEmpresaPage() {
                 type="text"
                 value={form.usuarioNome}
                 onChange={(e) => setForm((prev) => ({ ...prev, usuarioNome: e.target.value }))}
-                required
                 className={INPUT}
               />
             </div>
@@ -691,7 +690,6 @@ export default function NovaEmpresaPage() {
                 type="email"
                 value={form.usuarioEmail}
                 onChange={(e) => setForm((prev) => ({ ...prev, usuarioEmail: e.target.value }))}
-                required
                 className={INPUT}
               />
             </div>
@@ -705,7 +703,6 @@ export default function NovaEmpresaPage() {
                   type={verSenha ? "text" : "password"}
                   value={form.usuarioSenha}
                   onChange={(e) => setForm((prev) => ({ ...prev, usuarioSenha: e.target.value }))}
-                  required
                   minLength={8}
                   className={INPUT + " pr-10"}
                 />
