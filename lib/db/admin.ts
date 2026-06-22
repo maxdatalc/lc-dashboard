@@ -61,6 +61,24 @@ export async function isSystemAdmin(userId: string): Promise<boolean> {
   return (data as { is_system_admin?: boolean } | null)?.is_system_admin === true;
 }
 
+export type AdminUserRole = "admin" | "suporte" | null;
+
+/** Retorna a role do usuário no painel admin (admin, suporte ou null) */
+export async function getAdminRole(userId: string): Promise<AdminUserRole> {
+  const supabase = createAdminClient();
+
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_system_admin, is_suporte")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const p = data as { is_system_admin?: boolean; is_suporte?: boolean } | null;
+  if (p?.is_system_admin) return "admin";
+  if (p?.is_suporte) return "suporte";
+  return null;
+}
+
 /** Retorna todos os tenants com lojas, features e contagem de usuários */
 export async function getAllTenants(): Promise<TenantComLojas[]> {
   const supabase = createAdminClient();

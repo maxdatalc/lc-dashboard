@@ -5,10 +5,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { BookUser } from "lucide-react";
-import { getAllTenants } from "@/lib/db/admin";
+import { getAllTenants, isSystemAdmin, getAdminRole } from "@/lib/db/admin";
 import { EmpresasListClient } from "@/components/admin/EmpresasListClient";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { isSystemAdmin } from "@/lib/db/admin";
 import { getClientesBaseStats } from "@/lib/db/clientes-base";
 
 async function acessarDashboard(formData: FormData) {
@@ -49,6 +48,15 @@ async function acessarDashboard(formData: FormData) {
 }
 
 export default async function AdminEmpresasPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const role = await getAdminRole(user.id);
+  if (!role) redirect("/dashboard");
+
+  const isAdmin = role === "admin";
+
   const [tenants, clientesStats] = await Promise.all([
     getAllTenants(),
     getClientesBaseStats(),
@@ -81,18 +89,21 @@ export default async function AdminEmpresasPage() {
               </span>
             )}
           </Link>
-          <Link
-            href="/admin/empresas/novo"
-            className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
-          >
-            + Novo Grupo
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin/empresas/novo"
+              className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
+            >
+              + Novo Grupo
+            </Link>
+          )}
         </div>
       </div>
 
       <EmpresasListClient
         tenants={tenants}
-        acessarDashboard={acessarDashboard}
+        acessarDashboard={isAdmin ? acessarDashboard : undefined}
+        isAdmin={isAdmin}
       />
     </div>
   );

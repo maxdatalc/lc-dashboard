@@ -2,7 +2,10 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Upload, ChevronRight, Search, Building2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
+import { getAdminRole } from "@/lib/db/admin";
 import {
   getClientesBase,
   getSegmentosDistintos,
@@ -51,6 +54,15 @@ export default async function ClientesAdminPage({
 }: {
   searchParams: Promise<{ q?: string; segmento?: string; cidade?: string; status?: string; page?: string }>;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const role = await getAdminRole(user.id);
+  if (!role) redirect("/dashboard");
+
+  const isAdmin = role === "admin";
+
   const sp = await searchParams;
   const q        = sp.q?.trim() ?? "";
   const segmento = sp.segmento ?? "";
@@ -99,13 +111,15 @@ export default async function ClientesAdminPage({
             {stats.total} registros · {stats.segmentos} segmentos · {stats.cidades} cidades
           </p>
         </div>
-        <Link
-          href="/admin/clientes/importar"
-          className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
-        >
-          <Upload className="h-4 w-4" />
-          Importar arquivo
-        </Link>
+        {isAdmin && (
+          <Link
+            href="/admin/clientes/importar"
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            Importar arquivo
+          </Link>
+        )}
       </div>
 
       {/* Filtros */}
