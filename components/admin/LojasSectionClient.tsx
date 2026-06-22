@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, Check, Loader2, Settings, Zap, Pencil, X } from "lucide-react";
+import { Building2, Check, Loader2, Settings, Zap, Pencil, X, RefreshCw } from "lucide-react";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
 
 type Loja = {
@@ -69,7 +69,23 @@ function EditLojaRow({
   const [nome, setNome] = useState(loja.name);
   const [cnpj, setCnpj] = useState(loja.cnpj ?? "");
   const [loading, setLoading] = useState(false);
+  const [loadingBridge, setLoadingBridge] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  async function handleBuscarCnpj() {
+    setLoadingBridge(true);
+    setErro(null);
+    try {
+      const res = await fetch(`/api/admin/lojas/${loja.id}/cnpj-bridge`);
+      const data = (await res.json()) as { cnpj?: string; error?: string };
+      if (!res.ok) { setErro(data.error ?? "Erro ao buscar CNPJ"); return; }
+      if (data.cnpj) setCnpj(data.cnpj);
+    } catch {
+      setErro("Erro de rede ao buscar CNPJ");
+    } finally {
+      setLoadingBridge(false);
+    }
+  }
 
   async function handleSave() {
     if (!nome.trim()) { setErro("Nome é obrigatório"); return; }
@@ -106,13 +122,29 @@ function EditLojaRow({
         </div>
         <div className="flex-1 min-w-36">
           <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ</label>
-          <input
-            type="text"
-            value={cnpj}
-            onChange={(e) => setCnpj(e.target.value)}
-            placeholder="00.000.000/0000-00"
-            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
-          />
+          <div className="flex gap-1.5">
+            <input
+              type="text"
+              value={cnpj}
+              onChange={(e) => setCnpj(e.target.value)}
+              placeholder="00.000.000/0000-00"
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
+            />
+            {loja.sqlEnabled && (
+              <button
+                type="button"
+                onClick={handleBuscarCnpj}
+                disabled={loadingBridge}
+                title="Buscar CNPJ via Bridge SQL"
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 transition-all shrink-0"
+              >
+                {loadingBridge
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <RefreshCw className="h-3 w-3" />}
+                {loadingBridge ? "Buscando..." : "Bridge"}
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex gap-2 pb-0.5">
           {erro && <p className="text-xs text-red-500 self-center">{erro}</p>}
