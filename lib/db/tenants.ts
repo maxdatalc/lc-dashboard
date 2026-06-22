@@ -17,6 +17,7 @@ export type CreateLojaInput = {
   tenantId: string;
   name: string;
   empId: number;
+  cnpj?: string;
   sqlBridgeUrl?: string;
   sqlBridgeToken?: string; // plain text — will be encrypted
   sqlEnabled?: boolean;
@@ -89,6 +90,7 @@ export async function createLoja(input: CreateLojaInput): Promise<Loja> {
       tenant_id: input.tenantId,
       name: input.name,
       emp_id: input.empId,
+      cnpj: input.cnpj ?? null,
       sql_bridge_url: input.sqlBridgeUrl ?? null,
       sql_bridge_token: input.sqlBridgeToken ? encrypt(input.sqlBridgeToken) : null,
       sql_enabled: input.sqlEnabled ?? false,
@@ -178,6 +180,29 @@ export async function getLojaAdmin(lojaId: string): Promise<{
     bridgeUrl: (row.sql_bridge_url as string) ?? null,
     bridgeToken: row.sql_bridge_token ? decrypt(row.sql_bridge_token as string) : null,
   };
+}
+
+// Atualiza nome e CNPJ de uma loja
+export async function updateLojaInfo(
+  lojaId: string,
+  info: { name?: string; cnpj?: string }
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const updates: Record<string, string | null> = {};
+  if (info.name !== undefined) updates.name = info.name;
+  if (info.cnpj !== undefined) updates.cnpj = info.cnpj || null;
+
+  const { error } = await supabase.from("lojas").update(updates).eq("id", lojaId);
+  if (error) throw new Error(error.message);
+}
+
+// Atualiza o nome de um tenant
+export async function updateTenantName(tenantId: string, name: string): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase.from("tenants").update({ name }).eq("id", tenantId);
+  if (error) throw new Error(error.message);
 }
 
 // Salva ou atualiza as credenciais da bridge SQL de uma loja (criptografa o token)

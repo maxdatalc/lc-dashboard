@@ -21,6 +21,7 @@ export type TenantComLojas = {
     empId: number;
     isActive: boolean;
     sqlEnabled: boolean;
+    cnpj?: string | null;
   }[];
   features: string[];
   totalUsuarios: number;
@@ -31,6 +32,7 @@ export type NovoClienteInput = {
   lojas: {
     name: string;
     empId: number;
+    cnpj?: string;
     sqlEnabled?: boolean;
     sqlBridgeUrl?: string;
     sqlBridgeToken?: string;
@@ -66,7 +68,7 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
   // Buscar tenants, lojas, features e usuários em paralelo
   const [tenantRes, lojasRes, featuresRes, usuariosRes] = await Promise.all([
     supabase.from("tenants").select("*").order("created_at", { ascending: false }),
-    supabase.from("lojas").select("id, tenant_id, name, emp_id, is_active, sql_enabled"),
+    supabase.from("lojas").select("id, tenant_id, name, emp_id, is_active, sql_enabled, cnpj"),
     supabase.from("tenant_features").select("tenant_id, feature_key"),
     supabase.from("tenant_users").select("tenant_id"),
   ]);
@@ -109,6 +111,7 @@ export async function getAllTenants(): Promise<TenantComLojas[]> {
       empId: l.emp_id as number,
       isActive: l.is_active as boolean,
       sqlEnabled: (l.sql_enabled as boolean) ?? false,
+      cnpj: (l.cnpj as string) ?? null,
     })),
     features: featuresPorTenant[t.id as string] ?? [],
     totalUsuarios: usuariosPorTenant[t.id as string] ?? 0,
@@ -121,7 +124,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
 
   const [tenantRes, lojasRes, featuresRes, usuariosRes] = await Promise.all([
     supabase.from("tenants").select("*").eq("id", id).maybeSingle(),
-    supabase.from("lojas").select("id, name, emp_id, is_active, sql_enabled").eq("tenant_id", id),
+    supabase.from("lojas").select("id, name, emp_id, is_active, sql_enabled, cnpj").eq("tenant_id", id),
     supabase.from("tenant_features").select("feature_key").eq("tenant_id", id),
     supabase.from("tenant_users").select("tenant_id").eq("tenant_id", id),
   ]);
@@ -143,6 +146,7 @@ export async function getTenantByIdAdmin(id: string): Promise<TenantComLojas | n
       empId: l.emp_id as number,
       isActive: l.is_active as boolean,
       sqlEnabled: (l.sql_enabled as boolean) ?? false,
+      cnpj: (l.cnpj as string) ?? null,
     })),
     features: ((featuresRes.data ?? []) as Record<string, unknown>[]).map(
       (f) => f.feature_key as string
@@ -182,6 +186,7 @@ export async function createNovoCliente(input: NovoClienteInput): Promise<{
         tenantId: tenant.id,
         name: lojaInput.name,
         empId: lojaInput.empId,
+        cnpj: lojaInput.cnpj,
         sqlEnabled: lojaInput.sqlEnabled ?? false,
         sqlBridgeUrl: lojaInput.sqlBridgeUrl,
         sqlBridgeToken: lojaInput.sqlBridgeToken,

@@ -39,7 +39,7 @@ export default async function UsuarioDetalhePage({
       .maybeSingle(),
     adminClient
       .from("tenant_users")
-      .select("tenant_id, role, tenants ( id, name, slug, plan, is_active, features )")
+      .select("tenant_id, role, tenants ( id, name, slug, plan, is_active )")
       .eq("user_id", id),
     adminClient
       .from("tenants")
@@ -63,7 +63,6 @@ export default async function UsuarioDetalhePage({
       slug: string;
       plan: string;
       is_active: boolean;
-      features: string[] | null;
     } | null;
   }>)
     .map((tu) => {
@@ -75,7 +74,6 @@ export default async function UsuarioDetalhePage({
         tenant_slug: t.slug,
         tenant_plan: t.plan,
         tenant_ativo: t.is_active,
-        tenant_features: (t.features as string[] | null) ?? [],
         role: tu.role as "owner" | "admin" | "viewer",
       };
     })
@@ -85,11 +83,10 @@ export default async function UsuarioDetalhePage({
       tenant_slug: string;
       tenant_plan: string;
       tenant_ativo: boolean;
-      tenant_features: string[];
       role: "owner" | "admin" | "viewer";
     }[];
 
-  // Lojas e configurações de acesso do usuário por empresa vinculada
+  // Lojas, features e configurações de acesso do usuário por empresa vinculada
   const linkedIds = empresasVinculadas.map((e) => e.tenant_id);
   type LojaRow = { id: string; name: string; tenant_id: string };
   type SettingsRow = {
@@ -97,10 +94,12 @@ export default async function UsuarioDetalhePage({
     loja_ids: string[] | null;
     modulos: Record<string, boolean> | null;
   };
+  type FeatureRow = { tenant_id: string; feature_key: string };
   let lojasData: LojaRow[] = [];
   let settingsData: SettingsRow[] = [];
+  let featuresData: FeatureRow[] = [];
   if (linkedIds.length > 0) {
-    const [lojasAllRes, settingsAllRes] = await Promise.all([
+    const [lojasAllRes, settingsAllRes, featuresAllRes] = await Promise.all([
       adminClient
         .from("lojas")
         .select("id, name, tenant_id")
@@ -112,9 +111,14 @@ export default async function UsuarioDetalhePage({
         .select("tenant_id, loja_ids, modulos")
         .eq("user_id", id)
         .in("tenant_id", linkedIds),
+      adminClient
+        .from("tenant_features")
+        .select("tenant_id, feature_key")
+        .in("tenant_id", linkedIds),
     ]);
-    lojasData = (lojasAllRes.data ?? []) as LojaRow[];
+    lojasData    = (lojasAllRes.data    ?? []) as LojaRow[];
     settingsData = (settingsAllRes.data ?? []) as SettingsRow[];
+    featuresData = (featuresAllRes.data ?? []) as FeatureRow[];
   }
 
   const lojasMap = new Map<string, { id: string; name: string }[]>();
@@ -126,8 +130,15 @@ export default async function UsuarioDetalhePage({
   settingsData.forEach((s) => {
     settingsMap.set(s.tenant_id, { lojaIds: s.loja_ids ?? [], modulos: s.modulos ?? {} });
   });
+  const featuresMap = new Map<string, string[]>();
+  featuresData.forEach((f) => {
+    if (!featuresMap.has(f.tenant_id)) featuresMap.set(f.tenant_id, []);
+    featuresMap.get(f.tenant_id)!.push(f.feature_key);
+  });
+
   const empresasComDetalhes = empresasVinculadas.map((e) => ({
     ...e,
+    tenant_features: featuresMap.get(e.tenant_id) ?? [],
     lojas: lojasMap.get(e.tenant_id) ?? [],
     settings: settingsMap.get(e.tenant_id) ?? { lojaIds: [], modulos: {} },
   }));
