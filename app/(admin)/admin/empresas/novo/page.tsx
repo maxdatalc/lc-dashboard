@@ -8,7 +8,7 @@ import {
   Plus, X, Database, CheckCircle, RefreshCw,
   LayoutDashboard, Landmark, Package, ShoppingCart, Users,
   MessageCircle, Bell, Sparkles, Building2, UserCheck,
-  TrendingUp, Zap, BarChart3,
+  TrendingUp, Zap, BarChart3, Copy, Check, Wifi,
 } from "lucide-react";
 import { FEATURES_CATALOG } from "@/lib/features";
 
@@ -25,7 +25,10 @@ const SELECT =
   "border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-500 transition-all bg-white";
 const SECTION_NUM =
   "w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0";
+const SECTION_NUM_DONE =
+  "w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0";
 
+type TunnelStatus = "idle" | "loading" | "created" | "error";
 type BridgeStatus = "idle" | "loading" | "connected" | "error";
 
 type BridgeLoja = {
@@ -69,6 +72,16 @@ const FORM_INICIAL: FormState = {
 export default function NovaEmpresaPage() {
   const router = useRouter();
 
+  // Tunnel Cloudflare
+  const [tunnelNome, setTunnelNome] = useState("");
+  const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus>("idle");
+  const [tunnelError, setTunnelError] = useState<string | null>(null);
+  const [tunnelId, setTunnelId] = useState<string | null>(null);
+  const [tunnelToken, setTunnelToken] = useState<string | null>(null);
+  const [tunnelBridgeUrl, setTunnelBridgeUrl] = useState<string | null>(null);
+  const [installCommand, setInstallCommand] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
   // Bridge SQL
   const [bridgeUrl, setBridgeUrl] = useState("");
   const [bridgeToken, setBridgeToken] = useState("");
@@ -88,6 +101,59 @@ export default function NovaEmpresaPage() {
   const [clientesVinculados, setClientesVinculados] = useState(0);
   const [verSenha, setVerSenha] = useState(false);
 
+  const tunnelCriado = tunnelStatus === "created";
+  const bridgeConectada = bridgeStatus === "connected" && !editandoBridge;
+  const lojasCount = lojas.filter((l) => l.selecionada).length;
+
+  // ── Tunnel ──────────────────────────────────────────────────────────────
+
+  async function handleCriarTunnel() {
+    if (!tunnelNome.trim()) {
+      setTunnelError("Informe o nome do tunnel.");
+      return;
+    }
+    setTunnelStatus("loading");
+    setTunnelError(null);
+    try {
+      const res = await fetch("/api/admin/criar-tunnel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nome: tunnelNome.trim() }),
+      });
+      const data = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        tunnelId?: string;
+        tunnelToken?: string;
+        bridgeUrl?: string;
+        installCommand?: string;
+      };
+      if (!res.ok || !data.success) {
+        setTunnelStatus("error");
+        setTunnelError(data.error ?? "Erro ao criar tunnel.");
+        return;
+      }
+      setTunnelId(data.tunnelId!);
+      setTunnelToken(data.tunnelToken!);
+      setTunnelBridgeUrl(data.bridgeUrl!);
+      setInstallCommand(data.installCommand!);
+      setBridgeUrl(data.bridgeUrl!);
+      setTunnelStatus("created");
+    } catch {
+      setTunnelStatus("error");
+      setTunnelError("Erro de rede ao criar tunnel.");
+    }
+  }
+
+  function handleCopiarComando() {
+    if (!installCommand) return;
+    navigator.clipboard.writeText(installCommand);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
+
+  // ── Bridge ──────────────────────────────────────────────────────────────
+
   async function handleConectarBridge() {
     if (!bridgeUrl || !bridgeToken) {
       setBridgeError("Informe a URL e o token da bridge.");
@@ -95,7 +161,6 @@ export default function NovaEmpresaPage() {
     }
     setBridgeStatus("loading");
     setBridgeError(null);
-
     try {
       const res = await fetch("/api/admin/listar-empresas-bridge", {
         method: "POST",
@@ -103,13 +168,11 @@ export default function NovaEmpresaPage() {
         body: JSON.stringify({ bridgeUrl, token: bridgeToken }),
       });
       const data = (await res.json()) as { success: boolean; empresas?: BridgeLoja[]; error?: string };
-
       if (!data.success || !data.empresas) {
         setBridgeStatus("error");
         setBridgeError(data.error ?? "Falha ao conectar à bridge.");
         return;
       }
-
       const novasBridge: LojaForm[] = data.empresas.map((e) => ({
         id: `bridge-${e.empId}`,
         empId: String(e.empId),
@@ -118,8 +181,6 @@ export default function NovaEmpresaPage() {
         fromBridge: true,
         selecionada: true,
       }));
-
-      // mantém lojas manuais já adicionadas
       const manuais = lojas.filter((l) => !l.fromBridge);
       setLojas([...novasBridge, ...manuais]);
       setBridgeStatus("connected");
@@ -137,11 +198,10 @@ export default function NovaEmpresaPage() {
     setBridgeError(null);
   }
 
+  // ── Form ────────────────────────────────────────────────────────────────
+
   function handleEmpresaNome(valor: string) {
-    const slug = valor
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+    const slug = valor.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
     setForm((prev) => ({ ...prev, empresaNome: valor, empresaSlug: slug }));
   }
 
@@ -165,18 +225,19 @@ export default function NovaEmpresaPage() {
     e.preventDefault();
     setErroGeral(null);
 
+    if (!tunnelCriado) {
+      setErroGeral("Crie o tunnel Cloudflare antes de continuar.");
+      return;
+    }
     if (!form.empresaNome || !form.empresaSlug) {
       setErroGeral("Preencha o nome e slug da empresa.");
       return;
     }
-
     const lojasFinal = lojas.filter((l) => l.selecionada);
-
     if (lojasFinal.length === 0) {
       setErroGeral("Selecione ou adicione ao menos uma loja.");
       return;
     }
-
     for (let i = 0; i < lojasFinal.length; i++) {
       const l = lojasFinal[i];
       if (!l.nome || !l.empId) {
@@ -184,7 +245,6 @@ export default function NovaEmpresaPage() {
         return;
       }
     }
-
     const empIds = lojasFinal.map((l) => l.empId);
     for (let i = 0; i < empIds.length; i++) {
       for (let j = i + 1; j < empIds.length; j++) {
@@ -194,7 +254,6 @@ export default function NovaEmpresaPage() {
         }
       }
     }
-
     const temUsuario = !!(form.usuarioNome || form.usuarioEmail || form.usuarioSenha);
     if (temUsuario) {
       if (!form.usuarioNome || !form.usuarioEmail || !form.usuarioSenha) {
@@ -207,19 +266,13 @@ export default function NovaEmpresaPage() {
       }
     }
 
-    const bridgeConectada = bridgeStatus === "connected" && !editandoBridge;
-
     setLoading(true);
     try {
       const res = await fetch("/api/admin/criar-cliente", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tenant: {
-            name: form.empresaNome,
-            slug: form.empresaSlug,
-            plan: form.empresaPlano,
-          },
+          tenant: { name: form.empresaNome, slug: form.empresaSlug, plan: form.empresaPlano },
           lojas: lojasFinal.map((l) => ({
             name: l.nome,
             empId: Number(l.empId),
@@ -230,26 +283,20 @@ export default function NovaEmpresaPage() {
           })),
           features: form.featuresAtivas,
           usuario: (form.usuarioNome && form.usuarioEmail && form.usuarioSenha)
-            ? {
-                email: form.usuarioEmail,
-                senha: form.usuarioSenha,
-                nomeCompleto: form.usuarioNome,
-                papel: form.usuarioPapel,
-              }
+            ? { email: form.usuarioEmail, senha: form.usuarioSenha, nomeCompleto: form.usuarioNome, papel: form.usuarioPapel }
             : null,
+          tunnelId,
+          tunnelToken,
         }),
       });
-
       const data = (await res.json()) as { error?: string; clientesVinculados?: number };
       if (!res.ok) {
         setErroGeral(data.error ?? "Erro ao cadastrar empresa.");
         return;
       }
-
       setClientesVinculados(data.clientesVinculados ?? 0);
       setSucesso(true);
       router.refresh();
-      setTimeout(() => router.push("/admin/empresas"), 1500);
     } catch {
       setErroGeral("Erro de rede. Tente novamente.");
     } finally {
@@ -259,12 +306,12 @@ export default function NovaEmpresaPage() {
 
   const coreFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "core");
   const premiumFeatures = FEATURES_CATALOG.filter((f) => f.categoria === "premium");
-  const bridgeConectada = bridgeStatus === "connected" && !editandoBridge;
-  const lojasCount = lojas.filter((l) => l.selecionada).length;
+
+  // ── Tela de sucesso ──────────────────────────────────────────────────────
 
   if (sucesso) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center min-h-96 gap-4">
+      <div className="p-6 flex flex-col items-center justify-center min-h-96 gap-4 max-w-xl mx-auto">
         <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
           <CheckCircle2 className="h-9 w-9 text-emerald-500" />
         </div>
@@ -277,16 +324,22 @@ export default function NovaEmpresaPage() {
           ) : (
             <p className="text-sm text-slate-400 mt-1">Nenhum cliente encontrado na base para vincular.</p>
           )}
-          <p className="text-xs text-slate-400 mt-2">Redirecionando para a lista...</p>
         </div>
+        <Link
+          href="/admin/empresas"
+          className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+        >
+          Voltar para a lista de empresas →
+        </Link>
       </div>
     );
   }
 
+  // ── Formulário ───────────────────────────────────────────────────────────
+
   return (
     <div className="max-w-3xl mx-auto p-6 space-y-6">
 
-      {/* Cabeçalho */}
       <div className="space-y-2" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
         <Link
           href="/admin/empresas"
@@ -298,7 +351,7 @@ export default function NovaEmpresaPage() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Nova Empresa</h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Conecte ao banco do cliente para importar as lojas automaticamente.
+            Crie o tunnel Cloudflare, conecte ao banco e configure a empresa.
           </p>
         </div>
       </div>
@@ -312,14 +365,111 @@ export default function NovaEmpresaPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
 
-        {/* ── Seção 1 — Lojas / Bridge SQL ─────────────────────────────────────── */}
+        {/* ── Seção 1 — Tunnel Cloudflare ──────────────────────────────────── */}
         <section
           className="bg-white rounded-xl border border-slate-200 p-5 space-y-4"
           style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "50ms" }}
         >
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>1</span>
+              {tunnelCriado
+                ? <span className={SECTION_NUM_DONE}><Check className="h-3 w-3" /></span>
+                : <span className={SECTION_NUM}>1</span>}
+              <h2 className="text-sm font-semibold text-slate-900">Tunnel Cloudflare</h2>
+              {tunnelCriado && (
+                <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                  <Wifi className="h-3 w-3" />
+                  Tunnel criado
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5 pl-7">
+              Gera o tunnel e o DNS automaticamente. O técnico roda um comando no PC do cliente.
+            </p>
+          </div>
+
+          {!tunnelCriado ? (
+            <div className="space-y-3">
+              {tunnelError && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  {tunnelError}
+                </div>
+              )}
+              <div>
+                <label className={LABEL}>Nome do Tunnel</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={tunnelNome}
+                    onChange={(e) => setTunnelNome(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleCriarTunnel())}
+                    className={INPUT + " font-mono"}
+                    placeholder="supermercado-modelo"
+                    disabled={tunnelStatus === "loading"}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCriarTunnel}
+                    disabled={tunnelStatus === "loading" || !tunnelNome}
+                    className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                  >
+                    {tunnelStatus === "loading"
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <Wifi className="h-4 w-4" />}
+                    {tunnelStatus === "loading" ? "Criando..." : "Criar Tunnel"}
+                  </button>
+                </div>
+                {tunnelNome && (
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    URL da bridge: <span className="font-mono text-slate-600">{tunnelNome}sql.lcgestor.com.br</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Info do tunnel criado */}
+              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-emerald-700">Tunnel: {tunnelNome}</p>
+                  <p className="text-xs text-emerald-600 font-mono">{tunnelBridgeUrl}</p>
+                </div>
+              </div>
+
+              {/* Comando de instalação */}
+              <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 space-y-3">
+                <p className="text-xs font-semibold text-slate-300">Comando para o técnico</p>
+                <p className="text-xs text-slate-400">
+                  Rode como <strong className="text-slate-300">Administrador</strong> no CMD do PC do cliente:
+                </p>
+                <div className="bg-slate-900 rounded-lg p-3 font-mono text-xs text-emerald-400 break-all leading-relaxed">
+                  {installCommand}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopiarComando}
+                  className="flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg transition-colors"
+                >
+                  {copiado ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiado ? "Copiado!" : "Copiar comando"}
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── Seção 2 — Bridge SQL ─────────────────────────────────────────── */}
+        <section
+          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-4 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
+          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "100ms" }}
+        >
+          <div>
+            <div className="flex items-center gap-2">
+              {bridgeConectada
+                ? <span className={SECTION_NUM_DONE}><Check className="h-3 w-3" /></span>
+                : <span className={SECTION_NUM}>2</span>}
               <h2 className="text-sm font-semibold text-slate-900">Lojas do Cliente</h2>
               {bridgeConectada && (
                 <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
@@ -329,11 +479,10 @@ export default function NovaEmpresaPage() {
               )}
             </div>
             <p className="text-xs text-slate-400 mt-0.5 pl-7">
-              Conecte à bridge SQL para importar lojas do MaxManager automaticamente, ou adicione manualmente.
+              Informe o token da bridge instalada no cliente para importar as lojas.
             </p>
           </div>
 
-          {/* Painel de conexão Bridge */}
           {!bridgeConectada ? (
             <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
               <div className="flex items-center gap-2">
@@ -354,13 +503,13 @@ export default function NovaEmpresaPage() {
                   type="url"
                   value={bridgeUrl}
                   onChange={(e) => setBridgeUrl(e.target.value)}
-                  className={INPUT}
-                  placeholder="https://sql-cliente.lctecnologias.com.br"
+                  className={INPUT + " font-mono"}
+                  placeholder="https://...sql.lcgestor.com.br"
                 />
               </div>
 
               <div>
-                <label className={LABEL}>Token</label>
+                <label className={LABEL}>Token da Bridge</label>
                 <div className="relative">
                   <input
                     type={verToken ? "text" : "password"}
@@ -368,7 +517,7 @@ export default function NovaEmpresaPage() {
                     onChange={(e) => setBridgeToken(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleConectarBridge())}
                     className={INPUT + " pr-10 font-mono"}
-                    placeholder="Token gerado pelo instalar-bridge.ps1"
+                    placeholder="Token configurado no Bridge SQL"
                   />
                   <button
                     type="button"
@@ -393,7 +542,6 @@ export default function NovaEmpresaPage() {
               </button>
             </div>
           ) : (
-            /* Bridge conectada — barra de status */
             <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
               <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
               <div className="flex-1 min-w-0">
@@ -414,21 +562,15 @@ export default function NovaEmpresaPage() {
             </div>
           )}
 
-          {/* Lista de lojas */}
           {lojas.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-slate-500">
-                {bridgeConectada
-                  ? "Lojas encontradas — selecione as que deseja cadastrar:"
-                  : "Lojas adicionadas:"}
+                {bridgeConectada ? "Lojas encontradas — selecione as que deseja cadastrar:" : "Lojas adicionadas:"}
               </p>
-
               {lojas.map((loja, idx) => (
                 <div
                   key={loja.id}
-                  className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
-                    loja.selecionada ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"
-                  }`}
+                  className={`rounded-xl border p-3.5 space-y-3 transition-colors ${loja.selecionada ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"}`}
                 >
                   <div className="flex items-center gap-2.5">
                     {loja.fromBridge ? (
@@ -441,19 +583,13 @@ export default function NovaEmpresaPage() {
                     ) : (
                       <span className="w-4 shrink-0" />
                     )}
-
                     <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 shrink-0">
                       {loja.fromBridge ? `EmpId ${loja.empId}` : `Loja manual ${idx + 1}`}
                     </span>
-
                     {loja.fromBridge && (
-                      <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
-                        bridge
-                      </span>
+                      <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">bridge</span>
                     )}
-
                     <span className="flex-1" />
-
                     {!loja.fromBridge && (
                       <button
                         type="button"
@@ -469,9 +605,7 @@ export default function NovaEmpresaPage() {
                   {loja.selecionada && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-6">
                       <div>
-                        <label className={LABEL}>
-                          Nome <span className="text-red-500">*</span>
-                        </label>
+                        <label className={LABEL}>Nome <span className="text-red-500">*</span></label>
                         <input
                           type="text"
                           value={loja.nome}
@@ -480,7 +614,6 @@ export default function NovaEmpresaPage() {
                           placeholder="Nome da loja"
                         />
                       </div>
-
                       <div>
                         <label className={LABEL}>CNPJ</label>
                         <input
@@ -491,12 +624,9 @@ export default function NovaEmpresaPage() {
                           placeholder="00.000.000/0000-00"
                         />
                       </div>
-
                       {!loja.fromBridge && (
                         <div>
-                          <label className={LABEL}>
-                            EmpId <span className="text-red-500">*</span>
-                          </label>
+                          <label className={LABEL}>EmpId <span className="text-red-500">*</span></label>
                           <input
                             type="number"
                             min={1}
@@ -525,14 +655,14 @@ export default function NovaEmpresaPage() {
           </button>
         </section>
 
-        {/* ── Seção 2 — Dados da Empresa ─────────────────────────────────────── */}
+        {/* ── Seção 3 — Dados da Empresa ──────────────────────────────────── */}
         <section
-          className="bg-white rounded-xl border border-slate-200 p-5 space-y-4"
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "100ms" }}
+          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-4 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
+          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "150ms" }}
         >
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>2</span>
+              <span className={SECTION_NUM}>3</span>
               <h2 className="text-sm font-semibold text-slate-900">Dados da Empresa</h2>
             </div>
             <p className="text-xs text-slate-400 mt-0.5 pl-7">Nome de exibição e identificador único</p>
@@ -540,9 +670,7 @@ export default function NovaEmpresaPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className={LABEL}>
-                Nome da Empresa <span className="text-red-500">*</span>
-              </label>
+              <label className={LABEL}>Nome da Empresa <span className="text-red-500">*</span></label>
               <input
                 type="text"
                 value={form.empresaNome}
@@ -552,7 +680,6 @@ export default function NovaEmpresaPage() {
                 placeholder="Ex: Supermercado Modelo"
               />
             </div>
-
             <div>
               <label className={LABEL}>Slug</label>
               <input
@@ -570,37 +697,31 @@ export default function NovaEmpresaPage() {
             <label className={LABEL}>Plano inicial</label>
             <select
               value={form.empresaPlano}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, empresaPlano: e.target.value as "free" | "premium" }))
-              }
+              onChange={(e) => setForm((prev) => ({ ...prev, empresaPlano: e.target.value as "free" | "premium" }))}
               className={SELECT}
             >
               <option value="free">Free</option>
               <option value="premium">Premium</option>
             </select>
-            <p className="text-xs text-slate-400 mt-1.5">
-              Ajustado automaticamente ao ativar módulos premium.
-            </p>
+            <p className="text-xs text-slate-400 mt-1.5">Ajustado automaticamente ao ativar módulos premium.</p>
           </div>
         </section>
 
-        {/* ── Seção 3 — Módulos ─────────────────────────────────────────────── */}
+        {/* ── Seção 4 — Módulos ───────────────────────────────────────────── */}
         <section
-          className="bg-white rounded-xl border border-slate-200 p-5 space-y-5"
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "150ms" }}
+          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-5 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
+          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "200ms" }}
         >
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>3</span>
+              <span className={SECTION_NUM}>4</span>
               <h2 className="text-sm font-semibold text-slate-900">Módulos Contratados</h2>
             </div>
             <p className="text-xs text-slate-400 mt-0.5 pl-7">Ative os módulos premium incluídos no contrato</p>
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Core — sempre incluídos
-            </p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Core — sempre incluídos</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {coreFeatures.map((f) => {
                 const Icone = ICONE_MAP[f.icone] ?? Package;
@@ -619,9 +740,7 @@ export default function NovaEmpresaPage() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Premium — módulos pagos
-            </p>
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Premium — módulos pagos</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {premiumFeatures.map((f) => {
                 const Icone = ICONE_MAP[f.icone] ?? Zap;
@@ -629,9 +748,7 @@ export default function NovaEmpresaPage() {
                 return (
                   <div
                     key={f.key}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
-                      ativo ? "bg-purple-50 border-purple-200" : "bg-white border-slate-200"
-                    } ${!f.disponivel ? "opacity-60" : ""}`}
+                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${ativo ? "bg-purple-50 border-purple-200" : "bg-white border-slate-200"} ${!f.disponivel ? "opacity-60" : ""}`}
                   >
                     <Icone className={`h-4 w-4 mt-0.5 shrink-0 ${ativo ? "text-purple-500" : "text-slate-400"}`} />
                     <div className="flex-1 min-w-0">
@@ -647,9 +764,7 @@ export default function NovaEmpresaPage() {
                       type="button"
                       disabled={!f.disponivel}
                       onClick={() => toggleFeature(f.key)}
-                      className={`relative w-8 h-4 rounded-full transition-colors shrink-0 mt-0.5 ${
-                        !f.disponivel ? "bg-slate-200 cursor-not-allowed" : ativo ? "bg-purple-500" : "bg-slate-300"
-                      }`}
+                      className={`relative w-8 h-4 rounded-full transition-colors shrink-0 mt-0.5 ${!f.disponivel ? "bg-slate-200 cursor-not-allowed" : ativo ? "bg-purple-500" : "bg-slate-300"}`}
                     >
                       <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${ativo ? "translate-x-4" : "translate-x-0.5"}`} />
                     </button>
@@ -667,14 +782,14 @@ export default function NovaEmpresaPage() {
           </p>
         </section>
 
-        {/* ── Seção 4 — Acesso do Gestor ────────────────────────────────────── */}
+        {/* ── Seção 5 — Acesso do Gestor ──────────────────────────────────── */}
         <section
-          className="bg-white rounded-xl border border-slate-200 p-5 space-y-4"
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "200ms" }}
+          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-4 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
+          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "250ms" }}
         >
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>4</span>
+              <span className={SECTION_NUM}>5</span>
               <h2 className="text-sm font-semibold text-slate-900">Acesso do Gestor</h2>
               <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Opcional</span>
             </div>
@@ -731,12 +846,7 @@ export default function NovaEmpresaPage() {
               <label className={LABEL}>Papel</label>
               <select
                 value={form.usuarioPapel}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    usuarioPapel: e.target.value as "owner" | "admin" | "viewer",
-                  }))
-                }
+                onChange={(e) => setForm((prev) => ({ ...prev, usuarioPapel: e.target.value as "owner" | "admin" | "viewer" }))}
                 className={SELECT + " w-full"}
               >
                 <option value="owner">Proprietário (acesso total)</option>
@@ -750,14 +860,16 @@ export default function NovaEmpresaPage() {
         {/* Botão submit */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !tunnelCriado}
           className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white rounded-xl py-3 font-semibold hover:bg-slate-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:-translate-y-px"
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "250ms" }}
+          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "300ms" }}
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          {loading
-            ? "Cadastrando..."
-            : `Cadastrar empresa (${lojasCount} ${lojasCount === 1 ? "loja" : "lojas"})`}
+          {!tunnelCriado
+            ? "Crie o tunnel antes de continuar"
+            : loading
+              ? "Cadastrando..."
+              : `Cadastrar empresa (${lojasCount} ${lojasCount === 1 ? "loja" : "lojas"})`}
         </button>
       </form>
     </div>
