@@ -21,17 +21,19 @@ export interface EmpresaBridge {
   empId: number;
   razao: string;
   fantasia: string;
+  cnpj: string;
 }
 
 async function fetchEmpresas(bridgeUrl: string, token: string): Promise<EmpresaBridge[]> {
-  const rows = await queryBridge<{ cofId: number; cofEmpRazao: string; cofEmpFantasia: string }>(
+  const rows = await queryBridge<{ cofId: number; cofEmpRazao: string; cofEmpFantasia: string; cofEmpCnpj: string }>(
     { bridgeUrl, token },
-    `SELECT cofId, cofEmpRazao, cofEmpFantasia FROM config ORDER BY cofId`
+    `SELECT cofId, cofEmpRazao, cofEmpFantasia, cofEmpCnpj FROM config ORDER BY cofId`
   );
   return rows.map((r) => ({
     empId: r.cofId,
     razao: r.cofEmpRazao ?? "",
     fantasia: r.cofEmpFantasia ?? "",
+    cnpj: r.cofEmpCnpj ?? "",
   }));
 }
 

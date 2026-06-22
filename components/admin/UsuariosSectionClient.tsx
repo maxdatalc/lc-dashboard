@@ -27,11 +27,19 @@ interface Props {
 }
 
 const MODULES_LABEL: Record<string, string> = {
-  dashboard_visao_geral: "Dashboard",
-  modulo_os:            "O.S",
-  modulo_financeiro:    "Financeiro",
-  modulo_produtos:      "Produtos",
+  dashboard_visao_geral: "Vendas",
+  modulo_financeiro:     "Financeiro",
+  modulo_produtos:       "Produtos",
+  modulo_clientes:       "Clientes",
+  modulo_os:             "O.S",
+  modulo_relatorios:     "Comissão por Recebimento",
 };
+
+const MODULE_GROUPS: { label: string; keys: string[] }[] = [
+  { label: "Dashboard",  keys: ["dashboard_visao_geral", "modulo_financeiro", "modulo_produtos", "modulo_clientes"] },
+  { label: "Módulos",    keys: ["modulo_os"] },
+  { label: "Relatórios", keys: ["modulo_relatorios"] },
+];
 
 const ROLE_LABEL: Record<string, string> = {
   owner:  "Proprietário",
@@ -300,29 +308,40 @@ function UsuarioEditPanel({
         </div>
       )}
 
-      {/* Módulos */}
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
-          <Shield className="h-3.5 w-3.5" /> Módulos
-        </p>
-        {configurableModules.length === 0 ? (
-          <p className="text-xs text-slate-400">Nenhum módulo habilitado no tenant.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {configurableModules.map((k) => (
-              <label key={k} className="flex items-center gap-1.5 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={modulos[k] ?? false}
-                  onChange={() => toggleModulo(k)}
-                  className="rounded border-slate-300 text-slate-800"
-                />
-                <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Módulos agrupados */}
+      {configurableModules.length === 0 ? (
+        <p className="text-xs text-slate-400">Nenhum módulo habilitado no tenant.</p>
+      ) : (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5" /> Módulos
+          </p>
+          {MODULE_GROUPS.map((group) => {
+            const groupMods = group.keys.filter((k) => configurableModules.includes(k));
+            if (groupMods.length === 0) return null;
+            return (
+              <div key={group.label}>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                  {group.label}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {groupMods.map((k) => (
+                    <label key={k} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={modulos[k] ?? false}
+                        onChange={() => toggleModulo(k)}
+                        className="rounded border-slate-300 text-slate-800"
+                      />
+                      <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Lojas com acesso */}
       <div>
@@ -696,24 +715,36 @@ function ModulosField({
   onChange: (v: Record<string, boolean>) => void;
 }) {
   if (modules.length === 0) return null;
+
   return (
-    <div>
-      <p className="text-xs font-medium text-slate-600 mb-2 flex items-center gap-1.5">
+    <div className="space-y-3">
+      <p className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
         <Shield className="h-3.5 w-3.5" /> Módulos com acesso
       </p>
-      <div className="flex flex-wrap gap-3">
-        {modules.map((k) => (
-          <label key={k} className="flex items-center gap-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={value[k] ?? false}
-              onChange={() => onChange({ ...value, [k]: !value[k] })}
-              className="rounded border-slate-300 text-slate-800"
-            />
-            <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
-          </label>
-        ))}
-      </div>
+      {MODULE_GROUPS.map((group) => {
+        const groupModules = group.keys.filter((k) => modules.includes(k));
+        if (groupModules.length === 0) return null;
+        return (
+          <div key={group.label}>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+              {group.label}
+            </p>
+            <div className="flex flex-wrap gap-3">
+              {groupModules.map((k) => (
+                <label key={k} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={value[k] ?? false}
+                    onChange={() => onChange({ ...value, [k]: !value[k] })}
+                    className="rounded border-slate-300 text-slate-800"
+                  />
+                  <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
+import { EditNomeTenantClient } from "@/components/admin/EditNomeTenantClient";
 import { selecionarEmpresaAdmin } from "@/app/actions/auth";
 
 type Aba = "lojas" | "features" | "usuarios";
@@ -77,9 +78,7 @@ export default async function GerenciarEmpresaPage({
         {/* Título + badges */}
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 leading-tight">
-              {tenant.name}
-            </h1>
+            <EditNomeTenantClient tenantId={id} currentName={tenant.name} />
             <div className="flex items-center gap-3 mt-1.5">
               <span className="text-xs text-slate-400 font-mono">{tenant.slug}</span>
               <span className="text-slate-300">·</span>

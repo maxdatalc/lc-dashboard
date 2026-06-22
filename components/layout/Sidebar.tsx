@@ -218,7 +218,13 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
         <nav className="flex-1 flex flex-col py-2 overflow-y-auto overflow-x-hidden">
 
           {GRUPOS.map((grupo, gi) => {
+            // Oculta grupo por featureKey no nível do grupo (ex: Relatórios)
             if (!isAdmin && grupo.featureKey && !hasFeature(grupo.featureKey)) return null;
+            // Oculta grupos cujos TODOS os itens estão bloqueados por feature (ex: Movimentação sem O.S)
+            if (!isAdmin && grupo.items && !grupo.featureKey) {
+              const algumVisivel = grupo.items.some(item => !item.featureKey || hasFeature(item.featureKey));
+              if (!algumVisivel) return null;
+            }
 
             const grupoAtivo  = isGroupActive(grupo);
             const grupoAberto = openGroups[grupo.key] ?? false;
