@@ -7,17 +7,18 @@ export const dynamic = "force-dynamic";
 
 export interface ComissaoRow {
   RecebimentoId: number;
-  VendaId: number;
-  TipoVenda: string;
-  NomeVendedor: string;
-  VendedorId: number;
+  VendaId: number | null;
+  TipoVenda: string | null;
+  NomeVendedor: string | null;
+  VendedorId: number | null;
   DataPagamento: string;
   ValorTotalVenda: number;
-  BaseCalculoComissao: number;
+  ValorPecasVenda: number;
   ValorRecebidoLiquido: number;
   TipoVista: number | null;
   TipoPrazo: number | null;
   TipoPagamento: string;
+  SemVinculo: number;
 }
 
 function buildQuery(vendedorClause: string): string {
@@ -48,9 +49,7 @@ function buildQuery(vendedorClause: string): string {
       pgtoFinal.pgtAtendente                                                           AS VendedorId,
       pgtoFinal.pgtDataQuitou                                                          AS DataPagamento,
       ROUND(ISNULL(TotalVenda.Total, 0), 2)                                           AS ValorTotalVenda,
-      ROUND(ISNULL(
-        CASE WHEN venda.vedTipo = 'OS' THEN TotalPecas.Pecas ELSE TotalVenda.Total END
-      , 0), 2)                                                                         AS BaseCalculoComissao,
+      ROUND(ISNULL(TotalPecas.Pecas, 0), 2)                                           AS ValorPecasVenda,
       ROUND(
         ISNULL(pgtoFinal.pgtValor, 0)
         - ISNULL(pgtoFinal.pgtValorJuros, 0)
@@ -73,11 +72,12 @@ function buildQuery(vendedorClause: string): string {
         WHEN pgtoFinal.pgtTipoPrazo = 6 THEN 'Débito Conta'
         WHEN pgtoFinal.pgtTipoPrazo = 7 THEN 'Custódia'
         ELSE 'Outro'
-      END                                                                              AS TipoPagamento
+      END                                                                              AS TipoPagamento,
+      CASE WHEN venda.vedId IS NULL THEN 1 ELSE 0 END                                AS SemVinculo
 
     FROM CTE_OrigemVenda pgtoFinal
-    INNER JOIN venda ON venda.vedId = pgtoFinal.pgtVendaId AND venda.empId = @empId
-    INNER JOIN cliente cli ON cli.cliId = venda.vedAtendente
+    LEFT JOIN venda ON venda.vedId = pgtoFinal.pgtVendaId AND venda.empId = @empId
+    LEFT JOIN cliente cli ON cli.cliId = pgtoFinal.pgtAtendente
 
     OUTER APPLY (
       SELECT SUM((vi.vdiValor - (vi.vdiValor * ISNULL(vi.vdiDesc, 0))) * vi.vdiQtde) AS Total
@@ -131,7 +131,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   if (!config)
     return NextResponse.json({ error: "Bridge não configurada" }, { status: 503 });
 
-  // Build dynamic IN clause for vendedores (avoids STRING_SPLIT version dependency)
   const vendedorParams: Record<string, number> = {};
   let vendedorClause = "";
   if (vendedorIds.length > 0) {
