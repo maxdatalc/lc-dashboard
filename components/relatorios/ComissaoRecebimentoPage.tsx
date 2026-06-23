@@ -1173,7 +1173,7 @@ export default function ComissaoRecebimentoPage() {
             { label: "Total Recebido",    value: fmtMoeda(totalRecebido), icon: <Receipt style={{ width: 16, height: 16 }} /> },
             { label: "Total de Comissão", value: fmtMoeda(totalComissao), icon: <TrendingUp style={{ width: 16, height: 16 }} />, accent: true },
             { label: "% Médio",           value: fmtPct(pctMedio),        icon: <SlidersHorizontal style={{ width: 16, height: 16 }} /> },
-            { label: "Vendas",            value: String(totalVendas),      icon: <Receipt style={{ width: 16, height: 16 }} /> },
+            { label: "Vendas/O.S.",        value: String(totalVendas),      icon: <Receipt style={{ width: 16, height: 16 }} /> },
           ].map((card) => (
             <div
               key={card.label}
@@ -1223,14 +1223,14 @@ export default function ComissaoRecebimentoPage() {
           >
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "12%" }} />
                 <col style={{ width: "9%" }} />
-                <col style={{ width: "7%" }} />
-                <col style={{ width: "16%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "14%" }} />
-                <col style={{ width: "13%" }} />
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "15%" }} />
               </colgroup>
 
               <thead>
