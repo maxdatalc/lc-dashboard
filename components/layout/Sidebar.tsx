@@ -756,11 +756,21 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
               <Link
                 key={href}
                 href={href}
-                className="flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors"
-                style={{ color: active ? "var(--accent-cyan)" : "var(--text-muted)" }}
+                className="flex flex-col items-center"
+                style={{
+                  gap: "4px",
+                  padding: "6px 12px",
+                  borderRadius: "10px",
+                  color: active ? "var(--accent-cyan)" : "var(--text-muted)",
+                  background: active ? "rgba(0,229,255,0.08)" : "transparent",
+                  boxShadow: active ? "0 0 18px rgba(0,229,255,0.12), inset 0 0 0 1px rgba(0,229,255,0.12)" : "none",
+                  transition: "background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease",
+                  minWidth: "52px",
+                  alignItems: "center",
+                }}
               >
                 <Icon size={20} />
-                <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400 }}>
+                <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400, lineHeight: 1 }}>
                   {label}
                 </span>
               </Link>

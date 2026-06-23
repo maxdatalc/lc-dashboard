@@ -18,14 +18,25 @@ const dmMono = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LC Dashboard",
+  title: "LC Gestor",
   description: "Dashboard integrado ao ERP MaxManager",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "LC Gestor",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#0a0f1e",
 };
 
 export default function RootLayout({

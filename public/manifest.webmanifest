@@ -1,0 +1,32 @@
+{
+  "name": "LC Gestor",
+  "short_name": "LC Gestor",
+  "description": "Dashboard integrado ao ERP MaxManager",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0f1e",
+  "theme_color": "#0a0f1e",
+  "orientation": "portrait-primary",
+  "lang": "pt-BR",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/lc-logo.ico",
+      "sizes": "32x32",
+      "type": "image/x-icon"
+    }
+  ]
+}

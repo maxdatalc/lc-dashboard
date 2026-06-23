@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#0d1117"/>
+  <!-- Subtle radial glow -->
+  <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#00e5ff" stop-opacity="0.07"/>
+    <stop offset="100%" stop-color="#00e5ff" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="512" height="512" rx="96" fill="url(#glow)"/>
+  <!-- Rising bar chart: 3 bars -->
+  <rect x="116" y="300" width="80" height="116" rx="12" fill="#00e5ff" opacity="0.30"/>
+  <rect x="216" y="216" width="80" height="200" rx="12" fill="#00e5ff" opacity="0.60"/>
+  <rect x="316" y="132" width="80" height="284" rx="12" fill="#00e5ff" opacity="1.0"/>
+  <!-- Baseline -->
+  <rect x="100" y="420" width="312" height="4" rx="2" fill="#00e5ff" opacity="0.20"/>
+  <!-- Top-left dot accent -->
+  <circle cx="140" cy="140" r="12" fill="#00e5ff" opacity="0.15"/>
+</svg>
