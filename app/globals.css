@@ -308,6 +308,45 @@ main, [data-page] {
   }
 }
 
+/* Espaço abaixo do conteúdo para não ficar atrás da bottom nav */
+@media (max-width: 767px) {
+  .mobile-safe-bottom {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Tabelas roláveis horizontalmente no mobile */
+@media (max-width: 767px) {
+  .table-scroll-x {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* Garante que tabelas não quebrem o layout no mobile */
+  table {
+    min-width: max-content;
+  }
+  /* Containers de filtros empilham no mobile */
+  .filters-mobile-stack {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .filters-mobile-stack > * {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+/* Scroll horizontal na tabela do relatório de comissão */
+@media (max-width: 767px) {
+  .relatorio-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .relatorio-table-wrapper table {
+    min-width: 680px;
+  }
+}
+
 /* Grid responsivo da tabela de vendas */
 .tabela-vendas-grid {
   grid-template-columns: 1fr 100px 24px;

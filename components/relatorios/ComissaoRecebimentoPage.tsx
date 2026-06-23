@@ -1314,6 +1314,7 @@ export default function ComissaoRecebimentoPage() {
               borderRadius: 12, overflow: "hidden",
             }}
           >
+            <div className="relatorio-table-wrapper">
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
                 <col style={{ width: "9%" }} />
@@ -1557,6 +1558,7 @@ export default function ComissaoRecebimentoPage() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </div>
         )
       )}

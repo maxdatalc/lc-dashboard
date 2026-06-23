@@ -147,7 +147,7 @@ export default async function DashboardLayout({
 
               <div
                 style={{ marginLeft: "var(--sidebar-width)" }}
-                className="flex flex-col min-h-screen"
+                className="flex flex-col min-h-screen mobile-safe-bottom"
               >
                 {children}
               </div>
