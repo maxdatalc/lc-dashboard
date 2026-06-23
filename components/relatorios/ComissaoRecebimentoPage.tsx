@@ -517,13 +517,13 @@ export default function ComissaoRecebimentoPage() {
   // Colunas da tabela (sem Vendedor no corpo — está no cabeçalho do grupo)
   const TABLE_HEAD = [
     "Data",
-    "Tipo Venda",
+    "Tipo Operação",
     "Forma de Pagamento",
-    "Valor Venda",
-    "Base Comissão",
+    "Vlr. Recebido",
+    "Vlr. Produtos",
     "% Comissão",
-    "Recebido Líquido",
-    "Comissão",
+    "Vlr. Líquido",
+    "Vlr. Comissão",
   ];
 
   const rowToArray = (row: EnrichedRow) => [
@@ -1240,7 +1240,7 @@ export default function ComissaoRecebimentoPage() {
                       key={h}
                       style={{
                         padding: "10px 12px",
-                        textAlign: ["Valor Venda", "Base Comissão", "% Comissão", "Recebido Líquido", "Comissão"].includes(h) ? "right" : "left",
+                        textAlign: ["Vlr. Recebido", "Vlr. Produtos", "% Comissão", "Vlr. Líquido", "Vlr. Comissão"].includes(h) ? "right" : "left",
                         fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
                         textTransform: "uppercase", letterSpacing: "0.05em",
                       }}
