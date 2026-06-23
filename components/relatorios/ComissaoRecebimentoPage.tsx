@@ -366,7 +366,9 @@ function ComissaoConfig({
 type EnrichedRow = ComissaoRow & {
   PaymentKey: string;
   PercentualAplicado: number;
+  ValorProdutosRecebimento: number;
   ComissaoPaga: number;
+  ValorLiquidoEmpresa: number;
 };
 
 type VendorGroup = {
@@ -375,6 +377,7 @@ type VendorGroup = {
   rows: EnrichedRow[];
   subtotalRecebido: number;
   subtotalComissao: number;
+  subtotalLiquido: number;
 };
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -423,21 +426,25 @@ export default function ComissaoRecebimentoPage() {
       rawRows.map((row) => {
         const key = getPaymentKey(row.TipoVista, row.TipoPrazo);
         const pct = (rates[key] ?? 0) / 100;
-        const baseTotal = row.ValorTotalVenda > 0 ? row.ValorTotalVenda : 1;
-        const proporcao = (row.BaseCalculoComissao * pct) / baseTotal;
-        const comissao = Math.round(row.ValorRecebidoLiquido * proporcao * 100) / 100;
+        const totalVenda = row.ValorTotalVenda > 0 ? row.ValorTotalVenda : 0;
+        const proporcaoPecas = totalVenda > 0 ? row.ValorPecasVenda / totalVenda : 0;
+        const vlrProdutos = Math.round(row.ValorRecebidoLiquido * proporcaoPecas * 100) / 100;
+        const comissao = row.SemVinculo ? 0 : Math.round(vlrProdutos * pct * 100) / 100;
+        const vlrLiquido = Math.round((row.ValorRecebidoLiquido - comissao) * 100) / 100;
         return {
           ...row,
           PaymentKey: key,
-          PercentualAplicado: (rates[key] ?? 0),
+          PercentualAplicado: rates[key] ?? 0,
+          ValorProdutosRecebimento: vlrProdutos,
           ComissaoPaga: comissao,
+          ValorLiquidoEmpresa: vlrLiquido,
         };
       }),
     [rates]
   );
 
   const enrichedRows = enrich(
-    rows.map(({ PaymentKey: _, PercentualAplicado: __, ComissaoPaga: ___, ...raw }) => raw as ComissaoRow)
+    rows.map(({ PaymentKey: _, PercentualAplicado: __, ValorProdutosRecebimento: ___, ComissaoPaga: ____, ValorLiquidoEmpresa: _____, ...raw }) => raw as ComissaoRow)
   );
 
   const handleGerar = async () => {
@@ -464,26 +471,32 @@ export default function ComissaoRecebimentoPage() {
   // ── Totalizadores ────────────────────────────────────────────────────────
   const totalRecebido = enrichedRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
   const totalComissao = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
-  const totalVendas   = new Set(enrichedRows.map((r) => r.VendaId)).size;
+  const totalLiquido  = enrichedRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0);
+  const totalVendas   = new Set(enrichedRows.filter((r) => r.VendaId).map((r) => r.VendaId)).size;
   const pctMedio      = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
 
   const multiVendedor = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
+  const semVinculoRows = enrichedRows.filter((r) => r.SemVinculo);
+  const totalSemVinculoQtd   = semVinculoRows.length;
+  const totalSemVinculoValor = semVinculoRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
 
   // ── Agrupamento por vendedor ─────────────────────────────────────────────
   const vendorGroups = useMemo<VendorGroup[]>(() => {
-    const map = new Map<number, EnrichedRow[]>();
+    const map = new Map<number | null, EnrichedRow[]>();
     enrichedRows.forEach((row) => {
-      if (!map.has(row.VendedorId)) map.set(row.VendedorId, []);
-      map.get(row.VendedorId)!.push(row);
+      const key = row.VendedorId;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(row);
     });
     return Array.from(map.entries()).map(([id, vRows]) => {
       const sorted = [...vRows].sort((a, b) => a.DataPagamento.localeCompare(b.DataPagamento));
       return {
-        vendedorId: id,
-        nome: vRows[0].NomeVendedor,
+        vendedorId: id ?? -1,
+        nome: vRows[0].NomeVendedor ?? "Sem vendedor",
         rows: sorted,
         subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0),
         subtotalComissao: vRows.reduce((s, r) => s + r.ComissaoPaga, 0),
+        subtotalLiquido:  vRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0),
       };
     });
   }, [enrichedRows]);
@@ -517,24 +530,29 @@ export default function ComissaoRecebimentoPage() {
   // Colunas da tabela (sem Vendedor no corpo — está no cabeçalho do grupo)
   const TABLE_HEAD = [
     "Data",
-    "Tipo Operação",
-    "Forma de Pagamento",
+    "Tipo",
+    "Vlr. Venda",
+    "Forma de Pgto",
     "Vlr. Recebido",
     "Vlr. Produtos",
-    "% Comissão",
-    "Vlr. Líquido",
+    "Comissão %",
     "Vlr. Comissão",
+    "Vlr. Líq.",
   ];
+
+  const tipoLabel = (row: EnrichedRow) =>
+    row.VendaId ? `${row.TipoVenda ?? ""} ${row.VendaId}` : "Sem vínculo";
 
   const rowToArray = (row: EnrichedRow) => [
     fmtData(row.DataPagamento),
-    row.TipoVenda,
+    tipoLabel(row),
+    row.SemVinculo ? "-" : fmtMoeda(row.ValorTotalVenda),
     row.TipoPagamento,
-    fmtMoeda(row.ValorTotalVenda),
-    fmtMoeda(row.BaseCalculoComissao),
-    fmtPct(row.PercentualAplicado),
     fmtMoeda(row.ValorRecebidoLiquido),
+    row.SemVinculo ? "-" : fmtMoeda(row.ValorProdutosRecebimento),
+    fmtPct(row.PercentualAplicado),
     fmtMoeda(row.ComissaoPaga),
+    fmtMoeda(row.ValorLiquidoEmpresa),
   ];
 
   // Carrega logo MaxData do public (null se não encontrada)
@@ -666,10 +684,14 @@ export default function ComissaoRecebimentoPage() {
     }
 
     // ── DETALHADO: todas as linhas agrupadas por vendedor ─────────────────
+    // cols: 0=Data,1=Tipo,2=VlrVenda,3=FormaPgto,4=VlrRecebido,5=VlrProdutos,6=Comissao%,7=VlrComissao,8=VlrLiq
     const colStyles: Record<number, object> = {
-      3: { halign: "right" }, 4: { halign: "right" },
-      5: { halign: "right" }, 6: { halign: "right" },
+      2: { halign: "right" },
+      4: { halign: "right" },
+      5: { halign: "right" },
+      6: { halign: "right" },
       7: { halign: "right", fontStyle: "bold" },
+      8: { halign: "right", fontStyle: "bold" },
     };
 
     if (multiVendedor) {
@@ -690,14 +712,14 @@ export default function ComissaoRecebimentoPage() {
         doc.setFont("helvetica", "normal");
         doc.setTextColor(120, 120, 120);
         doc.text(
-          `${group.rows.length} recebimento${group.rows.length !== 1 ? "s" : ""}   |   Recebido: ${fmtMoeda(group.subtotalRecebido)}   |   Comissão: ${fmtMoeda(group.subtotalComissao)}`,
+          `${group.rows.length} recebimento${group.rows.length !== 1 ? "s" : ""}   |   Recebido: ${fmtMoeda(group.subtotalRecebido)}   |   Comissão: ${fmtMoeda(group.subtotalComissao)}   |   Líq.: ${fmtMoeda(group.subtotalLiquido)}`,
           14, curY + 11
         );
         doc.setTextColor(0, 0, 0);
 
         const bodyRows = [
           ...group.rows.map(rowToArray),
-          [`Subtotal — ${group.nome}`, "", "", "", "", "", fmtMoeda(group.subtotalRecebido), fmtMoeda(group.subtotalComissao)],
+          [`Subtotal — ${group.nome}`, "", "", "", fmtMoeda(group.subtotalRecebido), "", "", fmtMoeda(group.subtotalComissao), fmtMoeda(group.subtotalLiquido)],
         ];
 
         autoTable(doc, {
@@ -720,7 +742,7 @@ export default function ComissaoRecebimentoPage() {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(20, 20, 20);
       doc.text(
-        `TOTAL GERAL (${enrichedRows.length} recebimentos)   |   Recebido: ${fmtMoeda(totalRecebido)}   |   Comissão: ${fmtMoeda(totalComissao)}`,
+        `TOTAL GERAL (${enrichedRows.length} recebimentos)   |   Recebido: ${fmtMoeda(totalRecebido)}   |   Comissão: ${fmtMoeda(totalComissao)}   |   Líq.: ${fmtMoeda(totalLiquido)}`,
         14, curY + 6
       );
 
@@ -733,7 +755,7 @@ export default function ComissaoRecebimentoPage() {
 
       const bodyRows = [
         ...enrichedRows.map(rowToArray),
-        [`TOTAL (${enrichedRows.length} recebimentos)`, "", "", "", "", "", fmtMoeda(totalRecebido), fmtMoeda(totalComissao)],
+        [`TOTAL (${enrichedRows.length} recebimentos)`, "", "", "", fmtMoeda(totalRecebido), "", "", fmtMoeda(totalComissao), fmtMoeda(totalLiquido)],
       ];
 
       autoTable(doc, {
@@ -791,17 +813,15 @@ export default function ComissaoRecebimentoPage() {
         group.rows.forEach((row) => wsData.push(rowToArray(row)));
         wsData.push([
           `Subtotal — ${group.nome} (${group.rows.length} recebimentos)`,
-          "", "", "", "", "",
-          group.subtotalRecebido,
-          group.subtotalComissao,
+          "", "", "", group.subtotalRecebido, "", "",
+          group.subtotalComissao, group.subtotalLiquido,
         ]);
         wsData.push([]);
       });
       wsData.push([
         `TOTAL GERAL (${enrichedRows.length} recebimentos)`,
-        "", "", "", "", "",
-        totalRecebido,
-        totalComissao,
+        "", "", "", totalRecebido, "", "",
+        totalComissao, totalLiquido,
       ]);
     } else {
       wsData.push(TABLE_HEAD);
@@ -809,17 +829,16 @@ export default function ComissaoRecebimentoPage() {
       wsData.push([]);
       wsData.push([
         `TOTAL (${enrichedRows.length} recebimentos)`,
-        "", "", "", "", "",
-        totalRecebido,
-        totalComissao,
+        "", "", "", totalRecebido, "", "",
+        totalComissao, totalLiquido,
       ]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     ws["!cols"] = [
-      { wch: 12 }, { wch: 10 }, { wch: 18 },
-      { wch: 14 }, { wch: 14 }, { wch: 10 },
-      { wch: 16 }, { wch: 14 },
+      { wch: 12 }, { wch: 12 }, { wch: 14 },
+      { wch: 18 }, { wch: 14 }, { wch: 14 },
+      { wch: 10 }, { wch: 14 }, { wch: 14 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -834,44 +853,67 @@ export default function ComissaoRecebimentoPage() {
   };
 
   // ── Células da tabela (reutilizado em flat e grouped) ─────────────────────
-  const renderRowCells = (row: EnrichedRow) => (
-    <>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-        {fmtData(row.DataPagamento)}
-      </td>
-      <td style={{ padding: "8px 12px" }}>
-        <span
-          style={{
-            fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-            background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
-            color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
-          }}
-        >
-          {row.TipoVenda}
-        </span>
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-        {row.TipoPagamento}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ValorTotalVenda)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.BaseCalculoComissao)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
-        <span style={{ color: row.PercentualAplicado > 0 ? "var(--accent-cyan)" : "var(--text-muted)", fontWeight: row.PercentualAplicado > 0 ? 600 : 400 }}>
-          {fmtPct(row.PercentualAplicado)}
-        </span>
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ValorRecebidoLiquido)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ComissaoPaga)}
-      </td>
-    </>
-  );
+  const renderRowCells = (row: EnrichedRow) => {
+    const isSem = row.SemVinculo === 1;
+    const mutedColor = isSem ? "#f87171" : "var(--text-secondary)";
+    return (
+      <>
+        {/* 1 — Data */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: mutedColor, whiteSpace: "nowrap" }}>
+          {fmtData(row.DataPagamento)}
+        </td>
+        {/* 2 — Tipo (OS/VE + número ou alerta) */}
+        <td style={{ padding: "8px 12px" }}>
+          {isSem ? (
+            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: "rgba(239,68,68,0.15)", color: "#f87171" }}>
+              Sem vínculo
+            </span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+                background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
+                color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+              }}>
+                {row.TipoVenda}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
+            </span>
+          )}
+        </td>
+        {/* 3 — Vlr. Venda */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: isSem ? "#f87171" : "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {isSem ? "—" : fmtMoeda(row.ValorTotalVenda)}
+        </td>
+        {/* 4 — Forma de Pgto */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: mutedColor, whiteSpace: "nowrap" }}>
+          {row.TipoPagamento}
+        </td>
+        {/* 5 — Vlr. Recebido */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: isSem ? "#f87171" : "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {fmtMoeda(row.ValorRecebidoLiquido)}
+        </td>
+        {/* 6 — Vlr. Produtos */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {isSem ? "—" : fmtMoeda(row.ValorProdutosRecebimento)}
+        </td>
+        {/* 7 — Comissão % */}
+        <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
+          <span style={{ color: (!isSem && row.PercentualAplicado > 0) ? "var(--accent-cyan)" : "var(--text-muted)", fontWeight: (!isSem && row.PercentualAplicado > 0) ? 600 : 400 }}>
+            {isSem ? "—" : fmtPct(row.PercentualAplicado)}
+          </span>
+        </td>
+        {/* 8 — Vlr. Comissão */}
+        <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: isSem ? "var(--text-muted)" : "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {isSem ? "—" : fmtMoeda(row.ComissaoPaga)}
+        </td>
+        {/* 9 — Vlr. Líq. (empresa) */}
+        <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: isSem ? "#f87171" : "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {isSem ? fmtMoeda(row.ValorRecebidoLiquido) : fmtMoeda(row.ValorLiquidoEmpresa)}
+        </td>
+      </>
+    );
+  };
 
   return (
     <div className="comissao-page" style={{ padding: "24px" }}>
@@ -1172,21 +1214,28 @@ export default function ComissaoRecebimentoPage() {
           {[
             { label: "Total Recebido",    value: fmtMoeda(totalRecebido), icon: <Receipt style={{ width: 16, height: 16 }} /> },
             { label: "Total de Comissão", value: fmtMoeda(totalComissao), icon: <TrendingUp style={{ width: 16, height: 16 }} />, accent: true },
+            { label: "Vlr. Líq. Empresa", value: fmtMoeda(totalLiquido),  icon: <TrendingUp style={{ width: 16, height: 16 }} /> },
             { label: "% Médio",           value: fmtPct(pctMedio),        icon: <SlidersHorizontal style={{ width: 16, height: 16 }} /> },
             { label: "Vendas/O.S.",        value: String(totalVendas),      icon: <Receipt style={{ width: 16, height: 16 }} /> },
+            ...(totalSemVinculoQtd > 0 ? [{
+              label: "Sem vínculo",
+              value: `${totalSemVinculoQtd} (${fmtMoeda(totalSemVinculoValor)})`,
+              icon: <Receipt style={{ width: 16, height: 16 }} />,
+              alert: true,
+            }] : []),
           ].map((card) => (
             <div
               key={card.label}
               style={{
                 background: "var(--bg-card)",
-                border: `1px solid ${card.accent ? "var(--accent-cyan)" : "var(--border-subtle)"}`,
+                border: `1px solid ${"alert" in card && card.alert ? "rgba(239,68,68,0.5)" : card.accent ? "var(--accent-cyan)" : "var(--border-subtle)"}`,
                 borderRadius: 10, padding: "14px 16px",
               }}
             >
               <div
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
-                  color: card.accent ? "var(--accent-cyan)" : "var(--text-muted)",
+                  color: "alert" in card && card.alert ? "#f87171" : card.accent ? "var(--accent-cyan)" : "var(--text-muted)",
                   fontSize: 11, fontWeight: 600, textTransform: "uppercase",
                   letterSpacing: "0.05em", marginBottom: 6,
                 }}
@@ -1194,7 +1243,7 @@ export default function ComissaoRecebimentoPage() {
                 {card.icon}
                 {card.label}
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: card.accent ? "var(--accent-cyan)" : "var(--text-primary)" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "alert" in card && card.alert ? "#f87171" : card.accent ? "var(--accent-cyan)" : "var(--text-primary)" }}>
                 {card.value}
               </div>
             </div>
@@ -1223,14 +1272,15 @@ export default function ComissaoRecebimentoPage() {
           >
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: "10%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "12%" }} />
                 <col style={{ width: "9%" }} />
-                <col style={{ width: "15%" }} />
-                <col style={{ width: "15%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "11%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
               </colgroup>
 
               <thead>
@@ -1240,7 +1290,7 @@ export default function ComissaoRecebimentoPage() {
                       key={h}
                       style={{
                         padding: "10px 12px",
-                        textAlign: ["Vlr. Recebido", "Vlr. Produtos", "% Comissão", "Vlr. Líquido", "Vlr. Comissão"].includes(h) ? "right" : "left",
+                        textAlign: ["Vlr. Venda", "Vlr. Recebido", "Vlr. Produtos", "Comissão %", "Vlr. Comissão", "Vlr. Líq."].includes(h) ? "right" : "left",
                         fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
                         textTransform: "uppercase", letterSpacing: "0.05em",
                       }}
@@ -1271,7 +1321,7 @@ export default function ComissaoRecebimentoPage() {
                         onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "none"; }}
                       >
                         {/* Nome + contagem */}
-                        <td colSpan={6} style={{ padding: "10px 12px" }}>
+                        <td colSpan={7} style={{ padding: "10px 12px" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                             <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
                             <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
@@ -1283,16 +1333,16 @@ export default function ComissaoRecebimentoPage() {
                           </span>
                         </td>
 
-                        {/* Recebido líquido subtotal */}
-                        <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                          {fmtMoeda(group.subtotalRecebido)}
+                        {/* Comissão subtotal */}
+                        <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmtMoeda(group.subtotalComissao)}
                         </td>
 
-                        {/* Comissão subtotal + chevron */}
+                        {/* Vlr. Líq. subtotal + chevron */}
                         <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
                           <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)" }}>
-                              {fmtMoeda(group.subtotalComissao)}
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                              {fmtMoeda(group.subtotalLiquido)}
                             </span>
                             <ChevronDown
                               style={{
@@ -1311,7 +1361,7 @@ export default function ComissaoRecebimentoPage() {
                           key={row.RecebimentoId}
                           style={{
                             borderBottom: "1px solid var(--border-subtle)",
-                            background: idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
+                            background: row.SemVinculo ? "rgba(239,68,68,0.07)" : idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
                           }}
                         >
                           {renderRowCells(row)}
@@ -1325,7 +1375,7 @@ export default function ComissaoRecebimentoPage() {
                       key={row.RecebimentoId}
                       style={{
                         borderBottom: idx < enrichedRows.length - 1 ? "1px solid var(--border-subtle)" : "none",
-                        background: idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
+                        background: row.SemVinculo ? "rgba(239,68,68,0.07)" : idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
                       }}
                     >
                       {renderRowCells(row)}
@@ -1337,14 +1387,19 @@ export default function ComissaoRecebimentoPage() {
               {/* Total geral */}
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--border-subtle)" }}>
-                  <td
-                    colSpan={8}
-                    style={{
-                      padding: "10px 12px", fontSize: 12, fontWeight: 600,
-                      color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em",
-                    }}
-                  >
+                  <td colSpan={7} style={{ padding: "10px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {multiVendedor ? "Total Geral" : "Total"} ({enrichedRows.length} recebimentos)
+                    {totalSemVinculoQtd > 0 && (
+                      <span style={{ marginLeft: 12, color: "#f87171", fontSize: 11, fontWeight: 500, textTransform: "none" }}>
+                        — {totalSemVinculoQtd} sem vínculo
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmtMoeda(totalComissao)}
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmtMoeda(totalLiquido)}
                   </td>
                 </tr>
               </tfoot>
