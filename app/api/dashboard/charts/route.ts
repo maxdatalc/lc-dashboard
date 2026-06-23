@@ -10,19 +10,19 @@ function isDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
 
 const NOMES_MES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
 
-async function getConfig(lojaIds: string[]) {
-  for (const id of lojaIds) {
-    try {
-      const cfg = await getLojaDbConfig(id);
-      if (cfg) return cfg;
-    } catch {}
-  }
-  return null;
-}
-
-// shorthand para usar em todos os queryBridge desta rota
-function ep(config: NonNullable<Awaited<ReturnType<typeof getConfig>>>) {
-  return { empId: config.empId };
+// Retorna o config da bridge (do primeiro válido) + todos os empIds das lojas selecionadas.
+// Isso permite consultar múltiplas lojas na mesma instância com empId IN (1,2,3).
+async function getMultiConfig(lojaIds: string[]) {
+  const results = await Promise.all(
+    lojaIds.map((id) => getLojaDbConfig(id).catch(() => null))
+  );
+  const valid = results.filter((c): c is NonNullable<typeof c> => c !== null);
+  if (!valid.length) return null;
+  return {
+    bridgeUrl: valid[0].bridgeUrl,
+    token: valid[0].token,
+    empIds: valid.map((c) => c.empId),
+  };
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -39,8 +39,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const clienteNomeRaw = searchParams.get("clienteNome");
   const produtoNomeRaw = searchParams.get("produtoNome");
-  const cClause  = clienteNomeRaw ? "AND vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId = @empId)" : "";
-  const cClauseJ = clienteNomeRaw ? "AND v.vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId = @empId)" : "";
   const pClause  = produtoNomeRaw ? "AND vedId IN (SELECT vdiVedId FROM vendaItem WHERE vdiProNome = @produtoNome AND vdiCancel = 0)" : "";
   const pClauseJ = produtoNomeRaw ? "AND v.vedId IN (SELECT vdiVedId FROM vendaItem WHERE vdiProNome = @produtoNome AND vdiCancel = 0)" : "";
   const cp = {
@@ -52,8 +50,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const tipoPessoa = tipoPessoaRaw === "PF" || tipoPessoaRaw === "PJ" ? tipoPessoaRaw : null;
   const _TPC = `CASE WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(cliCpfCgc,''),'.',''),'-',''),'/',''),' ','')) = 11 THEN 'PF' ELSE 'PJ' END`;
   const _TPCV = `CASE WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(c.cliCpfCgc,''),'.',''),'-',''),'/',''),' ','')) = 11 THEN 'PF' ELSE 'PJ' END`;
-  const tpClause  = tipoPessoa ? `AND vedClienteId IN (SELECT cliId FROM cliente WHERE empId = @empId AND ${_TPC} = @tipoPessoa)` : "";
-  const tpClauseJ = tipoPessoa ? `AND v.vedClienteId IN (SELECT cliId FROM cliente WHERE empId = @empId AND ${_TPC} = @tipoPessoa)` : "";
   const tpClauseC = tipoPessoa ? `AND ${_TPCV} = @tipoPessoa` : "";
   const tp = tipoPessoa ? { tipoPessoa } : {};
 
@@ -80,13 +76,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ? { start: startParam, end: endParam }
       : getDateRange(period);
 
-  const config = await getConfig(lojaIds);
-  if (!config) {
+  const mc = await getMultiConfig(lojaIds);
+  if (!mc) {
     return NextResponse.json(
       { error: "Bridge SQL não configurada para esta loja." },
       { status: 503 }
     );
   }
+
+  const config = { bridgeUrl: mc.bridgeUrl, token: mc.token };
+  // empId IN (1,2,3) — interpolação segura pois são inteiros do nosso próprio banco
+  const empIn = mc.empIds.join(",");
+
+  // Cláusulas de filtro que referenciam empId são construídas após ter empIn
+  const cClause  = clienteNomeRaw ? `AND vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId IN (${empIn}))` : "";
+  const cClauseJ = clienteNomeRaw ? `AND v.vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId IN (${empIn}))` : "";
+  const tpClause  = tipoPessoa ? `AND vedClienteId IN (SELECT cliId FROM cliente WHERE empId IN (${empIn}) AND ${_TPC} = @tipoPessoa)` : "";
+  const tpClauseJ = tipoPessoa ? `AND v.vedClienteId IN (SELECT cliId FROM cliente WHERE empId IN (${empIn}) AND ${_TPC} = @tipoPessoa)` : "";
 
   try {
     switch (type) {
@@ -108,13 +114,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
               AND vedTotalNf > 0
-              AND empId = @empId
+              AND empId IN (${empIn})
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
               ${vClause}${cClause}${pClause}${tpClause}
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
-            { start: inicio12m, end, ...ep(config), ...vp, ...cp, ...tp }
+            { start: inicio12m, end, ...vp, ...cp, ...tp }
           ),
           queryBridge<{ mes: string; total: number; qtd: number }>(
             config,
@@ -126,13 +132,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo = 'DV'
               AND vedTotalNf > 0
-              AND empId = @empId
+              AND empId IN (${empIn})
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
               ${vClause}${cClause}${pClause}${tpClause}
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
-            { start: inicio12m, end, ...ep(config), ...vp, ...cp, ...tp }
+            { start: inicio12m, end, ...vp, ...cp, ...tp }
           ),
         ]);
 
@@ -211,13 +217,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
-            AND v.empId = @empId
+            AND v.empId IN (${empIn})
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseJ}
           GROUP BY vi.vdiProNome
           ORDER BY valor DESC`,
-          { start, end, ...ep(config), ...vp, ...cp, ...tp }
+          { start, end, ...vp, ...cp, ...tp }
         );
 
         return NextResponse.json(
@@ -253,13 +259,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
-            AND v.empId = @empId
+            AND v.empId IN (${empIn})
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseJ}
           GROUP BY f.fabNome
           ORDER BY valor DESC`,
-          { start, end, ...ep(config), ...vp, ...cp, ...tp }
+          { start, end, ...vp, ...cp, ...tp }
         );
 
         return NextResponse.json(
@@ -295,7 +301,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ISNULL((
               SELECT COUNT(*) FROM venda vd
               WHERE vd.vedClienteId = c.cliId
-                AND vd.vedStatus = 'F' AND vd.vedTipo = 'DV' AND vd.empId = @empId
+                AND vd.vedStatus = 'F' AND vd.vedTipo = 'DV' AND vd.empId IN (${empIn})
                 AND CONVERT(date, vd.vedFechamento) BETWEEN @start AND @end
             ), 0) AS devolucoes,
             (
@@ -308,7 +314,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               JOIN venda v2 ON vi2.vdiVedId = v2.vedId
               WHERE v2.vedClienteId = c.cliId
                 AND v2.vedStatus = 'F' AND v2.vedTipo IN ('OS','VE') AND v2.vedTotalNf > 0
-                AND v2.empId = @empId
+                AND v2.empId IN (${empIn})
                 AND CONVERT(date, v2.vedFechamento) BETWEEN @start AND @end
                 AND vi2.vdiCancel = 0
             ) AS margemCliente
@@ -317,12 +323,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
-            AND v.empId = @empId
+            AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseC}
           GROUP BY c.cliNome, c.cliTipoCad, c.cliId
           ORDER BY total DESC`,
-          { start, end, ...ep(config), ...vp, ...cp, ...tp }
+          { start, end, ...vp, ...cp, ...tp }
         );
 
         return NextResponse.json(
@@ -370,12 +376,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
-            AND v.empId = @empId
+            AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${cClauseJ}${pClauseJ}${tpClauseJ}
           GROUP BY c.cliId, c.cliNome
           ORDER BY valor DESC`,
-          { start, end, ...ep(config), ...cp, ...tp }
+          { start, end, ...cp, ...tp }
         );
 
         return NextResponse.json(
@@ -404,7 +410,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
-            AND v.empId = @empId
+            AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${cClauseJ}${pClauseJ}
           GROUP BY
@@ -412,7 +418,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(c.cliCpfCgc,''),'.',''),'-',''),'/',''),' ','')) = 11 THEN 'PF'
               ELSE 'PJ'
             END`,
-          { start, end, ...ep(config), ...cp }
+          { start, end, ...cp }
         );
 
         let pfTotal = 0, pfCount = 0, pjTotal = 0, pjCount = 0;
@@ -444,12 +450,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           WHERE v.vedStatus = 'F'
             AND v.vedTipo IN ('OS','VE')
             AND v.vedTotalNf > 0
-            AND v.empId = @empId
+            AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseJ}
           GROUP BY vp.pgtTipoDesc
           ORDER BY total DESC`,
-          { start, end, ...ep(config), ...vp, ...cp, ...tp }
+          { start, end, ...vp, ...cp, ...tp }
         );
 
         const totalGeral = rows.reduce((s, r) => s + Number(r.total), 0);
@@ -477,7 +483,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
               AND vedTotalNf > 0
-              AND empId = @empId
+              AND empId IN (${empIn})
               AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
               AND vedClienteId != 0
             GROUP BY vedClienteId
@@ -488,7 +494,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             WHERE vedStatus = 'F'
               AND vedTipo IN ('OS','VE')
               AND vedTotalNf > 0
-              AND empId = @empId
+              AND empId IN (${empIn})
               AND vedClienteId != 0
             GROUP BY vedClienteId
           )
@@ -499,7 +505,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             ISNULL(SUM(CASE WHEN pc.primeira < @start  THEN cp.valor ELSE 0 END), 0) AS faturamentoRecorrentes
           FROM compras_periodo cp
           JOIN primeira_compra pc ON cp.vedClienteId = pc.vedClienteId`,
-          { start, end, ...ep(config) }
+          { start, end }
         );
 
         const r = rows[0] ?? { novos: 0, recorrentes: 0, faturamentoNovos: 0, faturamentoRecorrentes: 0 };
