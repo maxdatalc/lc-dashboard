@@ -554,65 +554,123 @@ export default function ComissaoRecebimentoPage() {
     }
   };
 
-  // ── Geração do PDF (compartilhado entre Imprimir e Exportar) ─────────────
-  const buildPdf = async () => {
+  // ── Geração do PDF — retrato, resumido ou detalhado ─────────────────────
+  const buildPdf = async (mode: "resumido" | "detalhado") => {
     const { default: jsPDF } = await import("jspdf");
     const { default: autoTable } = await import("jspdf-autotable");
 
-    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    // Retrato A4: 210 × 297mm — economiza papel
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
 
     const logo = await loadLogo();
-
-    // Logo: até 48mm de largura, altura proporcional (logo ~5:2)
-    const LOGO_W = 48;
-    const LOGO_H = 19;
-    const TEXT_X = logo ? 14 + LOGO_W + 6 : 14;
-    const HEADER_H = 32; // altura total do cabeçalho
+    const LOGO_W = 44;
+    const LOGO_H = 17;
+    const TEXT_X = logo ? 14 + LOGO_W + 5 : 14;
+    const HEADER_H = 30;
+    const periodStr = `${start.split("-").reverse().join("/")} a ${end.split("-").reverse().join("/")}`;
+    const geradoEm = new Date().toLocaleDateString("pt-BR");
 
     const drawPageHeader = () => {
-      if (logo) {
-        doc.addImage(logo, "PNG", 14, 6, LOGO_W, LOGO_H);
-      }
+      if (logo) doc.addImage(logo, "PNG", 14, 6, LOGO_W, LOGO_H);
 
-      doc.setFontSize(13);
+      doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(20, 20, 20);
       doc.text("Comissão por Recebimento", TEXT_X, 13);
 
-      doc.setFontSize(8.5);
+      doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(90, 90, 90);
       doc.text(`Loja: ${lojaNome}`, TEXT_X, 19);
-      doc.text(
-        `Período: ${start.split("-").reverse().join("/")} a ${end.split("-").reverse().join("/")}   |   Gerado em: ${new Date().toLocaleDateString("pt-BR")}`,
-        TEXT_X, 24
-      );
+      doc.text(`Período: ${periodStr}   |   Gerado em: ${geradoEm}`, TEXT_X, 24);
 
-      // Linha separadora
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(0.3);
       doc.line(14, HEADER_H, pageW - 14, HEADER_H);
-
       doc.setTextColor(0, 0, 0);
     };
 
     const drawPageNumber = () => {
-      const total = (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1;
-      doc.setFontSize(7.5);
+      const pg = (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1;
+      doc.setFontSize(7);
       doc.setTextColor(150, 150, 150);
-      doc.text(`Página ${total}`, pageW - 14, pageH - 6, { align: "right" });
+      doc.text(`Página ${pg}`, pageW - 14, pageH - 6, { align: "right" });
       doc.setTextColor(0, 0, 0);
     };
 
+    drawPageHeader();
+
+    // ── RESUMIDO: tabela de totais por vendedor ────────────────────────────
+    if (mode === "resumido") {
+      const label = mode === "resumido" ? "RESUMO — COMISSÃO POR VENDEDOR" : "";
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(40, 40, 40);
+      doc.text(label, 14, HEADER_H + 7);
+
+      if (multiVendedor) {
+        const resumoHead = [["Vendedor", "Recebimentos", "Recebido Líquido", "Comissão"]];
+        const resumoBody = vendorGroups.map((g) => [
+          g.nome,
+          String(g.rows.length),
+          fmtMoeda(g.subtotalRecebido),
+          fmtMoeda(g.subtotalComissao),
+        ]);
+        resumoBody.push([
+          "TOTAL GERAL",
+          String(enrichedRows.length),
+          fmtMoeda(totalRecebido),
+          fmtMoeda(totalComissao),
+        ]);
+
+        autoTable(doc, {
+          head: resumoHead,
+          body: resumoBody,
+          startY: HEADER_H + 11,
+          styles: { fontSize: 9, cellPadding: 3 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: {
+            0: { cellWidth: 80 },
+            1: { halign: "center", cellWidth: 28 },
+            2: { halign: "right", cellWidth: 40 },
+            3: { halign: "right", fontStyle: "bold", cellWidth: 34 },
+          },
+          didDrawPage: drawPageNumber,
+        });
+      } else {
+        const nomeVendedor = enrichedRows[0]?.NomeVendedor ?? "";
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Vendedor: ${nomeVendedor}`, 14, HEADER_H + 16);
+
+        autoTable(doc, {
+          head: [["Recebimentos", "Recebido Líquido", "Comissão"]],
+          body: [[String(enrichedRows.length), fmtMoeda(totalRecebido), fmtMoeda(totalComissao)]],
+          startY: HEADER_H + 20,
+          styles: { fontSize: 10, cellPadding: 4 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+          columnStyles: {
+            0: { halign: "center", cellWidth: 36 },
+            1: { halign: "right", cellWidth: 50 },
+            2: { halign: "right", fontStyle: "bold", cellWidth: 50 },
+          },
+          didDrawPage: drawPageNumber,
+        });
+      }
+
+      return doc;
+    }
+
+    // ── DETALHADO: todas as linhas agrupadas por vendedor ─────────────────
     const colStyles: Record<number, object> = {
       3: { halign: "right" }, 4: { halign: "right" },
       5: { halign: "right" }, 6: { halign: "right" },
       7: { halign: "right", fontStyle: "bold" },
     };
-
-    drawPageHeader();
 
     if (multiVendedor) {
       let curY = HEADER_H + 4;
@@ -624,76 +682,66 @@ export default function ComissaoRecebimentoPage() {
           curY = HEADER_H + 4;
         }
 
-        // Nome do vendedor como seção
         doc.setFontSize(9.5);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(20, 20, 20);
-        doc.text(group.nome, 14, curY + 5);
-        doc.setFontSize(8);
+        doc.text(group.nome, 14, curY + 6);
+        doc.setFontSize(7.5);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(120, 120, 120);
-        doc.text(`${group.rows.length} recebimento${group.rows.length !== 1 ? "s" : ""}`, 14, curY + 10);
+        doc.text(
+          `${group.rows.length} recebimento${group.rows.length !== 1 ? "s" : ""}   |   Recebido: ${fmtMoeda(group.subtotalRecebido)}   |   Comissão: ${fmtMoeda(group.subtotalComissao)}`,
+          14, curY + 11
+        );
         doc.setTextColor(0, 0, 0);
 
         const bodyRows = [
           ...group.rows.map(rowToArray),
-          [
-            `Subtotal — ${group.nome}`,
-            "", "", "", "", "",
-            fmtMoeda(group.subtotalRecebido),
-            fmtMoeda(group.subtotalComissao),
-          ],
+          [`Subtotal — ${group.nome}`, "", "", "", "", "", fmtMoeda(group.subtotalRecebido), fmtMoeda(group.subtotalComissao)],
         ];
 
         autoTable(doc, {
           head: [TABLE_HEAD],
           body: bodyRows,
-          startY: curY + 13,
-          styles: { fontSize: 7.5, cellPadding: 2 },
-          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+          startY: curY + 14,
+          styles: { fontSize: 7, cellPadding: 1.5 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold", fontSize: 6.5 },
           alternateRowStyles: { fillColor: [248, 250, 252] },
           columnStyles: colStyles,
           didDrawPage: drawPageNumber,
         });
 
-        curY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+        curY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
       });
 
-      // Total geral
+      // Total geral ao final
+      if (curY + 12 > pageH - 15) { doc.addPage(); drawPageHeader(); curY = HEADER_H + 4; }
       doc.setFontSize(9);
       doc.setFont("helvetica", "bold");
       doc.setTextColor(20, 20, 20);
       doc.text(
         `TOTAL GERAL (${enrichedRows.length} recebimentos)   |   Recebido: ${fmtMoeda(totalRecebido)}   |   Comissão: ${fmtMoeda(totalComissao)}`,
-        14, curY + 5
+        14, curY + 6
       );
 
     } else {
-      // Vendedor único: mostra o nome no cabeçalho da tabela
       const nomeVendedor = enrichedRows[0]?.NomeVendedor ?? "";
-      if (nomeVendedor) {
-        doc.setFontSize(9.5);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(20, 20, 20);
-        doc.text(`Vendedor: ${nomeVendedor}`, 14, HEADER_H + 8);
-      }
+      doc.setFontSize(9.5);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(20, 20, 20);
+      doc.text(`Vendedor: ${nomeVendedor}`, 14, HEADER_H + 7);
 
       const bodyRows = [
         ...enrichedRows.map(rowToArray),
-        [
-          `TOTAL (${enrichedRows.length} recebimentos)`,
-          "", "", "", "", "",
-          fmtMoeda(totalRecebido),
-          fmtMoeda(totalComissao),
-        ],
+        [`TOTAL (${enrichedRows.length} recebimentos)`, "", "", "", "", "", fmtMoeda(totalRecebido), fmtMoeda(totalComissao)],
       ];
 
       autoTable(doc, {
         head: [TABLE_HEAD],
         body: bodyRows,
-        startY: nomeVendedor ? HEADER_H + 12 : HEADER_H + 4,
-        styles: { fontSize: 7.5, cellPadding: 2 },
-        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+        startY: HEADER_H + 12,
+        styles: { fontSize: 7, cellPadding: 1.5 },
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold", fontSize: 6.5 },
         alternateRowStyles: { fillColor: [248, 250, 252] },
         columnStyles: colStyles,
         didDrawPage: drawPageNumber,
@@ -703,12 +751,24 @@ export default function ComissaoRecebimentoPage() {
     return doc;
   };
 
-  // ── Imprimir: abre PDF em nova aba e dispara print dialog ────────────────
-  const [printing, setPrinting] = useState(false);
-  const handlePrint = async () => {
+  // ── Imprimir (dropdown resumido / detalhado) ──────────────────────────────
+  const [printOpen, setPrintOpen]   = useState(false);
+  const [printing, setPrinting]     = useState(false);
+  const printRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (printRef.current && !printRef.current.contains(e.target as Node)) setPrintOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const handlePrint = async (mode: "resumido" | "detalhado") => {
+    setPrintOpen(false);
     setPrinting(true);
     try {
-      const doc = await buildPdf();
+      const doc = await buildPdf(mode);
       doc.autoPrint();
       const blobUrl = URL.createObjectURL(doc.output("blob"));
       window.open(blobUrl, "_blank");
@@ -767,10 +827,10 @@ export default function ComissaoRecebimentoPage() {
     XLSX.writeFile(wb, `comissao-recebimento-${periodLabel}.xlsx`);
   };
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = async (mode: "resumido" | "detalhado") => {
     setExportOpen(false);
-    const doc = await buildPdf();
-    doc.save(`comissao-recebimento-${periodLabel}.pdf`);
+    const doc = await buildPdf(mode);
+    doc.save(`comissao-recebimento-${mode}-${periodLabel}.pdf`);
   };
 
   // ── Células da tabela (reutilizado em flat e grouped) ─────────────────────
@@ -846,27 +906,66 @@ export default function ComissaoRecebimentoPage() {
 
         {generated && enrichedRows.length > 0 && (
           <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            {/* Botão imprimir */}
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={printing}
-              style={{
-                height: 36, padding: "0 14px",
-                display: "flex", alignItems: "center", gap: 6,
-                borderRadius: 8, border: "1px solid var(--border-subtle)",
-                background: "var(--bg-card)", color: printing ? "var(--text-muted)" : "var(--text-primary)",
-                fontSize: 13, fontWeight: 500, cursor: printing ? "not-allowed" : "pointer",
-                opacity: printing ? 0.7 : 1,
-              }}
-              onMouseEnter={(e) => { if (!printing) e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-card)"; }}
-            >
-              {printing
-                ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} />
-                : <Printer style={{ width: 14, height: 14 }} />}
-              {printing ? "Gerando…" : "Imprimir"}
-            </button>
+            {/* Botão imprimir — dropdown resumido / detalhado */}
+            <div ref={printRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => !printing && setPrintOpen((o) => !o)}
+                disabled={printing}
+                style={{
+                  height: 36, padding: "0 14px",
+                  display: "flex", alignItems: "center", gap: 6,
+                  borderRadius: 8, border: "1px solid var(--border-subtle)",
+                  background: "var(--bg-card)", color: printing ? "var(--text-muted)" : "var(--text-primary)",
+                  fontSize: 13, fontWeight: 500, cursor: printing ? "not-allowed" : "pointer",
+                  opacity: printing ? 0.7 : 1,
+                }}
+                onMouseEnter={(e) => { if (!printing) e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-card)"; }}
+              >
+                {printing
+                  ? <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} />
+                  : <Printer style={{ width: 14, height: 14 }} />}
+                {printing ? "Gerando…" : "Imprimir"}
+                {!printing && <ChevronDown style={{ width: 12, height: 12, color: "var(--text-muted)" }} />}
+              </button>
+
+              {printOpen && (
+                <div style={{
+                  position: "absolute", top: "calc(100% + 6px)", left: 0,
+                  background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+                  borderRadius: 10, boxShadow: "0 6px 24px rgba(0,0,0,0.25)",
+                  overflow: "hidden", zIndex: 50, minWidth: 190,
+                }}>
+                  {(["resumido", "detalhado"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => handlePrint(mode)}
+                      style={{
+                        width: "100%", padding: "10px 14px",
+                        display: "flex", alignItems: "center", gap: 10,
+                        fontSize: 13, color: "var(--text-primary)",
+                        background: "transparent", cursor: "pointer", textAlign: "left",
+                        borderBottom: mode === "resumido" ? "1px solid var(--border-subtle)" : "none",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                    >
+                      <Printer style={{ width: 14, height: 14, color: "var(--text-muted)" }} />
+                      <div>
+                        <div style={{ fontWeight: 500 }}>
+                          {mode === "resumido" ? "Resumido" : "Detalhado"}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                          {mode === "resumido" ? "Totais por vendedor" : "Todas as vendas"}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Botão exportar */}
             <div ref={exportRef} style={{ position: "relative" }}>
@@ -919,7 +1018,27 @@ export default function ComissaoRecebimentoPage() {
 
                   <button
                     type="button"
-                    onClick={handleExportPdf}
+                    onClick={() => handleExportPdf("resumido")}
+                    style={{
+                      width: "100%", padding: "10px 14px",
+                      display: "flex", alignItems: "center", gap: 10,
+                      fontSize: 13, color: "var(--text-primary)",
+                      background: "transparent", cursor: "pointer", textAlign: "left",
+                      borderBottom: "1px solid var(--border-subtle)",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <FilePdf style={{ width: 15, height: 15, color: "#ef4444" }} />
+                    <div>
+                      <div style={{ fontWeight: 500 }}>PDF Resumido</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Totais por vendedor</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleExportPdf("detalhado")}
                     style={{
                       width: "100%", padding: "10px 14px",
                       display: "flex", alignItems: "center", gap: 10,
@@ -931,8 +1050,8 @@ export default function ComissaoRecebimentoPage() {
                   >
                     <FilePdf style={{ width: 15, height: 15, color: "#ef4444" }} />
                     <div>
-                      <div style={{ fontWeight: 500 }}>PDF</div>
-                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.pdf</div>
+                      <div style={{ fontWeight: 500 }}>PDF Detalhado</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>Todas as vendas</div>
                     </div>
                   </button>
                 </div>
