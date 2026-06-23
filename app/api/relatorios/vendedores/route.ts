@@ -27,16 +27,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const rows = await queryBridge<VendedorRow>(
     config,
     `SELECT DISTINCT
-       venda.vedAtendente AS VendedorId,
-       cli.cliNome        AS Nome
-     FROM venda
-     INNER JOIN cliente cli ON cli.cliId = venda.vedAtendente
-     WHERE venda.empId            = @empId
-       AND venda.vedAtendente     IS NOT NULL
-       AND venda.vedStatus        = 'F'
-       AND venda.vedTipo          IN ('OS','VE')
-       AND venda.vedTotalNf       > 0
-     ORDER BY cli.cliNome`,
+       c.cliId   AS VendedorId,
+       c.cliNome AS Nome
+     FROM cliente c
+     INNER JOIN lotacUsuario lu ON lu.ltuUsuId = c.cliId AND lu.empId = @empId
+     INNER JOIN depto d         ON d.depId = lu.ltuDeptoId
+     WHERE d.depNome             = 'VENDAS'
+       AND c.cliUsuarioUsaSistema = 1
+     ORDER BY c.cliNome`,
     { empId: config.empId }
   );
 
