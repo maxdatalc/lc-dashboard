@@ -1338,19 +1338,13 @@ export default function ComissaoRecebimentoPage() {
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--border-subtle)" }}>
                   <td
-                    colSpan={6}
+                    colSpan={8}
                     style={{
                       padding: "10px 12px", fontSize: 12, fontWeight: 600,
                       color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em",
                     }}
                   >
                     {multiVendedor ? "Total Geral" : "Total"} ({enrichedRows.length} recebimentos)
-                  </td>
-                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                    {fmtMoeda(totalRecebido)}
-                  </td>
-                  <td style={{ padding: "10px 12px", fontSize: 14, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-                    {fmtMoeda(totalComissao)}
                   </td>
                 </tr>
               </tfoot>
