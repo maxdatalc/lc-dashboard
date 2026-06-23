@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -8,6 +8,7 @@ import {
   FileSpreadsheet,
   FileText as FilePdf,
   Loader2,
+  Printer,
   Receipt,
   SlidersHorizontal,
   Store,
@@ -364,7 +365,7 @@ function ComissaoConfig({
   );
 }
 
-// ─── Componente principal ─────────────────────────────────────────────────────
+// ─── Tipos ───────────────────────────────────────────────────────────────────
 
 type EnrichedRow = ComissaoRow & {
   PaymentKey: string;
@@ -372,30 +373,37 @@ type EnrichedRow = ComissaoRow & {
   ComissaoPaga: number;
 };
 
+type VendorGroup = {
+  vendedorId: number;
+  nome: string;
+  rows: EnrichedRow[];
+  subtotalRecebido: number;
+  subtotalComissao: number;
+};
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export default function ComissaoRecebimentoPage() {
   const { lojasDisponiveis } = useLoja();
 
-  // Loja local: auto-seleciona se só tem uma disponível
   const [lojaId, setLojaId] = useState<string>("");
 
   useEffect(() => {
     if (lojasDisponiveis.length === 1) setLojaId(lojasDisponiveis[0].id);
   }, [lojasDisponiveis]);
 
-  const [start, setStart]     = useState(firstDayOfMonth);
-  const [end, setEnd]         = useState(today);
+  const [start, setStart]               = useState(firstDayOfMonth);
+  const [end, setEnd]                   = useState(today);
   const [vendedores, setVendedores]     = useState<Vendedor[]>([]);
   const [vendedoresSel, setVendedoresSel] = useState<number[]>([]);
-  const [rates, setRates]     = useState<Record<string, number>>({});
-  const [rows, setRows]       = useState<EnrichedRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [generated, setGenerated] = useState(false);
-  const [error, setError]     = useState<string | null>(null);
+  const [rates, setRates]               = useState<Record<string, number>>({});
+  const [rows, setRows]                 = useState<EnrichedRow[]>([]);
+  const [loading, setLoading]           = useState(false);
+  const [generated, setGenerated]       = useState(false);
+  const [error, setError]               = useState<string | null>(null);
 
-  // Hydrate rates from localStorage
   useEffect(() => { setRates(loadRates()); }, []);
 
-  // Fetch vendedores when loja changes
   useEffect(() => {
     if (!lojaId) return;
     setVendedoresSel([]);
@@ -432,7 +440,6 @@ export default function ComissaoRecebimentoPage() {
     [rates]
   );
 
-  // Re-enrich whenever rates change (without re-fetching)
   const enrichedRows = enrich(
     rows.map(({ PaymentKey: _, PercentualAplicado: __, ComissaoPaga: ___, ...raw }) => raw as ComissaoRow)
   );
@@ -459,12 +466,35 @@ export default function ComissaoRecebimentoPage() {
   };
 
   // ── Totalizadores ────────────────────────────────────────────────────────
-  const totalRecebido  = enrichedRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
-  const totalComissao  = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
-  const totalVendas    = new Set(enrichedRows.map((r) => r.VendaId)).size;
-  const pctMedio       = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
+  const totalRecebido = enrichedRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
+  const totalComissao = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
+  const totalVendas   = new Set(enrichedRows.map((r) => r.VendaId)).size;
+  const pctMedio      = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
 
-  const multiVendedor  = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
+  const multiVendedor = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
+
+  // ── Agrupamento por vendedor ─────────────────────────────────────────────
+  const vendorGroups = useMemo<VendorGroup[]>(() => {
+    const map = new Map<number, EnrichedRow[]>();
+    enrichedRows.forEach((row) => {
+      if (!map.has(row.VendedorId)) map.set(row.VendedorId, []);
+      map.get(row.VendedorId)!.push(row);
+    });
+    return Array.from(map.entries()).map(([id, vRows]) => {
+      const sorted = [...vRows].sort((a, b) => a.DataPagamento.localeCompare(b.DataPagamento));
+      return {
+        vendedorId: id,
+        nome: vRows[0].NomeVendedor,
+        rows: sorted,
+        subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0),
+        subtotalComissao: vRows.reduce((s, r) => s + r.ComissaoPaga, 0),
+      };
+    });
+  }, [enrichedRows]);
+
+  // ── Impressão ────────────────────────────────────────────────────────────
+  const lojaNome = lojasDisponiveis.find((l) => l.id === lojaId)?.name ?? "";
+  const handlePrint = () => window.print();
 
   // ── Exportação ───────────────────────────────────────────────────────────
   const [exportOpen, setExportOpen] = useState(false);
@@ -481,63 +511,72 @@ export default function ComissaoRecebimentoPage() {
 
   const periodLabel = `${start}_${end}`;
 
-  const buildTableData = () => {
-    const head = [
-      "Data",
-      ...(multiVendedor ? ["Vendedor"] : []),
-      "Tipo",
-      "Forma de Pagamento",
-      "Valor Venda",
-      "Base Comissão",
-      "% Comissão",
-      "Recebido Líq.",
-      "Comissão",
-    ];
-    const body = enrichedRows.map((row) => [
-      fmtData(row.DataPagamento),
-      ...(multiVendedor ? [row.NomeVendedor] : []),
-      row.TipoVenda,
-      row.TipoPagamento,
-      row.ValorTotalVenda,
-      row.BaseCalculoComissao,
-      row.PercentualAplicado,
-      row.ValorRecebidoLiquido,
-      row.ComissaoPaga,
-    ]);
-    return { head, body };
-  };
+  // Colunas da tabela (sem Vendedor no corpo — está no cabeçalho do grupo)
+  const TABLE_HEAD = [
+    "Data",
+    "Tipo Venda",
+    "Forma de Pagamento",
+    "Valor Venda",
+    "Base Comissão",
+    "% Comissão",
+    "Recebido Líquido",
+    "Comissão",
+  ];
+
+  const rowToArray = (row: EnrichedRow) => [
+    fmtData(row.DataPagamento),
+    row.TipoVenda,
+    row.TipoPagamento,
+    fmtMoeda(row.ValorTotalVenda),
+    fmtMoeda(row.BaseCalculoComissao),
+    fmtPct(row.PercentualAplicado),
+    fmtMoeda(row.ValorRecebidoLiquido),
+    fmtMoeda(row.ComissaoPaga),
+  ];
 
   const handleExportXlsx = async () => {
     setExportOpen(false);
     const XLSX = await import("xlsx");
-    const { body, head } = buildTableData();
 
-    const wsData = [
-      head,
-      ...body,
-      [],
-      [
-        "TOTAL",
-        ...(multiVendedor ? [""] : []),
+    const wsData: (string | number)[][] = [];
+
+    if (multiVendedor) {
+      vendorGroups.forEach((group) => {
+        wsData.push([group.nome.toUpperCase()]);
+        wsData.push(TABLE_HEAD);
+        group.rows.forEach((row) => wsData.push(rowToArray(row)));
+        wsData.push([
+          `Subtotal — ${group.nome} (${group.rows.length} recebimentos)`,
+          "", "", "", "", "",
+          group.subtotalRecebido,
+          group.subtotalComissao,
+        ]);
+        wsData.push([]);
+      });
+      wsData.push([
+        `TOTAL GERAL (${enrichedRows.length} recebimentos)`,
         "", "", "", "", "",
         totalRecebido,
         totalComissao,
-      ],
-    ];
+      ]);
+    } else {
+      wsData.push(TABLE_HEAD);
+      enrichedRows.forEach((row) => wsData.push(rowToArray(row)));
+      wsData.push([]);
+      wsData.push([
+        `TOTAL (${enrichedRows.length} recebimentos)`,
+        "", "", "", "",
+        "",
+        totalRecebido,
+        totalComissao,
+      ]);
+    }
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-    // Larguras das colunas
     ws["!cols"] = [
-      { wch: 12 },
-      ...(multiVendedor ? [{ wch: 22 }] : []),
-      { wch: 8 },
-      { wch: 18 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 10 },
-      { wch: 14 },
-      { wch: 13 },
+      { wch: 12 }, { wch: 10 }, { wch: 18 },
+      { wch: 14 }, { wch: 14 }, { wch: 10 },
+      { wch: 16 }, { wch: 14 },
     ];
 
     const wb = XLSX.utils.book_new();
@@ -552,72 +591,164 @@ export default function ComissaoRecebimentoPage() {
 
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
 
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Comissão por Recebimento", 14, 16);
+    const colStyles: Record<number, object> = {
+      3: { halign: "right" }, 4: { halign: "right" },
+      5: { halign: "right" }, 6: { halign: "right" },
+      7: { halign: "right", fontStyle: "bold" },
+    };
 
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(100);
-    doc.text(`Período: ${start.split("-").reverse().join("/")} a ${end.split("-").reverse().join("/")}`, 14, 23);
-    doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 14, 29);
-    doc.setTextColor(0);
+    const drawHeader = (y: number) => {
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.text("Comissão por Recebimento", 14, y);
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(100);
+      doc.text(`Loja: ${lojaNome}   |   Período: ${start.split("-").reverse().join("/")} a ${end.split("-").reverse().join("/")}`, 14, y + 7);
+      doc.text(`Gerado em: ${new Date().toLocaleDateString("pt-BR")}`, 14, y + 13);
+      doc.setTextColor(0);
+    };
 
-    const { head, body } = buildTableData();
-    const numColIdx = multiVendedor ? [4, 5, 6, 7, 8] : [3, 4, 5, 6, 7];
-    const colStyles: Record<number, object> = {};
-    numColIdx.forEach((i) => { colStyles[i] = { halign: "right" }; });
-    // Comissão em negrito
-    colStyles[numColIdx[numColIdx.length - 1]] = { halign: "right", fontStyle: "bold" };
+    if (multiVendedor) {
+      let startY = 34;
+      drawHeader(16);
 
-    const bodyFormatted = body.map((row) =>
-      row.map((cell, i) =>
-        numColIdx.includes(i) && i !== numColIdx[numColIdx.length - 4]
-          ? typeof cell === "number" ? fmtMoeda(cell) : cell
-          : i === numColIdx[numColIdx.length - 4]
-          ? `${(cell as number).toFixed(2).replace(".", ",")}%`
-          : cell
-      )
-    );
+      vendorGroups.forEach((group, gi) => {
+        if (gi > 0) {
+          doc.addPage();
+          startY = 20;
+        }
 
-    autoTable(doc, {
-      head: [head],
-      body: [
-        ...bodyFormatted,
-        [
-          "TOTAL",
-          ...(multiVendedor ? [""] : []),
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(group.nome, 14, startY - 2);
+
+        const bodyRows = group.rows.map(rowToArray);
+        bodyRows.push([
+          `Subtotal (${group.rows.length} recebimentos)`,
           "", "", "", "", "",
-          fmtMoeda(totalRecebido),
-          fmtMoeda(totalComissao),
-        ],
-      ],
-      startY: 34,
-      styles: { fontSize: 7.5, cellPadding: 2 },
-      headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
-      alternateRowStyles: { fillColor: [248, 250, 252] },
-      columnStyles: colStyles,
-      didDrawPage: () => {
-        const pageCount = (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1;
-        doc.setFontSize(7.5);
-        doc.setTextColor(150);
-        doc.text(
-          `Página ${pageCount}`,
-          doc.internal.pageSize.getWidth() - 20,
-          doc.internal.pageSize.getHeight() - 8
-        );
-        doc.setTextColor(0);
-      },
-    });
+          fmtMoeda(group.subtotalRecebido),
+          fmtMoeda(group.subtotalComissao),
+        ]);
+
+        autoTable(doc, {
+          head: [TABLE_HEAD],
+          body: bodyRows,
+          startY,
+          styles: { fontSize: 7.5, cellPadding: 2 },
+          headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          columnStyles: colStyles,
+        });
+
+        startY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10;
+      });
+
+      // Grand total
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text(
+        `TOTAL GERAL — Recebido: ${fmtMoeda(totalRecebido)}   Comissão: ${fmtMoeda(totalComissao)}`,
+        14,
+        startY + 6
+      );
+    } else {
+      drawHeader(16);
+      const bodyRows = enrichedRows.map(rowToArray);
+      bodyRows.push([
+        `TOTAL (${enrichedRows.length} recebimentos)`,
+        "", "", "", "", "",
+        fmtMoeda(totalRecebido),
+        fmtMoeda(totalComissao),
+      ]);
+
+      autoTable(doc, {
+        head: [TABLE_HEAD],
+        body: bodyRows,
+        startY: 34,
+        styles: { fontSize: 7.5, cellPadding: 2 },
+        headStyles: { fillColor: [15, 23, 42], textColor: 255, fontStyle: "bold" },
+        alternateRowStyles: { fillColor: [248, 250, 252] },
+        columnStyles: colStyles,
+        didDrawPage: () => {
+          const pageCount = (doc as unknown as { internal: { pages: unknown[] } }).internal.pages.length - 1;
+          doc.setFontSize(7.5);
+          doc.setTextColor(150);
+          doc.text(
+            `Página ${pageCount}`,
+            doc.internal.pageSize.getWidth() - 20,
+            doc.internal.pageSize.getHeight() - 8
+          );
+          doc.setTextColor(0);
+        },
+      });
+    }
 
     doc.save(`comissao-recebimento-${periodLabel}.pdf`);
   };
 
+  // ── Células da tabela (reutilizado em flat e grouped) ─────────────────────
+  const renderRowCells = (row: EnrichedRow) => (
+    <>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+        {fmtData(row.DataPagamento)}
+      </td>
+      <td style={{ padding: "8px 12px" }}>
+        <span
+          style={{
+            fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+            background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
+            color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+          }}
+        >
+          {row.TipoVenda}
+        </span>
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+        {row.TipoPagamento}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ValorTotalVenda)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.BaseCalculoComissao)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
+        <span style={{ color: row.PercentualAplicado > 0 ? "var(--accent-cyan)" : "var(--text-muted)", fontWeight: row.PercentualAplicado > 0 ? 600 : 400 }}>
+          {fmtPct(row.PercentualAplicado)}
+        </span>
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ValorRecebidoLiquido)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ComissaoPaga)}
+      </td>
+    </>
+  );
+
   return (
-    <div style={{ padding: "24px", maxWidth: 1200 }}>
+    <div className="comissao-page" style={{ padding: "24px" }}>
+
+      {/* ── Cabeçalho de impressão (só aparece ao imprimir) ───────────── */}
+      <div className="print-header" style={{ display: "none", marginBottom: 20 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Comissão por Recebimento</h1>
+            <p style={{ fontSize: 12, color: "#555", margin: "4px 0 0" }}>
+              {lojaNome && `${lojaNome} — `}
+              Período: {fmtData(start)} a {fmtData(end)}
+            </p>
+          </div>
+          <p style={{ fontSize: 11, color: "#777", margin: 0 }}>
+            Gerado em {new Date().toLocaleDateString("pt-BR")}
+          </p>
+        </div>
+        <hr style={{ margin: "12px 0", borderColor: "#ddd" }} />
+      </div>
 
       {/* ── Cabeçalho ─────────────────────────────────────────────────── */}
-      <div style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div className="no-print" style={{ marginBottom: 24, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
             Comissão por Recebimento
@@ -627,223 +758,157 @@ export default function ComissaoRecebimentoPage() {
           </p>
         </div>
 
-        {/* Botão exportar — só aparece com dados */}
         {generated && enrichedRows.length > 0 && (
-          <div ref={exportRef} style={{ position: "relative", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            {/* Botão imprimir */}
             <button
               type="button"
-              onClick={() => setExportOpen((o) => !o)}
+              onClick={handlePrint}
               style={{
-                height: 36,
-                padding: "0 14px",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-                borderRadius: 8,
-                border: "1px solid var(--border-subtle)",
-                background: "var(--bg-card)",
-                color: "var(--text-primary)",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: "pointer",
+                height: 36, padding: "0 14px",
+                display: "flex", alignItems: "center", gap: 6,
+                borderRadius: 8, border: "1px solid var(--border-subtle)",
+                background: "var(--bg-card)", color: "var(--text-primary)",
+                fontSize: 13, fontWeight: 500, cursor: "pointer",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-card)"; }}
             >
-              <Download style={{ width: 14, height: 14 }} />
-              Exportar
-              <ChevronDown style={{ width: 12, height: 12, color: "var(--text-muted)" }} />
+              <Printer style={{ width: 14, height: 14 }} />
+              Imprimir
             </button>
 
-            {exportOpen && (
-              <div
+            {/* Botão exportar */}
+            <div ref={exportRef} style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setExportOpen((o) => !o)}
                 style={{
-                  position: "absolute",
-                  top: "calc(100% + 6px)",
-                  right: 0,
-                  background: "var(--bg-card)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: 10,
-                  boxShadow: "0 6px 24px rgba(0,0,0,0.25)",
-                  overflow: "hidden",
-                  zIndex: 50,
-                  minWidth: 180,
+                  height: 36, padding: "0 14px",
+                  display: "flex", alignItems: "center", gap: 6,
+                  borderRadius: 8, border: "1px solid var(--border-subtle)",
+                  background: "var(--bg-card)", color: "var(--text-primary)",
+                  fontSize: 13, fontWeight: 500, cursor: "pointer",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg-card)"; }}
               >
-                <button
-                  type="button"
-                  onClick={handleExportXlsx}
-                  style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontSize: 13,
-                    color: "var(--text-primary)",
-                    background: "transparent",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    borderBottom: "1px solid var(--border-subtle)",
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                >
-                  <FileSpreadsheet style={{ width: 15, height: 15, color: "#22c55e" }} />
-                  <div>
-                    <div style={{ fontWeight: 500 }}>Excel</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.xlsx</div>
-                  </div>
-                </button>
+                <Download style={{ width: 14, height: 14 }} />
+                Exportar
+                <ChevronDown style={{ width: 12, height: 12, color: "var(--text-muted)" }} />
+              </button>
 
-                <button
-                  type="button"
-                  onClick={handleExportPdf}
+              {exportOpen && (
+                <div
                   style={{
-                    width: "100%",
-                    padding: "10px 14px",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    fontSize: 13,
-                    color: "var(--text-primary)",
-                    background: "transparent",
-                    cursor: "pointer",
-                    textAlign: "left",
+                    position: "absolute", top: "calc(100% + 6px)", right: 0,
+                    background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+                    borderRadius: 10, boxShadow: "0 6px 24px rgba(0,0,0,0.25)",
+                    overflow: "hidden", zIndex: 50, minWidth: 180,
                   }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                 >
-                  <FilePdf style={{ width: 15, height: 15, color: "#ef4444" }} />
-                  <div>
-                    <div style={{ fontWeight: 500 }}>PDF</div>
-                    <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.pdf</div>
-                  </div>
-                </button>
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={handleExportXlsx}
+                    style={{
+                      width: "100%", padding: "10px 14px",
+                      display: "flex", alignItems: "center", gap: 10,
+                      fontSize: 13, color: "var(--text-primary)",
+                      background: "transparent", cursor: "pointer",
+                      textAlign: "left", borderBottom: "1px solid var(--border-subtle)",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <FileSpreadsheet style={{ width: 15, height: 15, color: "#22c55e" }} />
+                    <div>
+                      <div style={{ fontWeight: 500 }}>Excel</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.xlsx</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportPdf}
+                    style={{
+                      width: "100%", padding: "10px 14px",
+                      display: "flex", alignItems: "center", gap: 10,
+                      fontSize: 13, color: "var(--text-primary)",
+                      background: "transparent", cursor: "pointer", textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "var(--sidebar-item-hover-bg)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                  >
+                    <FilePdf style={{ width: 15, height: 15, color: "#ef4444" }} />
+                    <div>
+                      <div style={{ fontWeight: 500 }}>PDF</div>
+                      <div style={{ fontSize: 11, color: "var(--text-muted)" }}>.pdf</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* ── Filtros ───────────────────────────────────────────────────── */}
       <div
+        className="no-print"
         style={{
-          background: "var(--bg-card)",
-          border: "1px solid var(--border-subtle)",
-          borderRadius: 12,
-          padding: 16,
-          marginBottom: 16,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
+          background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+          borderRadius: 12, padding: 16, marginBottom: 16,
+          display: "flex", flexDirection: "column", gap: 12,
         }}
       >
-        {/* Linha de filtros */}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
           {/* Seletor de loja */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
-              Loja
-            </label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>Loja</label>
             <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
-              <Store
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  width: 14,
-                  height: 14,
-                  color: "var(--text-muted)",
-                  pointerEvents: "none",
-                }}
-              />
+              <Store style={{ position: "absolute", left: 10, width: 14, height: 14, color: "var(--text-muted)", pointerEvents: "none" }} />
               <select
                 value={lojaId}
                 onChange={(e) => setLojaId(e.target.value)}
                 style={{
-                  height: 36,
-                  paddingLeft: 30,
-                  paddingRight: 28,
-                  borderRadius: 8,
+                  height: 36, paddingLeft: 30, paddingRight: 28, borderRadius: 8,
                   border: `1px solid ${!lojaId ? "rgba(239,68,68,0.5)" : "var(--border-subtle)"}`,
                   background: "var(--bg-card)",
                   color: lojaId ? "var(--text-primary)" : "var(--text-muted)",
-                  fontSize: 13,
-                  minWidth: 180,
-                  appearance: "none",
-                  cursor: "pointer",
+                  fontSize: 13, minWidth: 180, appearance: "none", cursor: "pointer",
                 }}
               >
                 <option value="">Selecione uma loja…</option>
                 {lojasDisponiveis.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
+                  <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
-              <ChevronDown
-                style={{
-                  position: "absolute",
-                  right: 8,
-                  width: 13,
-                  height: 13,
-                  color: "var(--text-muted)",
-                  pointerEvents: "none",
-                }}
-              />
+              <ChevronDown style={{ position: "absolute", right: 8, width: 13, height: 13, color: "var(--text-muted)", pointerEvents: "none" }} />
             </div>
           </div>
 
           {/* Data inicial */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
-              Data inicial
-            </label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>Data inicial</label>
             <input
-              type="date"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-              style={{
-                height: 36,
-                padding: "0 10px",
-                borderRadius: 8,
-                border: "1px solid var(--border-subtle)",
-                background: "var(--bg-card)",
-                color: "var(--text-primary)",
-                fontSize: 13,
-              }}
+              type="date" value={start} onChange={(e) => setStart(e.target.value)}
+              style={{ height: 36, padding: "0 10px", borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 13 }}
             />
           </div>
 
           {/* Data final */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
-              Data final
-            </label>
+            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>Data final</label>
             <input
-              type="date"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-              style={{
-                height: 36,
-                padding: "0 10px",
-                borderRadius: 8,
-                border: "1px solid var(--border-subtle)",
-                background: "var(--bg-card)",
-                color: "var(--text-primary)",
-                fontSize: 13,
-              }}
+              type="date" value={end} onChange={(e) => setEnd(e.target.value)}
+              style={{ height: 36, padding: "0 10px", borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 13 }}
             />
           </div>
 
           {/* Vendedores */}
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>
-              Vendedores
-            </label>
-            <VendedoresSelect
-              vendedores={vendedores}
-              selecionados={vendedoresSel}
-              onChange={setVendedoresSel}
-            />
+            <label style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>Vendedores</label>
+            <VendedoresSelect vendedores={vendedores} selecionados={vendedoresSel} onChange={setVendedoresSel} />
           </div>
 
           {/* Botão gerar */}
@@ -852,18 +917,12 @@ export default function ComissaoRecebimentoPage() {
             onClick={handleGerar}
             disabled={loading || !lojaId}
             style={{
-              height: 36,
-              padding: "0 20px",
-              borderRadius: 8,
+              height: 36, padding: "0 20px", borderRadius: 8,
               background: (loading || !lojaId) ? "var(--sidebar-item-active-bg)" : "var(--accent-cyan)",
               color: (loading || !lojaId) ? "var(--text-muted)" : "#000",
-              fontSize: 13,
-              fontWeight: 600,
+              fontSize: 13, fontWeight: 600,
               cursor: (loading || !lojaId) ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              border: "none",
+              display: "flex", alignItems: "center", gap: 6, border: "none",
             }}
           >
             {loading ? (
@@ -871,27 +930,21 @@ export default function ComissaoRecebimentoPage() {
                 <Loader2 style={{ width: 14, height: 14, animation: "spin 1s linear infinite" }} />
                 Gerando…
               </>
-            ) : (
-              "Gerar Relatório"
-            )}
+            ) : "Gerar Relatório"}
           </button>
         </div>
 
-        {/* Config de comissões */}
         <ComissaoConfig rates={rates} onChange={handleRateChange} />
       </div>
 
       {/* ── Erro ─────────────────────────────────────────────────────── */}
       {error && (
         <div
+          className="no-print"
           style={{
-            padding: "12px 16px",
-            borderRadius: 8,
-            background: "rgba(239,68,68,0.1)",
-            border: "1px solid rgba(239,68,68,0.3)",
-            color: "#f87171",
-            fontSize: 13,
-            marginBottom: 16,
+            padding: "12px 16px", borderRadius: 8,
+            background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)",
+            color: "#f87171", fontSize: 13, marginBottom: 16,
           }}
         >
           {error}
@@ -904,65 +957,35 @@ export default function ComissaoRecebimentoPage() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            gap: 12,
-            marginBottom: 16,
+            gap: 12, marginBottom: 16,
           }}
         >
           {[
-            {
-              label: "Total Recebido",
-              value: fmtMoeda(totalRecebido),
-              icon: <Receipt style={{ width: 16, height: 16 }} />,
-            },
-            {
-              label: "Total de Comissão",
-              value: fmtMoeda(totalComissao),
-              icon: <TrendingUp style={{ width: 16, height: 16 }} />,
-              accent: true,
-            },
-            {
-              label: "% Médio",
-              value: fmtPct(pctMedio),
-              icon: <SlidersHorizontal style={{ width: 16, height: 16 }} />,
-            },
-            {
-              label: "Vendas",
-              value: String(totalVendas),
-              icon: <Receipt style={{ width: 16, height: 16 }} />,
-            },
+            { label: "Total Recebido",    value: fmtMoeda(totalRecebido), icon: <Receipt style={{ width: 16, height: 16 }} /> },
+            { label: "Total de Comissão", value: fmtMoeda(totalComissao), icon: <TrendingUp style={{ width: 16, height: 16 }} />, accent: true },
+            { label: "% Médio",           value: fmtPct(pctMedio),        icon: <SlidersHorizontal style={{ width: 16, height: 16 }} /> },
+            { label: "Vendas",            value: String(totalVendas),      icon: <Receipt style={{ width: 16, height: 16 }} /> },
           ].map((card) => (
             <div
               key={card.label}
               style={{
                 background: "var(--bg-card)",
                 border: `1px solid ${card.accent ? "var(--accent-cyan)" : "var(--border-subtle)"}`,
-                borderRadius: 10,
-                padding: "14px 16px",
+                borderRadius: 10, padding: "14px 16px",
               }}
             >
               <div
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
+                  display: "flex", alignItems: "center", gap: 6,
                   color: card.accent ? "var(--accent-cyan)" : "var(--text-muted)",
-                  fontSize: 11,
-                  fontWeight: 600,
-                  textTransform: "uppercase",
-                  letterSpacing: "0.05em",
-                  marginBottom: 6,
+                  fontSize: 11, fontWeight: 600, textTransform: "uppercase",
+                  letterSpacing: "0.05em", marginBottom: 6,
                 }}
               >
                 {card.icon}
                 {card.label}
               </div>
-              <div
-                style={{
-                  fontSize: 20,
-                  fontWeight: 700,
-                  color: card.accent ? "var(--accent-cyan)" : "var(--text-primary)",
-                }}
-              >
+              <div style={{ fontSize: 20, fontWeight: 700, color: card.accent ? "var(--accent-cyan)" : "var(--text-primary)" }}>
                 {card.value}
               </div>
             </div>
@@ -975,13 +998,9 @@ export default function ComissaoRecebimentoPage() {
         enrichedRows.length === 0 ? (
           <div
             style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 12,
-              padding: "48px 24px",
-              textAlign: "center",
-              color: "var(--text-muted)",
-              fontSize: 14,
+              background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+              borderRadius: 12, padding: "48px 24px",
+              textAlign: "center", color: "var(--text-muted)", fontSize: 14,
             }}
           >
             Nenhum recebimento encontrado no período.
@@ -989,47 +1008,101 @@ export default function ComissaoRecebimentoPage() {
         ) : (
           <div
             style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-subtle)",
-              borderRadius: 12,
-              overflow: "hidden",
+              background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+              borderRadius: 12, overflow: "hidden",
             }}
           >
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                    {[
-                      "Data",
-                      ...(multiVendedor ? ["Vendedor"] : []),
-                      "Tipo Venda",
-                      "Forma de Pagamento",
-                      "Valor Venda",
-                      "Base Comissão",
-                      "% Comissão",
-                      "Recebido Líquido",
-                      "Comissão",
-                    ].map((h) => (
-                      <th
-                        key={h}
+            <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "7%" }} />
+                <col style={{ width: "16%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "9%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "13%" }} />
+              </colgroup>
+
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+                  {TABLE_HEAD.map((h) => (
+                    <th
+                      key={h}
+                      style={{
+                        padding: "10px 12px",
+                        textAlign: ["Valor Venda", "Base Comissão", "% Comissão", "Recebido Líquido", "Comissão"].includes(h) ? "right" : "left",
+                        fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
+                        textTransform: "uppercase", letterSpacing: "0.05em",
+                      }}
+                    >
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody>
+                {multiVendedor ? (
+                  vendorGroups.flatMap((group) => [
+                    /* Cabeçalho do vendedor */
+                    <tr key={`gh-${group.vendedorId}`}>
+                      <td
+                        colSpan={8}
                         style={{
-                          padding: "10px 14px",
-                          textAlign: h === "Data" || h === "Vendedor" || h === "Tipo Venda" || h === "Forma de Pagamento" ? "left" : "right",
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: "var(--text-muted)",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.05em",
-                          whiteSpace: "nowrap",
+                          padding: "8px 12px",
+                          background: "var(--sidebar-item-active-bg)",
+                          borderTop: "1px solid var(--border-subtle)",
+                          borderBottom: "1px solid var(--border-subtle)",
                         }}
                       >
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {enrichedRows.map((row, idx) => (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
+                          <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
+                            {group.nome}
+                          </span>
+                          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                            — {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
+                          </span>
+                        </span>
+                      </td>
+                    </tr>,
+
+                    /* Linhas do vendedor */
+                    ...group.rows.map((row, idx) => (
+                      <tr
+                        key={row.RecebimentoId}
+                        style={{
+                          borderBottom: "1px solid var(--border-subtle)",
+                          background: idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
+                        }}
+                      >
+                        {renderRowCells(row)}
+                      </tr>
+                    )),
+
+                    /* Subtotal do vendedor */
+                    <tr key={`sub-${group.vendedorId}`} style={{ borderBottom: "2px solid var(--border-subtle)" }}>
+                      <td
+                        colSpan={6}
+                        style={{
+                          padding: "8px 12px", fontSize: 11, fontWeight: 600,
+                          color: "var(--text-muted)", textTransform: "uppercase",
+                          letterSpacing: "0.04em",
+                        }}
+                      >
+                        Subtotal — {group.nome}
+                      </td>
+                      <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                        {fmtMoeda(group.subtotalRecebido)}
+                      </td>
+                      <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+                        {fmtMoeda(group.subtotalComissao)}
+                      </td>
+                    </tr>,
+                  ])
+                ) : (
+                  enrichedRows.map((row, idx) => (
                     <tr
                       key={row.RecebimentoId}
                       style={{
@@ -1037,91 +1110,74 @@ export default function ComissaoRecebimentoPage() {
                         background: idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
                       }}
                     >
-                      <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {fmtData(row.DataPagamento)}
-                      </td>
-                      {multiVendedor && (
-                        <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--text-primary)", whiteSpace: "nowrap" }}>
-                          {row.NomeVendedor}
-                        </td>
-                      )}
-                      <td style={{ padding: "9px 14px" }}>
-                        <span
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: "2px 7px",
-                            borderRadius: 4,
-                            background: row.TipoVenda === "OS"
-                              ? "rgba(99,102,241,0.15)"
-                              : "rgba(34,197,94,0.12)",
-                            color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
-                          }}
-                        >
-                          {row.TipoVenda}
-                        </span>
-                      </td>
-                      <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                        {row.TipoPagamento}
-                      </td>
-                      <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {fmtMoeda(row.ValorTotalVenda)}
-                      </td>
-                      <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {fmtMoeda(row.BaseCalculoComissao)}
-                      </td>
-                      <td style={{ padding: "9px 14px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
-                        <span
-                          style={{
-                            color: row.PercentualAplicado > 0 ? "var(--accent-cyan)" : "var(--text-muted)",
-                            fontWeight: row.PercentualAplicado > 0 ? 600 : 400,
-                          }}
-                        >
-                          {fmtPct(row.PercentualAplicado)}
-                        </span>
-                      </td>
-                      <td style={{ padding: "9px 14px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {fmtMoeda(row.ValorRecebidoLiquido)}
-                      </td>
-                      <td style={{ padding: "9px 14px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {fmtMoeda(row.ComissaoPaga)}
-                      </td>
+                      {renderRowCells(row)}
                     </tr>
-                  ))}
-                </tbody>
+                  ))
+                )}
+              </tbody>
 
-                {/* Totais */}
-                <tfoot>
-                  <tr style={{ borderTop: "2px solid var(--border-subtle)" }}>
-                    <td
-                      colSpan={multiVendedor ? 7 : 6}
-                      style={{
-                        padding: "10px 14px",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                      }}
-                    >
-                      Total ({enrichedRows.length} recebimentos)
-                    </td>
-                    <td style={{ padding: "10px 14px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {fmtMoeda(totalRecebido)}
-                    </td>
-                    <td style={{ padding: "10px 14px", fontSize: 14, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-                      {fmtMoeda(totalComissao)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+              {/* Total geral */}
+              <tfoot>
+                <tr style={{ borderTop: "2px solid var(--border-subtle)" }}>
+                  <td
+                    colSpan={6}
+                    style={{
+                      padding: "10px 12px", fontSize: 12, fontWeight: 600,
+                      color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em",
+                    }}
+                  >
+                    {multiVendedor ? "Total Geral" : "Total"} ({enrichedRows.length} recebimentos)
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmtMoeda(totalRecebido)}
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: 14, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmtMoeda(totalComissao)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         )
       )}
 
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media print {
+          @page { margin: 12mm 10mm; size: landscape; }
+
+          aside,
+          header,
+          .no-print { display: none !important; }
+
+          .print-header { display: flex !important; flex-direction: column; }
+
+          body, html { background: white !important; }
+
+          .comissao-page {
+            margin-left: 0 !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+          }
+
+          table { width: 100% !important; font-size: 10px !important; }
+
+          td, th {
+            padding: 5px 8px !important;
+            color: black !important;
+            border-color: #ccc !important;
+          }
+
+          thead tr { background: #f0f0f0 !important; }
+
+          [style*="--accent-cyan"] { color: #0077aa !important; }
+          [style*="--bg-card"] { background: white !important; }
+          [style*="--sidebar-item-active-bg"] { background: #f5f5f5 !important; }
+          [style*="--text-muted"] { color: #666 !important; }
+          [style*="--text-secondary"] { color: #444 !important; }
+          [style*="--text-primary"] { color: #111 !important; }
+        }
       `}</style>
     </div>
   );

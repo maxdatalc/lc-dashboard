@@ -164,6 +164,14 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
   const toggleCategory = (key: string) => setOpenCategories(p => ({ ...p, [key]: !p[key] }));
   const toggleSection  = (key: string) => setOpenSections(p => ({ ...p, [key]: !p[key] }));
 
+  // Expande para 240px quando há seção profunda aberta (evita corte em labels longos)
+  const hasDeepSectionOpen = sidebarExpanded && GRUPOS.some(g =>
+    g.categories && openGroups[g.key] && g.categories.some(cat =>
+      openCategories[cat.key] && cat.sections.some(sec => openSections[sec.key])
+    )
+  );
+  const expandedWidth = hasDeepSectionOpen ? 240 : 200;
+
   const adminActive = pathname.startsWith("/admin");
 
   return (
@@ -174,7 +182,7 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
         onMouseLeave={() => setSidebarExpanded(false)}
         className="hidden md:flex fixed top-0 left-0 h-screen flex-col z-40"
         style={{
-          width: sidebarExpanded ? "200px" : "56px",
+          width: sidebarExpanded ? `${expandedWidth}px` : "56px",
           backgroundColor: "var(--sidebar-bg, var(--bg-card))",
           borderRight: "1px solid var(--border-subtle)",
           transition: "width 0.25s ease",
