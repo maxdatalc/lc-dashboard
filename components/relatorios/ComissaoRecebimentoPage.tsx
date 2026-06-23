@@ -30,10 +30,6 @@ export const PAYMENT_TYPES = [
   { key: "prazo_1", label: "Cheque Pré",     group: "prazo" as const, defaultRate: 1.5 },
   { key: "prazo_2", label: "Carteira",       group: "prazo" as const, defaultRate: 1.5 },
   { key: "prazo_3", label: "Boleto",         group: "prazo" as const, defaultRate: 1.5 },
-  { key: "prazo_4", label: "Vale",           group: "prazo" as const, defaultRate: 1.5 },
-  { key: "prazo_5", label: "Cheque Dev.",    group: "prazo" as const, defaultRate: 0.0 },
-  { key: "prazo_6", label: "Débito Conta",   group: "prazo" as const, defaultRate: 1.5 },
-  { key: "prazo_7", label: "Custódia",       group: "prazo" as const, defaultRate: 1.5 },
 ] as const;
 
 const STORAGE_KEY = "lc_comissao_rates";
@@ -491,6 +487,15 @@ export default function ComissaoRecebimentoPage() {
       };
     });
   }, [enrichedRows]);
+
+  // ── Expansão dos grupos por vendedor ────────────────────────────────────
+  const [openVendors, setOpenVendors] = useState<Set<number>>(new Set());
+  const toggleVendor = (id: number) =>
+    setOpenVendors((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
 
   // ── Impressão ────────────────────────────────────────────────────────────
   const lojaNome = lojasDisponiveis.find((l) => l.id === lojaId)?.name ?? "";
@@ -1044,63 +1049,72 @@ export default function ComissaoRecebimentoPage() {
 
               <tbody>
                 {multiVendedor ? (
-                  vendorGroups.flatMap((group) => [
-                    /* Cabeçalho do vendedor */
-                    <tr key={`gh-${group.vendedorId}`}>
-                      <td
-                        colSpan={8}
-                        style={{
-                          padding: "8px 12px",
-                          background: "var(--sidebar-item-active-bg)",
-                          borderTop: "1px solid var(--border-subtle)",
-                          borderBottom: "1px solid var(--border-subtle)",
-                        }}
-                      >
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
-                          <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-                            {group.nome}
-                          </span>
-                          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                            — {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
-                          </span>
-                        </span>
-                      </td>
-                    </tr>,
-
-                    /* Linhas do vendedor */
-                    ...group.rows.map((row, idx) => (
+                  vendorGroups.flatMap((group) => {
+                    const isOpen = openVendors.has(group.vendedorId);
+                    return [
+                      /* ── Linha-resumo do vendedor (sempre visível, clicável) ── */
                       <tr
-                        key={row.RecebimentoId}
+                        key={`gh-${group.vendedorId}`}
+                        onClick={() => toggleVendor(group.vendedorId)}
                         style={{
-                          borderBottom: "1px solid var(--border-subtle)",
-                          background: idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
+                          cursor: "pointer",
+                          borderTop: "1px solid var(--border-subtle)",
+                          borderBottom: isOpen ? "none" : "1px solid var(--border-subtle)",
+                          background: "var(--sidebar-item-active-bg)",
+                          userSelect: "none",
                         }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.12)"; }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "none"; }}
                       >
-                        {renderRowCells(row)}
-                      </tr>
-                    )),
+                        {/* Nome + contagem */}
+                        <td colSpan={6} style={{ padding: "10px 12px" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                              {group.nome}
+                            </span>
+                            <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
+                              — {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
+                            </span>
+                          </span>
+                        </td>
 
-                    /* Subtotal do vendedor */
-                    <tr key={`sub-${group.vendedorId}`} style={{ borderBottom: "2px solid var(--border-subtle)" }}>
-                      <td
-                        colSpan={6}
-                        style={{
-                          padding: "8px 12px", fontSize: 11, fontWeight: 600,
-                          color: "var(--text-muted)", textTransform: "uppercase",
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        Subtotal — {group.nome}
-                      </td>
-                      <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {fmtMoeda(group.subtotalRecebido)}
-                      </td>
-                      <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-                        {fmtMoeda(group.subtotalComissao)}
-                      </td>
-                    </tr>,
-                  ])
+                        {/* Recebido líquido subtotal */}
+                        <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {fmtMoeda(group.subtotalRecebido)}
+                        </td>
+
+                        {/* Comissão subtotal + chevron */}
+                        <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)" }}>
+                              {fmtMoeda(group.subtotalComissao)}
+                            </span>
+                            <ChevronDown
+                              style={{
+                                width: 15, height: 15, color: "var(--text-muted)", flexShrink: 0,
+                                transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+                                transition: "transform 0.2s ease",
+                              }}
+                            />
+                          </span>
+                        </td>
+                      </tr>,
+
+                      /* ── Linhas de detalhe (só quando expandido) ── */
+                      ...(isOpen ? group.rows.map((row, idx) => (
+                        <tr
+                          key={row.RecebimentoId}
+                          style={{
+                            borderBottom: "1px solid var(--border-subtle)",
+                            background: idx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))",
+                          }}
+                        >
+                          {renderRowCells(row)}
+                        </tr>
+                      )) : []),
+                    ];
+                  })
                 ) : (
                   enrichedRows.map((row, idx) => (
                     <tr
