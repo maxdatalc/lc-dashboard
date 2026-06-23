@@ -371,19 +371,10 @@ type EnrichedRow = ComissaoRow & {
   ValorLiquidoEmpresa: number;
 };
 
-type SaleGroup = {
-  vendaId: number;
-  tipoVenda: string;
-  rows: EnrichedRow[];
-  subtotalRecebido: number;
-  subtotalComissao: number;
-  subtotalLiquido: number;
-};
-
 type VendorGroup = {
   vendedorId: number;
   nome: string;
-  saleGroups: SaleGroup[];
+  rows: EnrichedRow[];
   subtotalRecebido: number;
   subtotalComissao: number;
   subtotalLiquido: number;
@@ -489,42 +480,20 @@ export default function ComissaoRecebimentoPage() {
   const totalSemVinculoQtd   = semVinculoRows.length;
   const totalSemVinculoValor = semVinculoRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
 
-  // ── Agrupamento por vendedor → por venda (sem vínculo separado) ──────────
+  // ── Agrupamento por vendedor (linhas planas, sem vínculo incluído) ──────────
   const vendorGroups = useMemo<VendorGroup[]>(() => {
-    const normalRows = enrichedRows.filter((r) => !r.SemVinculo);
     const vendorMap = new Map<number, EnrichedRow[]>();
-    normalRows.forEach((row) => {
+    enrichedRows.forEach((row) => {
       const k = row.VendedorId ?? -1;
       if (!vendorMap.has(k)) vendorMap.set(k, []);
       vendorMap.get(k)!.push(row);
     });
     return Array.from(vendorMap.entries()).map(([id, vRows]) => {
-      // Agrupar por venda dentro do vendedor
-      const saleMap = new Map<number, EnrichedRow[]>();
-      vRows.forEach((row) => {
-        const sk = row.VendaId ?? 0;
-        if (!saleMap.has(sk)) saleMap.set(sk, []);
-        saleMap.get(sk)!.push(row);
-      });
-      const saleGroups: SaleGroup[] = Array.from(saleMap.entries())
-        .map(([vendaId, sRows]) => {
-          const sorted = [...sRows].sort((a, b) => a.DataPagamento.localeCompare(b.DataPagamento) || a.RecebimentoId - b.RecebimentoId);
-          return {
-            vendaId,
-            tipoVenda: sRows[0].TipoVenda ?? "",
-            rows: sorted,
-            subtotalRecebido: sRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0),
-            subtotalComissao: sRows.reduce((s, r) => s + r.ComissaoPaga, 0),
-            subtotalLiquido:  sRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0),
-          };
-        })
-        // Ordenar grupos pela data mais antiga da venda
-        .sort((a, b) => a.rows[0].DataPagamento.localeCompare(b.rows[0].DataPagamento));
-
+      const sorted = [...vRows].sort((a, b) => a.DataPagamento.localeCompare(b.DataPagamento) || a.RecebimentoId - b.RecebimentoId);
       return {
         vendedorId: id,
         nome: vRows[0].NomeVendedor ?? "Sem vendedor",
-        saleGroups,
+        rows: sorted,
         subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0),
         subtotalComissao: vRows.reduce((s, r) => s + r.ComissaoPaga, 0),
         subtotalLiquido:  vRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0),
@@ -532,11 +501,8 @@ export default function ComissaoRecebimentoPage() {
     });
   }, [enrichedRows]);
 
-  // ── Expansão dos grupos ──────────────────────────────────────────────────
+  // ── Expansão dos grupos de vendedor ──────────────────────────────────────
   const [openVendors, setOpenVendors] = useState<Set<number>>(new Set());
-  // Vendas colapsadas dentro de um vendedor aberto (default: todas abertas)
-  const [closedSales, setClosedSales] = useState<Set<string>>(new Set());
-  const [openSemVinculo, setOpenSemVinculo] = useState(false);
 
   const toggleVendor = (id: number) =>
     setOpenVendors((prev) => {
@@ -544,15 +510,6 @@ export default function ComissaoRecebimentoPage() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-
-  const toggleSale = (vendedorId: number, vendaId: number) => {
-    const key = `${vendedorId}-${vendaId}`;
-    setClosedSales((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
-  };
 
   const lojaNome = lojasDisponiveis.find((l) => l.id === lojaId)?.name ?? "";
 
@@ -675,8 +632,7 @@ export default function ComissaoRecebimentoPage() {
       if (multiVendedor) {
         const resumoHead = [["Vendedor", "Recebimentos", "Recebido Líquido", "Comissão"]];
         const resumoBody = vendorGroups.map((g) => {
-          const totalRec = g.saleGroups.reduce((s, sg) => s + sg.rows.length, 0);
-          return [g.nome, String(totalRec), fmtMoeda(g.subtotalRecebido), fmtMoeda(g.subtotalComissao)];
+          return [g.nome, String(g.rows.length), fmtMoeda(g.subtotalRecebido), fmtMoeda(g.subtotalComissao)];
         });
         resumoBody.push([
           "TOTAL GERAL",
@@ -753,15 +709,14 @@ export default function ComissaoRecebimentoPage() {
         doc.setFontSize(7.5);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(120, 120, 120);
-        const allGroupRows = group.saleGroups.flatMap((sg) => sg.rows);
         doc.text(
-          `${allGroupRows.length} recebimento${allGroupRows.length !== 1 ? "s" : ""}   |   Recebido: ${fmtMoeda(group.subtotalRecebido)}   |   Comissão: ${fmtMoeda(group.subtotalComissao)}   |   Líq.: ${fmtMoeda(group.subtotalLiquido)}`,
+          `${group.rows.length} recebimento${group.rows.length !== 1 ? "s" : ""}   |   Recebido: ${fmtMoeda(group.subtotalRecebido)}   |   Comissão: ${fmtMoeda(group.subtotalComissao)}   |   Líq.: ${fmtMoeda(group.subtotalLiquido)}`,
           14, curY + 11
         );
         doc.setTextColor(0, 0, 0);
 
         const bodyRows = [
-          ...allGroupRows.map(rowToArray),
+          ...group.rows.map(rowToArray),
           [`Subtotal — ${group.nome}`, "", "", "", fmtMoeda(group.subtotalRecebido), "", "", fmtMoeda(group.subtotalComissao), fmtMoeda(group.subtotalLiquido)],
         ];
 
@@ -851,12 +806,11 @@ export default function ComissaoRecebimentoPage() {
 
     if (multiVendedor) {
       vendorGroups.forEach((group) => {
-        const allGroupRows = group.saleGroups.flatMap((sg) => sg.rows);
         wsData.push([group.nome.toUpperCase()]);
         wsData.push(TABLE_HEAD);
-        allGroupRows.forEach((row) => wsData.push(rowToArray(row)));
+        group.rows.forEach((row) => wsData.push(rowToArray(row)));
         wsData.push([
-          `Subtotal — ${group.nome} (${allGroupRows.length} recebimentos)`,
+          `Subtotal — ${group.nome} (${group.rows.length} recebimentos)`,
           "", "", "", group.subtotalRecebido, "", "",
           group.subtotalComissao, group.subtotalLiquido,
         ]);
@@ -1347,49 +1301,25 @@ export default function ComissaoRecebimentoPage() {
               </thead>
 
               <tbody>
-                {/* ── Vendedor único: mostra só grupos de venda, sem cabeçalho de vendedor ── */}
+                {/* ── Vendedor único: linhas planas (sem vínculo inline em vermelho) ── */}
                 {!multiVendedor && vendorGroups.flatMap((group) =>
-                  group.saleGroups.flatMap((sg, sgIdx) => {
-                    const saleKey = `${group.vendedorId}-${sg.vendaId}`;
-                    const isSaleOpen = !closedSales.has(saleKey);
-                    const sgBg = sgIdx % 2 === 0 ? "transparent" : "var(--sidebar-item-hover-bg, rgba(255,255,255,0.02))";
-                    return [
-                      <tr
-                        key={`sg-${saleKey}`}
-                        onClick={() => toggleSale(group.vendedorId, sg.vendaId)}
-                        style={{ cursor: "pointer", borderTop: sgIdx > 0 ? "1px solid var(--border-subtle)" : "none", background: "var(--sidebar-item-active-bg)", userSelect: "none" }}
-                        onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.12)"; }}
-                        onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "none"; }}
-                      >
-                        <td colSpan={5} style={{ padding: "8px 12px" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: sg.tipoVenda === "OS" ? "rgba(99,102,241,0.2)" : "rgba(34,197,94,0.15)", color: sg.tipoVenda === "OS" ? "#818cf8" : "#4ade80" }}>{sg.tipoVenda}</span>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{sg.vendaId}</span>
-                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>— {sg.rows.length} parcela{sg.rows.length !== 1 ? "s" : ""}</span>
-                          </span>
-                        </td>
-                        <td style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>{fmtMoeda(sg.subtotalRecebido)}</td>
-                        <td colSpan={2} style={{ padding: "8px 12px", fontSize: 11, color: "var(--accent-cyan)", textAlign: "right" }}>{fmtMoeda(sg.subtotalComissao)}</td>
-                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
-                          <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-                            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{fmtMoeda(sg.subtotalLiquido)}</span>
-                            <ChevronDown style={{ width: 12, height: 12, color: "var(--text-muted)", flexShrink: 0, transform: isSaleOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }} />
-                          </span>
-                        </td>
-                      </tr>,
-                      ...(isSaleOpen ? sg.rows.map((row, rIdx) => (
-                        <tr key={row.RecebimentoId} style={{ borderBottom: rIdx < sg.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none", background: sgBg }}>
-                          {renderRowCells(row)}
-                        </tr>
-                      )) : []),
-                    ];
-                  })
+                  group.rows.map((row, rIdx) => (
+                    <tr
+                      key={row.RecebimentoId}
+                      style={{
+                        borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        background: row.SemVinculo ? "rgba(239,68,68,0.04)" : "transparent",
+                      }}
+                    >
+                      {renderRowCells(row)}
+                    </tr>
+                  ))
                 )}
 
-                {/* ── Multi-vendedor: grupos de vendedor ── */}
+                {/* ── Multi-vendedor: cabeçalho por vendedor → linhas planas ── */}
                 {multiVendedor && vendorGroups.flatMap((group) => {
                   const isVendorOpen = openVendors.has(group.vendedorId);
-                  const totalRows = group.saleGroups.reduce((s, sg) => s + sg.rows.length, 0);
+                  const semVinculoCount = group.rows.filter((r) => r.SemVinculo).length;
                   return [
                     /* Linha-resumo do vendedor */
                     <tr
@@ -1410,7 +1340,12 @@ export default function ComissaoRecebimentoPage() {
                           <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
                           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{group.nome}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
-                            — {group.saleGroups.length} venda{group.saleGroups.length !== 1 ? "s" : ""} · {totalRows} recebimento{totalRows !== 1 ? "s" : ""}
+                            — {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
+                            {semVinculoCount > 0 && (
+                              <span style={{ color: "#f87171", marginLeft: 6 }}>
+                                · {semVinculoCount} sem vínculo
+                              </span>
+                            )}
                           </span>
                         </span>
                       </td>
@@ -1425,117 +1360,20 @@ export default function ComissaoRecebimentoPage() {
                       </td>
                     </tr>,
 
-                    /* Grupos de venda (dentro do vendedor expandido) */
-                    ...(isVendorOpen ? group.saleGroups.flatMap((sg, sgIdx) => {
-                      const saleKey = `${group.vendedorId}-${sg.vendaId}`;
-                      const isSaleOpen = !closedSales.has(saleKey);
-                      const sgBg = sgIdx % 2 === 0
-                        ? "rgba(255,255,255,0.015)"
-                        : "rgba(255,255,255,0.035)";
-                      return [
-                        /* Mini-cabeçalho da venda */
-                        <tr
-                          key={`sg-${saleKey}`}
-                          onClick={() => toggleSale(group.vendedorId, sg.vendaId)}
-                          style={{
-                            cursor: "pointer",
-                            borderTop: "1px solid var(--border-subtle)",
-                            background: sgBg,
-                            userSelect: "none",
-                          }}
-                          onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.15)"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "none"; }}
-                        >
-                          <td colSpan={5} style={{ padding: "6px 12px 6px 28px" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                              <span style={{
-                                fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 3,
-                                background: sg.tipoVenda === "OS" ? "rgba(99,102,241,0.2)" : "rgba(34,197,94,0.15)",
-                                color: sg.tipoVenda === "OS" ? "#818cf8" : "#4ade80",
-                              }}>
-                                {sg.tipoVenda}
-                              </span>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{sg.vendaId}</span>
-                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-                                — {sg.rows.length} parcela{sg.rows.length !== 1 ? "s" : ""}
-                              </span>
-                            </span>
-                          </td>
-                          <td style={{ padding: "6px 12px", fontSize: 11, color: "var(--text-muted)", textAlign: "right" }}>
-                            {fmtMoeda(sg.subtotalRecebido)}
-                          </td>
-                          <td colSpan={2} style={{ padding: "6px 12px", fontSize: 11, color: "var(--accent-cyan)", textAlign: "right" }}>
-                            {fmtMoeda(sg.subtotalComissao)}
-                          </td>
-                          <td style={{ padding: "6px 12px", textAlign: "right" }}>
-                            <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-                              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{fmtMoeda(sg.subtotalLiquido)}</span>
-                              <ChevronDown style={{ width: 12, height: 12, color: "var(--text-muted)", flexShrink: 0, transform: isSaleOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }} />
-                            </span>
-                          </td>
-                        </tr>,
-
-                        /* Linhas de pagamento da venda */
-                        ...(isSaleOpen ? sg.rows.map((row, rIdx) => (
-                          <tr
-                            key={row.RecebimentoId}
-                            style={{
-                              borderBottom: rIdx < sg.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "1px solid var(--border-subtle)",
-                              background: sgBg,
-                            }}
-                          >
-                            {renderRowCells(row)}
-                          </tr>
-                        )) : []),
-                      ];
-                    }) : []),
-                  ];
-                })}
-
-                {/* ── Seção "Sem vínculo" ── */}
-                {semVinculoRows.length > 0 && (
-                  <>
-                    <tr
-                      onClick={() => setOpenSemVinculo((o) => !o)}
-                      style={{
-                        cursor: "pointer",
-                        borderTop: "2px solid rgba(239,68,68,0.4)",
-                        borderBottom: openSemVinculo ? "none" : "1px solid rgba(239,68,68,0.3)",
-                        background: "rgba(239,68,68,0.06)",
-                        userSelect: "none",
-                      }}
-                      onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.1)"; }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "none"; }}
-                    >
-                      <td colSpan={7} style={{ padding: "10px 12px" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: "#f87171" }}>Sem vínculo de venda/O.S.</span>
-                          <span style={{ fontSize: 11, color: "#f87171", opacity: 0.7 }}>
-                            — {semVinculoRows.length} recebimento{semVinculoRows.length !== 1 ? "s" : ""}
-                          </span>
-                        </span>
-                      </td>
-                      <td style={{ padding: "10px 12px" }} />
-                      <td style={{ padding: "10px 12px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "flex-end", gap: 10 }}>
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "#f87171" }}>{fmtMoeda(totalSemVinculoValor)}</span>
-                          <ChevronDown style={{ width: 15, height: 15, color: "#f87171", flexShrink: 0, transform: openSemVinculo ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s ease" }} />
-                        </span>
-                      </td>
-                    </tr>
-                    {openSemVinculo && semVinculoRows.map((row, idx) => (
+                    /* Linhas planas do vendedor (sem vínculo em vermelho) */
+                    ...(isVendorOpen ? group.rows.map((row, rIdx) => (
                       <tr
                         key={row.RecebimentoId}
                         style={{
-                          borderBottom: idx < semVinculoRows.length - 1 ? "1px solid rgba(239,68,68,0.15)" : "1px solid rgba(239,68,68,0.3)",
-                          background: "rgba(239,68,68,0.07)",
+                          borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "1px solid var(--border-subtle)",
+                          background: row.SemVinculo ? "rgba(239,68,68,0.04)" : "transparent",
                         }}
                       >
                         {renderRowCells(row)}
                       </tr>
-                    ))}
-                  </>
-                )}
+                    )) : []),
+                  ];
+                })}
               </tbody>
 
               {/* Total geral */}
