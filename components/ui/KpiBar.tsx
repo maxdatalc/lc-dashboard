@@ -359,7 +359,7 @@ export function KpiBar({
               <span style={{ color: '#f59e0b', fontFamily: 'var(--font-numeric)', fontVariantNumeric: 'tabular-nums' }}>
                 {fmtCompact(emAbertoValor)}
               </span>
-              {' '}est.
+              {' '}valor total em aberto
             </Sub>
           )}
         </div>
