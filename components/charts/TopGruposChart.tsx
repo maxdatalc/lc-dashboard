@@ -10,51 +10,17 @@ export interface GrupoItem {
 }
 
 const CORES = [
-  "#2563eb", "#f59e0b", "#10b981", "#7c3aed",
+  "#2563eb", "#10b981", "#7c3aed", "#f59e0b",
   "#f97316", "#ef4444", "#06b6d4", "#84cc16",
-  "#ec4899", "#6366f1",
+  "#ec4899", "#6366f1", "#94a3b8", "#14b8a6",
+  "#fb923c", "#a855f7", "#38bdf8", "#4ade80",
+  "#f472b6", "#facc15", "#fb7185", "#818cf8",
 ];
-
-const PODIO_COLORS = ["#f59e0b", "#94a3b8", "#b45309"]; // ouro, prata, bronze
 
 function fmtK(v: number) {
   if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(1).replace(".", ",")}M`;
   if (v >= 1_000) return `R$ ${(v / 1_000).toFixed(1).replace(".", ",")}k`;
   return formatCurrency(v);
-}
-
-function KpiChip({ label, value, sub, valueColor }: { label: string; value: string; sub?: string; valueColor?: string }) {
-  return (
-    <div style={{
-      padding: "8px 10px", borderRadius: 6,
-      background: "var(--card-header-bg)",
-      border: "1px solid var(--card-header-border)",
-      minWidth: 0,
-    }}>
-      <p style={{ fontSize: 9, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2, whiteSpace: "nowrap" }}>
-        {label}
-      </p>
-      <p style={{ fontSize: 13, fontWeight: 700, color: valueColor ?? "var(--text-primary)", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-        {value}
-      </p>
-      {sub && (
-        <p style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {sub}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function SectionLabel({ icon, label }: { icon: string; label: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 8 }}>
-      <span style={{ fontSize: 10 }}>{icon}</span>
-      <span style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        {label}
-      </span>
-    </div>
-  );
 }
 
 interface TooltipProps {
@@ -66,7 +32,10 @@ function ChartTooltip({ active, payload }: TooltipProps) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload;
   return (
-    <div className="rounded-lg px-3 py-2 text-xs shadow-lg" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}>
+    <div
+      className="rounded-lg px-3 py-2 text-xs shadow-lg"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+    >
       <p className="font-semibold mb-1" style={{ color: "var(--text-primary)" }}>{d.nome}</p>
       <p style={{ color: "var(--accent-cyan)" }}>{formatCurrency(d.valor)}</p>
     </div>
@@ -86,134 +55,180 @@ export function TopGruposChart({ data }: Props) {
     );
   }
 
-  const totalGeral  = data.reduce((s, d) => s + d.valor, 0);
-  const top3        = data.slice(0, 3);
-  const rest        = data.slice(3);
-  const top3Sum     = top3.reduce((s, d) => s + d.valor, 0);
-  const top3Pct     = totalGeral > 0 ? (top3Sum / totalGeral) * 100 : 0;
-  const leader      = data[0];
-  const leaderPct   = totalGeral > 0 ? (leader.valor / totalGeral) * 100 : 0;
-  const maxValor    = data[0]?.valor ?? 1;
+  const totalGeral = data.reduce((s, d) => s + d.valor, 0);
+  const top3       = data.slice(0, 3);
+  const rest       = data.slice(3);
+  const top3Sum    = top3.reduce((s, d) => s + d.valor, 0);
+  const top3Pct    = totalGeral > 0 ? (top3Sum / totalGeral) * 100 : 0;
+  const leader     = data[0];
+  const leaderPct  = totalGeral > 0 ? (leader.valor / totalGeral) * 100 : 0;
+  const maxValor   = data[0]?.valor ?? 1;
+
+  // reversed so biggest bar appears at bottom (like reference image)
+  const chartData    = [...data].reverse();
+  const chartHeight  = Math.max(chartData.length * 26, 120);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-      {/* ── 4 KPI chips 2×2 ─────────────────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-        <KpiChip
-          label="Total faturado"
-          value={fmtK(totalGeral)}
-          sub="período selecionado"
-        />
-        <KpiChip
-          label="Líder de mercado"
-          value={leader.nome}
-          sub={`${leaderPct.toFixed(1)}% — ${fmtK(leader.valor)}`}
-          valueColor="var(--accent-cyan)"
-        />
-        <KpiChip
-          label="Conc. top 3"
-          value={`${top3Pct.toFixed(1)}%`}
-          sub={top3.map(d => d.nome.split(" ")[0]).join(" · ")}
-        />
-        <KpiChip
-          label="Fabricantes ativos"
-          value={String(data.length)}
-          sub="no período"
-        />
+      {/* ── 4 KPI chips — horizontal row ────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+        {/* Total faturado */}
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--card-header-bg)", border: "1px solid var(--card-header-border)" }}>
+          <p style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 5 }}>Total faturado</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", lineHeight: 1, marginBottom: 4 }}>
+            {fmtK(totalGeral)}
+          </p>
+          <p style={{ fontSize: 10, color: "var(--text-muted)" }}>período selecionado</p>
+        </div>
+
+        {/* Líder de mercado */}
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--card-header-bg)", border: "1px solid var(--card-header-border)" }}>
+          <p style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 5 }}>Líder de mercado</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--accent-cyan)", lineHeight: 1, marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {leader.nome}
+          </p>
+          <p style={{ fontSize: 10, color: "var(--text-muted)" }}>{leaderPct.toFixed(1)}% — {fmtK(leader.valor)}</p>
+        </div>
+
+        {/* Top 3 concentração */}
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--card-header-bg)", border: "1px solid var(--card-header-border)" }}>
+          <p style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 5 }}>Top 3 concentração</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "#10b981", fontVariantNumeric: "tabular-nums", lineHeight: 1, marginBottom: 4 }}>
+            {top3Pct.toFixed(1)}%
+          </p>
+          <p style={{ fontSize: 10, color: "var(--text-muted)" }}>
+            {top3.map(d => d.nome.split(" ")[0]).join(" · ")}
+          </p>
+        </div>
+
+        {/* Fabricantes ativos */}
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--card-header-bg)", border: "1px solid var(--card-header-border)" }}>
+          <p style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 5 }}>Fabricantes ativos</p>
+          <p style={{ fontSize: 22, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", lineHeight: 1, marginBottom: 4 }}>
+            {data.length}
+          </p>
+          <p style={{ fontSize: 10, color: "var(--text-muted)" }}>no período</p>
+        </div>
       </div>
 
-      {/* ── Gráfico de barras horizontal (todos os itens) ───────── */}
-      <div>
-        <SectionLabel icon="📊" label="Faturamento por fabricante" />
-        <ResponsiveContainer width="100%" height={Math.min(data.length * 22, 180)}>
-          <BarChart
-            data={data}
-            layout="vertical"
-            margin={{ top: 0, right: 8, left: 0, bottom: 0 }}
-          >
-            <XAxis type="number" hide />
-            <YAxis
-              type="category"
-              dataKey="nome"
-              width={100}
-              tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
-              tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 14) + "…" : v}
-            />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--chart-cursor-bg, rgba(255,255,255,0.04))" }} />
-            <Bar dataKey="valor" radius={[0, 3, 3, 0]}>
-              {data.map((_, i) => (
-                <Cell key={i} fill={CORES[i % CORES.length]} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {/* ── 2 colunas: Pódio | Gráfico de barras ─────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 
-      {/* ── Pódio TOP 3 ─────────────────────────────────────────── */}
-      <div>
-        <SectionLabel icon="🏆" label="Pódio — top 3" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Pódio TOP 3 */}
+        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18 }}>
+            <span>🏆</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Pódio — Top 3
+            </span>
+          </div>
+
           {top3.map((d, i) => {
             const pct  = totalGeral > 0 ? (d.valor / totalGeral) * 100 : 0;
             const barW = maxValor > 0 ? (d.valor / maxValor) * 100 : 0;
             const cor  = CORES[i % CORES.length];
-            const rankColor = PODIO_COLORS[i];
             return (
-              <div key={d.nome}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
-                  {/* rank badge */}
-                  <span style={{
-                    fontSize: 10, fontWeight: 800, color: rankColor,
-                    width: 14, textAlign: "center", flexShrink: 0, lineHeight: 1,
+              <div key={d.nome} style={{ marginBottom: i < top3.length - 1 ? 18 : 0 }}>
+                {/* Rank + Nome + % */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: "50%", background: cor,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                   }}>
-                    {i + 1}
-                  </span>
-                  <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{i + 1}</span>
+                  </div>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {d.nome}
                   </span>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
                     {pct.toFixed(1)}%
                   </span>
                 </div>
-                <div style={{ height: 4, background: "var(--border-subtle)", borderRadius: 2, margin: "4px 0 3px 21px" }}>
-                  <div style={{ height: "100%", width: `${barW}%`, background: cor, borderRadius: 2 }} />
+                {/* Barra */}
+                <div style={{ height: 5, background: "var(--border-subtle)", borderRadius: 3, margin: "8px 0 5px 34px" }}>
+                  <div style={{ height: "100%", width: `${barW}%`, background: cor, borderRadius: 3, transition: "width 0.5s ease" }} />
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", paddingLeft: 21 }}>
+                {/* Valor */}
+                <p style={{ fontSize: 12, color: "var(--text-muted)", paddingLeft: 34, fontVariantNumeric: "tabular-nums" }}>
                   {formatCurrency(d.valor)}
-                </div>
+                </p>
               </div>
             );
           })}
         </div>
+
+        {/* Faturamento por fabricante — gráfico de barras */}
+        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+            <span>📊</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Faturamento por fabricante
+            </span>
+          </div>
+          <ResponsiveContainer width="100%" height={chartHeight}>
+            <BarChart
+              data={chartData}
+              layout="vertical"
+              margin={{ top: 0, right: 8, left: 0, bottom: 20 }}
+            >
+              <XAxis
+                type="number"
+                tick={{ fontSize: 9, fill: "var(--text-muted)" }}
+                tickFormatter={(v: number) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="nome"
+                width={85}
+                tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
+                tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+              <Bar dataKey="valor" radius={[0, 3, 3, 0]}>
+                {chartData.map((d) => {
+                  const idx = data.findIndex(x => x.nome === d.nome);
+                  return <Cell key={d.nome} fill={CORES[idx % CORES.length]} />;
+                })}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
-      {/* ── Demais fabricantes (scrollable) ─────────────────────── */}
+      {/* ── Demais fabricantes (scrollável) ─────────────────────── */}
       {rest.length > 0 && (
-        <div>
-          <SectionLabel icon="≡" label="Demais fabricantes" />
-          <div style={{ maxHeight: 140, overflowY: "auto", paddingRight: 4 }}>
+        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>≡</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              Demais fabricantes
+            </span>
+          </div>
+          <div style={{ maxHeight: 200, overflowY: "auto", paddingRight: 2 }}>
             {rest.map((d, i) => {
               const pct  = totalGeral > 0 ? (d.valor / totalGeral) * 100 : 0;
               const barW = maxValor > 0 ? (d.valor / maxValor) * 100 : 0;
               const cor  = CORES[(i + 3) % CORES.length];
               return (
-                <div key={d.nome} style={{ marginBottom: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: cor, flexShrink: 0 }} />
-                    <span style={{ fontSize: 10.5, color: "var(--text-secondary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {d.nome}
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                      {pct.toFixed(1)}%
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", flexShrink: 0, marginLeft: 5 }}>
-                      {formatCurrency(d.valor)}
-                    </span>
-                  </div>
-                  <div style={{ height: 3, background: "var(--border-subtle)", borderRadius: 2, marginTop: 3, marginLeft: 12 }}>
+                <div key={d.nome} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: cor, flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, color: "var(--text-secondary)", width: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    {d.nome}
+                  </span>
+                  <div style={{ flex: 1, height: 4, background: "var(--border-subtle)", borderRadius: 2 }}>
                     <div style={{ height: "100%", width: `${barW}%`, background: cor, borderRadius: 2 }} />
                   </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", width: 38, textAlign: "right", flexShrink: 0 }}>
+                    {pct.toFixed(1)}%
+                  </span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", width: 95, textAlign: "right", flexShrink: 0 }}>
+                    {formatCurrency(d.valor)}
+                  </span>
                 </div>
               );
             })}
