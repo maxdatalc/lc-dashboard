@@ -314,24 +314,25 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* ── Linha 3: Top Fabricantes — full width ────────────────────────── */}
-      <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
-        {chartsLoading ? <ChartSkeleton height={480} /> : <TopGruposChart data={topGrupos} />}
-      </ChartCard>
+      {/* ── Linha 3: Top Fabricantes | Formas de Pagamento ──────────────── */}
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2">
+        <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
+          {chartsLoading ? <ChartSkeleton height={480} /> : <TopGruposChart data={topGrupos} />}
+        </ChartCard>
 
-      {/* ── Linha 4: Formas de Pagamento — full width ────────────────────── */}
-      <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={185}>
-        {chartsLoading ? <ChartSkeleton height={280} /> : (
-          <FormasPagamentoChart
-            data={formasPagamento}
-            selectedNome={activeFilter?.type === "formaPagamento" ? String(activeFilter.id) : null}
-            onSelect={(nome) => nome
-              ? setFilter({ type: "formaPagamento", id: nome, label: nome })
-              : setFilter(null)
-            }
-          />
-        )}
-      </ChartCard>
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={185}>
+          {chartsLoading ? <ChartSkeleton height={280} /> : (
+            <FormasPagamentoChart
+              data={formasPagamento}
+              selectedNome={activeFilter?.type === "formaPagamento" ? String(activeFilter.id) : null}
+              onSelect={(nome) => nome
+                ? setFilter({ type: "formaPagamento", id: nome, label: nome })
+                : setFilter(null)
+              }
+            />
+          )}
+        </ChartCard>
+      </div>
 
       </div>{/* fim do wrapper de dimming */}
     </div>
