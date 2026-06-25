@@ -59,7 +59,7 @@ function ActiveSlice(props: any) {
   return (
     <Sector
       cx={cx} cy={cy}
-      innerRadius={innerRadius - 2} outerRadius={outerRadius + 6}
+      innerRadius={innerRadius - 3} outerRadius={outerRadius + 7}
       startAngle={startAngle} endAngle={endAngle}
       fill={fill}
     />
@@ -73,15 +73,15 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
 
   if (!top10.length) {
     return (
-      <div style={{ height: 220, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "var(--text-muted)" }}>
+      <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "var(--text-muted)" }}>
         Sem dados disponíveis
       </div>
     );
   }
 
-  const colorMap = new Map(top10.map((d, i) => [d.nome, CORES[i % CORES.length]]));
-  const vista    = top10.filter(d => classificar(d.nome) === "vista");
-  const prazo    = top10.filter(d => classificar(d.nome) === "prazo");
+  const colorMap    = new Map(top10.map((d, i) => [d.nome, CORES[i % CORES.length]]));
+  const vista       = top10.filter(d => classificar(d.nome) === "vista");
+  const prazo       = top10.filter(d => classificar(d.nome) === "prazo");
   const totalVista  = vista.reduce((s, d) => s + d.valor, 0);
   const totalPrazo  = prazo.reduce((s, d) => s + d.valor, 0);
   const totalGeral  = totalVista + totalPrazo;
@@ -103,8 +103,7 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
     const isActive   = activeNome === d.nome;
     const isSelected = selectedNome === d.nome;
     const dimmed     = activeNome !== null && !isActive;
-    // bar width = absolute % of total (matches visual weight from image)
-    const barW = Math.min(d.percentual, 100);
+    const barW       = Math.min(d.percentual, 100);
 
     return (
       <div
@@ -113,29 +112,25 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
           opacity: dimmed ? 0.28 : 1,
           transition: "opacity 0.15s",
           cursor: onSelect ? "pointer" : "default",
-          marginBottom: 8,
-          padding: "4px 6px",
+          marginBottom: 9,
+          padding: isSelected ? "4px 6px" : "4px 6px",
           borderRadius: 5,
-          background: isSelected ? `${cor}12` : "transparent",
-          border: `1px solid ${isSelected ? cor + "40" : "transparent"}`,
+          background: isSelected ? `${cor}10` : "transparent",
+          border: `1px solid ${isSelected ? cor + "38" : "transparent"}`,
         }}
         onClick={() => handleClick(d.nome)}
         onMouseEnter={() => setHoverNome(d.nome)}
         onMouseLeave={() => setHoverNome(null)}
       >
-        {/* Row: dot · name · % · value */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {/* dot · nome  |  % · valor */}
+        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
           <div style={{ width: 7, height: 7, borderRadius: "50%", background: cor, flexShrink: 0 }} />
-          <span style={{
-            fontSize: 11, color: "var(--text-secondary)", flex: 1,
-            minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)", flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {d.nome}
           </span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-            {fmtPct(d.percentual)}
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", flexShrink: 0, marginLeft: 6 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+            <span style={{ color: cor }}>{fmtPct(d.percentual)}</span>
+            {" · "}
             {formatCurrency(d.valor)}
           </span>
         </div>
@@ -158,16 +153,11 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
   function renderSectionHeader(label: string, total: number, Icon: typeof Zap, color: string) {
     return (
       <div style={{
-        display: "flex", alignItems: "center", gap: 6, marginBottom: 6,
-        padding: "4px 6px", borderRadius: 5, background: `${color}10`,
+        display: "flex", alignItems: "center", gap: 7, marginBottom: 10,
+        paddingBottom: 8, borderBottom: "1px solid var(--border-subtle)",
       }}>
-        <div style={{
-          width: 20, height: 20, borderRadius: 5, background: `${color}1e`,
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <Icon style={{ width: 11, height: 11, color }} />
-        </div>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", flex: 1, letterSpacing: "0.03em" }}>
+        <Icon style={{ width: 12, height: 12, color, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)", flex: 1, letterSpacing: "0.04em" }}>
           {label}
         </span>
         <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-numeric)" }}>
@@ -180,15 +170,16 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
   return (
     <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
 
-      {/* ── Left: Donut + summary pills ─────────────────────────────── */}
-      <div style={{ flexShrink: 0, width: 170 }}>
-        <div style={{ position: "relative", width: 160, height: 160 }}>
+      {/* ── Left: Donut grande + badges À VISTA / A PRAZO ─────── */}
+      <div style={{ flexShrink: 0, width: 215 }}>
+        {/* Donut */}
+        <div style={{ position: "relative", width: 200, height: 200 }}>
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <PieAny
                 data={top10}
                 cx="50%" cy="50%"
-                innerRadius={52} outerRadius={74}
+                innerRadius={65} outerRadius={92}
                 paddingAngle={2}
                 dataKey="valor"
                 strokeWidth={0}
@@ -210,7 +201,7 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
             </PieChart>
           </ResponsiveContainer>
 
-          {/* Center label */}
+          {/* Centro do donut */}
           <div style={{
             position: "absolute", inset: 0,
             display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
@@ -219,27 +210,27 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
             {centerItem ? (
               <>
                 <span style={{
-                  fontSize: "1.25rem", fontWeight: 700, lineHeight: 1,
+                  fontSize: "1.6rem", fontWeight: 700, lineHeight: 1,
                   color: colorMap.get(centerItem.nome) ?? "var(--text-primary)",
                   fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-numeric)",
                   transition: "color 0.15s",
                 }}>
                   {fmtPct(centerItem.percentual)}
                 </span>
-                <span style={{ fontSize: 9, color: "var(--text-muted)", marginTop: 3, maxWidth: 76, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4, maxWidth: 90, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {centerItem.nome}
                 </span>
               </>
             ) : (
               <>
                 <span style={{
-                  fontSize: "1.25rem", fontWeight: 700, lineHeight: 1,
+                  fontSize: "1.6rem", fontWeight: 700, lineHeight: 1,
                   color: "var(--text-primary)",
                   fontVariantNumeric: "tabular-nums", fontFamily: "var(--font-numeric)",
                 }}>
                   {fmtCompact(totalGeral)}
                 </span>
-                <span style={{ fontSize: 9.5, color: "var(--text-muted)", marginTop: 3 }}>
+                <span style={{ fontSize: 10, color: "var(--text-muted)", marginTop: 4 }}>
                   {totalVendas.toLocaleString("pt-BR")} vendas
                 </span>
               </>
@@ -247,36 +238,50 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
           </div>
         </div>
 
-        {/* À VISTA / A PRAZO pills */}
-        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+        {/* Badges À VISTA / A PRAZO */}
+        <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           {pctVista > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: "rgba(245,158,11,0.14)", color: "#f59e0b", whiteSpace: "nowrap" }}>
-              À VISTA {Math.round(pctVista)}%
-            </span>
+            <div style={{
+              flex: 1, padding: "9px 10px", borderRadius: 8, textAlign: "center",
+              background: "rgba(245,158,11,0.14)",
+              border: "1px solid rgba(245,158,11,0.32)",
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>
+                À VISTA
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#f59e0b", fontFamily: "var(--font-numeric)", lineHeight: 1 }}>
+                {Math.round(pctVista)}%
+              </div>
+            </div>
           )}
           {pctPrazo > 0 && (
-            <span style={{ fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 20, background: "rgba(59,130,246,0.14)", color: "#3b82f6", whiteSpace: "nowrap" }}>
-              A PRAZO {Math.round(pctPrazo)}%
-            </span>
+            <div style={{
+              flex: 1, padding: "9px 10px", borderRadius: 8, textAlign: "center",
+              background: "rgba(59,130,246,0.14)",
+              border: "1px solid rgba(59,130,246,0.32)",
+            }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: "#3b82f6", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 3 }}>
+                A PRAZO
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: "#3b82f6", fontFamily: "var(--font-numeric)", lineHeight: 1 }}>
+                {Math.round(pctPrazo)}%
+              </div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* ── Right: method breakdown by section ──────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      {/* ── Right: sections À VISTA e A PRAZO em cards ──────── */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         {vista.length > 0 && (
-          <div>
+          <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
             {renderSectionHeader("À VISTA", totalVista, Zap, "#f59e0b")}
             {vista.map(d => renderMethod(d))}
           </div>
         )}
 
-        {vista.length > 0 && prazo.length > 0 && (
-          <div style={{ height: 1, background: "var(--border-subtle)", margin: "10px 0" }} />
-        )}
-
         {prazo.length > 0 && (
-          <div>
+          <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
             {renderSectionHeader("A PRAZO", totalPrazo, Clock, "#3b82f6")}
             {prazo.map(d => renderMethod(d))}
           </div>
