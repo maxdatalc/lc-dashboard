@@ -317,7 +317,7 @@ export default function DashboardPage() {
       {/* ── Linha 3: Top Fabricantes | Formas de Pagamento (2 cols) ───────── */}
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-[1fr_2fr]">
         <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
-          {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
+          {chartsLoading ? <ChartSkeleton height={480} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
 
         <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={185}>
