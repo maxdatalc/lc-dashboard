@@ -7,103 +7,223 @@ export const dynamic = "force-dynamic";
 
 export interface ComissaoRow {
   RecebimentoId: number;
-  VendaId: number | null;
-  TipoVenda: string | null;
-  NomeVendedor: string | null;
+  VendaId: number;
+  TipoVenda: string;
   VendedorId: number | null;
+  NomeVendedor: string | null;
   DataPagamento: string;
+  ValorVendaOrigem: number;
+  ValorParcela: number;
+  TotalParcelasVenda: number | null;
+  ValorRecebidoRateado: number;
   ValorTotalVenda: number;
-  ValorPecasVenda: number;
-  ValorRecebidoLiquido: number;
-  TipoVista: number | null;
-  TipoPrazo: number | null;
+  BaseCalculoComissao: number;
+  PercentualComissao: number;  // decimal 0-1 (ex: 0.02 para 2%)
+  ComissaoTotal: number;
+  ComissaoPaga: number;
   TipoPagamento: string;
-  SemVinculo: number;
+  TipoVistaOrigem: number | null;
+  TipoPrazoOrigem: number | null;
 }
 
 function buildQuery(vendedorClause: string): string {
   return `
-    WITH CTE_OrigemVenda AS (
+    WITH Recebimentos AS (
       SELECT
-        p.pgtId, p.pgtRef, p.pgtVendaId, p.pgtValor,
-        p.pgtValorJuros, p.pgtValorMulta, p.pgtDataQuitou,
-        p.pgtAtendente, p.pgtTipoVista, p.pgtTipoPrazo
-      FROM vendapgto p
-      WHERE p.pgtRef IS NULL
+        p.pgtId,
+        p.pgtRef,
+        p.pgtVendaId,
+        p.pgtValor,
+        p.pgtValorJuros,
+        p.pgtValorMulta,
+        p.pgtDataQuitou,
+        p.pgtAtendente,
+        p.pgtTipoVista,
+        p.pgtTipoPrazo
+      FROM vendaPgto p
+      WHERE p.pgtPago = 'S'
+        AND p.empId = @empId
+        AND CONVERT(date, p.pgtDataQuitou) BETWEEN @start AND @end
+        ${vendedorClause}
+    ),
+
+    Arvore AS (
+      SELECT
+        r.pgtId AS RecebimentoId,
+        r.pgtId,
+        r.pgtRef,
+        r.pgtVendaId,
+        r.pgtValor,
+        r.pgtTipoVista,
+        r.pgtTipoPrazo
+      FROM Recebimentos r
 
       UNION ALL
 
       SELECT
-        p.pgtId, p.pgtRef, c.pgtVendaId, p.pgtValor,
-        p.pgtValorJuros, p.pgtValorMulta, p.pgtDataQuitou,
-        p.pgtAtendente, p.pgtTipoVista, p.pgtTipoPrazo
-      FROM vendapgto p
-      INNER JOIN CTE_OrigemVenda c ON p.pgtRef = c.pgtId
+        a.RecebimentoId,
+        pai.pgtId,
+        pai.pgtRef,
+        pai.pgtVendaId,
+        pai.pgtValor,
+        pai.pgtTipoVista,
+        pai.pgtTipoPrazo
+      FROM Arvore a
+      INNER JOIN vendaPgto pai ON pai.pgtId = a.pgtRef
+    ),
+
+    VendasOrigem AS (
+      SELECT
+        a.RecebimentoId,
+        o.pgtVendaId,
+        SUM(o.pgtValor) AS ValorVenda,
+        MAX(o.pgtTipoVista) AS pgtTipoVistaOrigem,
+        MAX(o.pgtTipoPrazo) AS pgtTipoPrazoOrigem
+      FROM Arvore a
+      INNER JOIN vendaPgto o ON o.pgtRef = a.pgtId
+      WHERE o.pgtVendaId IS NOT NULL
+      GROUP BY a.RecebimentoId, o.pgtVendaId
+
+      UNION
+
+      SELECT
+        r.pgtId,
+        r.pgtVendaId,
+        (SELECT SUM(vp.pgtValor) FROM vendaPgto vp WHERE vp.pgtVendaId = r.pgtVendaId) AS ValorVenda,
+        r.pgtTipoVista,
+        r.pgtTipoPrazo
+      FROM Recebimentos r
+      WHERE r.pgtVendaId IS NOT NULL
+
+      UNION
+
+      SELECT
+        a.RecebimentoId,
+        a.pgtVendaId,
+        (SELECT SUM(vp.pgtValor) FROM vendaPgto vp WHERE vp.pgtVendaId = a.pgtVendaId) AS ValorVenda,
+        a.pgtTipoVista,
+        a.pgtTipoPrazo
+      FROM Arvore a
+      WHERE a.pgtVendaId IS NOT NULL
+    ),
+
+    Rateio AS (
+      SELECT
+        v.*,
+        CAST(
+          v.ValorVenda /
+          NULLIF(SUM(v.ValorVenda) OVER (PARTITION BY v.RecebimentoId), 0)
+        AS DECIMAL(18,10)) AS PercentualRateio
+      FROM VendasOrigem v
     )
 
     SELECT
-      pgtoFinal.pgtId                                                                  AS RecebimentoId,
-      venda.vedId                                                                      AS VendaId,
-      venda.vedTipo                                                                    AS TipoVenda,
+      rec.pgtId                                                                        AS RecebimentoId,
+      v.vedId                                                                          AS VendaId,
+      v.vedTipo                                                                        AS TipoVenda,
+      rec.pgtAtendente                                                                 AS VendedorId,
       cli.cliNome                                                                      AS NomeVendedor,
-      pgtoFinal.pgtAtendente                                                           AS VendedorId,
-      pgtoFinal.pgtDataQuitou                                                          AS DataPagamento,
-      ROUND(ISNULL(TotalVenda.Total, 0), 2)                                           AS ValorTotalVenda,
-      ROUND(ISNULL(TotalPecas.Pecas, 0), 2)                                           AS ValorPecasVenda,
+      rec.pgtDataQuitou                                                                AS DataPagamento,
+      ROUND(rt.ValorVenda, 2)                                                          AS ValorVendaOrigem,
+      rec.pgtValor                                                                     AS ValorParcela,
+      ParcelaVenda.TotalParcelasVenda,
       ROUND(
-        ISNULL(pgtoFinal.pgtValor, 0)
-        - ISNULL(pgtoFinal.pgtValorJuros, 0)
-        - ISNULL(pgtoFinal.pgtValorMulta, 0)
-      , 2)                                                                             AS ValorRecebidoLiquido,
-      pgtoFinal.pgtTipoVista                                                          AS TipoVista,
-      pgtoFinal.pgtTipoPrazo                                                          AS TipoPrazo,
+        (ISNULL(rec.pgtValor, 0) - ISNULL(rec.pgtValorJuros, 0) - ISNULL(rec.pgtValorMulta, 0))
+        * rt.PercentualRateio, 2
+      )                                                                                AS ValorRecebidoRateado,
+      ROUND(ISNULL(TotalVenda.Total, 0), 2)                                           AS ValorTotalVenda,
+      ROUND(BaseCalc.Valor, 2)                                                         AS BaseCalculoComissao,
+      AliqComissao.AliqPct / 100.0                                                     AS PercentualComissao,
+      ROUND(BaseCalc.Valor * AliqComissao.AliqPct / 100.0, 2)                         AS ComissaoTotal,
+      ROUND(
+        BaseCalc.Valor * AliqComissao.AliqPct / 100.0
+        * (
+          (ISNULL(rec.pgtValor, 0) - ISNULL(rec.pgtValorJuros, 0) - ISNULL(rec.pgtValorMulta, 0))
+          * rt.PercentualRateio
+          / NULLIF(
+            CASE
+              WHEN ParcelaVenda.TotalParcelasVenda IS NOT NULL
+                   AND ParcelaVenda.TotalParcelasVenda > rt.ValorVenda
+                THEN ParcelaVenda.TotalParcelasVenda
+              ELSE rt.ValorVenda
+            END, 0
+          )
+        ), 2
+      )                                                                                AS ComissaoPaga,
       CASE
-        WHEN pgtoFinal.pgtTipoVista = 0 THEN 'Dinheiro'
-        WHEN pgtoFinal.pgtTipoVista = 1 THEN 'Cheque à Vista'
-        WHEN pgtoFinal.pgtTipoVista = 2 THEN 'Cartão Débito'
-        WHEN pgtoFinal.pgtTipoVista = 3 THEN 'Depósito'
-        WHEN pgtoFinal.pgtTipoVista = 4 THEN 'Dep./PIX'
-        WHEN pgtoFinal.pgtTipoPrazo = 0 THEN 'Cartão Crédito'
-        WHEN pgtoFinal.pgtTipoPrazo = 1 THEN 'Cheque Pré'
-        WHEN pgtoFinal.pgtTipoPrazo = 2 THEN 'Carteira'
-        WHEN pgtoFinal.pgtTipoPrazo = 3 THEN 'Boleto'
-        WHEN pgtoFinal.pgtTipoPrazo = 4 THEN 'Vale'
-        WHEN pgtoFinal.pgtTipoPrazo = 5 THEN 'Cheque Dev.'
-        WHEN pgtoFinal.pgtTipoPrazo = 6 THEN 'Débito Conta'
-        WHEN pgtoFinal.pgtTipoPrazo = 7 THEN 'Custódia'
+        WHEN rt.pgtTipoVistaOrigem = 0 THEN 'Dinheiro'
+        WHEN rt.pgtTipoVistaOrigem = 1 THEN 'Cheque à Vista'
+        WHEN rt.pgtTipoVistaOrigem = 2 THEN 'Cartão Débito'
+        WHEN rt.pgtTipoVistaOrigem = 3 THEN 'Depósito'
+        WHEN rt.pgtTipoVistaOrigem = 4 THEN 'Dep./PIX'
+        WHEN rt.pgtTipoPrazoOrigem = 0 THEN 'Cartão Crédito'
+        WHEN rt.pgtTipoPrazoOrigem = 1 THEN 'Cheque Pré'
+        WHEN rt.pgtTipoPrazoOrigem = 2 THEN 'Carteira'
+        WHEN rt.pgtTipoPrazoOrigem = 3 THEN 'Boleto'
+        WHEN rt.pgtTipoPrazoOrigem = 4 THEN 'Vale'
+        WHEN rt.pgtTipoPrazoOrigem = 5 THEN 'Cheque Dev.'
+        WHEN rt.pgtTipoPrazoOrigem = 6 THEN 'Débito Conta'
+        WHEN rt.pgtTipoPrazoOrigem = 7 THEN 'Custódia'
         ELSE 'Outro'
       END                                                                              AS TipoPagamento,
-      CASE WHEN venda.vedId IS NULL THEN 1 ELSE 0 END                                AS SemVinculo
+      rt.pgtTipoVistaOrigem                                                            AS TipoVistaOrigem,
+      rt.pgtTipoPrazoOrigem                                                            AS TipoPrazoOrigem
 
-    FROM CTE_OrigemVenda pgtoFinal
-    LEFT JOIN venda ON venda.vedId = pgtoFinal.pgtVendaId AND venda.empId = @empId
-    LEFT JOIN cliente cli ON cli.cliId = pgtoFinal.pgtAtendente
+    FROM Rateio rt
+    INNER JOIN Recebimentos rec   ON rec.pgtId  = rt.RecebimentoId
+    INNER JOIN venda v            ON v.vedId    = rt.pgtVendaId AND v.empId = @empId
+    INNER JOIN cliente cli        ON cli.cliId  = v.vedAtendente
+    INNER JOIN configVenda cv     ON cv.empId   = @empId
 
     OUTER APPLY (
       SELECT SUM((vi.vdiValor - (vi.vdiValor * ISNULL(vi.vdiDesc, 0))) * vi.vdiQtde) AS Total
       FROM vendaItem vi
-      WHERE vi.vdiVedId = venda.vedId
+      WHERE vi.vdiVedId = v.vedId
         AND (vi.vdiStatus IS NULL OR vi.vdiStatus = '')
-    ) AS TotalVenda
+    ) TotalVenda
 
     OUTER APPLY (
       SELECT SUM((vi.vdiValor - (vi.vdiValor * ISNULL(vi.vdiDesc, 0))) * vi.vdiQtde) AS Pecas
       FROM vendaItem vi
       INNER JOIN produto pr ON pr.proId = vi.vdiItemId
-      WHERE vi.vdiVedId = venda.vedId
+      WHERE vi.vdiVedId = v.vedId
         AND (vi.vdiStatus IS NULL OR vi.vdiStatus = '')
         AND pr.proTipo = 'P'
-    ) AS TotalPecas
+    ) TotalPecas
 
-    WHERE
-      NOT EXISTS (
-        SELECT 1 FROM vendaPgto p2
-        WHERE p2.pgtRef = pgtoFinal.pgtId
-      )
-      AND CONVERT(date, pgtoFinal.pgtDataQuitou) BETWEEN @start AND @end
-      ${vendedorClause}
+    OUTER APPLY (
+      SELECT SUM(vp.pgtValor) AS TotalParcelasVenda
+      FROM vendaPgto vp
+      WHERE vp.pgtVendaId = v.vedId
+    ) ParcelaVenda
 
-    ORDER BY pgtoFinal.pgtDataQuitou, pgtoFinal.pgtId
+    /* Base de cálculo: pecas para OS, total da venda para VE */
+    CROSS APPLY (
+      SELECT CASE
+        WHEN v.vedTipo = 'OS' THEN ISNULL(TotalPecas.Pecas, 0)
+        ELSE ISNULL(TotalVenda.Total, 0)
+      END AS Valor
+    ) BaseCalc
+
+    /* Alíquota de comissão vinda de configVenda, por forma de pagamento original */
+    CROSS APPLY (
+      SELECT CASE
+        WHEN rt.pgtTipoVistaOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDinheiro,  0)
+        WHEN rt.pgtTipoVistaOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequeVista, 0)
+        WHEN rt.pgtTipoVistaOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoDebito, 0)
+        WHEN rt.pgtTipoVistaOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDeposito,  0)
+        WHEN rt.pgtTipoVistaOrigem = 4 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroPix,       0)
+        WHEN rt.pgtTipoPrazoOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoCredito, 0)
+        WHEN rt.pgtTipoPrazoOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequePrazo, 0)
+        WHEN rt.pgtTipoPrazoOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCarteira,  0)
+        WHEN rt.pgtTipoPrazoOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroBoleto,    0)
+        ELSE 0
+      END AS AliqPct
+    ) AliqComissao
+
+    ORDER BY rec.pgtDataQuitou, rec.pgtId, v.vedId
+
+    OPTION (MAXRECURSION 100)
   `;
 }
 
@@ -138,7 +258,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       vendedorParams[`vid${i}`] = id;
       return `@vid${i}`;
     });
-    vendedorClause = `AND pgtoFinal.pgtAtendente IN (${placeholders.join(", ")})`;
+    vendedorClause = `AND p.pgtAtendente IN (${placeholders.join(", ")})`;
   }
 
   try {
