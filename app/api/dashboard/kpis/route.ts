@@ -241,6 +241,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const lucro          = faturamento - custo;
   const lucroAnt       = faturamentoAnt - custoAnt;
   const margem         = faturamento > 0 ? (lucro / faturamento) * 100 : 0;
+  const margemAnt      = faturamentoAnt > 0 ? (lucroAnt / faturamentoAnt) * 100 : 0;
+  const custoPercentReceita    = faturamento > 0 ? (custo / faturamento) * 100 : 0;
+  const custoPercentReceitaAnt = faturamentoAnt > 0 ? (custoAnt / faturamentoAnt) * 100 : 0;
 
   return NextResponse.json({
     faturamento: {
@@ -250,9 +253,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       devolucaoTotal: valorDevolvido,
       totalVendas,
       totalDevolucoes,
+      totalVendasAnt,
     },
-    custo:  { value: custo,  change: calcVariacao(custo, custoAnt) },
-    lucro:  { value: lucro,  change: calcVariacao(lucro, lucroAnt), margem },
+    custo: {
+      value: custo,
+      change: calcVariacao(custo, custoAnt),
+      percentReceita: custoPercentReceita,
+      percentReceitaAnt: custoPercentReceitaAnt,
+    },
+    lucro:  { value: lucro,  change: calcVariacao(lucro, lucroAnt), margem, margemAnt },
     clientes:   { value: clientes },
     vendas: {
       value: totalVendas,

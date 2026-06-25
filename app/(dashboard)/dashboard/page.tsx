@@ -32,9 +32,15 @@ interface KpiResponse {
     devolucaoTotal: number;
     totalVendas: number;
     totalDevolucoes: number;
+    totalVendasAnt: number;
   };
-  custo: { value: number };
-  lucro: { value: number; margem: number };
+  custo: {
+    value: number;
+    change: number | null;
+    percentReceita: number;
+    percentReceitaAnt: number;
+  };
+  lucro: { value: number; margem: number; margemAnt: number };
   clientes: { value: number };
   vendas: { value: number; change: number | null };
   ticketMedio: { value: number; change: number | null };
@@ -43,6 +49,20 @@ interface KpiResponse {
   totalDevolucoes: number;
   totalCancelamentos: number;
   valorDevolvido: number;
+}
+
+interface ClientesRetencaoResponse {
+  novos: number;
+  recorrentes: number;
+  faturamentoNovos: number;
+  faturamentoRecorrentes: number;
+}
+
+interface EmAbertoResponse {
+  qtd: number;
+  qtdVendas: number;
+  qtdOs: number;
+  valorTotal: number;
 }
 
 // ─── Skeleton de gráfico ──────────────────────────────────────────────────────
@@ -84,6 +104,8 @@ export default function DashboardPage() {
   const hasLoadedOnce = useRef(false);
 
   const [kpis, setKpis] = useState<KpiResponse | null>(null);
+  const [clientesRetencao, setClientesRetencao] = useState<ClientesRetencaoResponse | null>(null);
+  const [emAberto, setEmAberto] = useState<EmAbertoResponse | null>(null);
   const [vendasMensal, setVendasMensal] = useState<VendasMensalData[]>([]);
   const [formasPagamento, setFormasPagamento] = useState<FormasPagamentoData[]>([]);
   const [topProdutos, setTopProdutos] = useState<TopProdutoData[]>([]);
@@ -137,10 +159,19 @@ export default function DashboardPage() {
     if (activeFilter?.type === "tipo")     paramsObj.tipoPessoa   = String(activeFilter.id);
     const params = new URLSearchParams(paramsObj);
 
-    const [kpisRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes] =
+    // Parâmetros estáticos para Em Aberto (sem filtro de período)
+    const staticParams = new URLSearchParams({ lojaIds: lojaIds.join(",") });
+
+    const [kpisRes, retencaoRes, emAbertoRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes] =
       await Promise.allSettled([
         fetch(`/api/dashboard/kpis?${params}`).then((r) =>
           r.ok ? (r.json() as Promise<KpiResponse>) : null
+        ),
+        fetch(`/api/dashboard/charts?${params}&type=clientes-retencao`).then((r) =>
+          r.ok ? (r.json() as Promise<ClientesRetencaoResponse>) : null
+        ),
+        fetch(`/api/dashboard/em-aberto?${staticParams}`).then((r) =>
+          r.ok ? (r.json() as Promise<EmAbertoResponse>) : null
         ),
         fetch(`/api/dashboard/charts?${params}&type=faturamento-mensal`).then((r) =>
           r.ok ? (r.json() as Promise<VendasMensalData[]>) : []
@@ -171,6 +202,8 @@ export default function DashboardPage() {
     hasLoadedOnce.current = true;
 
     if (kpisRes.status === "fulfilled" && kpisRes.value) setKpis(kpisRes.value);
+    if (retencaoRes.status === "fulfilled" && retencaoRes.value) setClientesRetencao(retencaoRes.value);
+    if (emAbertoRes.status === "fulfilled" && emAbertoRes.value) setEmAberto(emAbertoRes.value);
     if (faturamentoRes.status === "fulfilled") setVendasMensal(faturamentoRes.value as VendasMensalData[]);
     if (pagamentosRes.status === "fulfilled") setFormasPagamento(pagamentosRes.value as FormasPagamentoData[]);
     if (produtosRes.status === "fulfilled") setTopProdutos(produtosRes.value as TopProdutoData[]);
@@ -205,13 +238,23 @@ export default function DashboardPage() {
       <KpiBar
         faturamento={kpis?.faturamento?.value ?? 0}
         totalVendas={kpis?.faturamento?.totalVendas ?? 0}
+        totalVendasAnt={kpis?.faturamento?.totalVendasAnt ?? 0}
+        faturamentoChange={kpis?.faturamento?.change ?? null}
         devolucaoTotal={kpis?.valorDevolvido ?? 0}
         totalDevolucoes={kpis?.totalDevolucoes ?? 0}
         custo={kpis?.custo?.value ?? 0}
+        custoPercentReceita={kpis?.custo?.percentReceita ?? 0}
+        custoPercentReceitaAnt={kpis?.custo?.percentReceitaAnt ?? 0}
         ticketMedio={kpis?.ticketMedio?.value ?? 0}
+        ticketMedioChange={kpis?.ticketMedio?.change ?? null}
         lucro={kpis?.lucro?.value ?? 0}
         margem={kpis?.lucro?.margem ?? 0}
+        margemAnt={kpis?.lucro?.margemAnt ?? 0}
         totalClientes={kpis?.clientes?.value ?? 0}
+        novosClientes={clientesRetencao?.novos ?? 0}
+        recorrentesClientes={clientesRetencao?.recorrentes ?? 0}
+        emAbertoQtd={emAberto?.qtd ?? 0}
+        emAbertoValor={emAberto?.valorTotal ?? 0}
         isLoading={kpiLoading}
       />
 
