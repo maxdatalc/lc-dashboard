@@ -14,21 +14,27 @@ interface PeriodContextValue {
 
 const PeriodContext = createContext<PeriodContextValue | null>(null);
 
+// Formata usando timezone local do browser (evita bug UTC para BR UTC-3/UTC-4)
 function toStr(d: Date): string {
-  return d.toISOString().split("T")[0];
+  const y  = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, "0");
+  const dy = String(d.getDate()).padStart(2, "0");
+  return `${y}-${mo}-${dy}`;
 }
 
 export function computeRange(period: Exclude<Period, "custom">): { start: string; end: string } {
   const hoje = new Date();
+  const y    = hoje.getFullYear();
+  const m    = hoje.getMonth();
+  const d    = hoje.getDate();
   const hojeStr = toStr(hoje);
-  const y = hoje.getFullYear();
-  const m = hoje.getMonth();
 
   switch (period) {
     case "today":
       return { start: hojeStr, end: hojeStr };
     case "7d":
-      return { start: toStr(new Date(hoje.getTime() - 6 * 86400000)), end: hojeStr };
+      // últimos 7 dias inclusive hoje
+      return { start: toStr(new Date(y, m, d - 6)), end: hojeStr };
     case "month":
       return { start: `${y}-${String(m + 1).padStart(2, "0")}-01`, end: hojeStr };
     case "3m":
