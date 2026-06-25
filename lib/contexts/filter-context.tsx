@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, ReactNode } from 'react'
 
 interface ActiveFilter {
-  type: 'vendedor' | 'produto' | 'cliente' | 'grupo' | 'tipo'
+  type: 'vendedor' | 'produto' | 'cliente' | 'grupo' | 'tipo' | 'formaPagamento'
   id: number | string
   label: string
 }

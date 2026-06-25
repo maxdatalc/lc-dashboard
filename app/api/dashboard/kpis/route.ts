@@ -144,6 +144,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const tipoPessoaRaw = searchParams.get("tipoPessoa");
   const tipoPessoa = tipoPessoaRaw === "PF" || tipoPessoaRaw === "PJ" ? tipoPessoaRaw : null;
+
+  const formaPagamentoRaw = searchParams.get("formaPagamento");
+  const fpClause  = formaPagamentoRaw ? "AND vedId IN (SELECT pgtVendaId FROM vendaPgto WHERE pgtTipoDesc = @formaPagamento)" : "";
+  const fpClauseJ = formaPagamentoRaw ? "AND v.vedId IN (SELECT pgtVendaId FROM vendaPgto WHERE pgtTipoDesc = @formaPagamento)" : "";
+  const fp = formaPagamentoRaw ? { formaPagamento: formaPagamentoRaw } : {};
   const _TPC = `CASE WHEN LEN(REPLACE(REPLACE(REPLACE(REPLACE(ISNULL(cliCpfCgc,''),'.',''),'-',''),'/',''),' ','')) = 11 THEN 'PF' ELSE 'PJ' END`;
   const tpClause = tipoPessoa ? `AND vedClienteId IN (SELECT cliId FROM cliente WHERE empId = @empId AND ${_TPC} = @tipoPessoa)` : "";
   const tp = tipoPessoa ? { tipoPessoa } : {};
@@ -198,16 +203,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
       const vp = vendedorId ? { vendedorId } : {};
       const ep = { empId: config.empId };
-      const SQL_KPIS = buildSqlKpis(vendedorClause, `${cClause}${pClause}${tpClause}`);
-      const SQL_CUSTO = buildSqlCusto(vendedorClauseJ, `${cClauseJ}${pClauseJ}${tpClause}`);
-      const SQL_DEV   = buildSqlDev(vendedorClause, `${cClause}${pClause}${tpClause}`);
+      const SQL_KPIS  = buildSqlKpis(vendedorClause,  `${cClause}${pClause}${tpClause}${fpClause}`);
+      const SQL_CUSTO = buildSqlCusto(vendedorClauseJ, `${cClauseJ}${pClauseJ}${tpClause}${fpClauseJ}`);
+      const SQL_DEV   = buildSqlDev(vendedorClause,    `${cClause}${pClause}${tpClause}${fpClause}`);
 
       const [atual, ant, custoAtual, custoAnterior, dev] = await Promise.all([
-        queryBridge<KpiRow>(config, SQL_KPIS, { start, end, ...ep, ...vp, ...cp, ...tp }),
-        queryBridge<KpiRow>(config, SQL_KPIS, { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp, ...tp }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...ep, ...vp, ...cp, ...tp }),
-        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp, ...tp }),
-        queryBridge<DevRow>(config, SQL_DEV, { start, end, ...ep, ...vp, ...cp, ...tp }),
+        queryBridge<KpiRow>(config, SQL_KPIS,  { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
+        queryBridge<KpiRow>(config, SQL_KPIS,  { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp, ...tp, ...fp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
+        queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp, ...tp, ...fp }),
+        queryBridge<DevRow>(config, SQL_DEV,   { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
       ]);
 
       faturamento     += Number(atual[0]?.faturamento        ?? 0);
