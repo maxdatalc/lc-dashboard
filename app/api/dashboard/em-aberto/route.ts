@@ -37,18 +37,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     try {
       // Vendas VE em aberto — aguardando supervisão (tela 113) ou caixa (tela 107)
+      // vdiValor = total da linha (qtde × preço − desconto), somado dos itens não cancelados
       const SQL_VE = `
-        SELECT COUNT(*) AS qtd, ISNULL(SUM(vedTotalNf), 0) AS valorTotal
-        FROM venda
-        WHERE vedStatus = 'O'
-          AND vedTipo = 'VE'
-          AND empId = @empId`;
+        SELECT COUNT(DISTINCT v.vedId) AS qtd,
+               ISNULL(SUM(vi.vdiValor), 0) AS valorTotal
+        FROM venda v
+        LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
+        WHERE v.vedStatus = 'O'
+          AND v.vedTipo = 'VE'
+          AND v.empId = @empId`;
 
       // OS em aberto com tipo de atendimento que gera financeiro
       const SQL_OS = `
-        SELECT COUNT(*) AS qtd, ISNULL(SUM(v.vedTotalNf), 0) AS valorTotal
+        SELECT COUNT(DISTINCT v.vedId) AS qtd,
+               ISNULL(SUM(vi.vdiValor), 0) AS valorTotal
         FROM venda v
         INNER JOIN tipoAtend ta ON ta.tatId = CAST(v.vedTipoAtend AS INT)
+        LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
         WHERE v.vedStatus = 'O'
           AND v.vedTipo = 'OS'
           AND ta.tatServGeraFinanceiro = 1
