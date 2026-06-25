@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
-  ChevronUp,
   Download,
   FileSpreadsheet,
   FileText as FilePdf,
@@ -17,44 +16,6 @@ import {
 } from "lucide-react";
 import { useLoja } from "@/lib/contexts/loja-context";
 import type { ComissaoRow } from "@/app/api/relatorios/comissao-recebimento/route";
-
-// ─── Tipos de pagamento ──────────────────────────────────────────────────────
-
-export const PAYMENT_TYPES = [
-  { key: "vista_0", label: "Dinheiro",       group: "vista" as const, defaultRate: 2.0 },
-  { key: "vista_1", label: "Cheque à Vista", group: "vista" as const, defaultRate: 1.5 },
-  { key: "vista_2", label: "Cartão Débito",  group: "vista" as const, defaultRate: 1.5 },
-  { key: "vista_3", label: "Depósito",       group: "vista" as const, defaultRate: 1.5 },
-  { key: "vista_4", label: "Dep./PIX",       group: "vista" as const, defaultRate: 2.0 },
-  { key: "prazo_0", label: "Cartão Crédito", group: "prazo" as const, defaultRate: 1.5 },
-  { key: "prazo_1", label: "Cheque Pré",     group: "prazo" as const, defaultRate: 1.5 },
-  { key: "prazo_2", label: "Carteira",       group: "prazo" as const, defaultRate: 1.5 },
-  { key: "prazo_3", label: "Boleto",         group: "prazo" as const, defaultRate: 1.5 },
-] as const;
-
-const STORAGE_KEY = "lc_comissao_rates";
-
-const DEFAULT_RATES = Object.fromEntries(
-  PAYMENT_TYPES.map((pt) => [pt.key, pt.defaultRate])
-);
-
-function getPaymentKey(tipoVista: number | null, tipoPrazo: number | null): string {
-  if (tipoVista !== null && tipoVista >= 0) return `vista_${tipoVista}`;
-  if (tipoPrazo !== null && tipoPrazo >= 0) return `prazo_${tipoPrazo}`;
-  return "outro";
-}
-
-function loadRates(): Record<string, number> {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return { ...DEFAULT_RATES, ...JSON.parse(stored) };
-  } catch {}
-  return { ...DEFAULT_RATES };
-}
-
-function saveRates(rates: Record<string, number>) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(rates)); } catch {}
-}
 
 function fmtMoeda(v: number) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -234,140 +195,9 @@ function VendedoresSelect({
   );
 }
 
-// ─── Componente: configurador de comissões ────────────────────────────────────
-
-function ComissaoConfig({
-  rates,
-  onChange,
-}: {
-  rates: Record<string, number>;
-  onChange: (key: string, value: number) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  const vista = PAYMENT_TYPES.filter((p) => p.group === "vista");
-  const prazo = PAYMENT_TYPES.filter((p) => p.group === "prazo");
-
-  return (
-    <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 8, overflow: "hidden" }}>
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          background: "var(--bg-card)",
-          color: "var(--text-secondary)",
-          fontSize: 13,
-          cursor: "pointer",
-        }}
-      >
-        <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <SlidersHorizontal style={{ width: 14, height: 14 }} />
-          Configurar % de comissão por forma de pagamento
-        </span>
-        {open ? (
-          <ChevronUp style={{ width: 13, height: 13 }} />
-        ) : (
-          <ChevronDown style={{ width: 13, height: 13 }} />
-        )}
-      </button>
-
-      {open && (
-        <div
-          style={{
-            padding: "12px 14px 16px",
-            borderTop: "1px solid var(--border-subtle)",
-            background: "var(--bg-subtle, var(--bg-card))",
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "0 24px",
-          }}
-        >
-          {/* À Vista */}
-          <div>
-            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-              À Vista
-            </p>
-            {vista.map((pt) => (
-              <div key={pt.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>{pt.label}</label>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.5}
-                    value={rates[pt.key] ?? pt.defaultRate}
-                    onChange={(e) => onChange(pt.key, parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: 58,
-                      height: 28,
-                      padding: "0 6px",
-                      borderRadius: 6,
-                      border: "1px solid var(--border-subtle)",
-                      background: "var(--bg-card)",
-                      color: "var(--text-primary)",
-                      fontSize: 12,
-                      textAlign: "right",
-                    }}
-                  />
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {/* A Prazo */}
-          <div>
-            <p style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 10 }}>
-              A Prazo
-            </p>
-            {prazo.map((pt) => (
-              <div key={pt.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                <label style={{ fontSize: 12, color: "var(--text-secondary)" }}>{pt.label}</label>
-                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  <input
-                    type="number"
-                    min={0}
-                    max={100}
-                    step={0.5}
-                    value={rates[pt.key] ?? pt.defaultRate}
-                    onChange={(e) => onChange(pt.key, parseFloat(e.target.value) || 0)}
-                    style={{
-                      width: 58,
-                      height: 28,
-                      padding: "0 6px",
-                      borderRadius: 6,
-                      border: "1px solid var(--border-subtle)",
-                      background: "var(--bg-card)",
-                      color: "var(--text-primary)",
-                      fontSize: 12,
-                      textAlign: "right",
-                    }}
-                  />
-                  <span style={{ fontSize: 12, color: "var(--text-muted)" }}>%</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 type EnrichedRow = ComissaoRow & {
-  PaymentKey: string;
-  PercentualAplicado: number;
-  ValorProdutosRecebimento: number;
-  ComissaoPaga: number;
   ValorLiquidoEmpresa: number;
 };
 
@@ -391,17 +221,14 @@ export default function ComissaoRecebimentoPage() {
     if (lojasDisponiveis.length === 1) setLojaId(lojasDisponiveis[0].id);
   }, [lojasDisponiveis]);
 
-  const [start, setStart]               = useState(firstDayOfMonth);
-  const [end, setEnd]                   = useState(today);
-  const [vendedores, setVendedores]     = useState<Vendedor[]>([]);
+  const [start, setStart]                 = useState(firstDayOfMonth);
+  const [end, setEnd]                     = useState(today);
+  const [vendedores, setVendedores]       = useState<Vendedor[]>([]);
   const [vendedoresSel, setVendedoresSel] = useState<number[]>([]);
-  const [rates, setRates]               = useState<Record<string, number>>({});
-  const [rows, setRows]                 = useState<EnrichedRow[]>([]);
-  const [loading, setLoading]           = useState(false);
-  const [generated, setGenerated]       = useState(false);
-  const [error, setError]               = useState<string | null>(null);
-
-  useEffect(() => { setRates(loadRates()); }, []);
+  const [rows, setRows]                   = useState<EnrichedRow[]>([]);
+  const [loading, setLoading]             = useState(false);
+  const [generated, setGenerated]         = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
 
   useEffect(() => {
     if (!lojaId) return;
@@ -412,40 +239,6 @@ export default function ComissaoRecebimentoPage() {
       .then((data) => setVendedores(Array.isArray(data) ? data : []))
       .catch(() => setVendedores([]));
   }, [lojaId]);
-
-  const handleRateChange = useCallback((key: string, value: number) => {
-    setRates((prev) => {
-      const next = { ...prev, [key]: value };
-      saveRates(next);
-      return next;
-    });
-  }, []);
-
-  const enrich = useCallback(
-    (rawRows: ComissaoRow[]): EnrichedRow[] =>
-      rawRows.map((row) => {
-        const key = getPaymentKey(row.TipoVista, row.TipoPrazo);
-        const pct = (rates[key] ?? 0) / 100;
-        const totalVenda = row.ValorTotalVenda > 0 ? row.ValorTotalVenda : 0;
-        const proporcaoPecas = totalVenda > 0 ? row.ValorPecasVenda / totalVenda : 0;
-        const vlrProdutos = Math.round(row.ValorRecebidoLiquido * proporcaoPecas * 100) / 100;
-        const comissao = row.SemVinculo ? 0 : Math.round(vlrProdutos * pct * 100) / 100;
-        const vlrLiquido = Math.round((row.ValorRecebidoLiquido - comissao) * 100) / 100;
-        return {
-          ...row,
-          PaymentKey: key,
-          PercentualAplicado: rates[key] ?? 0,
-          ValorProdutosRecebimento: vlrProdutos,
-          ComissaoPaga: comissao,
-          ValorLiquidoEmpresa: vlrLiquido,
-        };
-      }),
-    [rates]
-  );
-
-  const enrichedRows = enrich(
-    rows.map(({ PaymentKey: _, PercentualAplicado: __, ValorProdutosRecebimento: ___, ComissaoPaga: ____, ValorLiquidoEmpresa: _____, ...raw }) => raw as ComissaoRow)
-  );
 
   const handleGerar = async () => {
     if (!lojaId) return;
@@ -459,7 +252,12 @@ export default function ComissaoRecebimentoPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Erro desconhecido");
 
-      setRows(enrich(data.rows ?? []));
+      setRows(
+        (data.rows ?? []).map((r: ComissaoRow) => ({
+          ...r,
+          ValorLiquidoEmpresa: Math.round((r.ValorRecebidoRateado - r.ComissaoPaga) * 100) / 100,
+        }))
+      );
       setGenerated(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro ao gerar relatório");
@@ -468,19 +266,18 @@ export default function ComissaoRecebimentoPage() {
     }
   };
 
+  const enrichedRows = rows;
+
   // ── Totalizadores ────────────────────────────────────────────────────────
-  const totalRecebido = enrichedRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
+  const totalRecebido = enrichedRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0);
   const totalComissao = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
   const totalLiquido  = enrichedRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0);
-  const totalVendas   = new Set(enrichedRows.filter((r) => r.VendaId).map((r) => r.VendaId)).size;
+  const totalVendas   = new Set(enrichedRows.map((r) => r.VendaId)).size;
   const pctMedio      = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
 
   const multiVendedor = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
-  const semVinculoRows = enrichedRows.filter((r) => r.SemVinculo);
-  const totalSemVinculoQtd   = semVinculoRows.length;
-  const totalSemVinculoValor = semVinculoRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0);
 
-  // ── Agrupamento por vendedor (linhas planas, sem vínculo incluído) ──────────
+  // ── Agrupamento por vendedor ─────────────────────────────────────────────
   const vendorGroups = useMemo<VendorGroup[]>(() => {
     const vendorMap = new Map<number, EnrichedRow[]>();
     enrichedRows.forEach((row) => {
@@ -489,12 +286,14 @@ export default function ComissaoRecebimentoPage() {
       vendorMap.get(k)!.push(row);
     });
     return Array.from(vendorMap.entries()).map(([id, vRows]) => {
-      const sorted = [...vRows].sort((a, b) => a.DataPagamento.localeCompare(b.DataPagamento) || a.RecebimentoId - b.RecebimentoId);
+      const sorted = [...vRows].sort((a, b) =>
+        a.DataPagamento.localeCompare(b.DataPagamento) || a.RecebimentoId - b.RecebimentoId
+      );
       return {
         vendedorId: id,
         nome: vRows[0].NomeVendedor ?? "Sem vendedor",
         rows: sorted,
-        subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoLiquido, 0),
+        subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0),
         subtotalComissao: vRows.reduce((s, r) => s + r.ComissaoPaga, 0),
         subtotalLiquido:  vRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0),
       };
@@ -535,23 +334,22 @@ export default function ComissaoRecebimentoPage() {
     "Vlr. Venda",
     "Forma de Pgto",
     "Vlr. Recebido",
-    "Vlr. Produtos",
+    "Base Comissão",
     "Comissão %",
     "Vlr. Comissão",
     "Vlr. Líq.",
   ];
 
-  const tipoLabel = (row: EnrichedRow) =>
-    row.VendaId ? `${row.TipoVenda ?? ""} ${row.VendaId}` : "Sem vínculo";
+  const tipoLabel = (row: EnrichedRow) => `${row.TipoVenda} ${row.VendaId}`;
 
   const rowToArray = (row: EnrichedRow) => [
     fmtData(row.DataPagamento),
     tipoLabel(row),
-    row.SemVinculo ? "-" : fmtMoeda(row.ValorTotalVenda),
+    fmtMoeda(row.ValorTotalVenda),
     row.TipoPagamento,
-    fmtMoeda(row.ValorRecebidoLiquido),
-    row.SemVinculo ? "-" : fmtMoeda(row.ValorProdutosRecebimento),
-    fmtPct(row.PercentualAplicado),
+    fmtMoeda(row.ValorRecebidoRateado),
+    fmtMoeda(row.BaseCalculoComissao),
+    fmtPct(row.PercentualComissao * 100),
     fmtMoeda(row.ComissaoPaga),
     fmtMoeda(row.ValorLiquidoEmpresa),
   ];
@@ -851,67 +649,48 @@ export default function ComissaoRecebimentoPage() {
   };
 
   // ── Células da tabela (reutilizado em flat e grouped) ─────────────────────
-  const renderRowCells = (row: EnrichedRow) => {
-    const isSem = row.SemVinculo === 1;
-    const mutedColor = isSem ? "#f87171" : "var(--text-secondary)";
-    return (
-      <>
-        {/* 1 — Data */}
-        <td style={{ padding: "8px 12px", fontSize: 12, color: mutedColor, whiteSpace: "nowrap" }}>
-          {fmtData(row.DataPagamento)}
-        </td>
-        {/* 2 — Tipo (OS/VE + número ou alerta) */}
-        <td style={{ padding: "8px 12px" }}>
-          {isSem ? (
-            <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4, background: "rgba(239,68,68,0.15)", color: "#f87171" }}>
-              Sem vínculo
-            </span>
-          ) : (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-              <span style={{
-                fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-                background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
-                color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
-              }}>
-                {row.TipoVenda}
-              </span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
-            </span>
-          )}
-        </td>
-        {/* 3 — Vlr. Venda */}
-        <td style={{ padding: "8px 12px", fontSize: 12, color: isSem ? "#f87171" : "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-          {isSem ? "—" : fmtMoeda(row.ValorTotalVenda)}
-        </td>
-        {/* 4 — Forma de Pgto */}
-        <td style={{ padding: "8px 12px", fontSize: 12, color: mutedColor, whiteSpace: "nowrap" }}>
-          {row.TipoPagamento}
-        </td>
-        {/* 5 — Vlr. Recebido */}
-        <td style={{ padding: "8px 12px", fontSize: 12, color: isSem ? "#f87171" : "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-          {fmtMoeda(row.ValorRecebidoLiquido)}
-        </td>
-        {/* 6 — Vlr. Produtos */}
-        <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
-          {isSem ? "—" : fmtMoeda(row.ValorProdutosRecebimento)}
-        </td>
-        {/* 7 — Comissão % */}
-        <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
-          <span style={{ color: (!isSem && row.PercentualAplicado > 0) ? "var(--accent-cyan)" : "var(--text-muted)", fontWeight: (!isSem && row.PercentualAplicado > 0) ? 600 : 400 }}>
-            {isSem ? "—" : fmtPct(row.PercentualAplicado)}
+  const renderRowCells = (row: EnrichedRow) => (
+    <>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+        {fmtData(row.DataPagamento)}
+      </td>
+      <td style={{ padding: "8px 12px" }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          <span style={{
+            fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+            background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
+            color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+          }}>
+            {row.TipoVenda}
           </span>
-        </td>
-        {/* 8 — Vlr. Comissão */}
-        <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: isSem ? "var(--text-muted)" : "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-          {isSem ? "—" : fmtMoeda(row.ComissaoPaga)}
-        </td>
-        {/* 9 — Vlr. Líq. (empresa) */}
-        <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: isSem ? "#f87171" : "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-          {isSem ? fmtMoeda(row.ValorRecebidoLiquido) : fmtMoeda(row.ValorLiquidoEmpresa)}
-        </td>
-      </>
-    );
-  };
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
+        </span>
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ValorTotalVenda)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+        {row.TipoPagamento}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ValorRecebidoRateado)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.BaseCalculoComissao)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
+        <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
+          {fmtPct(row.PercentualComissao * 100)}
+        </span>
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ComissaoPaga)}
+      </td>
+      <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+        {fmtMoeda(row.ValorLiquidoEmpresa)}
+      </td>
+    </>
+  );
 
   return (
     <div className="comissao-page" style={{ padding: "24px" }}>
@@ -1183,7 +962,6 @@ export default function ComissaoRecebimentoPage() {
           </button>
         </div>
 
-        <ComissaoConfig rates={rates} onChange={handleRateChange} />
       </div>
 
       {/* ── Erro ─────────────────────────────────────────────────────── */}
@@ -1213,14 +991,8 @@ export default function ComissaoRecebimentoPage() {
             { label: "Total Recebido",    value: fmtMoeda(totalRecebido), icon: <Receipt style={{ width: 16, height: 16 }} /> },
             { label: "Total de Comissão", value: fmtMoeda(totalComissao), icon: <TrendingUp style={{ width: 16, height: 16 }} />, accent: true },
             { label: "Vlr. Líq. Empresa", value: fmtMoeda(totalLiquido),  icon: <TrendingUp style={{ width: 16, height: 16 }} /> },
-            { label: "% Médio",           value: fmtPct(pctMedio),        icon: <SlidersHorizontal style={{ width: 16, height: 16 }} /> },
-            { label: "Vendas/O.S.",        value: String(totalVendas),      icon: <Receipt style={{ width: 16, height: 16 }} /> },
-            ...(totalSemVinculoQtd > 0 ? [{
-              label: "Sem vínculo",
-              value: `${totalSemVinculoQtd} (${fmtMoeda(totalSemVinculoValor)})`,
-              icon: <Receipt style={{ width: 16, height: 16 }} />,
-              alert: true,
-            }] : []),
+            { label: "% Médio",    value: fmtPct(pctMedio),   icon: <SlidersHorizontal style={{ width: 16, height: 16 }} /> },
+            { label: "Vendas/O.S.", value: String(totalVendas), icon: <Receipt style={{ width: 16, height: 16 }} /> },
           ].map((card) => (
             <div
               key={card.label}
@@ -1289,7 +1061,7 @@ export default function ComissaoRecebimentoPage() {
                       key={h}
                       style={{
                         padding: "10px 12px",
-                        textAlign: ["Vlr. Venda", "Vlr. Recebido", "Vlr. Produtos", "Comissão %", "Vlr. Comissão", "Vlr. Líq."].includes(h) ? "right" : "left",
+                        textAlign: ["Vlr. Venda", "Vlr. Recebido", "Base Comissão", "Comissão %", "Vlr. Comissão", "Vlr. Líq."].includes(h) ? "right" : "left",
                         fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
                         textTransform: "uppercase", letterSpacing: "0.05em",
                       }}
@@ -1305,11 +1077,8 @@ export default function ComissaoRecebimentoPage() {
                 {!multiVendedor && vendorGroups.flatMap((group) =>
                   group.rows.map((row, rIdx) => (
                     <tr
-                      key={row.RecebimentoId}
-                      style={{
-                        borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                        background: row.SemVinculo ? "rgba(239,68,68,0.04)" : "transparent",
-                      }}
+                      key={`${row.RecebimentoId}-${row.VendaId}`}
+                      style={{ borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
                     >
                       {renderRowCells(row)}
                     </tr>
@@ -1319,7 +1088,6 @@ export default function ComissaoRecebimentoPage() {
                 {/* ── Multi-vendedor: cabeçalho por vendedor → linhas planas ── */}
                 {multiVendedor && vendorGroups.flatMap((group) => {
                   const isVendorOpen = openVendors.has(group.vendedorId);
-                  const semVinculoCount = group.rows.filter((r) => r.SemVinculo).length;
                   return [
                     /* Linha-resumo do vendedor */
                     <tr
@@ -1341,11 +1109,6 @@ export default function ComissaoRecebimentoPage() {
                           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{group.nome}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
                             — {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
-                            {semVinculoCount > 0 && (
-                              <span style={{ color: "#f87171", marginLeft: 6 }}>
-                                · {semVinculoCount} sem vínculo
-                              </span>
-                            )}
                           </span>
                         </span>
                       </td>
@@ -1363,11 +1126,8 @@ export default function ComissaoRecebimentoPage() {
                     /* Linhas planas do vendedor (sem vínculo em vermelho) */
                     ...(isVendorOpen ? group.rows.map((row, rIdx) => (
                       <tr
-                        key={row.RecebimentoId}
-                        style={{
-                          borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "1px solid var(--border-subtle)",
-                          background: row.SemVinculo ? "rgba(239,68,68,0.04)" : "transparent",
-                        }}
+                        key={`${row.RecebimentoId}-${row.VendaId}`}
+                        style={{ borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "1px solid var(--border-subtle)" }}
                       >
                         {renderRowCells(row)}
                       </tr>
@@ -1381,11 +1141,6 @@ export default function ComissaoRecebimentoPage() {
                 <tr style={{ borderTop: "2px solid var(--border-subtle)" }}>
                   <td colSpan={7} style={{ padding: "10px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {multiVendedor ? "Total Geral" : "Total"} ({enrichedRows.length} recebimentos)
-                    {totalSemVinculoQtd > 0 && (
-                      <span style={{ marginLeft: 12, color: "#f87171", fontSize: 11, fontWeight: 500, textTransform: "none" }}>
-                        — {totalSemVinculoQtd} sem vínculo
-                      </span>
-                    )}
                   </td>
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
                     {fmtMoeda(totalComissao)}
