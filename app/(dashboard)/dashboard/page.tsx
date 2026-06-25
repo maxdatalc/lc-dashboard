@@ -9,7 +9,6 @@ import { VendasMensalChart } from "@/components/charts/VendasMensalChart";
 import { FormasPagamentoChart } from "@/components/charts/FormasPagamentoChart";
 import { TopProdutosChart } from "@/components/charts/TopProdutosChart";
 import { TopClientesChart } from "@/components/charts/TopClientesChart";
-import { VendasTipoChart } from "@/components/charts/VendasTipoChart";
 import { TopVendedoresChart } from "@/components/charts/TopVendedoresChart";
 import { TopGruposChart } from "@/components/charts/TopGruposChart";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
@@ -18,7 +17,6 @@ import type { VendasMensalData } from "@/components/charts/VendasMensalChart";
 import type { FormasPagamentoData } from "@/components/charts/FormasPagamentoChart";
 import type { TopProdutoData } from "@/components/charts/TopProdutosChart";
 import type { TopClienteData } from "@/components/charts/TopClientesChart";
-import type { VendasTipoData } from "@/components/charts/VendasTipoChart";
 import type { VendedorItem } from "@/components/charts/TopVendedoresChart";
 import type { GrupoItem } from "@/components/charts/TopGruposChart";
 
@@ -112,10 +110,6 @@ export default function DashboardPage() {
   const [topClientes, setTopClientes] = useState<TopClienteData[]>([]);
   const [topVendedores, setTopVendedores] = useState<VendedorItem[]>([]);
   const [topGrupos, setTopGrupos] = useState<GrupoItem[]>([]);
-  const [vendasTipo, setVendasTipo] = useState<VendasTipoData>({
-    pf: { total: 0, clientes: 0 },
-    pj: { total: 0, clientes: 0 },
-  });
 
   const { activeFilter, setFilter } = useFilter();
 
@@ -153,16 +147,17 @@ export default function DashboardPage() {
     }
 
     const paramsObj: Record<string, string> = { lojaIds: lojaIds.join(","), period, start, end };
-    if (activeFilter?.type === "vendedor") paramsObj.vendedorId   = String(activeFilter.id);
-    if (activeFilter?.type === "cliente")  paramsObj.clienteNome  = String(activeFilter.id);
-    if (activeFilter?.type === "produto")  paramsObj.produtoNome  = String(activeFilter.id);
-    if (activeFilter?.type === "tipo")     paramsObj.tipoPessoa   = String(activeFilter.id);
+    if (activeFilter?.type === "vendedor")        paramsObj.vendedorId      = String(activeFilter.id);
+    if (activeFilter?.type === "cliente")         paramsObj.clienteNome     = String(activeFilter.id);
+    if (activeFilter?.type === "produto")         paramsObj.produtoNome     = String(activeFilter.id);
+    if (activeFilter?.type === "tipo")            paramsObj.tipoPessoa      = String(activeFilter.id);
+    if (activeFilter?.type === "formaPagamento")  paramsObj.formaPagamento  = String(activeFilter.id);
     const params = new URLSearchParams(paramsObj);
 
     // Parâmetros estáticos para Em Aberto (sem filtro de período)
     const staticParams = new URLSearchParams({ lojaIds: lojaIds.join(",") });
 
-    const [kpisRes, retencaoRes, emAbertoRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, tipoRes, vendedoresRes, gruposRes] =
+    const [kpisRes, retencaoRes, emAbertoRes, faturamentoRes, pagamentosRes, produtosRes, clientesRes, vendedoresRes, gruposRes] =
       await Promise.allSettled([
         fetch(`/api/dashboard/kpis?${params}`).then((r) =>
           r.ok ? (r.json() as Promise<KpiResponse>) : null
@@ -185,9 +180,6 @@ export default function DashboardPage() {
         fetch(`/api/dashboard/charts?${params}&type=top-clientes`).then((r) =>
           r.ok ? (r.json() as Promise<TopClienteData[]>) : []
         ),
-        fetch(`/api/dashboard/charts?${params}&type=vendas-tipo-cliente`).then((r) =>
-          r.ok ? (r.json() as Promise<VendasTipoData>) : { pf: { total: 0, clientes: 0 }, pj: { total: 0, clientes: 0 } }
-        ),
         fetch(`/api/dashboard/charts?${params}&type=top-vendedores`).then((r) =>
           r.ok ? (r.json() as Promise<VendedorItem[]>) : []
         ),
@@ -208,7 +200,6 @@ export default function DashboardPage() {
     if (pagamentosRes.status === "fulfilled") setFormasPagamento(pagamentosRes.value as FormasPagamentoData[]);
     if (produtosRes.status === "fulfilled") setTopProdutos(produtosRes.value as TopProdutoData[]);
     if (clientesRes.status === "fulfilled") setTopClientes(clientesRes.value as TopClienteData[]);
-    if (tipoRes.status === "fulfilled") setVendasTipo(tipoRes.value as VendasTipoData);
     if (vendedoresRes.status === "fulfilled") setTopVendedores(vendedoresRes.value as VendedorItem[]);
     if (gruposRes.status === "fulfilled") setTopGrupos(gruposRes.value as GrupoItem[]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -323,27 +314,23 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* ── Linha 3: Top Fabricantes | PF vs PJ | Formas de Pagamento ─────── */}
-      <div className="grid gap-2 grid-cols-1 lg:grid-cols-3">
+      {/* ── Linha 3: Top Fabricantes | Formas de Pagamento (2 cols) ───────── */}
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-[1fr_2fr]">
         <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
           {chartsLoading ? <ChartSkeleton height={280} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
 
-        <ChartCard title="Pessoa Física vs Jurídica" subtitle="tipo de cliente — período selecionado" animationDelay={185}>
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={185}>
           {chartsLoading ? <ChartSkeleton height={260} /> : (
-            <VendasTipoChart
-              data={vendasTipo}
-              selectedTipo={activeFilter?.type === "tipo" ? activeFilter.id as "PF" | "PJ" : null}
-              onSelect={(tipo) => tipo
-                ? setFilter({ type: "tipo", id: tipo, label: tipo === "PF" ? "Pessoa Física" : "Pessoa Jurídica" })
+            <FormasPagamentoChart
+              data={formasPagamento}
+              selectedNome={activeFilter?.type === "formaPagamento" ? String(activeFilter.id) : null}
+              onSelect={(nome) => nome
+                ? setFilter({ type: "formaPagamento", id: nome, label: nome })
                 : setFilter(null)
               }
             />
           )}
-        </ChartCard>
-
-        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={190}>
-          {chartsLoading ? <ChartSkeleton height={260} /> : <FormasPagamentoChart data={formasPagamento} />}
         </ChartCard>
       </div>
 
