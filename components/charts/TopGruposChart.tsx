@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { Trophy, BarChart2, List } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
 
 export interface GrupoItem {
@@ -64,9 +65,9 @@ export function TopGruposChart({ data }: Props) {
   const leaderPct  = totalGeral > 0 ? (leader.valor / totalGeral) * 100 : 0;
   const maxValor   = data[0]?.valor ?? 1;
 
-  // reversed so biggest bar appears at bottom (like reference image)
-  const chartData    = [...data].reverse();
-  const chartHeight  = Math.max(chartData.length * 26, 120);
+  // data já vem ordenado desc (maior → menor); exibe nessa ordem no gráfico
+  const chartData   = data;
+  const chartHeight = Math.max(chartData.length * 26, 120);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -118,7 +119,7 @@ export function TopGruposChart({ data }: Props) {
         {/* Pódio TOP 3 */}
         <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18 }}>
-            <span>🏆</span>
+            <Trophy style={{ width: 12, height: 12, color: "#f59e0b", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Pódio — Top 3
             </span>
@@ -161,7 +162,7 @@ export function TopGruposChart({ data }: Props) {
         {/* Faturamento por fabricante — gráfico de barras */}
         <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-            <span>📊</span>
+            <BarChart2 style={{ width: 12, height: 12, color: "var(--accent-cyan)", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Faturamento por fabricante
             </span>
@@ -204,7 +205,7 @@ export function TopGruposChart({ data }: Props) {
       {rest.length > 0 && (
         <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-            <span style={{ fontSize: 13, color: "var(--text-muted)" }}>≡</span>
+            <List style={{ width: 12, height: 12, color: "var(--text-muted)", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Demais fabricantes
             </span>
