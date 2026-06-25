@@ -18,46 +18,76 @@ function periodoAnterior(
   currentStart: string,
   currentEnd: string
 ): { start: string; end: string } {
-  const hoje = new Date();
-  const toStr = (d: Date) => d.toISOString().split("T")[0];
-  const y = hoje.getFullYear();
-  const m = hoje.getMonth();
+  // Parseia YYYY-MM-DD como UTC midnight para evitar artefatos de fuso
+  function parseUtc(s: string): Date {
+    const [y, mo, d] = s.split("-").map(Number);
+    return new Date(Date.UTC(y, mo - 1, d));
+  }
+  function fmtUtc(d: Date): string {
+    return d.toISOString().split("T")[0];
+  }
+  function shiftDays(d: Date, n: number): Date {
+    return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + n));
+  }
+
+  const start    = parseUtc(currentStart);
+  const end      = parseUtc(currentEnd);
+  const spanDays = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+  const sy = start.getUTCFullYear();
+  const sm = start.getUTCMonth(); // 0-indexado
 
   switch (period) {
-    case "today": {
-      const ontem = toStr(new Date(hoje.getTime() - 86400000));
-      return { start: ontem, end: ontem };
-    }
+    case "today":
+      // Anterior = ontem
+      return {
+        start: fmtUtc(shiftDays(start, -1)),
+        end:   fmtUtc(shiftDays(start, -1)),
+      };
+
     case "7d":
+      // Anterior = mesma janela de 7 dias deslocada 7 dias para trás
       return {
-        start: toStr(new Date(hoje.getTime() - 13 * 86400000)),
-        end: toStr(new Date(hoje.getTime() - 7 * 86400000)),
+        start: fmtUtc(shiftDays(start, -7)),
+        end:   fmtUtc(shiftDays(end,   -7)),
       };
+
     case "month": {
-      const primAnterior = new Date(y, m - 1, 1);
-      const ultimoAnterior = new Date(y, m, 0);
-      return { start: toStr(primAnterior), end: toStr(ultimoAnterior) };
-    }
-    case "3m":
+      // Anterior = mês calendário completo anterior (JS cuida de 28/29/30/31 dias)
       return {
-        start: toStr(new Date(y, m - 6, 1)),
-        end: toStr(new Date(y, m - 3, 0)),
+        start: fmtUtc(new Date(Date.UTC(sy, sm - 1, 1))), // 1º do mês anterior
+        end:   fmtUtc(new Date(Date.UTC(sy, sm,     0))), // dia 0 do mês atual = último do anterior
       };
+    }
+
+    case "3m": {
+      // Anterior = mesma janela de 3 meses deslocada 3 meses para trás
+      return {
+        start: fmtUtc(new Date(Date.UTC(sy, sm - 3, 1))), // 3 meses antes do início atual
+        end:   fmtUtc(new Date(Date.UTC(sy, sm,     0))), // último dia antes do mês atual
+      };
+    }
+
     case "year":
-      return { start: `${y - 1}-01-01`, end: `${y - 1}-12-31` };
+      // Anterior = ano calendário completo anterior
+      return { start: `${sy - 1}-01-01`, end: `${sy - 1}-12-31` };
+
     case "prev-year":
-      return { start: `${y - 2}-01-01`, end: `${y - 2}-12-31` };
+      return { start: `${sy - 1}-01-01`, end: `${sy - 1}-12-31` };
+
     case "custom": {
-      const startMs = new Date(currentStart).getTime();
-      const endMs = new Date(currentEnd).getTime();
-      const duration = endMs - startMs;
+      // Anterior = mesma duração deslocada para trás por spanDays
       return {
-        start: toStr(new Date(startMs - duration - 86400000)),
-        end: toStr(new Date(startMs - 86400000)),
+        start: fmtUtc(shiftDays(start, -spanDays)),
+        end:   fmtUtc(shiftDays(start, -1)),
       };
     }
-    default:
-      return { start: toStr(new Date(y, m - 1, 1)), end: toStr(new Date(y, m, 0)) };
+
+    default: {
+      return {
+        start: fmtUtc(new Date(Date.UTC(sy, sm - 1, 1))),
+        end:   fmtUtc(new Date(Date.UTC(sy, sm,     0))),
+      };
+    }
   }
 }
 
