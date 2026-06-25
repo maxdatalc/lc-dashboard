@@ -315,7 +315,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 3: Top Fabricantes | Formas de Pagamento ──────────────── */}
-      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2">
+      <div className="grid gap-2 grid-cols-1 lg:grid-cols-2 items-start">
         <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
           {chartsLoading ? <ChartSkeleton height={480} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
