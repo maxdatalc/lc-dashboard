@@ -227,6 +227,7 @@ function VendedoresSelect({
 
 type EnrichedRow = ComissaoRow & {
   ValorLiquidoEmpresa: number;
+  BaseCalculoComissaoParcela: number; // ComissaoPaga / PercentualComissao (proporcional a parcela)
 };
 
 type VendorGroup = {
@@ -284,6 +285,11 @@ export default function ComissaoRecebimentoPage() {
         (data.rows ?? []).map((r: ComissaoRow) => ({
           ...r,
           ValorLiquidoEmpresa: Math.round((r.ValorRecebidoRateado - r.ComissaoPaga) * 100) / 100,
+          // base proporcional desta parcela: ComissaoPaga / taxa = BaseCalc * proporcao
+          BaseCalculoComissaoParcela:
+            r.PercentualComissao > 0
+              ? Math.round((r.ComissaoPaga / r.PercentualComissao) * 100) / 100
+              : 0,
         }))
       );
       setGenerated(true);
