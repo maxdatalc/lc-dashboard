@@ -225,24 +225,33 @@ function VendedoresSelect({
   );
 }
 
-// ─── Componentes auxiliares do modal de informações ─────────────────────────
+// ─── Componentes do ledger de cálculo ────────────────────────────────────────
 
-function InfoSection({ titulo, cor, children }: { titulo: string; cor: string; children: React.ReactNode }) {
+function LedgerEyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ marginBottom: 20, padding: 16, borderRadius: 10, border: `1px solid rgba(255,255,255,0.06)`, background: "rgba(255,255,255,0.02)" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <div style={{ width: 3, height: 16, borderRadius: 2, background: cor, flexShrink: 0 }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{titulo}</span>
-      </div>
-      <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>{children}</div>
+    <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.13em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 7 }}>
+      {children}
     </div>
   );
 }
 
-function Exemplo({ children }: { children: React.ReactNode }) {
+function LedgerRow({ label, value, dimmed }: { label: string; value: string; dimmed?: boolean }) {
   return (
-    <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 8, background: "rgba(6,182,212,0.07)", borderLeft: "3px solid var(--accent-cyan)", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
-      {children}
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "3px 0" }}>
+      <span style={{ fontSize: 12, color: dimmed ? "var(--text-muted)" : "var(--text-secondary)" }}>{label}</span>
+      <span style={{ fontSize: 12, color: dimmed ? "var(--text-muted)" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums", paddingLeft: 20 }}>{value}</span>
+    </div>
+  );
+}
+
+function LedgerTotal({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "baseline",
+      borderTop: "1px solid rgba(255,255,255,0.1)", marginTop: 5, paddingTop: 7,
+    }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: accent ? "var(--accent-cyan)" : "var(--text-primary)" }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: accent ? "var(--accent-cyan)" : "var(--text-primary)", fontVariantNumeric: "tabular-nums", paddingLeft: 20 }}>{value}</span>
     </div>
   );
 }
@@ -1079,92 +1088,122 @@ export default function ComissaoRecebimentoPage() {
         <div
           style={{
             position: "fixed", inset: 0, zIndex: 200,
-            background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            background: "rgba(0,0,0,0.72)", backdropFilter: "blur(6px)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            padding: 16,
+            padding: 20,
           }}
           onClick={(e) => { if (e.target === e.currentTarget) setShowInfo(false); }}
         >
           <div
             style={{
               background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
-              borderRadius: 16, padding: 28, maxWidth: 620, width: "100%",
-              maxHeight: "85vh", overflowY: "auto",
-              boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
+              borderRadius: 14, maxWidth: 560, width: "100%",
+              maxHeight: "88vh", overflowY: "auto",
+              boxShadow: "0 32px 80px rgba(0,0,0,0.6)",
             }}
           >
-            {/* Cabeçalho do modal */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(6,182,212,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <Info style={{ width: 16, height: 16, color: "var(--accent-cyan)" }} />
-                </div>
-                <div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Como o relatório é calculado</div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Entenda cada coluna e por que os valores aparecem assim</div>
-                </div>
+            {/* Cabeçalho */}
+            <div style={{
+              padding: "18px 22px 16px", borderBottom: "1px solid var(--border-subtle)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <Info style={{ width: 14, height: 14, color: "var(--accent-cyan)", flexShrink: 0 }} />
+                <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>Como o cálculo funciona</span>
               </div>
               <button
                 type="button"
                 onClick={() => setShowInfo(false)}
-                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6 }}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", display: "flex", padding: 2 }}
                 onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
               >
-                <X style={{ width: 18, height: 18 }} />
+                <X style={{ width: 15, height: 15 }} />
               </button>
             </div>
 
-            {/* Seção 1: Por que o valor recebido difere */}
-            <InfoSection titulo="Por que o Valor Recebimento é diferente do valor da conta?" cor="#fbbf24">
-              <p>Quando uma venda ou O.S. é <strong>faturada</strong>, o sistema gera uma conta que pode juntar várias vendas ou O.S. em um único boleto/recebimento. Quando esse valor é recebido, o sistema registra o total — mas o relatório divide esse valor proporcionalmente entre cada venda/O.S. que faz parte daquela conta.</p>
-              <p style={{ marginTop: 10 }}>Além disso, qualquer <strong>juros ou multa</strong> cobrado no recebimento é descontado antes de calcular a comissão.</p>
-              <Exemplo>
-                Exemplo: uma conta de <strong>R$ 1.000</strong> que juntou 2 O.S. (cada uma de R$ 500). Se o cliente pagou R$ 1.050 com R$ 50 de juros, o valor líquido é R$ 1.000 — dos quais <strong>R$ 500 são creditados para cada O.S.</strong>
-              </Exemplo>
-            </InfoSection>
+            <div style={{ padding: "22px 22px 24px", display: "flex", flexDirection: "column", gap: 24 }}>
 
-            {/* Seção 2: Por que Vlr. Produtos não é o total da venda */}
-            <InfoSection titulo="Por que Vlr. Produtos não é o valor total dos produtos da O.S.?" cor="#818cf8">
-              <p>Para O.S., a comissão é calculada <strong>apenas sobre os produtos</strong> (sem mão de obra). Mas quando a venda é parcelada ou faturada, o valor base é proporcional ao quanto foi recebido naquela parcela — não o total da O.S. inteira.</p>
-              <p style={{ marginTop: 10 }}>Isso garante que a comissão seja paga conforme o dinheiro entra, e nunca paga duas vezes.</p>
-              <Exemplo>
-                Exemplo: O.S. com R$ 800 em produtos, paga em 2 parcelas iguais. Na 1ª parcela, <strong>Vlr. Produtos = R$ 400</strong> (metade do total). Na 2ª parcela, outros R$ 400. A comissão total ao final das duas parcelas equivale à comissão sobre os R$ 800.
-              </Exemplo>
-            </InfoSection>
+              {/* Explicação em prosa — sem headers */}
+              <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.75 }}>
+                O relatório mostra o dinheiro que <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>efetivamente entrou</strong> por cada venda ou O.S. Quando um faturamento reúne várias O.S. em uma conta, o valor recebido é dividido proporcionalmente entre elas. Juros e multa cobrados no recebimento são descontados antes de qualquer cálculo.
+              </p>
 
-            {/* Seção 3: Como cada coluna é calculada */}
-            <InfoSection titulo="Como cada coluna é calculada" cor="#4ade80">
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+              {/* Ledger — peça central do design */}
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 10 }}>
+                  Exemplo passo a passo
+                </div>
+                <div style={{
+                  background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.07)",
+                  borderRadius: 10, overflow: "hidden",
+                }}>
+                  {/* Contexto do exemplo */}
+                  <div style={{
+                    padding: "11px 16px", fontSize: 11, color: "var(--text-muted)",
+                    background: "rgba(255,255,255,0.02)", borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    lineHeight: 1.6,
+                  }}>
+                    Faturamento de R$ 1.050 cobrindo 2 O.S. de R$ 500 cada, com R$ 50 de juros. Pagamento: Cartão de Crédito (2%).
+                  </div>
+
+                  {/* Blocos do ledger */}
+                  <div style={{ padding: "16px 16px 4px" }}>
+
+                    <LedgerEyebrow>Valor Recebimento</LedgerEyebrow>
+                    <LedgerRow label="Valor bruto recebido" value="R$ 1.050,00" />
+                    <LedgerRow label="Juros descontados" value="R$ 50,00" dimmed />
+                    <LedgerRow label="Rateio entre 2 O.S." value="50%" dimmed />
+                    <LedgerTotal label="Valor desta O.S." value="R$ 500,00" />
+
+                    <div style={{ height: 18 }} />
+
+                    <LedgerEyebrow>Comissão</LedgerEyebrow>
+                    <LedgerRow label="Produtos desta parcela" value="R$ 400,00" />
+                    <LedgerRow label="Alíquota Cartao Credito" value="2%" dimmed />
+                    <LedgerTotal label="Vlr. Comissão" value="R$ 8,00" accent />
+
+                    <div style={{ height: 18 }} />
+
+                    <LedgerEyebrow>Vlr. Líquido</LedgerEyebrow>
+                    <LedgerRow label="R$ 500,00 recebidos" value="" />
+                    <LedgerRow label="R$ 8,00 de comissão" value="" dimmed />
+                    <LedgerTotal label="Fica para a empresa" value="R$ 492,00" />
+
+                    <div style={{ height: 16 }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Glossário de colunas — tipografia limpa, sem badges */}
+              <div>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--text-muted)", marginBottom: 12 }}>
+                  O que significa cada coluna
+                </div>
                 {[
-                  { col: "Valor Recebimento", desc: "Quanto entrou de dinheiro para esta venda/O.S. neste recebimento. Descontados juros, multa e proporcional ao rateio se havia mais de uma venda na conta." },
-                  { col: "Vlr. Produtos", desc: "Base da comissão. Para O.S.: valor dos produtos desta parcela. Para venda normal: valor total desta parcela. É o número sobre o qual se aplica a porcentagem." },
-                  { col: "Forma de Pagamento", desc: "Forma de pagamento ORIGINAL da venda/parcela (ex.: Cartão de Crédito, PIX, Dinheiro). É ela que define a taxa de comissão — não a forma do recebimento atual." },
-                  { col: "Comissão %", desc: "Taxa configurada no sistema (tabela de comissões) para aquela forma de pagamento. Cada forma tem uma taxa diferente." },
-                  { col: "Vlr. Comissão", desc: "Vlr. Produtos × Comissão %. É o valor que o vendedor tem direito neste recebimento." },
-                  { col: "Vlr. Líquido", desc: "Valor Recebimento − Vlr. Comissão. O que efetivamente fica para a empresa após pagar a comissão do vendedor." },
-                ].map(({ col, desc }) => (
-                  <div key={col} style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, alignItems: "start" }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-cyan)", background: "rgba(6,182,212,0.1)", padding: "4px 8px", borderRadius: 5, textAlign: "center", marginTop: 1 }}>
-                      {col}
-                    </div>
-                    <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>{desc}</div>
+                  { col: "Tipo", desc: "Origem do recebimento: FI = direto do financeiro, CO = conta, RE = recebimento de faturamento, FA = faturamento." },
+                  { col: "Valor Recebimento", desc: "Quanto entrou para esta venda/O.S. já com juros e multa descontados e dividido proporcionalmente entre as vendas do faturamento." },
+                  { col: "Vlr. Produtos", desc: "Base da comissão. Em O.S.: só produtos, sem mão de obra, proporcional à parcela. Em venda normal: valor total da parcela." },
+                  { col: "Forma de Pagamento", desc: "Forma de pagamento da venda original, não do recebimento. É ela que define a taxa de comissão." },
+                  { col: "Comissão %", desc: "Alíquota do sistema para aquela forma de pagamento." },
+                  { col: "Vlr. Comissão", desc: "Vlr. Produtos vezes Comissão %. O que o vendedor recebe." },
+                  { col: "Vlr. Líquido", desc: "Valor Recebimento menos Vlr. Comissão. O que fica para a empresa." },
+                ].map(({ col, desc }, i, arr) => (
+                  <div
+                    key={col}
+                    style={{
+                      display: "grid", gridTemplateColumns: "148px 1fr", gap: 14,
+                      padding: "8px 0", alignItems: "start",
+                      borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}
+                  >
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)", paddingTop: 1 }}>{col}</span>
+                    <span style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>{desc}</span>
                   </div>
                 ))}
               </div>
-            </InfoSection>
 
-            <button
-              type="button"
-              onClick={() => setShowInfo(false)}
-              style={{
-                marginTop: 20, width: "100%", height: 38, borderRadius: 8,
-                background: "var(--sidebar-item-active-bg)", border: "1px solid var(--border-subtle)",
-                color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer",
-              }}
-            >
-              Fechar
-            </button>
+            </div>
           </div>
         </div>
       )}
