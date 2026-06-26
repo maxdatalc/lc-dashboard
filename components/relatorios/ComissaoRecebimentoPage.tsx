@@ -6,6 +6,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText as FilePdf,
+  Info,
   Loader2,
   Printer,
   Receipt,
@@ -13,6 +14,7 @@ import {
   Store,
   TrendingUp,
   Users,
+  X,
 } from "lucide-react";
 import { useLoja } from "@/lib/contexts/loja-context";
 import type { ComissaoRow } from "@/app/api/relatorios/comissao-recebimento/route";
@@ -223,6 +225,28 @@ function VendedoresSelect({
   );
 }
 
+// ─── Componentes auxiliares do modal de informações ─────────────────────────
+
+function InfoSection({ titulo, cor, children }: { titulo: string; cor: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 20, padding: 16, borderRadius: 10, border: `1px solid rgba(255,255,255,0.06)`, background: "rgba(255,255,255,0.02)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <div style={{ width: 3, height: 16, borderRadius: 2, background: cor, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{titulo}</span>
+      </div>
+      <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>{children}</div>
+    </div>
+  );
+}
+
+function Exemplo({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ marginTop: 10, padding: "10px 14px", borderRadius: 8, background: "rgba(6,182,212,0.07)", borderLeft: "3px solid var(--accent-cyan)", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.6 }}>
+      {children}
+    </div>
+  );
+}
+
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
 type EnrichedRow = ComissaoRow & {
@@ -258,6 +282,7 @@ export default function ComissaoRecebimentoPage() {
   const [loading, setLoading]             = useState(false);
   const [generated, setGenerated]         = useState(false);
   const [error, setError]                 = useState<string | null>(null);
+  const [showInfo, setShowInfo]           = useState(false);
 
   useEffect(() => {
     if (!lojaId) return;
@@ -1028,9 +1053,121 @@ export default function ComissaoRecebimentoPage() {
               </>
             ) : "Gerar Relatório"}
           </button>
+
+          {/* Botão de informações */}
+          <button
+            type="button"
+            onClick={() => setShowInfo(true)}
+            title="Como funciona o cálculo?"
+            style={{
+              height: 36, width: 36, borderRadius: 8, flexShrink: 0,
+              border: "1px solid var(--border-subtle)", background: "var(--bg-card)",
+              color: "var(--text-muted)", cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = "var(--accent-cyan)"; e.currentTarget.style.borderColor = "var(--accent-cyan)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; e.currentTarget.style.borderColor = "var(--border-subtle)"; }}
+          >
+            <Info style={{ width: 16, height: 16 }} />
+          </button>
         </div>
 
       </div>
+
+      {/* ── Modal: como funciona o cálculo ───────────────────────────── */}
+      {showInfo && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: 16,
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowInfo(false); }}
+        >
+          <div
+            style={{
+              background: "var(--bg-card)", border: "1px solid var(--border-subtle)",
+              borderRadius: 16, padding: 28, maxWidth: 620, width: "100%",
+              maxHeight: "85vh", overflowY: "auto",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.5)",
+            }}
+          >
+            {/* Cabeçalho do modal */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(6,182,212,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Info style={{ width: 16, height: 16, color: "var(--accent-cyan)" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)" }}>Como o relatório é calculado</div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Entenda cada coluna e por que os valores aparecem assim</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInfo(false)}
+                style={{ background: "transparent", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 4, borderRadius: 6 }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = "var(--text-primary)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+              >
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+
+            {/* Seção 1: Por que o valor recebido difere */}
+            <InfoSection titulo="Por que o Valor Recebimento é diferente do valor da conta?" cor="#fbbf24">
+              <p>Quando uma venda ou O.S. é <strong>faturada</strong>, o sistema gera uma conta que pode juntar várias vendas ou O.S. em um único boleto/recebimento. Quando esse valor é recebido, o sistema registra o total — mas o relatório divide esse valor proporcionalmente entre cada venda/O.S. que faz parte daquela conta.</p>
+              <p style={{ marginTop: 10 }}>Além disso, qualquer <strong>juros ou multa</strong> cobrado no recebimento é descontado antes de calcular a comissão.</p>
+              <Exemplo>
+                Exemplo: uma conta de <strong>R$ 1.000</strong> que juntou 2 O.S. (cada uma de R$ 500). Se o cliente pagou R$ 1.050 com R$ 50 de juros, o valor líquido é R$ 1.000 — dos quais <strong>R$ 500 são creditados para cada O.S.</strong>
+              </Exemplo>
+            </InfoSection>
+
+            {/* Seção 2: Por que Vlr. Produtos não é o total da venda */}
+            <InfoSection titulo="Por que Vlr. Produtos não é o valor total dos produtos da O.S.?" cor="#818cf8">
+              <p>Para O.S., a comissão é calculada <strong>apenas sobre os produtos</strong> (sem mão de obra). Mas quando a venda é parcelada ou faturada, o valor base é proporcional ao quanto foi recebido naquela parcela — não o total da O.S. inteira.</p>
+              <p style={{ marginTop: 10 }}>Isso garante que a comissão seja paga conforme o dinheiro entra, e nunca paga duas vezes.</p>
+              <Exemplo>
+                Exemplo: O.S. com R$ 800 em produtos, paga em 2 parcelas iguais. Na 1ª parcela, <strong>Vlr. Produtos = R$ 400</strong> (metade do total). Na 2ª parcela, outros R$ 400. A comissão total ao final das duas parcelas equivale à comissão sobre os R$ 800.
+              </Exemplo>
+            </InfoSection>
+
+            {/* Seção 3: Como cada coluna é calculada */}
+            <InfoSection titulo="Como cada coluna é calculada" cor="#4ade80">
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+                {[
+                  { col: "Valor Recebimento", desc: "Quanto entrou de dinheiro para esta venda/O.S. neste recebimento. Descontados juros, multa e proporcional ao rateio se havia mais de uma venda na conta." },
+                  { col: "Vlr. Produtos", desc: "Base da comissão. Para O.S.: valor dos produtos desta parcela. Para venda normal: valor total desta parcela. É o número sobre o qual se aplica a porcentagem." },
+                  { col: "Forma de Pagamento", desc: "Forma de pagamento ORIGINAL da venda/parcela (ex.: Cartão de Crédito, PIX, Dinheiro). É ela que define a taxa de comissão — não a forma do recebimento atual." },
+                  { col: "Comissão %", desc: "Taxa configurada no sistema (tabela de comissões) para aquela forma de pagamento. Cada forma tem uma taxa diferente." },
+                  { col: "Vlr. Comissão", desc: "Vlr. Produtos × Comissão %. É o valor que o vendedor tem direito neste recebimento." },
+                  { col: "Vlr. Líquido", desc: "Valor Recebimento − Vlr. Comissão. O que efetivamente fica para a empresa após pagar a comissão do vendedor." },
+                ].map(({ col, desc }) => (
+                  <div key={col} style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 12, alignItems: "start" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--accent-cyan)", background: "rgba(6,182,212,0.1)", padding: "4px 8px", borderRadius: 5, textAlign: "center", marginTop: 1 }}>
+                      {col}
+                    </div>
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+            </InfoSection>
+
+            <button
+              type="button"
+              onClick={() => setShowInfo(false)}
+              style={{
+                marginTop: 20, width: "100%", height: 38, borderRadius: 8,
+                background: "var(--sidebar-item-active-bg)", border: "1px solid var(--border-subtle)",
+                color: "var(--text-primary)", fontSize: 13, fontWeight: 500, cursor: "pointer",
+              }}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Erro ─────────────────────────────────────────────────────── */}
       {error && (
