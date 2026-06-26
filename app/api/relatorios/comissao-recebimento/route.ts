@@ -9,7 +9,7 @@ export interface ComissaoRow {
   RecebimentoId: number;
   VendaId: number;
   TipoVenda: string;
-  TipoRecebimento: string;        // pgtTipoOpr: FI, CO, RE, FA, OS, DV, VE…
+  TipoRecebimento: string;    // pgtTipoOpr: FI, CO, RE, FA, OS, DV, VE…
   VendedorId: number | null;
   NomeVendedor: string | null;
   DataPagamento: string;
@@ -18,9 +18,8 @@ export interface ComissaoRow {
   TotalParcelasVenda: number | null;
   ValorRecebidoRateado: number;
   ValorTotalVenda: number;
-  BaseCalculoComissao: number;        // total de produtos/venda (informativo)
-  BaseCalculoComissaoParcela: number; // base proporcional desta parcela (display)
-  PercentualComissao: number;         // decimal 0-1 (ex: 0.02 para 2%)
+  BaseCalculoComissao: number;    // total de produtos/venda
+  PercentualComissao: number;     // decimal 0-1 (ex: 0.02 para 2%)
   ComissaoTotal: number;
   ComissaoPaga: number;
   TipoPagamento: string;
@@ -121,72 +120,55 @@ function buildQuery(vendedorClause: string): string {
     )
 
     SELECT
-      rec.pgtId                                                                        AS RecebimentoId,
-      v.vedId                                                                          AS VendaId,
-      v.vedTipo                                                                        AS TipoVenda,
-      ISNULL(rec.pgtTipoOpr, '')                                                       AS TipoRecebimento,
-      rec.pgtAtendente                                                                 AS VendedorId,
-      cli.cliNome                                                                      AS NomeVendedor,
-      rec.pgtDataQuitou                                                                AS DataPagamento,
-      ROUND(rt.ValorVenda, 2)                                                          AS ValorVendaOrigem,
-      rec.pgtValor                                                                     AS ValorParcela,
+      rec.pgtId AS RecebimentoId,
+      v.vedId AS VendaId,
+      v.vedTipo AS TipoVenda,
+      ISNULL(rec.pgtTipoOpr, '') AS TipoRecebimento,
+      rec.pgtAtendente AS VendedorId,
+      cli.cliNome AS NomeVendedor,
+      rec.pgtDataQuitou AS DataPagamento,
+      ROUND(rt.ValorVenda, 2) AS ValorVendaOrigem,
+      rec.pgtValor AS ValorParcela,
       ParcelaVenda.TotalParcelasVenda,
       ROUND(
-        (ISNULL(rec.pgtValor, 0) - ISNULL(rec.pgtValorJuros, 0) - ISNULL(rec.pgtValorMulta, 0))
+        (ISNULL(rec.pgtValor,0)-ISNULL(rec.pgtValorJuros,0)-ISNULL(rec.pgtValorMulta,0))
         * rt.PercentualRateio, 2
-      )                                                                                AS ValorRecebidoRateado,
-      ROUND(ISNULL(TotalVenda.Total, 0), 2)                                           AS ValorTotalVenda,
-      ROUND(BaseCalc.Valor, 2)                                                         AS BaseCalculoComissao,
-      ROUND(
-        BaseCalc.Valor
-        * (
-          (ISNULL(rec.pgtValor, 0) - ISNULL(rec.pgtValorJuros, 0) - ISNULL(rec.pgtValorMulta, 0))
-          * rt.PercentualRateio
-          / NULLIF(
-            CASE
-              WHEN ParcelaVenda.TotalParcelasVenda IS NOT NULL
-                   AND ParcelaVenda.TotalParcelasVenda > rt.ValorVenda
-                THEN ParcelaVenda.TotalParcelasVenda
-              ELSE rt.ValorVenda
-            END, 0
-          )
-        ), 2
-      )                                                                                AS BaseCalculoComissaoParcela,
-      AliqComissao.AliqPct / 100.0                                                     AS PercentualComissao,
-      ROUND(BaseCalc.Valor * AliqComissao.AliqPct / 100.0, 2)                         AS ComissaoTotal,
+      ) AS ValorRecebidoRateado,
+      ROUND(ISNULL(TotalVenda.Total,0), 2) AS ValorTotalVenda,
+      ROUND(BaseCalc.Valor, 2) AS BaseCalculoComissao,
+      AliqComissao.AliqPct / 100.0 AS PercentualComissao,
+      ROUND(BaseCalc.Valor * AliqComissao.AliqPct / 100.0, 2) AS ComissaoTotal,
       ROUND(
         BaseCalc.Valor * AliqComissao.AliqPct / 100.0
         * (
-          (ISNULL(rec.pgtValor, 0) - ISNULL(rec.pgtValorJuros, 0) - ISNULL(rec.pgtValorMulta, 0))
+          (ISNULL(rec.pgtValor,0)-ISNULL(rec.pgtValorJuros,0)-ISNULL(rec.pgtValorMulta,0))
           * rt.PercentualRateio
-          / NULLIF(
-            CASE
+          / NULLIF(CASE
               WHEN ParcelaVenda.TotalParcelasVenda IS NOT NULL
                    AND ParcelaVenda.TotalParcelasVenda > rt.ValorVenda
                 THEN ParcelaVenda.TotalParcelasVenda
               ELSE rt.ValorVenda
-            END, 0
-          )
+            END, 0)
         ), 2
-      )                                                                                AS ComissaoPaga,
+      ) AS ComissaoPaga,
       CASE
-        WHEN rt.pgtTipoVistaOrigem = 0 THEN 'Dinheiro'
-        WHEN rt.pgtTipoVistaOrigem = 1 THEN 'Cheque à Vista'
-        WHEN rt.pgtTipoVistaOrigem = 2 THEN 'Cartão Débito'
-        WHEN rt.pgtTipoVistaOrigem = 3 THEN 'Depósito'
-        WHEN rt.pgtTipoVistaOrigem = 4 THEN 'Dep./PIX'
-        WHEN rt.pgtTipoPrazoOrigem = 0 THEN 'Cartão Crédito'
-        WHEN rt.pgtTipoPrazoOrigem = 1 THEN 'Cheque Pré'
-        WHEN rt.pgtTipoPrazoOrigem = 2 THEN 'Carteira'
-        WHEN rt.pgtTipoPrazoOrigem = 3 THEN 'Boleto'
-        WHEN rt.pgtTipoPrazoOrigem = 4 THEN 'Vale'
-        WHEN rt.pgtTipoPrazoOrigem = 5 THEN 'Cheque Dev.'
-        WHEN rt.pgtTipoPrazoOrigem = 6 THEN 'Débito Conta'
-        WHEN rt.pgtTipoPrazoOrigem = 7 THEN 'Custódia'
+        WHEN rt.pgtTipoVistaOrigem=0 THEN 'Dinheiro'
+        WHEN rt.pgtTipoVistaOrigem=1 THEN 'Cheque a Vista'
+        WHEN rt.pgtTipoVistaOrigem=2 THEN 'Cartao Debito'
+        WHEN rt.pgtTipoVistaOrigem=3 THEN 'Deposito'
+        WHEN rt.pgtTipoVistaOrigem=4 THEN 'Dep./PIX'
+        WHEN rt.pgtTipoPrazoOrigem=0 THEN 'Cartao Credito'
+        WHEN rt.pgtTipoPrazoOrigem=1 THEN 'Cheque Pre'
+        WHEN rt.pgtTipoPrazoOrigem=2 THEN 'Carteira'
+        WHEN rt.pgtTipoPrazoOrigem=3 THEN 'Boleto'
+        WHEN rt.pgtTipoPrazoOrigem=4 THEN 'Vale'
+        WHEN rt.pgtTipoPrazoOrigem=5 THEN 'Cheque Dev.'
+        WHEN rt.pgtTipoPrazoOrigem=6 THEN 'Debito Conta'
+        WHEN rt.pgtTipoPrazoOrigem=7 THEN 'Custodia'
         ELSE 'Outro'
-      END                                                                              AS TipoPagamento,
-      rt.pgtTipoVistaOrigem                                                            AS TipoVistaOrigem,
-      rt.pgtTipoPrazoOrigem                                                            AS TipoPrazoOrigem
+      END AS TipoPagamento,
+      rt.pgtTipoVistaOrigem AS TipoVistaOrigem,
+      rt.pgtTipoPrazoOrigem AS TipoPrazoOrigem
 
     FROM Rateio rt
     INNER JOIN Recebimentos rec   ON rec.pgtId  = rt.RecebimentoId
