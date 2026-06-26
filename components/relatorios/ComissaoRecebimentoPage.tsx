@@ -1126,7 +1126,9 @@ export default function ComissaoRecebimentoPage() {
 
               {/* Explicação em prosa — sem headers */}
               <p style={{ margin: 0, fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.75 }}>
-                O relatório mostra o dinheiro que <strong style={{ color: "var(--text-primary)", fontWeight: 600 }}>efetivamente entrou</strong> por cada venda ou O.S. Quando um faturamento reúne várias O.S. em uma conta, o valor recebido é dividido proporcionalmente entre elas. Juros e multa cobrados no recebimento são descontados antes de qualquer cálculo.
+                O relatório mostra os recebimentos realizados no período informado.<br />
+                Quando um recebimento for referente a várias contas agrupadas (faturadas), o valor da comissão será calculado na mesma proporção dos produtos da venda original.<br />
+                Juros e multa cobrados no recebimento são descontados antes de qualquer cálculo.
               </p>
 
               {/* Ledger — peça central do design */}
@@ -1307,7 +1309,7 @@ export default function ComissaoRecebimentoPage() {
                         padding: "10px 12px",
                         textAlign: ["Vlr. Recebimento", "Vlr. Produtos", "Comissão %", "Vlr. Comissão", "Vlr. Líq."].includes(h) ? "right" : "left",
                         fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
-                        textTransform: "uppercase", letterSpacing: "0.05em",
+                        textTransform: "uppercase", letterSpacing: "0.05em", whiteSpace: "nowrap",
                       }}
                     >
                       {h}
