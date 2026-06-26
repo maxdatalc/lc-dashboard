@@ -58,7 +58,10 @@ function VendedoresSelect({
   onChange: (ids: number[]) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<number | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -67,6 +70,22 @@ function VendedoresSelect({
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  // Navega pelo teclado: letra → scroll até o primeiro vendedor com aquela inicial
+  useEffect(() => {
+    if (!open) { setHighlightedId(null); return; }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key.length !== 1 || !/[a-zA-ZÀ-ÿ]/u.test(e.key)) return;
+      const letter = e.key.toUpperCase();
+      const match = vendedores.find((v) => v.Nome.toUpperCase().startsWith(letter));
+      if (!match) return;
+      setHighlightedId(match.VendedorId);
+      const el = itemRefs.current.get(match.VendedorId);
+      el?.scrollIntoView({ block: "nearest" });
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, vendedores]);
 
   const toggle = (id: number) => {
     onChange(
@@ -113,6 +132,7 @@ function VendedoresSelect({
 
       {open && (
         <div
+          ref={listRef}
           style={{
             position: "absolute",
             top: "calc(100% + 4px)",
@@ -147,9 +167,11 @@ function VendedoresSelect({
           <div style={{ borderTop: "1px solid var(--border-subtle)", margin: "2px 0" }} />
           {vendedores.map((v) => {
             const selected = selecionados.includes(v.VendedorId);
+            const highlighted = highlightedId === v.VendedorId;
             return (
               <button
                 key={v.VendedorId}
+                ref={(el) => { if (el) itemRefs.current.set(v.VendedorId, el); else itemRefs.current.delete(v.VendedorId); }}
                 type="button"
                 onClick={() => toggle(v.VendedorId)}
                 style={{
@@ -160,10 +182,16 @@ function VendedoresSelect({
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  color: selected ? "var(--accent-cyan)" : "var(--text-secondary)",
-                  background: selected ? "var(--sidebar-item-active-bg)" : "transparent",
+                  color: selected ? "var(--accent-cyan)" : highlighted ? "var(--text-primary)" : "var(--text-secondary)",
+                  background: selected
+                    ? "var(--sidebar-item-active-bg)"
+                    : highlighted
+                    ? "rgba(255,255,255,0.06)"
+                    : "transparent",
                   cursor: "pointer",
-                  fontWeight: selected ? 600 : 400,
+                  fontWeight: selected ? 600 : highlighted ? 500 : 400,
+                  outline: highlighted && !selected ? "1px solid rgba(255,255,255,0.15)" : "none",
+                  outlineOffset: -1,
                 }}
               >
                 <span
