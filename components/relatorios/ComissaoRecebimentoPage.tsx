@@ -328,27 +328,28 @@ export default function ComissaoRecebimentoPage() {
   const periodLabel = `${start}_${end}`;
 
   // Colunas da tabela (sem Vendedor no corpo — está no cabeçalho do grupo)
+  // Ordem: Data Receb. | Tipo | Num Venda/O.S | Vlr. Recebimento | Vlr. Produtos | Forma de Pgto | Comissão % | Vlr. Comissão | Vlr. Líq.
   const TABLE_HEAD = [
-    "Data",
+    "Data Receb.",
     "Tipo",
-    "Vlr. Venda",
+    "Num Venda/O.S",
+    "Vlr. Recebimento",
+    "Vlr. Produtos",
     "Forma de Pgto",
-    "Vlr. Recebido",
-    "Base Comissão",
     "Comissão %",
     "Vlr. Comissão",
     "Vlr. Líq.",
   ];
 
-  const tipoLabel = (row: EnrichedRow) => `${row.TipoVenda} ${row.VendaId}`;
+  const vendaNumLabel = (row: EnrichedRow) => `${row.TipoVenda} ${row.VendaId}`;
 
   const rowToArray = (row: EnrichedRow) => [
     fmtData(row.DataPagamento),
-    tipoLabel(row),
-    fmtMoeda(row.ValorTotalVenda),
-    row.TipoPagamento,
+    row.TipoRecebimento,
+    vendaNumLabel(row),
     fmtMoeda(row.ValorRecebidoRateado),
-    fmtMoeda(row.BaseCalculoComissao),
+    fmtMoeda(row.BaseCalculoComissaoParcela),
+    row.TipoPagamento,
     fmtPct(row.PercentualComissao * 100),
     fmtMoeda(row.ComissaoPaga),
     fmtMoeda(row.ValorLiquidoEmpresa),
@@ -480,11 +481,11 @@ export default function ComissaoRecebimentoPage() {
     }
 
     // ── DETALHADO: todas as linhas agrupadas por vendedor ─────────────────
-    // cols: 0=Data,1=Tipo,2=VlrVenda,3=FormaPgto,4=VlrRecebido,5=VlrProdutos,6=Comissao%,7=VlrComissao,8=VlrLiq
+    // cols: 0=Data,1=Tipo,2=NumVenda,3=VlrRecebimento,4=VlrProdutos,5=FormaPgto,6=Comissao%,7=VlrComissao,8=VlrLiq
     const colStyles: Record<number, object> = {
-      2: { halign: "right" },
+      1: { halign: "center" },
+      3: { halign: "right" },
       4: { halign: "right" },
-      5: { halign: "right" },
       6: { halign: "right" },
       7: { halign: "right", fontStyle: "bold" },
       8: { halign: "right", fontStyle: "bold" },
@@ -515,7 +516,7 @@ export default function ComissaoRecebimentoPage() {
 
         const bodyRows = [
           ...group.rows.map(rowToArray),
-          [`Subtotal — ${group.nome}`, "", "", "", fmtMoeda(group.subtotalRecebido), "", "", fmtMoeda(group.subtotalComissao), fmtMoeda(group.subtotalLiquido)],
+          [`Subtotal — ${group.nome}`, "", "", fmtMoeda(group.subtotalRecebido), "", "", "", fmtMoeda(group.subtotalComissao), fmtMoeda(group.subtotalLiquido)],
         ];
 
         autoTable(doc, {
@@ -551,7 +552,7 @@ export default function ComissaoRecebimentoPage() {
 
       const bodyRows = [
         ...enrichedRows.map(rowToArray),
-        [`TOTAL (${enrichedRows.length} recebimentos)`, "", "", "", fmtMoeda(totalRecebido), "", "", fmtMoeda(totalComissao), fmtMoeda(totalLiquido)],
+        [`TOTAL (${enrichedRows.length} recebimentos)`, "", "", fmtMoeda(totalRecebido), "", "", "", fmtMoeda(totalComissao), fmtMoeda(totalLiquido)],
       ];
 
       autoTable(doc, {
@@ -609,14 +610,14 @@ export default function ComissaoRecebimentoPage() {
         group.rows.forEach((row) => wsData.push(rowToArray(row)));
         wsData.push([
           `Subtotal — ${group.nome} (${group.rows.length} recebimentos)`,
-          "", "", "", group.subtotalRecebido, "", "",
+          "", "", group.subtotalRecebido, "", "", "",
           group.subtotalComissao, group.subtotalLiquido,
         ]);
         wsData.push([]);
       });
       wsData.push([
         `TOTAL GERAL (${enrichedRows.length} recebimentos)`,
-        "", "", "", totalRecebido, "", "",
+        "", "", totalRecebido, "", "", "",
         totalComissao, totalLiquido,
       ]);
     } else {
@@ -625,15 +626,15 @@ export default function ComissaoRecebimentoPage() {
       wsData.push([]);
       wsData.push([
         `TOTAL (${enrichedRows.length} recebimentos)`,
-        "", "", "", totalRecebido, "", "",
+        "", "", totalRecebido, "", "", "",
         totalComissao, totalLiquido,
       ]);
     }
 
     const ws = XLSX.utils.aoa_to_sheet(wsData);
     ws["!cols"] = [
-      { wch: 12 }, { wch: 12 }, { wch: 14 },
-      { wch: 18 }, { wch: 14 }, { wch: 14 },
+      { wch: 12 }, { wch: 7 },  { wch: 14 },
+      { wch: 16 }, { wch: 14 }, { wch: 18 },
       { wch: 10 }, { wch: 14 }, { wch: 14 },
     ];
 
@@ -648,49 +649,82 @@ export default function ComissaoRecebimentoPage() {
     doc.save(`comissao-recebimento-${mode}-${periodLabel}.pdf`);
   };
 
+  // ── Badge de tipo de recebimento (pgtTipoOpr) ────────────────────────────
+  const tipoRecebStyle = (tipo: string): { bg: string; color: string } => {
+    switch (tipo.toUpperCase()) {
+      case "FI": return { bg: "rgba(148,163,184,0.15)", color: "#94a3b8" };
+      case "CO": return { bg: "rgba(59,130,246,0.15)",  color: "#60a5fa" };
+      case "RE": return { bg: "rgba(6,182,212,0.15)",   color: "#22d3ee" };
+      case "FA": return { bg: "rgba(245,158,11,0.15)",  color: "#fbbf24" };
+      case "OS": return { bg: "rgba(99,102,241,0.15)",  color: "#818cf8" };
+      case "DV": return { bg: "rgba(239,68,68,0.15)",   color: "#f87171" };
+      default:   return { bg: "rgba(148,163,184,0.10)", color: "#64748b" };
+    }
+  };
+
   // ── Células da tabela (reutilizado em flat e grouped) ─────────────────────
-  const renderRowCells = (row: EnrichedRow) => (
-    <>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-        {fmtData(row.DataPagamento)}
-      </td>
-      <td style={{ padding: "8px 12px" }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+  // Ordem: Data Receb. | Tipo | Num Venda/O.S | Vlr. Recebimento | Vlr. Produtos | Forma de Pgto | Comissão % | Vlr. Comissão | Vlr. Líq.
+  const renderRowCells = (row: EnrichedRow) => {
+    const tipoStyle = tipoRecebStyle(row.TipoRecebimento);
+    return (
+      <>
+        {/* Data Receb. */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+          {fmtData(row.DataPagamento)}
+        </td>
+        {/* Tipo (pgtTipoOpr) */}
+        <td style={{ padding: "8px 12px" }}>
           <span style={{
-            fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-            background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
-            color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+            display: "inline-block", fontSize: 11, fontWeight: 700,
+            padding: "2px 6px", borderRadius: 4,
+            background: tipoStyle.bg, color: tipoStyle.color,
+            letterSpacing: "0.03em",
           }}>
-            {row.TipoVenda}
+            {row.TipoRecebimento || "—"}
           </span>
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
-        </span>
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ValorTotalVenda)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-        {row.TipoPagamento}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ValorRecebidoRateado)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.BaseCalculoComissao)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
-        <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
-          {fmtPct(row.PercentualComissao * 100)}
-        </span>
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ComissaoPaga)}
-      </td>
-      <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
-        {fmtMoeda(row.ValorLiquidoEmpresa)}
-      </td>
-    </>
-  );
+        </td>
+        {/* Num Venda/O.S */}
+        <td style={{ padding: "8px 12px" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span style={{
+              fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+              background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
+              color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+            }}>
+              {row.TipoVenda}
+            </span>
+            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
+          </span>
+        </td>
+        {/* Vlr. Recebimento */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {fmtMoeda(row.ValorRecebidoRateado)}
+        </td>
+        {/* Vlr. Produtos (base proporcional desta parcela) */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {fmtMoeda(row.BaseCalculoComissaoParcela)}
+        </td>
+        {/* Forma de Pgto */}
+        <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+          {row.TipoPagamento}
+        </td>
+        {/* Comissão % */}
+        <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
+          <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
+            {fmtPct(row.PercentualComissao * 100)}
+          </span>
+        </td>
+        {/* Vlr. Comissão */}
+        <td style={{ padding: "8px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {fmtMoeda(row.ComissaoPaga)}
+        </td>
+        {/* Vlr. Líq. */}
+        <td style={{ padding: "8px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+          {fmtMoeda(row.ValorLiquidoEmpresa)}
+        </td>
+      </>
+    );
+  };
 
   return (
     <div className="comissao-page" style={{ padding: "24px" }}>
@@ -1043,15 +1077,15 @@ export default function ComissaoRecebimentoPage() {
             <div className="relatorio-table-wrapper">
             <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
               <colgroup>
-                <col style={{ width: "9%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "11%" }} />
-                <col style={{ width: "8%" }} />
-                <col style={{ width: "13%" }} />
-                <col style={{ width: "13%" }} />
+                <col style={{ width: "9%" }} />   {/* Data Receb. */}
+                <col style={{ width: "6%" }} />   {/* Tipo */}
+                <col style={{ width: "11%" }} />  {/* Num Venda/O.S */}
+                <col style={{ width: "12%" }} />  {/* Vlr. Recebimento */}
+                <col style={{ width: "12%" }} />  {/* Vlr. Produtos */}
+                <col style={{ width: "14%" }} />  {/* Forma de Pgto */}
+                <col style={{ width: "8%" }} />   {/* Comissão % */}
+                <col style={{ width: "14%" }} />  {/* Vlr. Comissão */}
+                <col style={{ width: "14%" }} />  {/* Vlr. Líq. */}
               </colgroup>
 
               <thead>
@@ -1061,7 +1095,7 @@ export default function ComissaoRecebimentoPage() {
                       key={h}
                       style={{
                         padding: "10px 12px",
-                        textAlign: ["Vlr. Venda", "Vlr. Recebido", "Base Comissão", "Comissão %", "Vlr. Comissão", "Vlr. Líq."].includes(h) ? "right" : "left",
+                        textAlign: ["Vlr. Recebimento", "Vlr. Produtos", "Comissão %", "Vlr. Comissão", "Vlr. Líq."].includes(h) ? "right" : "left",
                         fontSize: 11, fontWeight: 600, color: "var(--text-muted)",
                         textTransform: "uppercase", letterSpacing: "0.05em",
                       }}

@@ -9,6 +9,7 @@ export interface ComissaoRow {
   RecebimentoId: number;
   VendaId: number;
   TipoVenda: string;
+  TipoRecebimento: string;        // pgtTipoOpr: FI, CO, RE, FA, OS, DV, VE…
   VendedorId: number | null;
   NomeVendedor: string | null;
   DataPagamento: string;
@@ -17,8 +18,9 @@ export interface ComissaoRow {
   TotalParcelasVenda: number | null;
   ValorRecebidoRateado: number;
   ValorTotalVenda: number;
-  BaseCalculoComissao: number;
-  PercentualComissao: number;  // decimal 0-1 (ex: 0.02 para 2%)
+  BaseCalculoComissao: number;        // total de produtos/venda (informativo)
+  BaseCalculoComissaoParcela: number; // base proporcional desta parcela (display)
+  PercentualComissao: number;         // decimal 0-1 (ex: 0.02 para 2%)
   ComissaoTotal: number;
   ComissaoPaga: number;
   TipoPagamento: string;
@@ -39,7 +41,8 @@ function buildQuery(vendedorClause: string): string {
         p.pgtDataQuitou,
         p.pgtAtendente,
         p.pgtTipoVista,
-        p.pgtTipoPrazo
+        p.pgtTipoPrazo,
+        p.pgtTipoOpr
       FROM vendaPgto p
       WHERE p.pgtPago = 'S'
         AND p.empId = @empId
@@ -121,6 +124,7 @@ function buildQuery(vendedorClause: string): string {
       rec.pgtId                                                                        AS RecebimentoId,
       v.vedId                                                                          AS VendaId,
       v.vedTipo                                                                        AS TipoVenda,
+      ISNULL(rec.pgtTipoOpr, '')                                                       AS TipoRecebimento,
       rec.pgtAtendente                                                                 AS VendedorId,
       cli.cliNome                                                                      AS NomeVendedor,
       rec.pgtDataQuitou                                                                AS DataPagamento,
@@ -133,6 +137,22 @@ function buildQuery(vendedorClause: string): string {
       )                                                                                AS ValorRecebidoRateado,
       ROUND(ISNULL(TotalVenda.Total, 0), 2)                                           AS ValorTotalVenda,
       ROUND(BaseCalc.Valor, 2)                                                         AS BaseCalculoComissao,
+      /* Base proporcional desta parcela: Valor Produtos × proporção recebida */
+      ROUND(
+        BaseCalc.Valor
+        * (
+          (ISNULL(rec.pgtValor, 0) - ISNULL(rec.pgtValorJuros, 0) - ISNULL(rec.pgtValorMulta, 0))
+          * rt.PercentualRateio
+          / NULLIF(
+            CASE
+              WHEN ParcelaVenda.TotalParcelasVenda IS NOT NULL
+                   AND ParcelaVenda.TotalParcelasVenda > rt.ValorVenda
+                THEN ParcelaVenda.TotalParcelasVenda
+              ELSE rt.ValorVenda
+            END, 0
+          )
+        ), 2
+      )                                                                                AS BaseCalculoComissaoParcela,
       AliqComissao.AliqPct / 100.0                                                     AS PercentualComissao,
       ROUND(BaseCalc.Valor * AliqComissao.AliqPct / 100.0, 2)                         AS ComissaoTotal,
       ROUND(
