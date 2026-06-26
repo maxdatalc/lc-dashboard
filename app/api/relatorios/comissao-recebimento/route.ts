@@ -137,7 +137,6 @@ function buildQuery(vendedorClause: string): string {
       )                                                                                AS ValorRecebidoRateado,
       ROUND(ISNULL(TotalVenda.Total, 0), 2)                                           AS ValorTotalVenda,
       ROUND(BaseCalc.Valor, 2)                                                         AS BaseCalculoComissao,
-      /* Base proporcional desta parcela: Valor Produtos × proporção recebida */
       ROUND(
         BaseCalc.Valor
         * (
@@ -217,7 +216,6 @@ function buildQuery(vendedorClause: string): string {
       WHERE vp.pgtVendaId = v.vedId
     ) ParcelaVenda
 
-    /* Base de cálculo: pecas para OS, total da venda para VE */
     CROSS APPLY (
       SELECT CASE
         WHEN v.vedTipo = 'OS' THEN ISNULL(TotalPecas.Pecas, 0)
@@ -225,7 +223,6 @@ function buildQuery(vendedorClause: string): string {
       END AS Valor
     ) BaseCalc
 
-    /* Alíquota de comissão vinda de configVenda, por forma de pagamento original */
     CROSS APPLY (
       SELECT CASE
         WHEN rt.pgtTipoVistaOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDinheiro,  0)
