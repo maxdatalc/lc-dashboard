@@ -114,10 +114,10 @@ export function TopGruposChart({ data }: Props) {
       </div>
 
       {/* ── 2 colunas: Pódio | Gráfico de barras ─────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, height: 270 }}>
 
         {/* Pódio TOP 3 */}
-        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
+        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18 }}>
             <Trophy style={{ width: 12, height: 12, color: "#f59e0b", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
@@ -159,45 +159,49 @@ export function TopGruposChart({ data }: Props) {
           })}
         </div>
 
-        {/* Faturamento por fabricante — gráfico de barras */}
-        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+        {/* Faturamento por fabricante — gráfico de barras com scroll */}
+        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexShrink: 0 }}>
             <BarChart2 style={{ width: 12, height: 12, color: "var(--accent-cyan)", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Faturamento por fabricante
             </span>
           </div>
-          <ResponsiveContainer width="100%" height={chartHeight}>
-            <BarChart
-              data={chartData}
-              layout="vertical"
-              margin={{ top: 0, right: 8, left: 0, bottom: 20 }}
-            >
-              <XAxis
-                type="number"
-                tick={{ fontSize: 9, fill: "var(--text-muted)" }}
-                tickFormatter={(v: number) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`}
-                axisLine={false}
-                tickLine={false}
-              />
-              <YAxis
-                type="category"
-                dataKey="nome"
-                width={85}
-                tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
-                tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
-                axisLine={false}
-                tickLine={false}
-              />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
-              <Bar dataKey="valor" radius={[0, 3, 3, 0]}>
-                {chartData.map((d) => {
-                  const idx = data.findIndex(x => x.nome === d.nome);
-                  return <Cell key={d.nome} fill={CORES[idx % CORES.length]} />;
-                })}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
+            <div style={{ height: chartHeight, minHeight: 120 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={chartData}
+                  layout="vertical"
+                  margin={{ top: 0, right: 8, left: 0, bottom: 20 }}
+                >
+                  <XAxis
+                    type="number"
+                    tick={{ fontSize: 9, fill: "var(--text-muted)" }}
+                    tickFormatter={(v: number) => v >= 1000 ? `R$ ${Math.round(v / 1000)}k` : `R$ ${v}`}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    type="category"
+                    dataKey="nome"
+                    width={85}
+                    tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
+                    tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "…" : v}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+                  <Bar dataKey="valor" radius={[0, 3, 3, 0]}>
+                    {chartData.map((d) => {
+                      const idx = data.findIndex(x => x.nome === d.nome);
+                      return <Cell key={d.nome} fill={CORES[idx % CORES.length]} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       </div>
 
