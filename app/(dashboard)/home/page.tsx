@@ -18,6 +18,7 @@ import { useLoja } from "@/lib/contexts/loja-context";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 import { ModuleCard } from "@/components/home/ModuleCard";
 import { UpgradeModal } from "@/components/home/UpgradeModal";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -78,35 +79,124 @@ interface HomeSummaryResponse {
       taxaRecorrencia: number;
       perfilDominante: "PJ" | "PF";
       perfilPercent: number;
+      maiorCliente: { nome: string; valor: number } | null;
       insight: string | null;
     };
     produtos: {
-      topFabricante: { nome: string; percent: number; valor: number } | null;
-      fabricantesAtivos: number;
-      concentracaoTop3: number;
+      topProdutos: Array<{ nome: string; valor: number; qtde: number; percent: number }>;
       insight: string | null;
     };
   };
   rankingVendedores: Array<{ nome: string; valor: number; percent: number }>;
 }
 
-// ─── Skeletons ────────────────────────────────────────────────────────────────
+// ─── Skeleton premium ─────────────────────────────────────────────────────────
 
-function SkeletonCard({ height = 80 }: { height?: number }) {
+function Sk({ w, h = 10 }: { w: string | number; h?: number }) {
   return (
     <div
-      className="animate-pulse rounded-xl"
-      style={{ height, background: "var(--bg-card)", border: "1px solid var(--border-color)" }}
+      className="skeleton-bar shrink-0"
+      style={{ width: w, height: h, borderRadius: 6 }}
     />
   );
 }
 
-function SkeletonRow() {
+function SkCard({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div className="flex gap-4">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <SkeletonCard key={i} height={90} />
-      ))}
+    <div
+      className="rounded-xl"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-color)", ...style }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function HomeSkeleton() {
+  return (
+    <div className="flex flex-col gap-6 p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2">
+          <Sk w={200} h={22} />
+          <Sk w={140} h={12} />
+        </div>
+        <Sk w={90} h={32} />
+      </div>
+
+      {/* KPI Bar — 5 cards */}
+      <div className="flex gap-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <SkCard key={i} style={{ flex: 1, padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <Sk w={80} h={10} />
+              <Sk w={30} h={30} />
+            </div>
+            <Sk w={130} h={26} />
+            <Sk w={90} h={10} />
+          </SkCard>
+        ))}
+      </div>
+
+      {/* Info Row — 4 cards */}
+      <div className="flex gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkCard key={i} style={{ flex: 1, padding: "16px", display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <Sk w={28} h={28} />
+              <Sk w={90} h={10} />
+            </div>
+            <Sk w={110} h={20} />
+            <Sk w="100%" h={5} />
+            <Sk w={80} h={10} />
+          </SkCard>
+        ))}
+      </div>
+
+      {/* Module Grid 2x2 */}
+      <div className="grid grid-cols-2 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <SkCard key={i} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Sk w={36} h={36} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <Sk w={80} h={14} />
+                  <Sk w={110} h={10} />
+                </div>
+              </div>
+              <Sk w={96} h={30} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {Array.from({ length: 4 }).map((_, j) => (
+                <div key={j} style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                  <Sk w={65} h={10} />
+                  <Sk w={95} h={14} />
+                  <Sk w={60} h={10} />
+                </div>
+              ))}
+            </div>
+            <Sk w="100%" h={6} />
+          </SkCard>
+        ))}
+      </div>
+
+      {/* Ranking */}
+      <SkCard style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
+        <Sk w={170} h={16} />
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <Sk w={24} h={14} />
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <Sk w={130} h={13} />
+                <Sk w={85} h={13} />
+              </div>
+              <Sk w="100%" h={5} />
+            </div>
+          </div>
+        ))}
+      </SkCard>
     </div>
   );
 }
@@ -344,6 +434,7 @@ export default function HomePage() {
   };
 
   if (!selectedLojaId) return <SemLoja />;
+  if (loading) return <HomeSkeleton />;
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -371,22 +462,23 @@ export default function HomePage() {
             </p>
           )}
         </div>
-        <div
-          className="px-3 py-1.5 rounded-lg text-xs font-medium"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            color: "var(--text-muted)",
-          }}
-        >
-          {getMesAtual()}
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <div
+            className="px-3 py-1.5 rounded-lg text-xs font-medium"
+            style={{
+              background: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              color: "var(--text-muted)",
+            }}
+          >
+            {getMesAtual()}
+          </div>
         </div>
       </div>
 
       {/* KPI Bar */}
-      {loading ? (
-        <SkeletonRow />
-      ) : data ? (
+      {data && (
         <div className="flex gap-4 flex-wrap">
           <KpiCard
             label="Faturamento Total"
@@ -425,16 +517,10 @@ export default function HomePage() {
             accentColor="#f59e0b"
           />
         </div>
-      ) : null}
+      )}
 
       {/* Info Row */}
-      {loading ? (
-        <div className="flex gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonCard key={i} height={100} />
-          ))}
-        </div>
-      ) : data ? (
+      {data && (
         <div className="flex gap-4 flex-wrap">
           <InfoCard
             label="Meta do Período"
@@ -476,16 +562,10 @@ export default function HomePage() {
             accentColor="#f59e0b"
           />
         </div>
-      ) : null}
+      )}
 
       {/* Module Grid 2x2 */}
-      {loading ? (
-        <div className="grid grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <SkeletonCard key={i} height={220} />
-          ))}
-        </div>
-      ) : data ? (
+      {data && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Vendas */}
           <ModuleCard
@@ -593,8 +673,11 @@ export default function HomePage() {
               },
               {
                 label: "Maior cliente",
-                value: "—",
-                locked: true,
+                value: data.modulos.clientes.maiorCliente?.nome ?? "—",
+                subvalue: data.modulos.clientes.maiorCliente
+                  ? formatCurrency(data.modulos.clientes.maiorCliente.valor) + " no período"
+                  : undefined,
+                highlight: data.modulos.clientes.maiorCliente ? "green" : undefined,
               },
             ]}
           />
@@ -609,27 +692,34 @@ export default function HomePage() {
             isUnlocked={hasFeature("modulo_produtos")}
             moduleHref="/dashboard/produtos"
             onUnlock={openUpgrade}
-            progressValue={data.modulos.produtos.concentracaoTop3}
-            progressLabel={`Concentração top 3 marcas ${data.modulos.produtos.concentracaoTop3.toFixed(1)}%`}
+            progressValue={data.modulos.produtos.topProdutos[0]?.percent}
+            progressLabel={
+              data.modulos.produtos.topProdutos[0]
+                ? `${data.modulos.produtos.topProdutos[0].percent.toFixed(1)}% do faturamento — produto principal`
+                : undefined
+            }
             insight={data.modulos.produtos.insight}
             rows={[
               {
-                label: "Top fabricante",
-                value: data.modulos.produtos.topFabricante?.nome ?? "—",
-                subvalue: data.modulos.produtos.topFabricante
-                  ? data.modulos.produtos.topFabricante.percent.toFixed(1) + "% — " + formatCurrency(data.modulos.produtos.topFabricante.valor)
+                label: "Top produto",
+                value: data.modulos.produtos.topProdutos[0]?.nome ?? "—",
+                subvalue: data.modulos.produtos.topProdutos[0]
+                  ? formatCurrency(data.modulos.produtos.topProdutos[0].valor) + " · " + data.modulos.produtos.topProdutos[0].qtde + " un."
                   : undefined,
               },
               {
-                label: "Fabricantes ativos",
-                value: String(data.modulos.produtos.fabricantesAtivos) + " marcas",
-                subvalue: "no período",
+                label: "2° produto",
+                value: data.modulos.produtos.topProdutos[1]?.nome ?? "—",
+                subvalue: data.modulos.produtos.topProdutos[1]
+                  ? formatCurrency(data.modulos.produtos.topProdutos[1].valor)
+                  : undefined,
               },
               {
-                label: "Concentração top 3",
-                value: data.modulos.produtos.concentracaoTop3.toFixed(1) + "%",
-                highlight: data.modulos.produtos.concentracaoTop3 > 60 ? "red" : "green",
-                subvalue: data.modulos.produtos.concentracaoTop3 > 60 ? "↑ risco de dependência" : "",
+                label: "3° produto",
+                value: data.modulos.produtos.topProdutos[2]?.nome ?? "—",
+                subvalue: data.modulos.produtos.topProdutos[2]
+                  ? formatCurrency(data.modulos.produtos.topProdutos[2].valor)
+                  : undefined,
               },
               {
                 label: "Estoque crítico",
@@ -639,14 +729,10 @@ export default function HomePage() {
             ]}
           />
         </div>
-      ) : null}
+      )}
 
       {/* Ranking de Faturamento */}
-      {loading ? (
-        <SkeletonCard height={260} />
-      ) : data ? (
-        <RankingCard ranking={data.rankingVendedores} />
-      ) : null}
+      {data && <RankingCard ranking={data.rankingVendedores} />}
     </div>
   );
 }
