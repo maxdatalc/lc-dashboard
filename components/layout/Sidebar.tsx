@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   LayoutDashboard,
+  Home,
   Settings2,
   Landmark,
   Users,
@@ -64,6 +65,14 @@ type NavGroup = {
 // ─── Estrutura de navegação ───────────────────────────────────────────────────
 
 const GRUPOS: NavGroup[] = [
+  {
+    key: "home",
+    label: "Início",
+    icon: Home,
+    items: [
+      { href: "/home", label: "Visão Geral", icon: LayoutDashboard, exact: true },
+    ],
+  },
   {
     key: "dashboard",
     label: "Dashboard",
