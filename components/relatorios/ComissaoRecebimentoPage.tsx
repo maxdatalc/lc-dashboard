@@ -64,6 +64,10 @@ function VendedoresSelect({
   const ref = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+  const searchBufferRef = useRef("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const highlightedIdRef = useRef<number | null>(null);
+  highlightedIdRef.current = highlightedId;
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -73,22 +77,6 @@ function VendedoresSelect({
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  // Navega pelo teclado: letra → scroll até o primeiro vendedor com aquela inicial
-  useEffect(() => {
-    if (!open) { setHighlightedId(null); return; }
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key.length !== 1 || !/[a-zA-ZÀ-ÿ]/u.test(e.key)) return;
-      const letter = e.key.toUpperCase();
-      const match = vendedores.find((v) => v.Nome.toUpperCase().startsWith(letter));
-      if (!match) return;
-      setHighlightedId(match.VendedorId);
-      const el = itemRefs.current.get(match.VendedorId);
-      el?.scrollIntoView({ block: "nearest" });
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, vendedores]);
-
   const toggle = (id: number) => {
     onChange(
       selecionados.includes(id)
@@ -96,6 +84,38 @@ function VendedoresSelect({
         : [...selecionados, id]
     );
   };
+
+  const toggleRef = useRef(toggle);
+  toggleRef.current = toggle;
+
+  // Navega pelo teclado: digitação acumulada + Enter para selecionar
+  useEffect(() => {
+    if (!open) {
+      setHighlightedId(null);
+      searchBufferRef.current = "";
+      return;
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        const hid = highlightedIdRef.current;
+        if (hid !== null) toggleRef.current(hid);
+        searchBufferRef.current = "";
+        if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+        return;
+      }
+      if (e.key.length !== 1 || !/[a-zA-ZÀ-ÿ]/u.test(e.key)) return;
+      searchBufferRef.current = (searchBufferRef.current + e.key).toUpperCase();
+      const match = vendedores.find((v) => v.Nome.toUpperCase().startsWith(searchBufferRef.current));
+      if (match) {
+        setHighlightedId(match.VendedorId);
+        itemRefs.current.get(match.VendedorId)?.scrollIntoView({ block: "nearest" });
+      }
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+      searchTimerRef.current = setTimeout(() => { searchBufferRef.current = ""; }, 900);
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open, vendedores]);
 
   const label =
     selecionados.length === 0
@@ -268,6 +288,7 @@ type VendorGroup = {
   nome: string;
   rows: EnrichedRow[];
   subtotalRecebido: number;
+  subtotalProdutos: number;
   subtotalComissao: number;
   subtotalLiquido: number;
 };
@@ -338,6 +359,7 @@ export default function ComissaoRecebimentoPage() {
 
   // ── Totalizadores ────────────────────────────────────────────────────────
   const totalRecebido = enrichedRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0);
+  const totalProdutos = enrichedRows.reduce((s, r) => s + r.BaseCalculoComissaoParcela, 0);
   const totalComissao = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
   const totalLiquido  = enrichedRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0);
   const totalVendas   = new Set(enrichedRows.map((r) => r.VendaId)).size;
@@ -362,6 +384,7 @@ export default function ComissaoRecebimentoPage() {
         nome: vRows[0].NomeVendedor ?? "Sem vendedor",
         rows: sorted,
         subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0),
+        subtotalProdutos: vRows.reduce((s, r) => s + r.BaseCalculoComissaoParcela, 0),
         subtotalComissao: vRows.reduce((s, r) => s + r.ComissaoPaga, 0),
         subtotalLiquido:  vRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0),
       };
@@ -1349,15 +1372,22 @@ export default function ComissaoRecebimentoPage() {
                       onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.12)"; }}
                       onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "none"; }}
                     >
-                      <td colSpan={7} style={{ padding: "10px 12px" }}>
+                      <td colSpan={3} style={{ padding: "10px 12px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                           <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
                           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{group.nome}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
-                            — {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
+                            {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
                           </span>
                         </span>
                       </td>
+                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                        {fmtMoeda(group.subtotalRecebido)}
+                      </td>
+                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                        {fmtMoeda(group.subtotalProdutos)}
+                      </td>
+                      <td colSpan={2} />
                       <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
                         {fmtMoeda(group.subtotalComissao)}
                       </td>
@@ -1385,9 +1415,16 @@ export default function ComissaoRecebimentoPage() {
               {/* Total geral */}
               <tfoot>
                 <tr style={{ borderTop: "2px solid var(--border-subtle)" }}>
-                  <td colSpan={7} style={{ padding: "10px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  <td colSpan={3} style={{ padding: "10px 12px", fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                     {multiVendedor ? "Total Geral" : "Total"} ({enrichedRows.length} recebimentos)
                   </td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmtMoeda(totalRecebido)}
+                  </td>
+                  <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
+                    {fmtMoeda(totalProdutos)}
+                  </td>
+                  <td colSpan={2} />
                   <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 700, color: "var(--accent-cyan)", textAlign: "right", whiteSpace: "nowrap" }}>
                     {fmtMoeda(totalComissao)}
                   </td>
