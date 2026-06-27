@@ -114,62 +114,69 @@ export function TopGruposChart({ data }: Props) {
       </div>
 
       {/* ── 2 colunas: Pódio | Gráfico de barras ─────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, height: 270 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, height: 300 }}>
 
         {/* Pódio TOP 3 */}
-        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18 }}>
+        <div style={{
+          height: "100%", boxSizing: "border-box",
+          padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 18, flexShrink: 0 }}>
             <Trophy style={{ width: 12, height: 12, color: "#f59e0b", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Pódio — Top 3
             </span>
           </div>
-
-          {top3.map((d, i) => {
-            const pct  = totalGeral > 0 ? (d.valor / totalGeral) * 100 : 0;
-            const barW = maxValor > 0 ? (d.valor / maxValor) * 100 : 0;
-            const cor  = CORES[i % CORES.length];
-            return (
-              <div key={d.nome} style={{ marginBottom: i < top3.length - 1 ? 18 : 0 }}>
-                {/* Rank + Nome + % */}
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: "50%", background: cor,
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{i + 1}</span>
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+            {top3.map((d, i) => {
+              const pct  = totalGeral > 0 ? (d.valor / totalGeral) * 100 : 0;
+              const barW = maxValor > 0 ? (d.valor / maxValor) * 100 : 0;
+              const cor  = CORES[i % CORES.length];
+              return (
+                <div key={d.nome} style={{ marginBottom: i < top3.length - 1 ? 18 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: "50%", background: cor,
+                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                    }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "#fff" }}>{i + 1}</span>
+                    </div>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {d.nome}
+                    </span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                      {pct.toFixed(1)}%
+                    </span>
                   </div>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {d.nome}
-                  </span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: cor, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                    {pct.toFixed(1)}%
-                  </span>
+                  <div style={{ height: 5, background: "var(--border-subtle)", borderRadius: 3, margin: "8px 0 5px 34px" }}>
+                    <div style={{ height: "100%", width: `${barW}%`, background: cor, borderRadius: 3, transition: "width 0.5s ease" }} />
+                  </div>
+                  <p style={{ fontSize: 12, color: "var(--text-muted)", paddingLeft: 34, fontVariantNumeric: "tabular-nums" }}>
+                    {formatCurrency(d.valor)}
+                  </p>
                 </div>
-                {/* Barra */}
-                <div style={{ height: 5, background: "var(--border-subtle)", borderRadius: 3, margin: "8px 0 5px 34px" }}>
-                  <div style={{ height: "100%", width: `${barW}%`, background: cor, borderRadius: 3, transition: "width 0.5s ease" }} />
-                </div>
-                {/* Valor */}
-                <p style={{ fontSize: 12, color: "var(--text-muted)", paddingLeft: 34, fontVariantNumeric: "tabular-nums" }}>
-                  {formatCurrency(d.valor)}
-                </p>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
 
-        {/* Faturamento por fabricante — gráfico de barras com scroll */}
-        <div style={{ padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)", display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12, flexShrink: 0 }}>
+        {/* Faturamento por fabricante — scroll real */}
+        <div style={{
+          height: "100%", boxSizing: "border-box",
+          padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, flexShrink: 0 }}>
             <BarChart2 style={{ width: 12, height: 12, color: "var(--accent-cyan)", flexShrink: 0 }} />
             <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
               Faturamento por fabricante
             </span>
           </div>
-          <div style={{ flex: 1, overflowY: "auto", overflowX: "hidden" }}>
-            <div style={{ height: chartHeight, minHeight: 120 }}>
-              <ResponsiveContainer width="100%" height="100%">
+          {/* Área scrollável — minHeight: 0 é obrigatório para o flex encolher */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden" }}>
+            <div style={{ height: chartHeight }}>
+              <ResponsiveContainer width="100%" height={chartHeight}>
                 <BarChart
                   data={chartData}
                   layout="vertical"
