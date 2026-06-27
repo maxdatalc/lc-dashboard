@@ -55,12 +55,11 @@ export interface HomeSummaryResponse {
       taxaRecorrencia: number;
       perfilDominante: "PJ" | "PF";
       perfilPercent: number;
+      maiorCliente: { nome: string; valor: number } | null;
       insight: string | null;
     };
     produtos: {
-      topFabricante: { nome: string; percent: number; valor: number } | null;
-      fabricantesAtivos: number;
-      concentracaoTop3: number;
+      topProdutos: Array<{ nome: string; valor: number; qtde: number; percent: number }>;
       insight: string | null;
     };
   };
@@ -109,7 +108,13 @@ interface PerfilRow {
   pj: number;
 }
 
-interface FabricanteRow {
+interface ProdutoRow {
+  nome: string;
+  valor: number;
+  qtde: number;
+}
+
+interface MaiorClienteRow {
   nome: string;
   valor: number;
 }
@@ -167,8 +172,9 @@ function insightClientes(taxaRecorrencia: number): string | null {
   return null;
 }
 
-function insightProdutos(concentracaoTop3: number): string | null {
-  if (concentracaoTop3 > 60) return "⚠ Alta concentração em fabricantes — diversificar reduz risco";
+function insightProdutos(topPercent: number): string | null {
+  if (topPercent > 40) return "⚠ Produto principal concentra mais de 40% do faturamento";
+  if (topPercent > 25) return "⚠ Alta dependência do produto principal";
   return null;
 }
 
@@ -337,18 +343,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
       AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0`;
 
-  const SQL_FABRICANTES = `
+  const SQL_TOP_PRODUTOS = `
     SELECT TOP 3
-      f.fabNome AS nome,
-      ISNULL(SUM(vi.vdiValor), 0) AS valor
+      p.proDesc AS nome,
+      ISNULL(SUM(vi.vdiValor), 0) AS valor,
+      ISNULL(SUM(vi.vdiQtde), 0)  AS qtde
     FROM vendaItem vi
     JOIN venda v ON v.vedId = vi.vdiVedId
     JOIN produto p ON p.proId = vi.vdiProId
-    JOIN fabricante f ON f.fabId = p.proFab
     WHERE vi.vdiCancel = 0 AND v.vedStatus = 'F'
       AND v.empId = @empId
       AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-    GROUP BY f.fabId, f.fabNome
+    GROUP BY p.proId, p.proDesc
+    ORDER BY valor DESC`;
+
+  const SQL_MAIOR_CLIENTE = `
+    SELECT TOP 1
+      c.cliNome AS nome,
+      ISNULL(SUM(v.vedTotalNf), 0) AS valor
+    FROM venda v
+    JOIN cliente c ON v.vedClienteId = c.cliId
+    WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
+      AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+      AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0
+    GROUP BY v.vedClienteId, c.cliNome
     ORDER BY valor DESC`;
 
   // ── Execução paralela com fallback individual ─────────────────────────────
@@ -371,7 +389,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     formaPrincipalRows,
     totalPagtoRows,
     perfilRows,
-    fabricantesRows,
+    topProdutosRows,
+    maiorClienteRows,
   ] = await Promise.all([
     safe(queryBridge<KpiRow>(config, SQL_KPI, { empId, start: startStr, end: endStr }), []),
     safe(queryBridge<KpiRow>(config, SQL_KPI_ANTERIOR, { empId, start: startAnterior, end: endAnterior }), []),
@@ -383,7 +402,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     safe(queryBridge<FormaPagtoRow>(config, SQL_FORMA_PRINCIPAL, { empId, start: startStr, end: endStr }), []),
     safe(queryBridge<TotalPagtoRow>(config, SQL_TOTAL_PAGTO, { empId, start: startStr, end: endStr }), []),
     safe(queryBridge<PerfilRow>(config, SQL_PERFIL, { empId, start: startStr, end: endStr }), []),
-    safe(queryBridge<FabricanteRow>(config, SQL_FABRICANTES, { empId, start: startStr, end: endStr }), []),
+    safe(queryBridge<ProdutoRow>(config, SQL_TOP_PRODUTOS, { empId, start: startStr, end: endStr }), []),
+    safe(queryBridge<MaiorClienteRow>(config, SQL_MAIOR_CLIENTE, { empId, start: startStr, end: endStr }), []),
   ]);
 
   // ── Extração de valores ───────────────────────────────────────────────────
@@ -472,24 +492,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ? parseFloat((((perfilDominante === "PJ" ? qtdPj : qtdPf) / totalPerfil) * 100).toFixed(2))
     : 0;
 
-  // ── Fabricantes ───────────────────────────────────────────────────────────
+  // ── Top produtos ─────────────────────────────────────────────────────────
 
-  const totalFaturamentoFab = fabricantesRows.reduce((acc, f) => acc + Number(f.valor ?? 0), 0);
-  const concentracaoTop3 = faturamento > 0
-    ? parseFloat(((totalFaturamentoFab / faturamento) * 100).toFixed(2))
-    : 0;
+  const topProdutos = topProdutosRows.map((p) => ({
+    nome: p.nome,
+    valor: Number(p.valor ?? 0),
+    qtde: Number(p.qtde ?? 0),
+    percent: faturamento > 0
+      ? parseFloat(((Number(p.valor ?? 0) / faturamento) * 100).toFixed(2))
+      : 0,
+  }));
 
-  const topFabricante = fabricantesRows.length > 0
-    ? {
-        nome: fabricantesRows[0].nome,
-        valor: Number(fabricantesRows[0].valor ?? 0),
-        percent: faturamento > 0
-          ? parseFloat(((Number(fabricantesRows[0].valor ?? 0) / faturamento) * 100).toFixed(2))
-          : 0,
-      }
+  // ── Maior cliente ────────────────────────────────────────────────────────
+
+  const maiorCliente = maiorClienteRows.length > 0
+    ? { nome: maiorClienteRows[0].nome, valor: Number(maiorClienteRows[0].valor ?? 0) }
     : null;
-
-  const fabricantesAtivos = fabricantesRows.length;
 
   // ── Insights ──────────────────────────────────────────────────────────────
 
@@ -549,13 +567,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         taxaRecorrencia,
         perfilDominante,
         perfilPercent,
+        maiorCliente,
         insight: insightClientes(taxaRecorrencia),
       },
       produtos: {
-        topFabricante,
-        fabricantesAtivos,
-        concentracaoTop3,
-        insight: insightProdutos(concentracaoTop3),
+        topProdutos,
+        insight: insightProdutos(topProdutos[0]?.percent ?? 0),
       },
     },
     rankingVendedores,

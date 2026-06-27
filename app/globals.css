@@ -7,6 +7,23 @@
   100% { transform: translateX(400%); }
 }
 
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.skeleton-bar {
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--bg-card) 0%,
+    var(--bg-card-hover) 50%,
+    var(--bg-card) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
 @layer base {
   :root {
     /* shadcn/ui — variáveis HSL, tema claro */
@@ -32,10 +49,11 @@
     --radius: 0.625rem;
 
     /* Design System LC — tema claro */
-    --bg-primary: #f0f4f8;
+    --bg-primary: #c8d5e3;
     --bg-card: #ffffff;
-    --bg-card-hover: #f8fafc;
+    --bg-card-hover: #f0f4f8;
     --border-subtle: #e2e8f0;
+    --border-color: #e2e8f0;
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --text-muted: #94a3b8;
@@ -68,12 +86,13 @@
 
   .light {
     /* Fundos */
-    --bg-primary: #f0f4f8;
+    --bg-primary: #c8d5e3;
     --bg-card: #ffffff;
-    --bg-card-hover: #f8fafc;
+    --bg-card-hover: #f0f4f8;
 
     /* Bordas */
     --border-subtle: #e2e8f0;
+    --border-color: #e2e8f0;
 
     /* Textos */
     --text-primary: #0f172a;
@@ -135,6 +154,7 @@
     --bg-card: #111827;
     --bg-card-hover: #1a2234;
     --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-color: rgba(255, 255, 255, 0.06);
     --text-primary: #f1f5f9;
     --text-secondary: #94a3b8;
     --text-muted: #475569;
