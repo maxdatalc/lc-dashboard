@@ -97,6 +97,7 @@ function VendedoresSelect({
     }
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Enter") {
+        e.preventDefault();
         const hid = highlightedIdRef.current;
         if (hid !== null) toggleRef.current(hid);
         searchBufferRef.current = "";
