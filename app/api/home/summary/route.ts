@@ -259,32 +259,26 @@ const SQL_KPI = `
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
 
 const SQL_RECORRENCIA = `
-  SELECT
-    SUM(CASE WHEN NOT EXISTS (
-      SELECT 1 FROM venda prev
-      WHERE prev.vedClienteId = v.vedClienteId
-        AND prev.empId        = @empId
-        AND prev.vedStatus    = 'F'
-        AND prev.vedTipo      IN ('OS','VE')
-        AND CONVERT(date, prev.vedFechamento) < @start
-        AND CONVERT(date, prev.vedFechamento) >= DATEADD(year, -10, @start)
-    ) THEN 1 ELSE 0 END) AS novos,
-    SUM(CASE WHEN EXISTS (
-      SELECT 1 FROM venda prev
-      WHERE prev.vedClienteId = v.vedClienteId
-        AND prev.empId        = @empId
-        AND prev.vedStatus    = 'F'
-        AND prev.vedTipo      IN ('OS','VE')
-        AND CONVERT(date, prev.vedFechamento) < @start
-        AND CONVERT(date, prev.vedFechamento) >= DATEADD(year, -10, @start)
-    ) THEN 1 ELSE 0 END) AS recorrentes
-  FROM (
+  WITH curPeriodo AS (
     SELECT DISTINCT vedClienteId
     FROM venda
     WHERE empId = @empId AND vedStatus = 'F' AND vedTipo IN ('OS','VE')
       AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
       AND vedClienteId IS NOT NULL AND vedClienteId <> 0
-  ) v`;
+  ),
+  histPeriodo AS (
+    SELECT DISTINCT vedClienteId
+    FROM venda
+    WHERE empId = @empId AND vedStatus = 'F' AND vedTipo IN ('OS','VE')
+      AND CONVERT(date, vedFechamento) < @start
+      AND CONVERT(date, vedFechamento) >= DATEADD(year, -10, @start)
+      AND vedClienteId IS NOT NULL AND vedClienteId <> 0
+  )
+  SELECT
+    COUNT(DISTINCT CASE WHEN h.vedClienteId IS NULL     THEN c.vedClienteId END) AS novos,
+    COUNT(DISTINCT CASE WHEN h.vedClienteId IS NOT NULL THEN c.vedClienteId END) AS recorrentes
+  FROM curPeriodo c
+  LEFT JOIN histPeriodo h ON h.vedClienteId = c.vedClienteId`;
 
 const SQL_VE_ABERTO = `
   SELECT COUNT(DISTINCT v.vedId) AS qtd,
