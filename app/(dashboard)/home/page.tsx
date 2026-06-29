@@ -49,6 +49,7 @@ interface HomeSummaryResponse {
     clientesNovos: number;
     clientesRecorrentes: number;
     totalVendas: number;
+    totalVendasAnt: number;
     vendasVar: number | null;
   };
   emAberto: { qtd: number; valorTotal: number; qtdOs: number; qtdVendas: number };
@@ -511,10 +512,10 @@ export default function HomePage() {
             accentColor="#8b5cf6"
           />
           <KpiCard
-            label="Vendas"
+            label="Vendas / OS"
             value={String(data.kpis.totalVendas)}
             changePercent={data.kpis.vendasVar}
-            subvalue={`${formatCurrency(data.emAberto.valorTotal)} em aberto`}
+            subvalue={`${data.kpis.totalVendasAnt} no período ant.`}
             icon={ShoppingCart}
             accentColor="#f59e0b"
           />

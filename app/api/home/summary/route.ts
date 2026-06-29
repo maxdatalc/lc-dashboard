@@ -21,6 +21,7 @@ export interface HomeSummaryResponse {
     clientesNovos: number;
     clientesRecorrentes: number;
     totalVendas: number;
+    totalVendasAnt: number;
     vendasVar: number | null;
   };
   emAberto: { qtd: number; valorTotal: number; qtdOs: number; qtdVendas: number };
@@ -74,8 +75,11 @@ export interface HomeSummaryResponse {
 interface KpiRow {
   faturamento: number;
   totalVendas: number;
-  custo: number;
   totalClientes: number;
+}
+
+interface CustoRow {
+  custo: number;
 }
 
 interface RecorrenciaRow {
@@ -247,15 +251,23 @@ function variacaoPercent(atual: number, anterior: number): number | null {
 
 const SQL_KPI = `
   SELECT
-    ISNULL(SUM(v.vedTotalNf), 0)                             AS faturamento,
-    COUNT(v.vedId)                                            AS totalVendas,
-    ISNULL(SUM(vi.vdiQtde * vi.vdiProCustoFinal), 0)        AS custo,
-    COUNT(DISTINCT NULLIF(v.vedClienteId, 0))                AS totalClientes
-  FROM venda v
-  LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
+    ISNULL(SUM(vedTotalNf), 0)                   AS faturamento,
+    COUNT(*)                                       AS totalVendas,
+    COUNT(DISTINCT NULLIF(vedClienteId, 0))        AS totalClientes
+  FROM venda
+  WHERE empId = @empId
+    AND vedStatus = 'F'
+    AND vedTipo IN ('OS', 'VE')
+    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+
+const SQL_CUSTO = `
+  SELECT ISNULL(SUM(vi.vdiQtde * vi.vdiProCustoFinal), 0) AS custo
+  FROM vendaItem vi
+  JOIN venda v ON vi.vdiVedId = v.vedId
   WHERE v.empId = @empId
     AND v.vedStatus = 'F'
     AND v.vedTipo IN ('OS', 'VE')
+    AND vi.vdiCancel = 0
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
 
 const SQL_RECORRENCIA = `
@@ -424,7 +436,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
 
   // Acumuladores para multi-loja
-  let faturamento    = 0, totalVendas   = 0, custo    = 0, totalClientes  = 0;
+  let faturamento    = 0, totalVendas    = 0, custo    = 0, totalClientes = 0;
   let faturamentoAnt = 0, totalVendasAnt = 0, custoAnt = 0;
   let clientesNovos  = 0, clientesRecorrentes = 0;
   let qtdVendas = 0, qtdOs = 0, valorAbertoVe = 0, valorAbertoOs = 0;
@@ -451,6 +463,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const [
       kpiRows, kpiAntRows,
+      custoRows, custoAntRows,
       recorrenciaRows,
       veAbertoRows, osAbertoRows,
       metaRows,
@@ -462,6 +475,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     ] = await Promise.all([
       safe(queryBridge<KpiRow>(config, SQL_KPI, { ...ep, ...sp }), []),
       safe(queryBridge<KpiRow>(config, SQL_KPI, { ...ep, ...spa }), []),
+      safe(queryBridge<CustoRow>(config, SQL_CUSTO, { ...ep, ...sp }), []),
+      safe(queryBridge<CustoRow>(config, SQL_CUSTO, { ...ep, ...spa }), []),
       safe(queryBridge<RecorrenciaRow>(config, SQL_RECORRENCIA, { ...ep, ...sp }), []),
       safe(queryBridge<EmAbertoRow>(config, SQL_VE_ABERTO, ep), []),
       safe(queryBridge<EmAbertoRow>(config, SQL_OS_ABERTO, ep), []),
@@ -474,16 +489,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       safe(queryBridge<MaiorClienteRow>(config, SQL_MAIOR_CLIENTE, { ...ep, ...sp }), []),
     ]);
 
-    const kpi    = kpiRows[0]    ?? { faturamento: 0, totalVendas: 0, custo: 0, totalClientes: 0 };
-    const kpiAnt = kpiAntRows[0] ?? { faturamento: 0, totalVendas: 0, custo: 0, totalClientes: 0 };
+    const kpi    = kpiRows[0]    ?? { faturamento: 0, totalVendas: 0, totalClientes: 0 };
+    const kpiAnt = kpiAntRows[0] ?? { faturamento: 0, totalVendas: 0, totalClientes: 0 };
 
     faturamento     += Number(kpi.faturamento    ?? 0);
     totalVendas     += Number(kpi.totalVendas    ?? 0);
-    custo           += Number(kpi.custo          ?? 0);
+    custo           += Number(custoRows[0]?.custo    ?? 0);
     totalClientes   += Number(kpi.totalClientes  ?? 0);
     faturamentoAnt  += Number(kpiAnt.faturamento ?? 0);
     totalVendasAnt  += Number(kpiAnt.totalVendas ?? 0);
-    custoAnt        += Number(kpiAnt.custo       ?? 0);
+    custoAnt        += Number(custoAntRows[0]?.custo ?? 0);
 
     const recorrencia = recorrenciaRows[0] ?? { novos: 0, recorrentes: 0 };
     clientesNovos       += Number(recorrencia.novos       ?? 0);
@@ -622,6 +637,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       clientesNovos,
       clientesRecorrentes,
       totalVendas,
+      totalVendasAnt,
       vendasVar,
     },
     emAberto: {
