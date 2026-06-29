@@ -10,6 +10,7 @@ import { usePeriod, type Period } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 
 const PAGE_TITLES: Record<string, string> = {
+  "/home": "Visão Geral",
   "/dashboard": "Dashboard",
   "/dashboard/financeiro": "Financeiro",
   "/dashboard/clientes": "Clientes",
@@ -38,8 +39,9 @@ const DATE_INPUT_STYLE: React.CSSProperties = {
   outline: "none",
 };
 
-function toISODate(d: Date): string {
-  return d.toISOString().split("T")[0];
+// Usa timezone local do browser (evita bug UTC para BR UTC-3)
+function toLocalDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function formatShortDate(d: Date): string {
@@ -190,7 +192,7 @@ export function Header() {
     setMounted(true);
   }, []);
   const hoje = new Date();
-  const hojeStr = toISODate(hoje);
+  const hojeStr = toLocalDate(hoje);
   const [tempStart, setTempStart] = useState(hojeStr);
   const [tempEnd, setTempEnd] = useState(hojeStr);
 
@@ -199,14 +201,13 @@ export function Header() {
   // Label do pill "Personalizado": mostra intervalo quando ativo
   const customLabel =
     period === "custom" && customRange
-      ? `${formatShortDate(customRange.start)} - ${formatShortDate(customRange.end)}`
+      ? `${formatShortDate(customRange.start)} — ${formatShortDate(customRange.end)}`
       : "Personalizado";
 
   function openCustomPopover() {
-    // Preenche com intervalo existente ou hoje
     if (customRange) {
-      setTempStart(toISODate(customRange.start));
-      setTempEnd(toISODate(customRange.end));
+      setTempStart(toLocalDate(customRange.start));
+      setTempEnd(toLocalDate(customRange.end));
     } else {
       setTempStart(hojeStr);
       setTempEnd(hojeStr);
@@ -216,8 +217,9 @@ export function Header() {
 
   function handleApplyCustom() {
     if (!tempStart || !tempEnd) return;
-    const start = new Date(tempStart + "T00:00:00");
-    const end = new Date(tempEnd + "T23:59:59");
+    // Usar meio-dia para evitar que toISOString() mude a data em qualquer fuso
+    const start = new Date(tempStart + "T12:00:00");
+    const end   = new Date(tempEnd   + "T12:00:00");
     if (start > end) return;
     setCustomRange({ start, end });
     setPeriod("custom");
