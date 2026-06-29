@@ -259,21 +259,32 @@ const SQL_KPI = `
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
 
 const SQL_RECORRENCIA = `
-  WITH primeira_compra AS (
-    SELECT vedClienteId, MIN(CONVERT(date, vedFechamento)) AS dt
+  SELECT
+    SUM(CASE WHEN NOT EXISTS (
+      SELECT 1 FROM venda prev
+      WHERE prev.vedClienteId = v.vedClienteId
+        AND prev.empId        = @empId
+        AND prev.vedStatus    = 'F'
+        AND prev.vedTipo      IN ('OS','VE')
+        AND CONVERT(date, prev.vedFechamento) < @start
+        AND CONVERT(date, prev.vedFechamento) >= DATEADD(year, -10, @start)
+    ) THEN 1 ELSE 0 END) AS novos,
+    SUM(CASE WHEN EXISTS (
+      SELECT 1 FROM venda prev
+      WHERE prev.vedClienteId = v.vedClienteId
+        AND prev.empId        = @empId
+        AND prev.vedStatus    = 'F'
+        AND prev.vedTipo      IN ('OS','VE')
+        AND CONVERT(date, prev.vedFechamento) < @start
+        AND CONVERT(date, prev.vedFechamento) >= DATEADD(year, -10, @start)
+    ) THEN 1 ELSE 0 END) AS recorrentes
+  FROM (
+    SELECT DISTINCT vedClienteId
     FROM venda
     WHERE empId = @empId AND vedStatus = 'F' AND vedTipo IN ('OS','VE')
+      AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
       AND vedClienteId IS NOT NULL AND vedClienteId <> 0
-    GROUP BY vedClienteId
-  )
-  SELECT
-    SUM(CASE WHEN pc.dt >= @start THEN 1 ELSE 0 END) AS novos,
-    SUM(CASE WHEN pc.dt <  @start THEN 1 ELSE 0 END) AS recorrentes
-  FROM venda v
-  JOIN primeira_compra pc ON pc.vedClienteId = v.vedClienteId
-  WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
-    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-    AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0`;
+  ) v`;
 
 const SQL_VE_ABERTO = `
   SELECT COUNT(DISTINCT v.vedId) AS qtd,
@@ -326,7 +337,7 @@ const SQL_FORMA_PRINCIPAL = `
     pgtTipoDesc AS forma,
     SUM(pgtValor) AS total
   FROM vendaPgto vp
-  JOIN venda v ON vp.pgtVedId = v.vedId
+  JOIN venda v ON vp.pgtVendaId = v.vedId
   WHERE v.empId = @empId AND v.vedStatus = 'F'
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
   GROUP BY pgtTipoDesc
@@ -335,7 +346,7 @@ const SQL_FORMA_PRINCIPAL = `
 const SQL_TOTAL_PAGTO = `
   SELECT ISNULL(SUM(pgtValor), 0) AS totalGeral
   FROM vendaPgto vp
-  JOIN venda v ON vp.pgtVedId = v.vedId
+  JOIN venda v ON vp.pgtVendaId = v.vedId
   WHERE v.empId = @empId AND v.vedStatus = 'F'
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
 
@@ -351,16 +362,16 @@ const SQL_PERFIL = `
 
 const SQL_TOP_PRODUTOS = `
   SELECT TOP 3
-    p.proDesc AS nome,
-    ISNULL(SUM(vi.vdiValor), 0) AS valor,
-    ISNULL(SUM(vi.vdiQtde), 0)  AS qtde
+    vi.vdiProNome                              AS nome,
+    ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0)  AS valor,
+    ISNULL(SUM(vi.vdiQtde), 0)                AS qtde
   FROM vendaItem vi
-  JOIN venda v ON v.vedId = vi.vdiVedId
-  JOIN produto p ON p.proId = vi.vdiProId
+  JOIN venda v ON vi.vdiVedId = v.vedId
   WHERE vi.vdiCancel = 0 AND v.vedStatus = 'F'
+    AND v.vedTipo IN ('OS','VE')
     AND v.empId = @empId
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-  GROUP BY p.proId, p.proDesc
+  GROUP BY vi.vdiProNome
   ORDER BY valor DESC`;
 
 const SQL_MAIOR_CLIENTE = `
