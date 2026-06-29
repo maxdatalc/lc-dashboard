@@ -27,7 +27,7 @@ export interface ComissaoRow {
   TipoPrazoOrigem: number | null;
 }
 
-function buildQuery(vendedorClause: string): string {
+function buildQuery(vendedorWhereClause: string): string {
   return `
     WITH Recebimentos AS (
       SELECT
@@ -46,7 +46,6 @@ function buildQuery(vendedorClause: string): string {
       WHERE p.pgtPago = 'S'
         AND p.empId = @empId
         AND CONVERT(date, p.pgtDataQuitou) BETWEEN @start AND @end
-        ${vendedorClause}
     ),
 
     Arvore AS (
@@ -124,7 +123,7 @@ function buildQuery(vendedorClause: string): string {
       v.vedId AS VendaId,
       v.vedTipo AS TipoVenda,
       ISNULL(rec.pgtTipoOpr, '') AS TipoRecebimento,
-      rec.pgtAtendente AS VendedorId,
+      v.vedAtendente AS VendedorId,
       cli.cliNome AS NomeVendedor,
       rec.pgtDataQuitou AS DataPagamento,
       ROUND(rt.ValorVenda, 2) AS ValorVendaOrigem,
@@ -220,6 +219,7 @@ function buildQuery(vendedorClause: string): string {
       END AS AliqPct
     ) AliqComissao
 
+    ${vendedorWhereClause}
     ORDER BY rec.pgtDataQuitou, rec.pgtId, v.vedId
 
     OPTION (MAXRECURSION 100)
@@ -251,19 +251,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Bridge não configurada" }, { status: 503 });
 
   const vendedorParams: Record<string, number> = {};
-  let vendedorClause = "";
+  let vendedorWhereClause = "";
   if (vendedorIds.length > 0) {
     const placeholders = vendedorIds.map((id, i) => {
       vendedorParams[`vid${i}`] = id;
       return `@vid${i}`;
     });
-    vendedorClause = `AND p.pgtAtendente IN (${placeholders.join(", ")})`;
+    vendedorWhereClause = `WHERE v.vedAtendente IN (${placeholders.join(", ")})`;
   }
 
   try {
     const rows = await queryBridge<ComissaoRow>(
       config,
-      buildQuery(vendedorClause),
+      buildQuery(vendedorWhereClause),
       { empId: config.empId, start, end, ...vendedorParams }
     );
     return NextResponse.json({ rows });
