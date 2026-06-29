@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   ShoppingCart,
   Landmark,
   Users,
   Package,
-  ClipboardList,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -16,9 +15,9 @@ import {
 } from "lucide-react";
 import { useLoja } from "@/lib/contexts/loja-context";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
+import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { ModuleCard } from "@/components/home/ModuleCard";
 import { UpgradeModal } from "@/components/home/UpgradeModal";
-import { ThemeToggle } from "@/components/theme-toggle";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -30,8 +29,8 @@ function formatHHMM(date: Date): string {
   return date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function getMesAtual(): string {
-  return new Date().toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+function toLocalStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // ─── Tipos da API ─────────────────────────────────────────────────────────────
@@ -42,12 +41,15 @@ interface HomeSummaryResponse {
     faturamento: number;
     faturamentoVar: number | null;
     lucroLiquido: number;
+    lucroVar: number | null;
     margemLucro: number;
     ticketMedio: number;
+    ticketMedioVar: number | null;
     totalClientes: number;
     clientesNovos: number;
     clientesRecorrentes: number;
     totalVendas: number;
+    vendasVar: number | null;
   };
   emAberto: { qtd: number; valorTotal: number; qtdOs: number; qtdVendas: number };
   meta: {
@@ -90,7 +92,7 @@ interface HomeSummaryResponse {
   rankingVendedores: Array<{ nome: string; valor: number; percent: number }>;
 }
 
-// ─── Skeleton premium ─────────────────────────────────────────────────────────
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
 
 function Sk({ w, h = 10 }: { w: string | number; h?: number }) {
   return (
@@ -115,16 +117,6 @@ function SkCard({ children, style }: { children: React.ReactNode; style?: React.
 function HomeSkeleton() {
   return (
     <div className="flex flex-col gap-6 p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex flex-col gap-2">
-          <Sk w={200} h={22} />
-          <Sk w={140} h={12} />
-        </div>
-        <Sk w={90} h={32} />
-      </div>
-
-      {/* KPI Bar — 5 cards */}
       <div className="flex gap-4">
         {Array.from({ length: 5 }).map((_, i) => (
           <SkCard key={i} style={{ flex: 1, padding: "20px", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -137,8 +129,6 @@ function HomeSkeleton() {
           </SkCard>
         ))}
       </div>
-
-      {/* Info Row — 4 cards */}
       <div className="flex gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <SkCard key={i} style={{ flex: 1, padding: "16px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -152,8 +142,6 @@ function HomeSkeleton() {
           </SkCard>
         ))}
       </div>
-
-      {/* Module Grid 2x2 */}
       <div className="grid grid-cols-2 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <SkCard key={i} style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -180,8 +168,6 @@ function HomeSkeleton() {
           </SkCard>
         ))}
       </div>
-
-      {/* Ranking */}
       <SkCard style={{ padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
         <Sk w={170} h={16} />
         {Array.from({ length: 5 }).map((_, i) => (
@@ -232,7 +218,7 @@ interface KpiCardProps {
 
 function KpiCard({ label, value, subvalue, subvalue2, changePercent, icon: Icon, accentColor = "#22c55e" }: KpiCardProps) {
   const isPositive = changePercent !== null && changePercent !== undefined && changePercent >= 0;
-  const hasChange = changePercent !== null && changePercent !== undefined;
+  const hasChange  = changePercent !== null && changePercent !== undefined;
 
   return (
     <div
@@ -352,7 +338,7 @@ function RankingCard({ ranking }: { ranking: Array<{ nome: string; valor: number
       </p>
       <div className="flex flex-col gap-3">
         {ranking.slice(0, 5).map((vendedor, i) => {
-          const pct = top > 0 ? (vendedor.valor / top) * 100 : 0;
+          const pct   = top > 0 ? (vendedor.valor / top) * 100 : 0;
           const color = RANKING_COLORS[i] ?? "#f59e0b";
           return (
             <div key={i} className="flex items-center gap-3">
@@ -397,12 +383,14 @@ function RankingCard({ ranking }: { ranking: Array<{ nome: string; valor: number
 // ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function HomePage() {
-  const { selectedLojaId } = useLoja();
+  const { selectedLojaId, lojasDisponiveis, lojasSelecionadas } = useLoja();
+  const { period, customRange } = usePeriod();
   const { hasFeature } = useEmpresa();
 
   const [data, setData] = useState<HomeSummaryResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<string>("");
+  const hasLoadedOnce = useRef(false);
 
   const [upgradeModal, setUpgradeModal] = useState<{
     open: boolean;
@@ -410,35 +398,66 @@ export default function HomePage() {
     title: string;
   }>({ open: false, featureKey: "", title: "" });
 
-  useEffect(() => {
-    if (!selectedLojaId) {
-      setLoading(false);
+  // Mesma lógica de lojaIds do dashboard
+  const lojaIds =
+    lojasSelecionadas.length > 0
+      ? lojasSelecionadas
+      : lojasDisponiveis.length > 0
+      ? lojasDisponiveis.map((l) => l.id)
+      : selectedLojaId
+      ? [selectedLojaId]
+      : [];
+
+  const fetchDados = useCallback(async () => {
+    if (lojaIds.length === 0) return;
+
+    if (!hasLoadedOnce.current) setLoading(true);
+
+    let start: string, end: string;
+    if (period === "custom" && customRange) {
+      start = toLocalStr(customRange.start);
+      end   = toLocalStr(customRange.end);
+    } else if (period === "custom") {
       return;
+    } else {
+      const range = computeRange(period);
+      start = range.start;
+      end   = range.end;
     }
-    setLoading(true);
-    fetch(`/api/home/summary?lojaId=${selectedLojaId}`)
-      .then((r) => r.json())
-      .then((d) => {
+
+    const params = new URLSearchParams({
+      lojaIds: lojaIds.join(","),
+      period,
+      start,
+      end,
+    });
+
+    try {
+      const res = await fetch(`/api/home/summary?${params}`);
+      if (res.ok) {
+        const d = await res.json();
         setData(d);
         setUpdatedAt(formatHHMM(new Date()));
-      })
-      .finally(() => setLoading(false));
-  }, [selectedLojaId]);
+      }
+    } finally {
+      setLoading(false);
+      hasLoadedOnce.current = true;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lojaIds.join(","), period, customRange]);
 
-  const openUpgrade = (featureKey: string, title: string) => {
-    setUpgradeModal({ open: true, featureKey, title });
-  };
+  useEffect(() => {
+    void fetchDados();
+  }, [fetchDados]);
 
-  const closeUpgrade = () => {
-    setUpgradeModal((prev) => ({ ...prev, open: false }));
-  };
+  const openUpgrade  = (featureKey: string, title: string) => setUpgradeModal({ open: true, featureKey, title });
+  const closeUpgrade = () => setUpgradeModal((prev) => ({ ...prev, open: false }));
 
-  if (!selectedLojaId) return <SemLoja />;
+  if (lojaIds.length === 0) return <SemLoja />;
   if (loading) return <HomeSkeleton />;
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      {/* Modal de upgrade */}
       <UpgradeModal
         isOpen={upgradeModal.open}
         onClose={closeUpgrade}
@@ -446,36 +465,16 @@ export default function HomePage() {
         moduleTitle={upgradeModal.title}
       />
 
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Visão geral da empresa
-          </h1>
-          {updatedAt && (
-            <p className="text-xs mt-1 flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
-              <span
-                className="inline-block rounded-full"
-                style={{ width: 7, height: 7, background: "#22c55e" }}
-              />
-              Atualizado às {updatedAt}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <div
-            className="px-3 py-1.5 rounded-lg text-xs font-medium"
-            style={{
-              background: "var(--bg-card)",
-              border: "1px solid var(--border-color)",
-              color: "var(--text-muted)",
-            }}
-          >
-            {getMesAtual()}
-          </div>
-        </div>
-      </div>
+      {/* Linha de status — atualização */}
+      {updatedAt && (
+        <p className="text-xs flex items-center gap-1.5 -mb-3" style={{ color: "var(--text-muted)" }}>
+          <span
+            className="inline-block rounded-full"
+            style={{ width: 7, height: 7, background: "#22c55e" }}
+          />
+          Atualizado às {updatedAt}
+        </p>
+      )}
 
       {/* KPI Bar */}
       {data && (
@@ -491,6 +490,7 @@ export default function HomePage() {
           <KpiCard
             label="Lucro Líquido"
             value={formatCurrency(data.kpis.lucroLiquido)}
+            changePercent={data.kpis.lucroVar}
             subvalue={`${data.kpis.margemLucro.toFixed(1)}% margem`}
             icon={Landmark}
             accentColor={data.kpis.margemLucro >= 0 ? "#22c55e" : "#ef4444"}
@@ -498,6 +498,7 @@ export default function HomePage() {
           <KpiCard
             label="Ticket Médio"
             value={formatCurrency(data.kpis.ticketMedio)}
+            changePercent={data.kpis.ticketMedioVar}
             icon={Receipt}
             accentColor="#3b82f6"
           />
@@ -510,10 +511,11 @@ export default function HomePage() {
             accentColor="#8b5cf6"
           />
           <KpiCard
-            label="Em Aberto"
-            value={String(data.emAberto.qtd)}
-            subvalue={`${formatCurrency(data.emAberto.valorTotal)} est.`}
-            icon={ClipboardList}
+            label="Vendas"
+            value={String(data.kpis.totalVendas)}
+            changePercent={data.kpis.vendasVar}
+            subvalue={`${formatCurrency(data.emAberto.valorTotal)} em aberto`}
+            icon={ShoppingCart}
             accentColor="#f59e0b"
           />
         </div>
@@ -523,7 +525,7 @@ export default function HomePage() {
       {data && (
         <div className="flex gap-4 flex-wrap">
           <InfoCard
-            label="Meta do Período"
+            label="Meta do Mês"
             value={formatCurrency(data.meta.valor)}
             subvalue={data.meta.percentAtingido !== null ? `${data.meta.percentAtingido.toFixed(0)}% atingida` : "Meta não definida"}
             subvalue2={data.meta.valor > 0 ? `${formatCurrency(Math.max(0, data.meta.valor - data.kpis.faturamento))} restante` : undefined}
@@ -567,7 +569,6 @@ export default function HomePage() {
       {/* Module Grid 2x2 */}
       {data && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Vendas */}
           <ModuleCard
             title="Vendas"
             subtitle="desempenho do período"
@@ -581,14 +582,8 @@ export default function HomePage() {
             progressLabel={data.modulos.vendas.metaPercent !== null ? `${data.modulos.vendas.metaPercent?.toFixed(0)}% atingida` : undefined}
             insight={data.modulos.vendas.insight}
             rows={[
-              {
-                label: "Faturamento",
-                value: formatCurrency(data.modulos.vendas.faturamento),
-              },
-              {
-                label: "Ticket médio",
-                value: formatCurrency(data.modulos.vendas.ticketMedio),
-              },
+              { label: "Faturamento", value: formatCurrency(data.modulos.vendas.faturamento) },
+              { label: "Ticket médio", value: formatCurrency(data.modulos.vendas.ticketMedio) },
               {
                 label: "Melhor vendedor",
                 value: data.modulos.vendas.melhorVendedor?.nome ?? "—",
@@ -596,15 +591,10 @@ export default function HomePage() {
                   ? formatCurrency(data.modulos.vendas.melhorVendedor.valor) + " faturados"
                   : undefined,
               },
-              {
-                label: "Tempo médio venda",
-                value: "—",
-                locked: true,
-              },
+              { label: "Tempo médio venda", value: "—", locked: true },
             ]}
           />
 
-          {/* Financeiro */}
           <ModuleCard
             title="Financeiro"
             subtitle="saúde financeira do período"
@@ -634,15 +624,10 @@ export default function HomePage() {
                 value: data.modulos.financeiro.formaPrincipalPagto ?? "—",
                 subvalue: data.modulos.financeiro.formaPrincipalPercent.toFixed(0) + "% das vendas",
               },
-              {
-                label: "Inadimplência",
-                value: "—",
-                locked: true,
-              },
+              { label: "Inadimplência", value: "—", locked: true },
             ]}
           />
 
-          {/* Clientes */}
           <ModuleCard
             title="Clientes"
             subtitle="base e fidelização"
@@ -682,7 +667,6 @@ export default function HomePage() {
             ]}
           />
 
-          {/* Produtos */}
           <ModuleCard
             title="Produtos"
             subtitle="mix e desempenho"
@@ -721,17 +705,12 @@ export default function HomePage() {
                   ? formatCurrency(data.modulos.produtos.topProdutos[2].valor)
                   : undefined,
               },
-              {
-                label: "Estoque crítico",
-                value: "—",
-                locked: true,
-              },
+              { label: "Estoque crítico", value: "—", locked: true },
             ]}
           />
         </div>
       )}
 
-      {/* Ranking de Faturamento */}
       {data && <RankingCard ranking={data.rankingVendedores} />}
     </div>
   );

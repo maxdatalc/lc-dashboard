@@ -132,10 +132,15 @@ export default function DashboardPage() {
       setChartsLoading(true);
     }
 
+    // Formata datas usando timezone local (evita rollover UTC para BR UTC-3)
+    function toLocalStr(d: Date) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
     let start: string, end: string;
     if (period === "custom" && customRange) {
-      start = customRange.start.toISOString().split("T")[0];
-      end = customRange.end.toISOString().split("T")[0];
+      start = toLocalStr(customRange.start);
+      end   = toLocalStr(customRange.end);
     } else if (period === "custom") {
       setKpiLoading(false);
       setChartsLoading(false);
