@@ -10,6 +10,7 @@ import { usePeriod, type Period } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
 
 const PAGE_TITLES: Record<string, string> = {
+  "/home": "Visão Geral",
   "/dashboard": "Dashboard",
   "/dashboard/financeiro": "Financeiro",
   "/dashboard/clientes": "Clientes",
