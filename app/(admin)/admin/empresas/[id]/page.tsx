@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Building2, ExternalLink, RefreshCw, Settings, Users, Users2, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, RefreshCw, Scale, Settings, Users, Users2, Zap } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
@@ -262,7 +262,7 @@ export default async function GerenciarEmpresaPage({
                           </div>
                         </label>
 
-                        {/* Link de configuração específica do módulo OS */}
+                        {/* Configuração do módulo O.S. */}
                         {f.key === "modulo_os" && ativo && (
                           <div className="mt-2 pl-4 border-l-2 border-blue-200">
                             <Link
@@ -272,6 +272,32 @@ export default async function GerenciarEmpresaPage({
                               <Settings className="h-3 w-3" />
                               Configurar inventários e tipos fiscais
                             </Link>
+                          </div>
+                        )}
+
+                        {/* Configuração do módulo Fiscal (SIEG) — um link por loja com Bridge */}
+                        {f.key === "modulo_fiscal" && ativo && (
+                          <div className="mt-2 pl-4 border-l-2 border-blue-200 space-y-1.5">
+                            <p className="text-xs text-slate-500 font-medium">Configurar credenciais SIEG por loja:</p>
+                            {tenant.lojas.filter((l) => l.sqlEnabled).length === 0 ? (
+                              <p className="text-xs text-amber-600">
+                                Nenhuma loja com Bridge SQL ativa. Configure a Bridge antes de habilitar o SIEG.
+                              </p>
+                            ) : (
+                              tenant.lojas
+                                .filter((l) => l.sqlEnabled)
+                                .map((l) => (
+                                  <div key={l.id}>
+                                    <Link
+                                      href={`/admin/empresas/${id}/lojas/${l.id}/sieg`}
+                                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                                    >
+                                      <Scale className="h-3 w-3" />
+                                      {l.name} — OAuth Token SIEG
+                                    </Link>
+                                  </div>
+                                ))
+                            )}
                           </div>
                         )}
                       </div>
