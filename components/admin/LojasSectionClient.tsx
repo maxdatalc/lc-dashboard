@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, Check, Loader2, Settings, Zap, Pencil, X, RefreshCw } from "lucide-react";
+import { Building2, Check, Loader2, Settings, Zap, Pencil, X, RefreshCw, Scale } from "lucide-react";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
 
 type Loja = {
@@ -298,6 +298,13 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                         >
                           <Zap className="h-3 w-3" />
                           MaxAPI
+                        </Link>
+                        <Link
+                          href={`/admin/empresas/${tenantId}/lojas/${loja.id}/sieg`}
+                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
+                        >
+                          <Scale className="h-3 w-3" />
+                          SIEG
                         </Link>
                         <button
                           onClick={() => setEditingId(loja.id)}

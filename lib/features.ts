@@ -23,6 +23,14 @@ export const FEATURES_CATALOG: Feature[] = [
 
   // ── Premium — módulos pagos ───────────────────────────────────────────────
   {
+    key: "modulo_fiscal",
+    label: "Fiscal — Transmissão de XMLs",
+    descricao: "Envio automático de NF-e e NFC-e para a plataforma SIEG, eliminando o trabalho manual de exportação para o contador",
+    categoria: "premium",
+    icone: "Scale",
+    disponivel: true,
+  },
+  {
     key: "modulo_os",
     label: "Ordens de Serviço",
     descricao: "Gestão de OS com controle fiscal de estoque integrado ao MaxManager",
