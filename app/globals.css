@@ -316,6 +316,97 @@ main, [data-page] {
   }
 }
 
+/* ── Painel Admin — "Centro de Comando LC" ──────────────────────────────── */
+/* Tokens escopados em .admin-shell. Respondem ao toggle de tema (.light/.dark
+   no <html> via next-themes). Default = dark. */
+.admin-shell {
+  --adm-bg: #0a0f1e;
+  --adm-surface: #111827;
+  --adm-surface-2: #161f33;
+  --adm-surface-3: #1d2840;
+  --adm-line: rgba(255, 255, 255, 0.07);
+  --adm-line-strong: rgba(255, 255, 255, 0.12);
+  --adm-text: #e8edf6;
+  --adm-text-dim: #8a97ad;
+  --adm-text-faint: #55647d;
+  --adm-accent: #00e5ff;
+  --adm-accent-soft: rgba(0, 229, 255, 0.12);
+  --adm-signal: #10b981;
+  --adm-signal-soft: rgba(16, 185, 129, 0.13);
+  --adm-alert: #f43f5e;
+  --adm-alert-soft: rgba(244, 63, 94, 0.13);
+  --adm-warn: #f59e0b;
+  --adm-warn-soft: rgba(245, 158, 11, 0.13);
+  --adm-shadow: 0 10px 34px rgba(0, 0, 0, 0.42);
+  --adm-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.3);
+
+  background: var(--adm-bg);
+  color: var(--adm-text);
+}
+
+.light .admin-shell {
+  --adm-bg: #eef2f7;
+  --adm-surface: #ffffff;
+  --adm-surface-2: #f5f8fc;
+  --adm-surface-3: #eef3f9;
+  --adm-line: #e5ebf2;
+  --adm-line-strong: #d3dce7;
+  --adm-text: #0f1b2d;
+  --adm-text-dim: #5a6b82;
+  --adm-text-faint: #97a4b6;
+  --adm-accent: #0e7490;
+  --adm-accent-soft: rgba(14, 116, 144, 0.10);
+  --adm-signal: #059669;
+  --adm-signal-soft: rgba(5, 150, 105, 0.10);
+  --adm-alert: #e11d48;
+  --adm-alert-soft: rgba(225, 29, 72, 0.08);
+  --adm-warn: #d97706;
+  --adm-warn-soft: rgba(217, 119, 6, 0.10);
+  --adm-shadow: 0 8px 28px rgba(15, 27, 45, 0.09);
+  --adm-shadow-sm: 0 3px 12px rgba(15, 27, 45, 0.06);
+}
+
+/* Numérico/dado em mono — personalidade de painel de instrumentos */
+.adm-mono { font-family: var(--font-numeric); font-feature-settings: "tnum"; }
+
+/* Linha/item com hover suave (server components não fazem hover inline) */
+.adm-row { transition: background-color 0.15s ease; }
+.adm-row:hover { background: var(--adm-surface-2); }
+
+/* Inputs/selects do admin */
+.adm-field {
+  background: var(--adm-surface);
+  border: 1px solid var(--adm-line-strong);
+  color: var(--adm-text);
+  border-radius: 0.5rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.adm-field::placeholder { color: var(--adm-text-faint); }
+.adm-field:focus {
+  outline: none;
+  border-color: var(--adm-accent);
+  box-shadow: 0 0 0 3px var(--adm-accent-soft);
+}
+.admin-shell option { background: var(--adm-surface); color: var(--adm-text); }
+
+/* Pulso de status — assinatura do painel */
+@keyframes adm-pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.55; }
+  70%  { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.adm-pulse-ring { animation: adm-pulse-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+
+@keyframes adm-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.adm-rise { animation: adm-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-pulse-ring, .adm-rise { animation: none !important; }
+}
+
 /* ── Scrollbar customizada ──────────────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 6px;

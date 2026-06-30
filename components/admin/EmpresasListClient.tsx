@@ -46,34 +46,45 @@ export function EmpresasListClient({
     <div className="space-y-4">
       {/* Busca */}
       <div
-        className="relative"
-        style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "50ms" }}
+        className="adm-rise relative"
+        style={{ animationDelay: "50ms" }}
       >
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+        <Search
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+          style={{ color: "var(--adm-text-faint)" }}
+        />
         <input
           type="text"
           placeholder="Buscar por nome ou slug…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/8 focus:border-slate-400 transition-all"
+          className="adm-field w-full py-2.5 pl-10 pr-4 text-sm"
         />
       </div>
 
       {/* Tabela */}
       <div
-        className="overflow-x-auto rounded-xl border border-slate-200 bg-white"
-        style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "80ms" }}
+        className="adm-rise overflow-x-auto rounded-xl"
+        style={{
+          animationDelay: "80ms",
+          background: "var(--adm-surface)",
+          border: "1px solid var(--adm-line)",
+          boxShadow: "var(--adm-shadow-sm)",
+        }}
       >
         {filtered.length === 0 ? (
           <div className="py-20 text-center">
-            <Building2 className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-            <p className="font-medium text-slate-500 text-sm">
+            <Building2
+              className="mx-auto mb-3 h-10 w-10"
+              style={{ color: "var(--adm-text-faint)" }}
+            />
+            <p className="text-sm font-medium" style={{ color: "var(--adm-text-dim)" }}>
               {busca
                 ? <>Nenhuma empresa encontrada para &ldquo;{busca}&rdquo;</>
                 : "Nenhuma empresa cadastrada"}
             </p>
             {!busca && isAdmin && (
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="mt-1 text-xs" style={{ color: "var(--adm-text-faint)" }}>
                 Clique em &ldquo;+ Novo Grupo&rdquo; para começar.
               </p>
             )}
@@ -82,12 +93,13 @@ export function EmpresasListClient({
           <>
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100">
+                <tr style={{ borderBottom: "1px solid var(--adm-line)" }}>
                   {["Empresa", "Lojas / Usuários", "Plano", "Cadastrado em", ""].map(
                     (col) => (
                       <th
                         key={col}
-                        className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
+                        className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider"
+                        style={{ color: "var(--adm-text-faint)" }}
                       >
                         {col}
                       </th>
@@ -95,13 +107,13 @@ export function EmpresasListClient({
                   )}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody>
                 {filtered.map((t, i) => (
                   <tr
                     key={t.id}
-                    className="group hover:bg-slate-50/60 transition-colors"
+                    className="adm-rise adm-row group"
                     style={{
-                      animation: "fadeInUp 0.3s ease-out both",
+                      borderTop: i === 0 ? "none" : "1px solid var(--adm-line)",
                       animationDelay: `${i * 28}ms`,
                     }}
                   >
@@ -109,17 +121,24 @@ export function EmpresasListClient({
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <span
-                          className={`inline-block h-2 w-2 rounded-full shrink-0 transition-colors ${
-                            t.isActive ? "bg-emerald-400" : "bg-slate-300"
-                          }`}
+                          className="inline-block h-2 w-2 shrink-0 rounded-full"
+                          style={{
+                            background: t.isActive ? "var(--adm-signal)" : "var(--adm-text-faint)",
+                          }}
                           title={t.isActive ? "Ativa" : "Inativa"}
                         />
                         <div>
-                          <div className="font-semibold text-slate-900 leading-tight">
+                          <div
+                            className="font-semibold leading-tight"
+                            style={{ color: "var(--adm-text)" }}
+                          >
                             {t.name}
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-xs text-slate-400 font-mono">{t.slug}</span>
+                          <div
+                            className="adm-mono mt-0.5 text-xs"
+                            style={{ color: "var(--adm-text-faint)" }}
+                          >
+                            {t.slug}
                           </div>
                         </div>
                       </div>
@@ -128,15 +147,21 @@ export function EmpresasListClient({
                     {/* Lojas / Usuários */}
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-4">
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Building2 className="h-3.5 w-3.5 text-slate-400" />
-                          <span className="font-semibold text-slate-700">
+                        <span
+                          className="flex items-center gap-1.5 text-xs"
+                          style={{ color: "var(--adm-text-dim)" }}
+                        >
+                          <Building2 className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
+                          <span className="adm-mono font-semibold" style={{ color: "var(--adm-text)" }}>
                             {t.lojas.length}
                           </span>
                         </span>
-                        <span className="flex items-center gap-1.5 text-xs text-slate-500">
-                          <Users className="h-3.5 w-3.5 text-slate-400" />
-                          <span className="font-semibold text-slate-700">
+                        <span
+                          className="flex items-center gap-1.5 text-xs"
+                          style={{ color: "var(--adm-text-dim)" }}
+                        >
+                          <Users className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
+                          <span className="adm-mono font-semibold" style={{ color: "var(--adm-text)" }}>
                             {t.totalUsuarios}
                           </span>
                         </span>
@@ -146,32 +171,46 @@ export function EmpresasListClient({
                     {/* Plano */}
                     <td className="px-5 py-4">
                       {t.plan === "premium" ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        <span
+                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
+                          style={{ background: "var(--adm-warn-soft)", color: "var(--adm-warn)" }}
+                        >
                           ★ Premium
                         </span>
                       ) : (
-                        <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500">
+                        <span
+                          className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
+                          style={{ background: "var(--adm-surface-2)", color: "var(--adm-text-dim)" }}
+                        >
                           Free
                         </span>
                       )}
                     </td>
 
                     {/* Criado em */}
-                    <td className="px-5 py-4 text-xs text-slate-400">
+                    <td
+                      className="adm-mono px-5 py-4 text-xs"
+                      style={{ color: "var(--adm-text-faint)" }}
+                    >
                       {formatarData(t.createdAt)}
                     </td>
 
                     {/* Ações */}
                     <td className="px-5 py-4">
-                      <div className="flex items-center gap-2 justify-end">
+                      <div className="flex items-center justify-end gap-2">
                         {/* Dashboard — só admin */}
                         {isAdmin && acessarDashboard && (
-                          <form action={acessarDashboard} className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <form action={acessarDashboard} className="opacity-0 transition-opacity group-hover:opacity-100">
                             <input type="hidden" name="tenantId" value={t.id} />
                             <button
                               type="submit"
                               title={`Acessar dashboard de ${t.name}`}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 border border-slate-200 bg-white hover:bg-slate-50 hover:border-slate-300 transition-all"
+                              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
+                              style={{
+                                color: "var(--adm-text-dim)",
+                                border: "1px solid var(--adm-line-strong)",
+                                background: "var(--adm-surface-2)",
+                              }}
                             >
                               <LayoutDashboard className="h-3.5 w-3.5" />
                               Dashboard
@@ -181,7 +220,7 @@ export function EmpresasListClient({
 
                         {/* Excluir — só admin */}
                         {isAdmin && (
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="opacity-0 transition-opacity group-hover:opacity-100">
                             <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
                           </div>
                         )}
@@ -189,7 +228,8 @@ export function EmpresasListClient({
                         {/* Gerenciar — todos podem ver */}
                         <Link
                           href={`/admin/empresas/${t.id}`}
-                          className="inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-slate-900 text-white transition-all hover:bg-slate-700 hover:shadow-md hover:-translate-y-px"
+                          className="inline-flex items-center gap-1 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all"
+                          style={{ background: "var(--adm-accent)", color: "#04121a" }}
                         >
                           {isAdmin ? "Gerenciar →" : "Ver detalhes →"}
                         </Link>
@@ -201,7 +241,10 @@ export function EmpresasListClient({
             </table>
 
             {busca && (
-              <div className="px-5 py-2.5 border-t border-slate-50 text-xs text-slate-400">
+              <div
+                className="px-5 py-2.5 text-xs"
+                style={{ borderTop: "1px solid var(--adm-line)", color: "var(--adm-text-faint)" }}
+              >
                 {filtered.length} de {tenants.length}{" "}
                 {tenants.length === 1 ? "empresa" : "empresas"}
               </div>
