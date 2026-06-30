@@ -88,7 +88,7 @@ export async function login(formData: FormData): Promise<{ error?: string }> {
 
   // Single tenant: entra direto
   await setTenantCookies(tenants[0].id);
-  redirect("/dashboard");
+  redirect("/home");
 }
 
 // ── Selecionar empresa (na tela de seleção — usuários regulares) ─────────────
@@ -112,7 +112,7 @@ export async function selecionarEmpresa(formData: FormData): Promise<void> {
   if (!acesso) redirect("/selecionar-empresa");
 
   await setTenantCookies(tenantId);
-  redirect("/dashboard");
+  redirect("/home");
 }
 
 // ── Selecionar empresa como admin (sem verificar tenant_users) ────────────────
@@ -137,7 +137,7 @@ export async function selecionarEmpresaAdmin(formData: FormData): Promise<void> 
   }
 
   await setTenantCookies(tenantId);
-  redirect("/dashboard");
+  redirect("/home");
 }
 
 async function setTenantCookies(tenantId: string): Promise<void> {
@@ -215,5 +215,5 @@ export async function definirSenhaPermanente(novaSenha: string): Promise<{ error
 
   // Single tenant: entra direto
   await setTenantCookies(tenants[0].id);
-  redirect("/dashboard");
+  redirect("/home");
 }

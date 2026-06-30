@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
 
   if (pathname === "/primeiro-acesso") {
     if (!user) return NextResponse.redirect(new URL("/login", request.url));
-    if (!mustChangePassword) return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (!mustChangePassword) return NextResponse.redirect(new URL("/home", request.url));
     return supabaseResponse;
   }
 
@@ -52,7 +52,7 @@ export async function middleware(request: NextRequest) {
       if (pathname === "/") {
         return NextResponse.redirect(new URL("/admin", request.url));
       }
-      if (pathname.startsWith("/dashboard")) {
+      if (pathname.startsWith("/dashboard") || pathname.startsWith("/home")) {
         return NextResponse.redirect(new URL("/admin", request.url));
       }
     } else {
@@ -64,7 +64,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── 2. Rotas protegidas — exigem sessão ───────────────────────────────────
-  if ((pathname.startsWith("/dashboard") || pathname.startsWith("/admin")) && !user) {
+  const isProtected =
+    pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/home") ||
+    pathname.startsWith("/os") ||
+    pathname.startsWith("/relatorios");
+  if (isProtected && !user) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
@@ -92,8 +98,8 @@ export async function middleware(request: NextRequest) {
     const hasTenantCookie = !!request.cookies.get("selected_tenant_id")?.value;
     if (hasTenantCookie) {
       return IS_DEV
-        ? NextResponse.redirect(new URL("/dashboard", request.url))
-        : NextResponse.redirect(`${APP_URL}/dashboard`);
+        ? NextResponse.redirect(new URL("/home", request.url))
+        : NextResponse.redirect(`${APP_URL}/home`);
     }
 
     // Sem empresa selecionada: vai para tela de seleção
