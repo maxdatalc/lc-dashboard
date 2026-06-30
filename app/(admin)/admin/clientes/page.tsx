@@ -13,35 +13,37 @@ import {
   getClientesBaseStats,
   getTenantsFiltro,
 } from "@/lib/db/clientes-base";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminButton } from "@/components/admin/AdminButton";
 
-// ── Cores por segmento ─────────────────────────────────────────────────────────
+// ── Matiz por segmento (funciona em ambos os temas: matiz + fundo translúcido) ──
 
-const SEGMENTO_CORES: Record<string, { border: string; bg: string; text: string }> = {
-  "AUTO CENTER / AUTO P": { border: "#3b82f6", bg: "#dbeafe", text: "#1e40af" },
-  "MATERIAIS DE CONSTRU": { border: "#f59e0b", bg: "#fef3c7", text: "#92400e" },
-  "SERVIÇOS":             { border: "#94a3b8", bg: "#f1f5f9", text: "#475569" },
-  "DISTRIBUIDORAS / ATA": { border: "#8b5cf6", bg: "#ede9fe", text: "#5b21b6" },
-  "VAREJO - GERAL":       { border: "#14b8a6", bg: "#ccfbf1", text: "#134e4a" },
-  "INDUSTRIA":            { border: "#f97316", bg: "#ffedd5", text: "#9a3412" },
-  "CONFECÇÃO / CALÇADOS": { border: "#ec4899", bg: "#fce7f3", text: "#831843" },
-  "RESTAURANTE / ALIMEN": { border: "#22c55e", bg: "#dcfce7", text: "#14532d" },
-  "FERRAGISTA / PARAFUS": { border: "#eab308", bg: "#fef9c3", text: "#713f12" },
-  "AGROPECUARIA":         { border: "#84cc16", bg: "#ecfccb", text: "#365314" },
-  "SUPERMERCADO / CONVE": { border: "#10b981", bg: "#d1fae5", text: "#064e3b" },
-  "INFORMATICA / ELETRO": { border: "#6366f1", bg: "#e0e7ff", text: "#3730a3" },
-  "POSTO DE COMBUSTIVEL": { border: "#ef4444", bg: "#fee2e2", text: "#991b1b" },
-  "HOSPITALAR / DENTAL":  { border: "#06b6d4", bg: "#cffafe", text: "#164e63" },
-  "VETERINARIA":          { border: "#a855f7", bg: "#f3e8ff", text: "#6b21a8" },
-  "COSMETICOS":           { border: "#d946ef", bg: "#fdf4ff", text: "#86198f" },
-  "OTICA":                { border: "#0ea5e9", bg: "#e0f2fe", text: "#0c4a6e" },
-  "GÃS DISTIBUIDOR / DE": { border: "#f97316", bg: "#fff7ed", text: "#9a3412" },
-  "ULTILIDADES":          { border: "#64748b", bg: "#f8fafc", text: "#334155" },
-  "PAPELARIA / CINE FOT": { border: "#ca8a04", bg: "#fefce8", text: "#a16207" },
+const SEGMENTO_HUE: Record<string, string> = {
+  "AUTO CENTER / AUTO P": "#3b82f6",
+  "MATERIAIS DE CONSTRU": "#f59e0b",
+  "SERVIÇOS":             "#94a3b8",
+  "DISTRIBUIDORAS / ATA": "#8b5cf6",
+  "VAREJO - GERAL":       "#14b8a6",
+  "INDUSTRIA":            "#f97316",
+  "CONFECÇÃO / CALÇADOS": "#ec4899",
+  "RESTAURANTE / ALIMEN": "#22c55e",
+  "FERRAGISTA / PARAFUS": "#eab308",
+  "AGROPECUARIA":         "#84cc16",
+  "SUPERMERCADO / CONVE": "#10b981",
+  "INFORMATICA / ELETRO": "#6366f1",
+  "POSTO DE COMBUSTIVEL": "#ef4444",
+  "HOSPITALAR / DENTAL":  "#06b6d4",
+  "VETERINARIA":          "#a855f7",
+  "COSMETICOS":           "#d946ef",
+  "OTICA":                "#0ea5e9",
+  "GÃS DISTIBUIDOR / DE": "#f97316",
+  "ULTILIDADES":          "#64748b",
+  "PAPELARIA / CINE FOT": "#ca8a04",
 };
 
-function getSegmentoCor(seg: string | null) {
-  if (!seg) return { border: "#e2e8f0", bg: "#f8fafc", text: "#64748b" };
-  return SEGMENTO_CORES[seg] ?? { border: "#e2e8f0", bg: "#f8fafc", text: "#64748b" };
+function getSegmentoHue(seg: string | null): string {
+  if (!seg) return "#94a3b8";
+  return SEGMENTO_HUE[seg] ?? "#94a3b8";
 }
 
 // ── Grid ───────────────────────────────────────────────────────────────────────
@@ -103,97 +105,76 @@ export default async function ClientesAdminPage({
   const hasFilter = !!(q || segmento || cidade || status || grupo);
 
   return (
-    <div className="p-6 space-y-5" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+    <div className="p-6 space-y-5">
 
-      {/* Cabeçalho */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">Base de Clientes</h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            {stats.total} registros · {stats.segmentos} segmentos · {stats.cidades} cidades
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {isAdmin && (
-            <Link
-              href="/admin/empresas/novo"
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-            >
-              + Novo Grupo
-            </Link>
-          )}
-          {isAdmin && (
-            <Link
-              href="/admin/clientes/importar"
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 transition-colors"
-            >
-              <Upload className="h-4 w-4" />
-              Importar arquivo
-            </Link>
-          )}
-        </div>
-      </div>
+      <AdminPageHeader
+        eyebrow="Operação"
+        title="Base de Clientes"
+        subtitle={`${stats.total} registros · ${stats.segmentos} segmentos · ${stats.cidades} cidades`}
+        actions={
+          isAdmin && (
+            <>
+              <AdminButton href="/admin/empresas/novo" variant="secondary">
+                + Novo Grupo
+              </AdminButton>
+              <AdminButton href="/admin/clientes/importar" variant="primary">
+                <Upload className="h-4 w-4" />
+                Importar arquivo
+              </AdminButton>
+            </>
+          )
+        }
+      />
 
       {/* Filtros */}
-      <form method="GET" action="/admin/clientes" className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+      <form method="GET" action="/admin/clientes" className="adm-rise flex flex-wrap gap-3" style={{ animationDelay: "60ms" }}>
+        <div className="relative min-w-48 flex-1">
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+            style={{ color: "var(--adm-text-faint)" }}
+          />
           <input
             name="q"
             defaultValue={q}
             placeholder="Buscar por nome, CNPJ ou código..."
-            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400"
+            className="adm-field w-full py-2 pl-9 pr-3 text-sm"
           />
         </div>
-        <select
-          name="grupo"
-          defaultValue={grupo}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-        >
+        <select name="grupo" defaultValue={grupo} className="adm-field px-3 py-2 text-sm">
           <option value="">Todos os grupos</option>
           {tenants.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
           ))}
         </select>
-        <select
-          name="segmento"
-          defaultValue={segmento}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-        >
+        <select name="segmento" defaultValue={segmento} className="adm-field px-3 py-2 text-sm">
           <option value="">Todos os segmentos</option>
           {segmentos.map((s) => (
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
-        <select
-          name="cidade"
-          defaultValue={cidade}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-        >
+        <select name="cidade" defaultValue={cidade} className="adm-field px-3 py-2 text-sm">
           <option value="">Todas as cidades</option>
           {cidades.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
-        <select
-          name="status"
-          defaultValue={status}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
-        >
+        <select name="status" defaultValue={status} className="adm-field px-3 py-2 text-sm">
           <option value="">Todos os status</option>
           <option value="cadastrados">Cadastrados</option>
           <option value="pendentes">Pendentes</option>
         </select>
         <button
           type="submit"
-          className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-700 transition-colors"
+          className="rounded-lg px-4 py-2 text-sm font-semibold transition-all"
+          style={{ background: "var(--adm-accent)", color: "#04121a" }}
         >
           Filtrar
         </button>
         {hasFilter && (
           <Link
             href="/admin/clientes"
-            className="px-3 py-2 text-sm text-slate-500 hover:text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            className="rounded-lg px-3 py-2 text-sm transition-colors"
+            style={{ color: "var(--adm-text-dim)", border: "1px solid var(--adm-line-strong)" }}
           >
             Limpar
           </Link>
@@ -202,15 +183,19 @@ export default async function ClientesAdminPage({
 
       {/* Lista */}
       {clientes.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 py-16 text-center">
-          <Building2 className="h-9 w-9 text-slate-200 mx-auto mb-3" />
+        <div
+          className="rounded-xl py-16 text-center"
+          style={{ border: "1px dashed var(--adm-line-strong)" }}
+        >
+          <Building2 className="mx-auto mb-3 h-9 w-9" style={{ color: "var(--adm-text-faint)" }} />
           {stats.total === 0 ? (
             <>
-              <p className="text-sm font-medium text-slate-600">Nenhum cliente importado ainda</p>
-              <p className="text-xs text-slate-400 mt-1.5">Importe um arquivo XLSX para começar</p>
+              <p className="text-sm font-medium" style={{ color: "var(--adm-text-dim)" }}>Nenhum cliente importado ainda</p>
+              <p className="mt-1.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>Importe um arquivo XLSX para começar</p>
               <Link
                 href="/admin/clientes/importar"
-                className="inline-flex items-center gap-2 mt-4 text-xs font-medium text-slate-700 border border-slate-200 px-4 py-2 rounded-lg hover:bg-slate-50"
+                className="mt-4 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium"
+                style={{ color: "var(--adm-text)", border: "1px solid var(--adm-line-strong)", background: "var(--adm-surface-2)" }}
               >
                 <Upload className="h-3.5 w-3.5" />
                 Importar arquivo
@@ -218,20 +203,23 @@ export default async function ClientesAdminPage({
             </>
           ) : (
             <>
-              <p className="text-sm font-medium text-slate-600">Nenhum resultado para os filtros aplicados</p>
-              <Link href="/admin/clientes" className="mt-3 inline-block text-xs text-slate-500 hover:text-slate-700 underline">
+              <p className="text-sm font-medium" style={{ color: "var(--adm-text-dim)" }}>Nenhum resultado para os filtros aplicados</p>
+              <Link href="/admin/clientes" className="mt-3 inline-block text-xs underline" style={{ color: "var(--adm-accent)" }}>
                 Limpar filtros
               </Link>
             </>
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div
+          className="adm-rise overflow-hidden rounded-xl"
+          style={{ animationDelay: "90ms", background: "var(--adm-surface)", border: "1px solid var(--adm-line)", boxShadow: "var(--adm-shadow-sm)" }}
+        >
 
           {/* Cabeçalho da tabela */}
           <div
-            className="hidden sm:grid text-xs font-semibold text-slate-400 uppercase tracking-wider px-4 py-2.5"
-            style={{ gridTemplateColumns: GRID, borderBottom: "1px solid #f1f5f9" }}
+            className="hidden px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider sm:grid"
+            style={{ gridTemplateColumns: GRID, borderBottom: "1px solid var(--adm-line)", color: "var(--adm-text-faint)" }}
           >
             <span>Código</span>
             <span>Empresa</span>
@@ -243,32 +231,33 @@ export default async function ClientesAdminPage({
           </div>
 
           {/* Linhas */}
-          <div className="divide-y divide-slate-50">
-            {clientes.map((cliente) => {
-              const cor = getSegmentoCor(cliente.segmento);
+          <div>
+            {clientes.map((cliente, idx) => {
+              const hue = getSegmentoHue(cliente.segmento);
               const cadastrado = !!cliente.tenant_id;
               const nomeGrupo = cliente.tenant_id ? tenantMap.get(cliente.tenant_id) : null;
               return (
                 <Link
                   key={cliente.id}
                   href={`/admin/clientes/${cliente.id}`}
-                  className="group hidden sm:grid items-center px-4 py-3 hover:bg-slate-50 transition-colors"
+                  className="adm-row group hidden items-center px-4 py-3 sm:grid"
                   style={{
                     gridTemplateColumns: GRID,
-                    borderLeft: `3px solid ${cadastrado ? "#10b981" : cor.border}`,
+                    borderTop: idx === 0 ? "none" : "1px solid var(--adm-line)",
+                    borderLeft: `3px solid ${cadastrado ? "var(--adm-signal)" : hue}`,
                   }}
                 >
                   {/* Código */}
-                  <span className="text-xs font-mono text-slate-400">
+                  <span className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     {cliente.codigo_externo ?? "—"}
                   </span>
 
                   {/* Nome */}
                   <div className="min-w-0 pr-4">
-                    <p className="text-sm font-semibold text-slate-900 truncate group-hover:text-slate-700">
+                    <p className="truncate text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
                       {cliente.nome_fantasia || cliente.razao_social}
                     </p>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">
+                    <p className="adm-mono mt-0.5 truncate text-xs" style={{ color: "var(--adm-text-faint)" }}>
                       {cliente.cnpj_cpf || cliente.razao_social}
                     </p>
                   </div>
@@ -277,42 +266,48 @@ export default async function ClientesAdminPage({
                   <div className="flex items-center pr-3">
                     {cliente.segmento ? (
                       <span
-                        className="inline-block text-xs font-medium px-2 py-0.5 rounded-full truncate max-w-full"
-                        style={{ background: cor.bg, color: cor.text }}
+                        className="inline-block max-w-full truncate rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{ background: `${hue}22`, color: hue }}
                       >
                         {cliente.segmento}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-300">—</span>
+                      <span className="text-xs" style={{ color: "var(--adm-text-faint)" }}>—</span>
                     )}
                   </div>
 
                   {/* Cidade */}
-                  <span className="text-xs text-slate-500 truncate pr-3">
+                  <span className="truncate pr-3 text-xs" style={{ color: "var(--adm-text-dim)" }}>
                     {cliente.cidade ?? "—"}
                   </span>
 
                   {/* Grupo */}
                   <div className="pr-3">
                     {nomeGrupo ? (
-                      <span className="text-xs font-medium text-slate-600 truncate block">
+                      <span className="block truncate text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
                         {nomeGrupo}
                       </span>
                     ) : (
-                      <span className="text-xs text-slate-300">—</span>
+                      <span className="text-xs" style={{ color: "var(--adm-text-faint)" }}>—</span>
                     )}
                   </div>
 
                   {/* Status */}
                   <div className="flex items-center">
                     {cadastrado ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold"
+                        style={{ background: "var(--adm-signal-soft)", color: "var(--adm-signal)" }}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--adm-signal)" }} />
                         Cadastrado
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full whitespace-nowrap">
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shrink-0" />
+                      <span
+                        className="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{ background: "var(--adm-warn-soft)", color: "var(--adm-warn)" }}
+                      >
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "var(--adm-warn)" }} />
                         Pendente
                       </span>
                     )}
@@ -320,7 +315,7 @@ export default async function ClientesAdminPage({
 
                   {/* Seta */}
                   <div className="flex items-center justify-end">
-                    <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-slate-500 transition-colors" />
+                    <ChevronRight className="h-4 w-4" style={{ color: "var(--adm-text-faint)" }} />
                   </div>
                 </Link>
               );
@@ -328,24 +323,27 @@ export default async function ClientesAdminPage({
           </div>
 
           {/* Versão mobile */}
-          <div className="sm:hidden divide-y divide-slate-50">
-            {clientes.map((cliente) => {
-              const cor = getSegmentoCor(cliente.segmento);
+          <div className="sm:hidden">
+            {clientes.map((cliente, idx) => {
+              const hue = getSegmentoHue(cliente.segmento);
               const cadastrado = !!cliente.tenant_id;
               return (
                 <Link
                   key={`mob-${cliente.id}`}
                   href={`/admin/clientes/${cliente.id}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors"
-                  style={{ borderLeft: `3px solid ${cadastrado ? "#10b981" : cor.border}` }}
+                  className="adm-row flex items-center gap-3 px-4 py-3"
+                  style={{
+                    borderTop: idx === 0 ? "none" : "1px solid var(--adm-line)",
+                    borderLeft: `3px solid ${cadastrado ? "var(--adm-signal)" : hue}`,
+                  }}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-900 truncate">
+                    <p className="truncate text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
                       {cliente.nome_fantasia || cliente.razao_social}
                     </p>
-                    <p className="text-xs text-slate-400 truncate mt-0.5">{cliente.cnpj_cpf}</p>
+                    <p className="adm-mono mt-0.5 truncate text-xs" style={{ color: "var(--adm-text-faint)" }}>{cliente.cnpj_cpf}</p>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-slate-300 shrink-0" />
+                  <ChevronRight className="h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
                 </Link>
               );
             })}
@@ -356,25 +354,27 @@ export default async function ClientesAdminPage({
       {/* Paginação */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-400">
+          <span className="adm-mono" style={{ color: "var(--adm-text-faint)" }}>
             {(page - 1) * perPage + 1}–{Math.min(page * perPage, total)} de {total}
           </span>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             {page > 1 && (
               <Link
                 href={buildUrl({ page: String(page - 1) })}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                className="rounded-lg px-3 py-1.5 transition-colors"
+                style={{ color: "var(--adm-text-dim)", border: "1px solid var(--adm-line-strong)" }}
               >
                 ← Anterior
               </Link>
             )}
-            <span className="px-3 py-1.5 text-slate-500">
+            <span className="adm-mono px-3 py-1.5" style={{ color: "var(--adm-text-dim)" }}>
               {page} / {totalPages}
             </span>
             {page < totalPages && (
               <Link
                 href={buildUrl({ page: String(page + 1) })}
-                className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
+                className="rounded-lg px-3 py-1.5 transition-colors"
+                style={{ color: "var(--adm-text-dim)", border: "1px solid var(--adm-line-strong)" }}
               >
                 Próxima →
               </Link>
