@@ -44,8 +44,8 @@ export function BridgeHealthBadge({ expanded }: Props) {
     : "var(--text-muted)";
 
   const label =
-    status === "online"    ? "ERP Conectado"
-    : status === "offline" ? "ERP Offline"
+    status === "online"    ? "Conectado"
+    : status === "offline" ? "Offline"
     : "Verificando...";
 
   return (
