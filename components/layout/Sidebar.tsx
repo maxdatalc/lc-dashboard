@@ -23,6 +23,7 @@ import {
 import { logout, trocarEmpresa } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 import { PLAN_LABELS } from "@/lib/plans";
+import { BridgeHealthBadge } from "@/components/layout/BridgeHealthBadge";
 
 interface Props {
   isAdmin: boolean;
@@ -635,11 +636,13 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
           )}
         </nav>
 
-        {/* Rodapé: plano + logout */}
+        {/* Rodapé: health + plano + logout */}
         <div
           className="flex flex-col py-3"
           style={{ borderTop: "1px solid var(--border-subtle)" }}
         >
+          <BridgeHealthBadge expanded={sidebarExpanded} />
+
           {sidebarExpanded && (
             <div
               className="mx-3 mb-2 px-2 py-1 rounded-md text-center"
