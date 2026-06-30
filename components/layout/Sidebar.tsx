@@ -19,6 +19,8 @@ import {
   FileText,
   BadgeDollarSign,
   Receipt,
+  Scale,
+  SendHorizonal,
 } from "lucide-react";
 import { logout, trocarEmpresa } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
@@ -91,6 +93,15 @@ const GRUPOS: NavGroup[] = [
     icon: ArrowLeftRight,
     items: [
       { href: "/os", label: "Ordens de Serviço", icon: ClipboardList, featureKey: "modulo_os" },
+    ],
+  },
+  {
+    key: "fiscal",
+    label: "Fiscal",
+    icon: Scale,
+    featureKey: "modulo_fiscal",
+    items: [
+      { href: "/fiscal/transmissao-xmls", label: "Transmissão de XMLs", icon: SendHorizonal, featureKey: "modulo_fiscal" },
     ],
   },
   {
