@@ -10,20 +10,26 @@ import type {
 const INTERVAL = 30;
 
 // ── Paleta da Sala de Operações ─────────────────────────────────────────────────
+// Aponta para os tokens --adm-* do .admin-shell, então o console acompanha o
+// toggle de tema (dark/claro) junto com o resto do painel.
 const C = {
-  bg: "#0A0F1C",
-  panel: "#0E1626",
-  panelHi: "#13203A",
-  line: "rgba(148,163,184,0.10)",
-  lineHi: "rgba(148,163,184,0.20)",
-  signal: "#34D399",
-  alert: "#FB7185",
-  data: "#22D3EE",
-  warn: "#FBBF24",
-  txt: "#E2E8F0",
-  mut: "#94A3B8",
-  faint: "#5A6B85",
+  bg: "var(--adm-bg)",
+  panel: "var(--adm-surface)",
+  panelHi: "var(--adm-surface-2)",
+  line: "var(--adm-line)",
+  lineHi: "var(--adm-line-strong)",
+  signal: "var(--adm-signal)",
+  alert: "var(--adm-alert)",
+  data: "var(--adm-accent)",
+  warn: "var(--adm-warn)",
+  txt: "var(--adm-text)",
+  mut: "var(--adm-text-dim)",
+  faint: "var(--adm-text-faint)",
 };
+
+/** Mistura uma cor (token/var) com transparência — para tints e glows. */
+const tint = (color: string, pct: number) =>
+  `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
 const MONO = "var(--font-numeric, ui-monospace, monospace)";
 
@@ -289,7 +295,7 @@ function CommandBar({
           key={sweepKey}
           className="ops-sweep pointer-events-none absolute inset-y-0 left-0 w-1/3"
           style={{
-            background: `linear-gradient(90deg, transparent, ${accent}22 45%, ${accent}33 50%, transparent)`,
+            background: `linear-gradient(90deg, transparent, ${tint(accent, 18)} 45%, ${tint(accent, 28)} 50%, transparent)`,
           }}
         />
       )}
@@ -521,9 +527,9 @@ function NodeCard({ bridge, index }: { bridge: BridgeStatusEntry; index: number 
       onMouseLeave={() => setHover(false)}
       className="ops-rise relative overflow-hidden rounded-xl px-4 py-3.5"
       style={{
-        background: ok ? C.panel : "rgba(251,113,133,0.04)",
-        border: `1px solid ${hover ? C.lineHi : ok ? C.line : "rgba(251,113,133,0.22)"}`,
-        boxShadow: hover ? `0 8px 30px -12px ${accent}55` : "none",
+        background: ok ? C.panel : tint(C.alert, 6),
+        border: `1px solid ${hover ? C.lineHi : ok ? C.line : tint(C.alert, 35)}`,
+        boxShadow: hover ? `0 8px 30px -12px ${tint(accent, 40)}` : "none",
         transition: "border-color 0.2s ease, box-shadow 0.25s ease, transform 0.2s ease",
         transform: hover ? "translateY(-2px)" : "translateY(0)",
         animationDelay: reduced ? undefined : `${Math.min(index * 45, 400)}ms`,
@@ -568,7 +574,7 @@ function NodeCard({ bridge, index }: { bridge: BridgeStatusEntry; index: number 
         ) : (
           <span
             className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
-            style={{ background: "rgba(251,113,133,0.14)", color: C.alert }}
+            style={{ background: tint(C.alert, 14), color: C.alert }}
           >
             Offline
           </span>
@@ -686,7 +692,7 @@ function ActivityTable({
               <tr
                 key={r.id}
                 style={{ borderTop: `1px solid ${C.line}` }}
-                className="transition-colors hover:bg-white/[0.02]"
+                className="adm-row"
               >
                 <td className="px-4 py-3">
                   <div className="font-medium" style={{ color: C.txt }}>
@@ -795,7 +801,7 @@ function ErrorState() {
   return (
     <div
       className="flex flex-col items-center justify-center rounded-xl py-12 text-sm"
-      style={{ border: `1px solid rgba(251,113,133,0.22)`, color: C.alert }}
+      style={{ border: `1px solid ${tint(C.alert, 35)}`, color: C.alert }}
     >
       <ServerCog className="mb-2 h-7 w-7 opacity-50" />
       Não foi possível carregar o monitoramento.
