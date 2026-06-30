@@ -9,7 +9,6 @@ import {
   Activity,
   ShieldCheck,
   BookUser,
-  Wifi,
 } from "lucide-react";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { AdminNavLink } from "@/components/admin/AdminNavLink";
@@ -75,15 +74,9 @@ export default async function AdminLayout({
                 <BookUser className="h-4 w-4 shrink-0" />
                 Base de Clientes
               </AdminNavLink>
-              {isAdmin && (
-                <AdminNavLink href="/admin/acessos">
-                  <Activity className="h-4 w-4 shrink-0" />
-                  Acessos
-                </AdminNavLink>
-              )}
-              <AdminNavLink href="/admin/bridges">
-                <Wifi className="h-4 w-4 shrink-0" />
-                Bridges
+              <AdminNavLink href="/admin/acessos">
+                <Activity className="h-4 w-4 shrink-0" />
+                Monitoramento
               </AdminNavLink>
             </div>
           </div>
