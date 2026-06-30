@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Building2, Store, Star, Zap } from "lucide-react";
 import { getAllTenants } from "@/lib/db/admin";
 import { FEATURES_CATALOG } from "@/lib/features";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminCard } from "@/components/admin/AdminCard";
 
 function formatarData(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("pt-BR");
@@ -45,88 +47,100 @@ export default async function AdminPage() {
 
   const metrics = [
     {
-      label: "Total de Clientes",
+      label: "Clientes ativos",
       value: totalClientes,
       sub: tenants.length - totalClientes > 0
         ? `${tenants.length - totalClientes} inativo(s)`
         : "todos ativos",
       icon: Building2,
-      accent: "#6366f1",
+      accent: "var(--adm-accent)",
+      accentSoft: "var(--adm-accent-soft)",
     },
     {
-      label: "Total de Lojas",
+      label: "Lojas",
       value: totalLojas,
       sub: `${lojasComBridge} com Bridge SQL`,
       icon: Store,
-      accent: "#3b82f6",
+      accent: "var(--adm-accent)",
+      accentSoft: "var(--adm-accent-soft)",
     },
     {
-      label: "Clientes Premium",
+      label: "Clientes premium",
       value: clientesPremium,
       sub: `${percPremium}% do total`,
       icon: Star,
-      accent: "#f59e0b",
+      accent: "var(--adm-warn)",
+      accentSoft: "var(--adm-warn-soft)",
     },
     {
-      label: "Módulos Premium",
+      label: "Módulos premium",
       value: modulosPremiumAtivos,
       sub: `média de ${mediaPorPremium} por cliente`,
       icon: Zap,
-      accent: "#8b5cf6",
+      accent: "var(--adm-signal)",
+      accentSoft: "var(--adm-signal-soft)",
     },
   ];
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Cabeçalho */}
-      <div style={{ animation: "fadeInUp 0.3s ease-out both" }}>
-        <h1 className="text-2xl font-bold text-slate-900">Painel Administrativo</h1>
-        <p className="text-slate-500 text-sm mt-1">
-          LC Tecnologias — gestão de clientes e módulos
-        </p>
-      </div>
+    <div className="space-y-6 p-6">
+      <AdminPageHeader
+        eyebrow="Operação"
+        title="Visão Geral"
+        subtitle="LC Tecnologias — gestão de clientes e módulos"
+      />
 
       {/* Métricas */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {metrics.map((m, i) => (
-          <div
+          <AdminCard
             key={m.label}
-            className="bg-white rounded-xl border border-slate-200 overflow-hidden group transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
-            style={{
-              animation: "fadeInUp 0.35s ease-out both",
-              animationDelay: `${i * 50}ms`,
-            }}
+            className="adm-rise overflow-hidden p-4"
+            style={{ animationDelay: `${i * 50}ms` }}
           >
-            <div className="h-[3px]" style={{ background: m.accent }} />
-            <div className="p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  {m.label}
-                </span>
-                <m.icon
-                  className="h-4 w-4 transition-transform duration-200 group-hover:scale-110"
-                  style={{ color: m.accent }}
-                />
-              </div>
-              <p className="text-3xl font-bold text-slate-900 tabular-nums">{m.value}</p>
-              <p className="text-xs text-slate-400 mt-1">{m.sub}</p>
+            <div className="mb-3 flex items-center justify-between">
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: "var(--adm-text-faint)" }}
+              >
+                {m.label}
+              </span>
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-lg"
+                style={{ background: m.accentSoft }}
+              >
+                <m.icon className="h-3.5 w-3.5" style={{ color: m.accent }} />
+              </span>
             </div>
-          </div>
+            <p
+              className="adm-mono text-3xl font-bold"
+              style={{ color: "var(--adm-text)" }}
+            >
+              {m.value}
+            </p>
+            <p className="mt-1 text-xs" style={{ color: "var(--adm-text-dim)" }}>
+              {m.sub}
+            </p>
+          </AdminCard>
         ))}
       </div>
 
       {/* Últimos clientes */}
-      <div
-        className="bg-white rounded-xl border border-slate-200 overflow-hidden"
-        style={{ animation: "fadeInUp 0.4s ease-out both", animationDelay: "200ms" }}
+      <AdminCard
+        className="adm-rise overflow-hidden"
+        style={{ animationDelay: "200ms" }}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-800 text-sm">
-            Últimos Clientes Cadastrados
+        <div
+          className="flex items-center justify-between px-5 py-4"
+          style={{ borderBottom: "1px solid var(--adm-line)" }}
+        >
+          <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
+            Últimos clientes cadastrados
           </h2>
           <Link
             href="/admin/empresas"
-            className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
+            className="text-xs font-medium transition-colors hover:opacity-80"
+            style={{ color: "var(--adm-accent)" }}
           >
             Ver todos →
           </Link>
@@ -134,56 +148,93 @@ export default async function AdminPage() {
 
         {ultimos5.length === 0 ? (
           <div className="py-12 text-center">
-            <Building2 className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-            <p className="text-sm text-slate-400">Nenhum cliente cadastrado ainda.</p>
+            <Building2
+              className="mx-auto mb-2 h-8 w-8"
+              style={{ color: "var(--adm-text-faint)" }}
+            />
+            <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
+              Nenhum cliente cadastrado ainda.
+            </p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-50">
+              <tr style={{ borderBottom: "1px solid var(--adm-line)" }}>
                 {["Cliente", "Lojas", "Plano", "Cadastrado em", ""].map((col) => (
                   <th
                     key={col}
-                    className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
+                    className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
+                    style={{ color: "var(--adm-text-faint)" }}
                   >
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody>
               {ultimos5.map((t, i) => (
                 <tr
                   key={t.id}
-                  className="group hover:bg-slate-50/80 transition-colors"
+                  className="adm-rise adm-row group"
                   style={{
-                    animation: "fadeInUp 0.3s ease-out both",
+                    borderTop: i === 0 ? "none" : "1px solid var(--adm-line)",
                     animationDelay: `${250 + i * 30}ms`,
                   }}
                 >
                   <td className="px-5 py-3.5">
-                    <div className="font-medium text-slate-900 leading-tight">{t.name}</div>
-                    <div className="text-xs text-slate-400 font-mono mt-0.5">{t.slug}</div>
+                    <div
+                      className="font-medium leading-tight"
+                      style={{ color: "var(--adm-text)" }}
+                    >
+                      {t.name}
+                    </div>
+                    <div
+                      className="adm-mono mt-0.5 text-xs"
+                      style={{ color: "var(--adm-text-faint)" }}
+                    >
+                      {t.slug}
+                    </div>
                   </td>
-                  <td className="px-5 py-3.5 text-slate-600 text-sm">{t.lojas.length}</td>
+                  <td
+                    className="adm-mono px-5 py-3.5 text-sm"
+                    style={{ color: "var(--adm-text-dim)" }}
+                  >
+                    {t.lojas.length}
+                  </td>
                   <td className="px-5 py-3.5">
                     {t.plan === "premium" ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                        style={{
+                          background: "var(--adm-warn-soft)",
+                          color: "var(--adm-warn)",
+                        }}
+                      >
                         ★ Premium
                       </span>
                     ) : (
-                      <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-500">
+                      <span
+                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
+                        style={{
+                          background: "var(--adm-surface-2)",
+                          color: "var(--adm-text-dim)",
+                        }}
+                      >
                         Free
                       </span>
                     )}
                   </td>
-                  <td className="px-5 py-3.5 text-xs text-slate-400">
+                  <td
+                    className="adm-mono px-5 py-3.5 text-xs"
+                    style={{ color: "var(--adm-text-faint)" }}
+                  >
                     {formatarData(t.createdAt)}
                   </td>
                   <td className="px-5 py-3.5">
                     <Link
                       href={`/admin/empresas/${t.id}`}
-                      className="text-xs font-medium text-slate-400 hover:text-slate-900 opacity-0 group-hover:opacity-100 transition-all"
+                      className="text-xs font-medium opacity-0 transition-all group-hover:opacity-100"
+                      style={{ color: "var(--adm-accent)" }}
                     >
                       Gerenciar →
                     </Link>
@@ -193,7 +244,7 @@ export default async function AdminPage() {
             </tbody>
           </table>
         )}
-      </div>
+      </AdminCard>
     </div>
   );
 }

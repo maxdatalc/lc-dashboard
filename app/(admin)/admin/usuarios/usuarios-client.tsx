@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -59,18 +59,39 @@ function formatarData(iso: string | null): string {
   }).format(new Date(iso));
 }
 
+const modalCard: CSSProperties = {
+  background: "var(--adm-surface)",
+  border: "1px solid var(--adm-line-strong)",
+  boxShadow: "var(--adm-shadow)",
+};
+const fieldLabel: CSSProperties = {
+  display: "block",
+  fontSize: 11,
+  fontWeight: 500,
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  color: "var(--adm-text-faint)",
+};
+const btnPrimary: CSSProperties = { background: "var(--adm-accent)", color: "#04121a" };
+const btnSecondary: CSSProperties = {
+  background: "var(--adm-surface-2)",
+  color: "var(--adm-text-dim)",
+  border: "1px solid var(--adm-line-strong)",
+};
+
 function RoleBadge({ role }: { role: string }) {
   const cfg =
     role === "owner"
-      ? { className: "bg-amber-100 text-amber-700", label: "Owner", Icon: Shield }
+      ? { bg: "var(--adm-warn-soft)", color: "var(--adm-warn)", label: "Owner", Icon: Shield }
       : role === "admin"
-      ? { className: "bg-violet-100 text-violet-700", label: "Admin", Icon: Shield }
-      : { className: "bg-slate-100 text-slate-500", label: "Viewer", Icon: Eye };
+      ? { bg: "var(--adm-accent-soft)", color: "var(--adm-accent)", label: "Admin", Icon: Shield }
+      : { bg: "var(--adm-surface-3)", color: "var(--adm-text-dim)", label: "Viewer", Icon: Eye };
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded uppercase tracking-wider ${cfg.className}`}
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
+      style={{ background: cfg.bg, color: cfg.color }}
     >
-      <cfg.Icon className="w-2.5 h-2.5" />
+      <cfg.Icon className="h-2.5 w-2.5" />
       {cfg.label}
     </span>
   );
@@ -174,49 +195,52 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
-      <div
-        className="flex items-center justify-between"
-        style={{ animation: "fadeInUp 0.3s ease-out both" }}
-      >
+      <div className="adm-rise flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Usuários</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: "var(--adm-accent)" }}>
+            Sistema
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--adm-text)" }}>Usuários</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--adm-text-dim)" }}>
             {usuarios.length}{" "}
             {usuarios.length === 1 ? "usuário cadastrado" : "usuários cadastrados"}
           </p>
         </div>
         <button
           onClick={() => setModalCriar(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
+          className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all"
+          style={{ background: "var(--adm-accent)", color: "#04121a" }}
         >
-          <UserPlus className="w-4 h-4" />
+          <UserPlus className="h-4 w-4" />
           Novo usuário
         </button>
       </div>
 
       {/* Barra de busca */}
-      <div
-        className="relative"
-        style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "50ms" }}
-      >
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+      <div className="adm-rise relative" style={{ animationDelay: "50ms" }}>
+        <Search
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2"
+          style={{ color: "var(--adm-text-faint)" }}
+        />
         <input
           type="text"
           placeholder="Buscar por nome ou e-mail…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 text-sm rounded-xl border border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/8 focus:border-slate-400 transition-all"
+          className="adm-field w-full py-2.5 pl-10 pr-4 text-sm"
         />
       </div>
 
       {/* Toast de feedback */}
       {feedback && (
         <div
-          className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
-            feedback.tipo === "ok"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
-              : "bg-red-50 border border-red-200 text-red-700"
-          }`}
+          className="fixed right-6 top-6 z-50 flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-medium"
+          style={{
+            background: feedback.tipo === "ok" ? "var(--adm-signal-soft)" : "var(--adm-alert-soft)",
+            color: feedback.tipo === "ok" ? "var(--adm-signal)" : "var(--adm-alert)",
+            border: `1px solid ${feedback.tipo === "ok" ? "var(--adm-signal)" : "var(--adm-alert)"}`,
+            boxShadow: "var(--adm-shadow)",
+          }}
         >
           {feedback.tipo === "ok" ? "✓" : "✕"} {feedback.msg}
         </div>
@@ -224,58 +248,61 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
 
       {/* Tabela */}
       <div
-        className="bg-white border border-slate-200 rounded-xl overflow-hidden"
-        style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "80ms" }}
+        className="adm-rise overflow-hidden rounded-xl"
+        style={{ animationDelay: "80ms", background: "var(--adm-surface)", border: "1px solid var(--adm-line)", boxShadow: "var(--adm-shadow-sm)" }}
       >
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-slate-100 bg-slate-50/50">
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Usuário
-              </th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Empresas
-              </th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Último acesso
-              </th>
-              <th className="text-left px-5 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                Criado em
-              </th>
+            <tr style={{ borderBottom: "1px solid var(--adm-line)", background: "var(--adm-surface-2)" }}>
+              {["Usuário", "Empresas", "Último acesso", "Criado em"].map((col) => (
+                <th
+                  key={col}
+                  className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
+                  style={{ color: "var(--adm-text-faint)" }}
+                >
+                  {col}
+                </th>
+              ))}
               <th className="px-5 py-3" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody>
             {filtrados.map((usuario, i) => (
               <tr
                 key={usuario.id}
                 onClick={() => router.push(`/admin/usuarios/${usuario.id}`)}
-                className="hover:bg-slate-50/50 transition-colors cursor-pointer"
+                className="adm-rise adm-row cursor-pointer"
                 style={{
-                  animation: "fadeInUp 0.3s ease-out both",
+                  borderTop: i === 0 ? "none" : "1px solid var(--adm-line)",
                   animationDelay: `${i * 28}ms`,
                 }}
               >
                 {/* Usuário */}
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-100 to-violet-200 flex items-center justify-center shrink-0">
-                      <span className="text-xs font-semibold text-violet-700 uppercase">
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: "var(--adm-accent-soft)", border: "1px solid var(--adm-line-strong)" }}
+                    >
+                      <span className="text-xs font-semibold uppercase" style={{ color: "var(--adm-accent)" }}>
                         {(usuario.full_name || usuario.email).charAt(0)}
                       </span>
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="font-medium text-slate-900 text-sm">
+                        <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>
                           {usuario.full_name || "—"}
                         </p>
                         {usuario.is_system_admin && (
-                          <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          <span
+                            className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider"
+                            style={{ background: "var(--adm-warn-soft)", color: "var(--adm-warn)" }}
+                          >
                             Admin
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-slate-400">{usuario.email}</p>
+                      <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>{usuario.email}</p>
                     </div>
                   </div>
                 </td>
@@ -283,7 +310,7 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                 {/* Empresas vinculadas */}
                 <td className="px-5 py-4">
                   {usuario.empresas.length === 0 ? (
-                    <span className="text-xs text-slate-400 italic">
+                    <span className="text-xs italic" style={{ color: "var(--adm-text-faint)" }}>
                       Sem empresa
                     </span>
                   ) : (
@@ -291,22 +318,25 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                       {usuario.empresas.map((emp) => (
                         <div
                           key={emp.tenant_id}
-                          className="flex items-center gap-1 bg-slate-100 rounded-md px-2 py-1 group"
+                          className="group flex items-center gap-1 rounded-md px-2 py-1"
+                          style={{ background: "var(--adm-surface-2)" }}
                         >
-                          <Building2 className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span className="text-xs text-slate-600 font-medium">
+                          <Building2 className="h-3 w-3 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
+                          <span className="text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
                             {emp.tenant_name}
                           </span>
                           <RoleBadge role={emp.role} />
                           <button
-                            onClick={() =>
-                              handleDesvincular(usuario.id, emp.tenant_id)
-                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDesvincular(usuario.id, emp.tenant_id);
+                            }}
                             disabled={isPending}
-                            className="ml-0.5 text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                            className="ml-0.5 opacity-0 transition-colors group-hover:opacity-100"
+                            style={{ color: "var(--adm-text-faint)" }}
                             title="Remover acesso"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="h-3 w-3" />
                           </button>
                         </div>
                       ))}
@@ -315,12 +345,12 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                 </td>
 
                 {/* Último acesso */}
-                <td className="px-5 py-4 text-xs text-slate-500">
+                <td className="adm-mono px-5 py-4 text-xs" style={{ color: "var(--adm-text-dim)" }}>
                   {formatarData(usuario.last_sign_in)}
                 </td>
 
                 {/* Criado em */}
-                <td className="px-5 py-4 text-xs text-slate-500">
+                <td className="adm-mono px-5 py-4 text-xs" style={{ color: "var(--adm-text-dim)" }}>
                   {formatarData(usuario.created_at)}
                 </td>
 
@@ -328,41 +358,51 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                 <td className="px-5 py-4">
                   <div className="relative">
                     <button
-                      onClick={() =>
-                        setMenuAberto(
-                          menuAberto === usuario.id ? null : usuario.id
-                        )
-                      }
-                      className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuAberto(menuAberto === usuario.id ? null : usuario.id);
+                      }}
+                      className="rounded-md p-1.5 transition-colors"
+                      style={{ color: "var(--adm-text-dim)" }}
                     >
-                      <MoreHorizontal className="w-4 h-4" />
+                      <MoreHorizontal className="h-4 w-4" />
                     </button>
 
                     {menuAberto === usuario.id && (
                       <>
                         <div
                           className="fixed inset-0 z-10"
-                          onClick={() => setMenuAberto(null)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuAberto(null);
+                          }}
                         />
-                        <div className="absolute right-0 top-8 z-20 bg-white border border-slate-200 rounded-xl shadow-lg py-1 w-48 text-sm">
+                        <div
+                          className="absolute right-0 top-8 z-20 w-48 rounded-xl py-1 text-sm"
+                          style={{ background: "var(--adm-surface)", border: "1px solid var(--adm-line-strong)", boxShadow: "var(--adm-shadow)" }}
+                        >
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setModalVincular(usuario.id);
                               setMenuAberto(null);
                             }}
-                            className="flex items-center gap-2.5 w-full px-3.5 py-2 text-slate-700 hover:bg-slate-50 transition-colors"
+                            className="adm-row flex w-full items-center gap-2.5 px-3.5 py-2"
+                            style={{ color: "var(--adm-text-dim)" }}
                           >
-                            <UserPlus className="w-3.5 h-3.5 text-slate-400" />
+                            <UserPlus className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
                             Vincular empresa
                           </button>
                           <button
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setModalSenha(usuario.id);
                               setMenuAberto(null);
                             }}
-                            className="flex items-center gap-2.5 w-full px-3.5 py-2 text-slate-700 hover:bg-slate-50 transition-colors"
+                            className="adm-row flex w-full items-center gap-2.5 px-3.5 py-2"
+                            style={{ color: "var(--adm-text-dim)" }}
                           >
-                            <KeyRound className="w-3.5 h-3.5 text-slate-400" />
+                            <KeyRound className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
                             Resetar senha
                           </button>
                         </div>
@@ -375,10 +415,7 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
 
             {filtrados.length === 0 && (
               <tr>
-                <td
-                  colSpan={5}
-                  className="px-5 py-12 text-center text-sm text-slate-400"
-                >
+                <td colSpan={5} className="px-5 py-12 text-center text-sm" style={{ color: "var(--adm-text-faint)" }}>
                   Nenhum usuário encontrado
                 </td>
               </tr>
@@ -389,61 +426,58 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
 
       {/* Modal — Criar usuário */}
       {modalCriar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
-                <UserPlus className="w-4 h-4 text-violet-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="adm-rise w-full max-w-sm rounded-2xl p-6" style={modalCard}>
+            <div className="mb-5 flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--adm-accent-soft)" }}>
+                <UserPlus className="h-4 w-4" style={{ color: "var(--adm-accent)" }} />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">Novo usuário</h3>
-                <p className="text-xs text-slate-500">
+                <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Novo usuário</h3>
+                <p className="text-xs" style={{ color: "var(--adm-text-dim)" }}>
                   A senha definida aqui é temporária — o usuário deverá alterá-la no primeiro acesso.
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 mb-5">
+            <div className="mb-5 space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Nome completo
-                </label>
+                <label style={fieldLabel}>Nome completo</label>
                 <input
                   type="text"
                   placeholder="Ex: João Silva"
                   value={novoNome}
                   onChange={(e) => setNovoNome(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="adm-field w-full px-3.5 py-2.5 text-sm"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  E-mail
-                </label>
+                <label style={fieldLabel}>E-mail</label>
                 <input
                   type="email"
                   placeholder="usuario@empresa.com"
                   value={novoEmail}
                   onChange={(e) => setNovoEmail(e.target.value)}
                   autoFocus
-                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="adm-field w-full px-3.5 py-2.5 text-sm"
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Senha temporária
-                </label>
+                <label style={fieldLabel}>Senha temporária</label>
                 <input
                   type="password"
                   placeholder="Mínimo 6 caracteres"
                   value={novaSenhaTemp}
                   onChange={(e) => setNovaSenhaTemp(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="adm-field w-full px-3.5 py-2.5 text-sm"
                 />
               </div>
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 flex items-start gap-2">
-                <KeyRound className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700 leading-relaxed">
+              <div
+                className="flex items-start gap-2 rounded-lg px-3.5 py-2.5"
+                style={{ background: "var(--adm-warn-soft)", border: "1px solid var(--adm-warn)" }}
+              >
+                <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--adm-warn)" }} />
+                <p className="text-xs leading-relaxed" style={{ color: "var(--adm-warn)" }}>
                   O usuário será obrigado a criar uma nova senha no primeiro login.
                 </p>
               </div>
@@ -457,14 +491,16 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                   setNovoEmail("");
                   setNovaSenhaTemp("");
                 }}
-                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex-1 rounded-lg py-2.5 text-sm transition-colors"
+                style={btnSecondary}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleCriarUsuario}
                 disabled={isPending || !novoEmail || novaSenhaTemp.length < 6}
-                className="flex-1 py-2.5 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={btnPrimary}
               >
                 {isPending ? "Criando..." : "Criar usuário"}
               </button>
@@ -475,39 +511,38 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
 
       {/* Modal — Resetar senha */}
       {modalSenha && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
-                <KeyRound className="w-4 h-4 text-violet-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="adm-rise w-full max-w-sm rounded-2xl p-6" style={modalCard}>
+            <div className="mb-5 flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--adm-accent-soft)" }}>
+                <KeyRound className="h-4 w-4" style={{ color: "var(--adm-accent)" }} />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">
-                  Resetar senha
-                </h3>
-                <p className="text-xs text-slate-500">
+                <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Resetar senha</h3>
+                <p className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
                   {usuarios.find((u) => u.id === modalSenha)?.email}
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 mb-5">
+            <div className="mb-5 space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Senha temporária
-                </label>
+                <label style={fieldLabel}>Senha temporária</label>
                 <input
                   type="password"
                   placeholder="Mínimo 6 caracteres"
                   value={novaSenha}
                   onChange={(e) => setNovaSenha(e.target.value)}
                   autoFocus
-                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
+                  className="adm-field w-full px-3.5 py-2.5 text-sm"
                 />
               </div>
-              <div className="rounded-lg bg-amber-50 border border-amber-200 px-3.5 py-2.5 flex items-start gap-2">
-                <KeyRound className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                <p className="text-xs text-amber-700 leading-relaxed">
+              <div
+                className="flex items-start gap-2 rounded-lg px-3.5 py-2.5"
+                style={{ background: "var(--adm-warn-soft)", border: "1px solid var(--adm-warn)" }}
+              >
+                <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--adm-warn)" }} />
+                <p className="text-xs leading-relaxed" style={{ color: "var(--adm-warn)" }}>
                   O usuário deverá criar uma nova senha no próximo login.
                 </p>
               </div>
@@ -519,14 +554,16 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                   setModalSenha(null);
                   setNovaSenha("");
                 }}
-                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex-1 rounded-lg py-2.5 text-sm transition-colors"
+                style={btnSecondary}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleResetarSenha}
                 disabled={isPending || novaSenha.length < 6}
-                className="flex-1 py-2.5 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={btnPrimary}
               >
                 {isPending ? "Salvando..." : "Confirmar"}
               </button>
@@ -537,40 +574,34 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
 
       {/* Modal — Vincular empresa */}
       {modalVincular && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-9 h-9 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Building2 className="w-4 h-4 text-violet-600" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="adm-rise w-full max-w-sm rounded-2xl p-6" style={modalCard}>
+            <div className="mb-5 flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl" style={{ background: "var(--adm-accent-soft)" }}>
+                <Building2 className="h-4 w-4" style={{ color: "var(--adm-accent)" }} />
               </div>
               <div>
-                <h3 className="font-semibold text-slate-900 text-sm">
-                  Vincular empresa
-                </h3>
-                <p className="text-xs text-slate-500">
+                <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Vincular empresa</h3>
+                <p className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
                   {usuarios.find((u) => u.id === modalVincular)?.email}
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3 mb-5">
+            <div className="mb-5 space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Empresa
-                </label>
+                <label style={fieldLabel}>Empresa</label>
                 <div className="relative">
                   <select
                     value={empresaVincular}
                     onChange={(e) => setEmpresaVincular(e.target.value)}
-                    className="w-full appearance-none border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 bg-white pr-8"
+                    className="adm-field w-full appearance-none px-3.5 py-2.5 pr-8 text-sm"
                   >
                     <option value="">Selecione...</option>
                     {todasEmpresas
                       .filter((e) => {
                         const u = usuarios.find((u) => u.id === modalVincular);
-                        return !u?.empresas.some(
-                          (em) => em.tenant_id === e.id
-                        );
+                        return !u?.empresas.some((em) => em.tenant_id === e.id);
                       })
                       .map((e) => (
                         <option key={e.id} value={e.id}>
@@ -578,34 +609,32 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                         </option>
                       ))}
                   </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: "var(--adm-text-faint)" }} />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Permissão
-                </label>
+                <label style={fieldLabel}>Permissão</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(["viewer", "admin"] as const).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setRoleVincular(r)}
-                      className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium border transition-all ${
-                        roleVincular === r
-                          ? "border-violet-500 bg-violet-50 text-violet-700"
-                          : "border-slate-200 text-slate-500 hover:border-slate-300"
-                      }`}
-                    >
-                      {r === "admin" ? (
-                        <Shield className="w-3.5 h-3.5" />
-                      ) : (
-                        <Eye className="w-3.5 h-3.5" />
-                      )}
-                      {r === "admin" ? "Admin" : "Viewer"}
-                    </button>
-                  ))}
+                  {(["viewer", "admin"] as const).map((r) => {
+                    const active = roleVincular === r;
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRoleVincular(r)}
+                        className="flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-sm font-medium transition-all"
+                        style={{
+                          border: `1px solid ${active ? "var(--adm-accent)" : "var(--adm-line-strong)"}`,
+                          background: active ? "var(--adm-accent-soft)" : "transparent",
+                          color: active ? "var(--adm-accent)" : "var(--adm-text-dim)",
+                        }}
+                      >
+                        {r === "admin" ? <Shield className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        {r === "admin" ? "Admin" : "Viewer"}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -616,14 +645,16 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                   setModalVincular(null);
                   setEmpresaVincular("");
                 }}
-                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                className="flex-1 rounded-lg py-2.5 text-sm transition-colors"
+                style={btnSecondary}
               >
                 Cancelar
               </button>
               <button
                 onClick={handleVincular}
                 disabled={isPending || !empresaVincular}
-                className="flex-1 py-2.5 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-lg py-2.5 text-sm font-semibold transition-colors disabled:opacity-50"
+                style={btnPrimary}
               >
                 {isPending ? "Vinculando..." : "Vincular"}
               </button>
