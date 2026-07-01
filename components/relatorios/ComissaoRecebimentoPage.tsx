@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ChevronDown,
   Download,
   FileSpreadsheet,
@@ -361,12 +362,13 @@ export default function ComissaoRecebimentoPage() {
   const enrichedRows = rows;
 
   // ── Totalizadores ────────────────────────────────────────────────────────
-  const totalRecebido = enrichedRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0);
-  const totalProdutos = enrichedRows.reduce((s, r) => s + r.BaseCalculoComissaoParcela, 0);
-  const totalComissao = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
-  const totalLiquido  = enrichedRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0);
-  const totalVendas   = new Set(enrichedRows.map((r) => r.VendaId)).size;
-  const pctMedio      = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
+  const totalRecebido    = enrichedRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0);
+  const totalProdutos    = enrichedRows.reduce((s, r) => s + r.BaseCalculoComissaoParcela, 0);
+  const totalComissao    = enrichedRows.reduce((s, r) => s + r.ComissaoPaga, 0);
+  const totalLiquido     = enrichedRows.reduce((s, r) => s + r.ValorLiquidoEmpresa, 0);
+  const totalVendas      = new Set(enrichedRows.filter((r) => r.VendaId != null).map((r) => r.VendaId)).size;
+  const totalSemVinculo  = enrichedRows.filter((r) => r.SemVinculo).length;
+  const pctMedio         = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
 
   const multiVendedor = new Set(enrichedRows.filter((r) => r.VendedorId != null).map((r) => r.VendedorId)).size > 1;
 
@@ -384,7 +386,7 @@ export default function ComissaoRecebimentoPage() {
       );
       return {
         vendedorId: id,
-        nome: vRows[0].NomeVendedor ?? "Sem vendedor",
+        nome: id === -1 ? "Sem vínculo com venda/O.S" : (vRows[0].NomeVendedor ?? "Sem vendedor"),
         rows: sorted,
         subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0),
         subtotalProdutos: vRows.reduce((s, r) => s + r.BaseCalculoComissaoParcela, 0),
@@ -435,7 +437,8 @@ export default function ComissaoRecebimentoPage() {
     "Vlr. Líq.",
   ];
 
-  const vendaNumLabel = (row: EnrichedRow) => `${row.TipoVenda} ${row.VendaId}`;
+  const vendaNumLabel = (row: EnrichedRow) =>
+    row.SemVinculo ? "Sem vínculo" : `${row.TipoVenda ?? ""} ${row.VendaId ?? ""}`;
 
   const rowToArray = (row: EnrichedRow) => [
     fmtData(row.DataPagamento),
@@ -779,16 +782,26 @@ export default function ComissaoRecebimentoPage() {
         </td>
         {/* Num Venda/O.S */}
         <td style={{ padding: "8px 12px" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+          {row.SemVinculo ? (
             <span style={{
-              fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
-              background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
-              color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+              display: "inline-block", fontSize: 10, fontWeight: 700,
+              padding: "2px 7px", borderRadius: 4, letterSpacing: "0.04em",
+              background: "rgba(239,68,68,0.15)", color: "#f87171",
             }}>
-              {row.TipoVenda}
+              SEM VÍNCULO
             </span>
-            <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
-          </span>
+          ) : (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={{
+                fontSize: 11, fontWeight: 600, padding: "2px 7px", borderRadius: 4,
+                background: row.TipoVenda === "OS" ? "rgba(99,102,241,0.15)" : "rgba(34,197,94,0.12)",
+                color: row.TipoVenda === "OS" ? "#818cf8" : "#4ade80",
+              }}>
+                {row.TipoVenda}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{row.VendaId}</span>
+            </span>
+          )}
         </td>
         {/* Vlr. Recebimento */}
         <td style={{ padding: "8px 12px", fontSize: 12, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
@@ -1265,6 +1278,7 @@ export default function ComissaoRecebimentoPage() {
             { label: "Vlr. Líq. Empresa", value: fmtMoeda(totalLiquido),  icon: <TrendingUp style={{ width: 16, height: 16 }} /> },
             { label: "% Médio",    value: fmtPct(pctMedio),   icon: <SlidersHorizontal style={{ width: 16, height: 16 }} /> },
             { label: "Vendas/O.S.", value: String(totalVendas), icon: <Receipt style={{ width: 16, height: 16 }} /> },
+            ...(totalSemVinculo > 0 ? [{ label: "Sem Vínculo", value: String(totalSemVinculo), icon: <AlertTriangle style={{ width: 16, height: 16 }} />, alert: true }] : []),
           ].map((card) => (
             <div
               key={card.label}
@@ -1349,8 +1363,12 @@ export default function ComissaoRecebimentoPage() {
                 {!multiVendedor && vendorGroups.flatMap((group) =>
                   group.rows.map((row, rIdx) => (
                     <tr
-                      key={`${row.RecebimentoId}-${row.VendaId}`}
-                      style={{ borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none" }}
+                      key={`${row.RecebimentoId}-${row.VendaId ?? "sv"}`}
+                      style={{
+                        borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        background: row.SemVinculo ? "rgba(239,68,68,0.05)" : "transparent",
+                        borderLeft: row.SemVinculo ? "2px solid rgba(239,68,68,0.4)" : "none",
+                      }}
                     >
                       {renderRowCells(row)}
                     </tr>
@@ -1367,9 +1385,9 @@ export default function ComissaoRecebimentoPage() {
                       onClick={() => toggleVendor(group.vendedorId)}
                       style={{
                         cursor: "pointer",
-                        borderTop: "1px solid var(--border-subtle)",
-                        borderBottom: isVendorOpen ? "none" : "1px solid var(--border-subtle)",
-                        background: "var(--sidebar-item-active-bg)",
+                        borderTop: group.vendedorId === -1 ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border-subtle)",
+                        borderBottom: isVendorOpen ? "none" : (group.vendedorId === -1 ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border-subtle)"),
+                        background: group.vendedorId === -1 ? "rgba(239,68,68,0.07)" : "var(--sidebar-item-active-bg)",
                         userSelect: "none",
                       }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.12)"; }}
@@ -1377,8 +1395,8 @@ export default function ComissaoRecebimentoPage() {
                     >
                       <td colSpan={3} style={{ padding: "10px 12px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{group.nome}</span>
+                          <Users style={{ width: 13, height: 13, color: group.vendedorId === -1 ? "#f87171" : "var(--accent-cyan)", flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, fontWeight: 700, color: group.vendedorId === -1 ? "#f87171" : "var(--text-primary)" }}>{group.nome}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
                             {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
                           </span>
@@ -1405,8 +1423,12 @@ export default function ComissaoRecebimentoPage() {
                     /* Linhas planas do vendedor (sem vínculo em vermelho) */
                     ...(isVendorOpen ? group.rows.map((row, rIdx) => (
                       <tr
-                        key={`${row.RecebimentoId}-${row.VendaId}`}
-                        style={{ borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "1px solid var(--border-subtle)" }}
+                        key={`${row.RecebimentoId}-${row.VendaId ?? "sv"}`}
+                        style={{
+                          borderBottom: rIdx < group.rows.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "1px solid var(--border-subtle)",
+                          background: row.SemVinculo ? "rgba(239,68,68,0.05)" : "transparent",
+                          borderLeft: row.SemVinculo ? "2px solid rgba(239,68,68,0.4)" : "none",
+                        }}
                       >
                         {renderRowCells(row)}
                       </tr>
