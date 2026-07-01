@@ -18,7 +18,7 @@ export interface ComissaoRow {
   TotalParcelasVenda: number | null;
   ValorRecebidoRateado: number;
   ValorTotalVenda: number;
-  BaseCalculoComissao: number;    // total de produtos/venda
+  BaseCalculoComissao: number;
   PercentualComissao: number;     // decimal 0-1 (ex: 0.02 para 2%)
   ComissaoTotal: number;
   ComissaoPaga: number;
@@ -28,7 +28,9 @@ export interface ComissaoRow {
   SemVinculo: 0 | 1;
 }
 
-function buildQuery(vendedorWhereClause: string, includeSemVinculo: boolean): string {
+// vendedorWhereClause  : "WHERE v.vedAtendente IN (@vid0, ...)"  ou ""
+// semVinculoExtraClause: "AND rec.pgtAtendente IN (@vid0, ...)" ou ""
+function buildQuery(vendedorWhereClause: string, semVinculoExtraClause: string): string {
   return `
     WITH Recebimentos AS (
       SELECT
@@ -201,38 +203,40 @@ function buildQuery(vendedorWhereClause: string, includeSemVinculo: boolean): st
 
     CROSS APPLY (
       SELECT CASE
-        WHEN v.vedTipo = 'OS' THEN ISNULL(TotalPecas.Pecas, 0)
-        ELSE ISNULL(TotalVenda.Total, 0)
+        WHEN rec.pgtTipoOpr = 'DV' THEN 0
+        WHEN v.vedTipo = 'OS'       THEN ISNULL(TotalPecas.Pecas, 0)
+        ELSE                             ISNULL(TotalVenda.Total, 0)
       END AS Valor
     ) BaseCalc
 
     CROSS APPLY (
       SELECT CASE
-        WHEN rt.pgtTipoVistaOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDinheiro,  0)
-        WHEN rt.pgtTipoVistaOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequeVista, 0)
-        WHEN rt.pgtTipoVistaOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoDebito, 0)
-        WHEN rt.pgtTipoVistaOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDeposito,  0)
-        WHEN rt.pgtTipoVistaOrigem = 4 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroPix,       0)
+        WHEN rec.pgtTipoOpr    = 'DV' THEN 0
+        WHEN rt.pgtTipoVistaOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDinheiro,      0)
+        WHEN rt.pgtTipoVistaOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequeVista,   0)
+        WHEN rt.pgtTipoVistaOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoDebito,  0)
+        WHEN rt.pgtTipoVistaOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDeposito,      0)
+        WHEN rt.pgtTipoVistaOrigem = 4 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroPix,           0)
         WHEN rt.pgtTipoPrazoOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoCredito, 0)
-        WHEN rt.pgtTipoPrazoOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequePrazo, 0)
-        WHEN rt.pgtTipoPrazoOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCarteira,  0)
-        WHEN rt.pgtTipoPrazoOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroBoleto,    0)
+        WHEN rt.pgtTipoPrazoOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequePrazo,   0)
+        WHEN rt.pgtTipoPrazoOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCarteira,      0)
+        WHEN rt.pgtTipoPrazoOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroBoleto,        0)
         ELSE 0
       END AS AliqPct
     ) AliqComissao
 
     ${vendedorWhereClause}
 
-    ${includeSemVinculo ? `
     UNION ALL
 
+    -- Recebimentos sem vínculo com venda: atribuídos ao pgtAtendente
     SELECT
       rec.pgtId    AS RecebimentoId,
       NULL         AS VendaId,
       NULL         AS TipoVenda,
       ISNULL(rec.pgtTipoOpr, '') AS TipoRecebimento,
-      NULL         AS VendedorId,
-      NULL         AS NomeVendedor,
+      rec.pgtAtendente AS VendedorId,
+      att.cliNome  AS NomeVendedor,
       rec.pgtDataQuitou AS DataPagamento,
       0            AS ValorVendaOrigem,
       rec.pgtValor AS ValorParcela,
@@ -263,13 +267,14 @@ function buildQuery(vendedorWhereClause: string, includeSemVinculo: boolean): st
       rec.pgtTipoPrazo AS TipoPrazoOrigem,
       1            AS SemVinculo
     FROM Recebimentos rec
+    LEFT JOIN cliente att ON att.cliId = rec.pgtAtendente
     WHERE NOT EXISTS (
       SELECT 1
       FROM Rateio rt2
       INNER JOIN venda sv ON sv.vedId = rt2.pgtVendaId AND sv.empId = @empId
       WHERE rt2.RecebimentoId = rec.pgtId
     )
-    ` : ''}
+    ${semVinculoExtraClause}
 
     ORDER BY DataPagamento, RecebimentoId
 
@@ -302,21 +307,23 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Bridge não configurada" }, { status: 503 });
 
   const vendedorParams: Record<string, number> = {};
-  let vendedorWhereClause = "";
+  let vendedorWhereClause    = "";
+  let semVinculoExtraClause  = "";
+
   if (vendedorIds.length > 0) {
     const placeholders = vendedorIds.map((id, i) => {
       vendedorParams[`vid${i}`] = id;
       return `@vid${i}`;
     });
-    vendedorWhereClause = `WHERE v.vedAtendente IN (${placeholders.join(", ")})`;
+    const inList = placeholders.join(", ");
+    vendedorWhereClause   = `WHERE v.vedAtendente IN (${inList})`;
+    semVinculoExtraClause = `AND rec.pgtAtendente IN (${inList})`;
   }
-
-  const includeSemVinculo = vendedorIds.length === 0;
 
   try {
     const rows = await queryBridge<ComissaoRow>(
       config,
-      buildQuery(vendedorWhereClause, includeSemVinculo),
+      buildQuery(vendedorWhereClause, semVinculoExtraClause),
       { empId: config.empId, start, end, ...vendedorParams }
     );
     return NextResponse.json({ rows });
