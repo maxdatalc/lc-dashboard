@@ -7,8 +7,8 @@ export const dynamic = "force-dynamic";
 
 export interface ComissaoRow {
   RecebimentoId: number;
-  VendaId: number;
-  TipoVenda: string;
+  VendaId: number | null;
+  TipoVenda: string | null;
   TipoRecebimento: string;    // pgtTipoOpr: FI, CO, RE, FA, OS, DV, VE…
   VendedorId: number | null;
   NomeVendedor: string | null;
@@ -25,9 +25,10 @@ export interface ComissaoRow {
   TipoPagamento: string;
   TipoVistaOrigem: number | null;
   TipoPrazoOrigem: number | null;
+  SemVinculo: 0 | 1;
 }
 
-function buildQuery(vendedorWhereClause: string): string {
+function buildQuery(vendedorWhereClause: string, includeSemVinculo: boolean): string {
   return `
     WITH Recebimentos AS (
       SELECT
@@ -167,7 +168,8 @@ function buildQuery(vendedorWhereClause: string): string {
         ELSE 'Outro'
       END AS TipoPagamento,
       rt.pgtTipoVistaOrigem AS TipoVistaOrigem,
-      rt.pgtTipoPrazoOrigem AS TipoPrazoOrigem
+      rt.pgtTipoPrazoOrigem AS TipoPrazoOrigem,
+      0 AS SemVinculo
 
     FROM Rateio rt
     INNER JOIN Recebimentos rec   ON rec.pgtId  = rt.RecebimentoId
@@ -220,7 +222,56 @@ function buildQuery(vendedorWhereClause: string): string {
     ) AliqComissao
 
     ${vendedorWhereClause}
-    ORDER BY rec.pgtDataQuitou, rec.pgtId, v.vedId
+
+    ${includeSemVinculo ? `
+    UNION ALL
+
+    SELECT
+      rec.pgtId    AS RecebimentoId,
+      NULL         AS VendaId,
+      NULL         AS TipoVenda,
+      ISNULL(rec.pgtTipoOpr, '') AS TipoRecebimento,
+      NULL         AS VendedorId,
+      NULL         AS NomeVendedor,
+      rec.pgtDataQuitou AS DataPagamento,
+      0            AS ValorVendaOrigem,
+      rec.pgtValor AS ValorParcela,
+      NULL         AS TotalParcelasVenda,
+      ROUND(ISNULL(rec.pgtValor,0) - ISNULL(rec.pgtValorJuros,0) - ISNULL(rec.pgtValorMulta,0), 2) AS ValorRecebidoRateado,
+      0            AS ValorTotalVenda,
+      0            AS BaseCalculoComissao,
+      0.0          AS PercentualComissao,
+      0            AS ComissaoTotal,
+      0            AS ComissaoPaga,
+      CASE
+        WHEN rec.pgtTipoVista=0 THEN 'Dinheiro'
+        WHEN rec.pgtTipoVista=1 THEN 'Cheque a Vista'
+        WHEN rec.pgtTipoVista=2 THEN 'Cartao Debito'
+        WHEN rec.pgtTipoVista=3 THEN 'Deposito'
+        WHEN rec.pgtTipoVista=4 THEN 'Dep./PIX'
+        WHEN rec.pgtTipoPrazo=0 THEN 'Cartao Credito'
+        WHEN rec.pgtTipoPrazo=1 THEN 'Cheque Pre'
+        WHEN rec.pgtTipoPrazo=2 THEN 'Carteira'
+        WHEN rec.pgtTipoPrazo=3 THEN 'Boleto'
+        WHEN rec.pgtTipoPrazo=4 THEN 'Vale'
+        WHEN rec.pgtTipoPrazo=5 THEN 'Cheque Dev.'
+        WHEN rec.pgtTipoPrazo=6 THEN 'Debito Conta'
+        WHEN rec.pgtTipoPrazo=7 THEN 'Custodia'
+        ELSE 'Outro'
+      END          AS TipoPagamento,
+      rec.pgtTipoVista AS TipoVistaOrigem,
+      rec.pgtTipoPrazo AS TipoPrazoOrigem,
+      1            AS SemVinculo
+    FROM Recebimentos rec
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM Rateio rt2
+      INNER JOIN venda sv ON sv.vedId = rt2.pgtVendaId AND sv.empId = @empId
+      WHERE rt2.RecebimentoId = rec.pgtId
+    )
+    ` : ''}
+
+    ORDER BY DataPagamento, RecebimentoId
 
     OPTION (MAXRECURSION 100)
   `;
@@ -260,10 +311,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     vendedorWhereClause = `WHERE v.vedAtendente IN (${placeholders.join(", ")})`;
   }
 
+  const includeSemVinculo = vendedorIds.length === 0;
+
   try {
     const rows = await queryBridge<ComissaoRow>(
       config,
-      buildQuery(vendedorWhereClause),
+      buildQuery(vendedorWhereClause, includeSemVinculo),
       { empId: config.empId, start, end, ...vendedorParams }
     );
     return NextResponse.json({ rows });
