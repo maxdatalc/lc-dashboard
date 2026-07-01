@@ -4,7 +4,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
-import { isSystemAdmin, salvarConfigUsuario } from "@/lib/db/admin";
+import { isSystemAdmin, salvarConfigUsuario, salvarGrupoDB, deletarGrupoDB } from "@/lib/db/admin";
 
 async function verificarAdmin(): Promise<void> {
   const supabase = await createClient();
@@ -209,7 +209,7 @@ export async function salvarAcessoUsuario(
   config: {
     lojaIds: string[];
     modulos: Record<string, boolean>;
-    // ERP: atualiza tipos_bloqueados para todas as lojas do usuário
+    groupId?: string | null;
     tiposBloqueadosPorLoja?: Record<string, number[]>;
   }
 ): Promise<{ error?: string }> {
@@ -217,7 +217,11 @@ export async function salvarAcessoUsuario(
     await verificarAdmin();
     const supabase = createAdminClient();
 
-    await salvarConfigUsuario(tenantId, userId, { lojaIds: config.lojaIds, modulos: config.modulos });
+    await salvarConfigUsuario(tenantId, userId, {
+      lojaIds: config.lojaIds,
+      modulos: config.modulos,
+      groupId: config.groupId,
+    });
 
     if (config.tiposBloqueadosPorLoja) {
       for (const [lojaId, tipos] of Object.entries(config.tiposBloqueadosPorLoja)) {
@@ -233,5 +237,37 @@ export async function salvarAcessoUsuario(
     return {};
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Erro ao salvar acesso" };
+  }
+}
+
+// ── Grupos de permissão ────────────────────────────────────────────────────────
+
+export async function salvarGrupoPermissao(
+  tenantId: string,
+  groupId: string | null,
+  name: string,
+  modulos: Record<string, boolean>
+): Promise<{ error?: string; id?: string }> {
+  try {
+    await verificarAdmin();
+    const id = await salvarGrupoDB(tenantId, groupId, name, modulos);
+    revalidatePath(`/admin/empresas/${tenantId}`, "page");
+    return { id };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erro ao salvar grupo" };
+  }
+}
+
+export async function deletarGrupoPermissao(
+  tenantId: string,
+  groupId: string
+): Promise<{ error?: string }> {
+  try {
+    await verificarAdmin();
+    await deletarGrupoDB(tenantId, groupId);
+    revalidatePath(`/admin/empresas/${tenantId}`, "page");
+    return {};
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erro ao deletar grupo" };
   }
 }

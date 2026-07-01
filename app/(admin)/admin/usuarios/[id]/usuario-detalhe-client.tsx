@@ -716,7 +716,8 @@ export function UsuarioDetalheClient({
 // ── Painel de acesso por empresa ──────────────────────────────────────────────
 
 const MODULES_LABEL: Record<string, string> = {
-  dashboard_visao_geral: "Vendas",
+  dashboard_visao_geral: "Visão Geral",
+  modulo_vendas:         "Dashboard Vendas",
   modulo_financeiro:     "Financeiro",
   modulo_produtos:       "Produtos",
   modulo_clientes:       "Clientes",
@@ -725,7 +726,7 @@ const MODULES_LABEL: Record<string, string> = {
 };
 
 const MODULE_GROUPS: { label: string; keys: string[] }[] = [
-  { label: "Dashboard",  keys: ["dashboard_visao_geral", "modulo_financeiro", "modulo_produtos", "modulo_clientes"] },
+  { label: "Dashboard",  keys: ["dashboard_visao_geral", "modulo_vendas", "modulo_financeiro", "modulo_produtos", "modulo_clientes"] },
   { label: "Módulos",    keys: ["modulo_os"] },
   { label: "Relatórios", keys: ["modulo_relatorios"] },
 ];

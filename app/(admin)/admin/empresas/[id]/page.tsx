@@ -3,21 +3,23 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Building2, ExternalLink, RefreshCw, Scale, Settings, Users, Users2, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, RefreshCw, Scale, Settings, Shield, Users, Users2, Zap } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
   updateTenantPlan,
   getUsuariosTenantDetalhado,
+  getGruposTenant,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
 import { getClientesByTenantId, vincularClientesPorCnpjs } from "@/lib/db/clientes-base";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
+import { GruposSectionClient } from "@/components/admin/GruposSectionClient";
 import { EditNomeTenantClient } from "@/components/admin/EditNomeTenantClient";
 import { selecionarEmpresaAdmin } from "@/app/actions/auth";
 
-type Aba = "lojas" | "features" | "usuarios" | "clientes";
+type Aba = "lojas" | "features" | "usuarios" | "clientes" | "permissoes";
 
 // ── Server Actions ────────────────────────────────────────────────────────────
 
@@ -55,14 +57,15 @@ export default async function GerenciarEmpresaPage({
 }) {
   const { id } = await params;
   const { aba: abaParam, vinculados: vinculadosParam } = await searchParams;
-  const abaAtiva: Aba = (["lojas", "features", "usuarios", "clientes"].includes(abaParam ?? "")
+  const abaAtiva: Aba = (["lojas", "features", "usuarios", "clientes", "permissoes"].includes(abaParam ?? "")
     ? abaParam
     : "lojas") as Aba;
 
   const tenant = await getTenantByIdAdmin(id);
   if (!tenant) notFound();
 
-  const usuarios = abaAtiva === "usuarios" ? await getUsuariosTenantDetalhado(id) : [];
+  const usuarios = (abaAtiva === "usuarios" || abaAtiva === "permissoes") ? await getUsuariosTenantDetalhado(id) : [];
+  const grupos = (abaAtiva === "usuarios" || abaAtiva === "permissoes") ? await getGruposTenant(id) : [];
   const clientesVinculados = abaAtiva === "clientes" ? await getClientesByTenantId(id) : [];
 
   const emBreveFeatures  = FEATURES_CATALOG.filter((f) => !f.disponivel);
@@ -74,6 +77,7 @@ export default async function GerenciarEmpresaPage({
     { valor: "lojas" as Aba, label: "Lojas", icon: Building2, count: tenant.lojas.length },
     { valor: "features" as Aba, label: "Módulos", icon: Zap },
     { valor: "usuarios" as Aba, label: "Usuários", icon: Users },
+    { valor: "permissoes" as Aba, label: "Permissões", icon: Shield },
     { valor: "clientes" as Aba, label: "Clientes", icon: Users2 },
   ];
 
@@ -364,6 +368,17 @@ export default async function GerenciarEmpresaPage({
               empId: l.empId,
             }))}
             tenantFeatures={tenant.features}
+            grupos={grupos}
+          />
+        )}
+
+        {/* ── Aba Permissões ───────────────────────────────────────────────── */}
+        {abaAtiva === "permissoes" && (
+          <GruposSectionClient
+            tenantId={id}
+            grupos={grupos}
+            tenantFeatures={tenant.features}
+            usuarios={usuarios}
           />
         )}
 

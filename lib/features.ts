@@ -68,7 +68,7 @@ export const FEATURES_CATALOG: Feature[] = [
     descricao: "Histórico, análise e drill-down de vendas",
     categoria: "premium",
     icone: "ShoppingCart",
-    disponivel: false,
+    disponivel: true,
   },
   {
     key: "modulo_clientes",
@@ -153,6 +153,7 @@ export function hasFeature(features: string[], featureKey: string): boolean {
 export function getCoreFeatures(): string[] {
   return [
     "dashboard_visao_geral",
+    "modulo_vendas",
     "modulo_financeiro",
     "modulo_produtos",
   ];

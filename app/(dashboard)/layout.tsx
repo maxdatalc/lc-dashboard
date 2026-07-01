@@ -10,6 +10,7 @@ import { FilterProvider } from "@/lib/contexts/filter-context";
 import { EmpresaProvider } from "@/lib/contexts/empresa-context";
 import { DashLojaSync } from "@/components/layout/DashLojaSync";
 import type { Plan, UserRole } from "@/lib/plans";
+import { getCoreFeatures } from "@/lib/features";
 
 export default async function DashboardLayout({
   children,
@@ -59,11 +60,11 @@ export default async function DashboardLayout({
           .eq("tenant_id", selectedTenantId)
       : Promise.resolve({ data: [] }),
 
-    // Configurações por usuário: módulos liberados individualmente
+    // Configurações por usuário: módulos liberados e grupo atribuído
     selectedTenantId
       ? adminClient
           .from("user_tenant_settings")
-          .select("modulos")
+          .select("modulos, group_id")
           .eq("user_id", user.id)
           .eq("tenant_id", selectedTenantId)
           .maybeSingle()
@@ -91,22 +92,52 @@ export default async function DashboardLayout({
   const rawFeatures  = (featuresRes.data ?? []) as { feature_key: string }[];
   const tenantFeatures = rawFeatures.map((r) => r.feature_key);
 
-  // Restrições por usuário: proprietários e admins globais vêem tudo
-  // Outros usuários são filtrados pelas permissões individuais
-  const userModulos = (userSettingsRes.data as { modulos?: Record<string, boolean> } | null)?.modulos ?? null;
+  // Sempre garante que features core estejam presentes (retro-compatibilidade)
+  const coreFeatures = getCoreFeatures();
+  const allTenantFeatures = tenantFeatures.length > 0
+    ? [...new Set([...coreFeatures, ...tenantFeatures])]
+    : []; // vazio = usa planHasFeature como fallback
+
+  // Configurações por usuário + grupo
+  const userSettings = (userSettingsRes.data as { modulos?: Record<string, boolean>; group_id?: string | null } | null);
+  const userModulos = userSettings?.modulos ?? null;
+  const groupId = userSettings?.group_id ?? null;
   const effectiveRole = isAdmin ? "owner" : userRole;
 
+  // Carrega modulos do grupo se o usuário pertence a um
+  let groupModulos: Record<string, boolean> | null = null;
+  if (groupId && selectedTenantId) {
+    const { data: grp } = await adminClient
+      .from("tenant_groups")
+      .select("modulos")
+      .eq("id", groupId)
+      .maybeSingle();
+    groupModulos = (grp as { modulos?: Record<string, boolean> } | null)?.modulos ?? null;
+  }
+
+  // Resolução de permissões em 3 níveis: tenant → grupo → usuário
   let effectiveFeatures: string[] | undefined;
-  if (tenantFeatures.length === 0) {
+  if (allTenantFeatures.length === 0) {
     effectiveFeatures = undefined; // sem features = usa planHasFeature como fallback
   } else if (isAdmin || effectiveRole === "owner") {
-    effectiveFeatures = tenantFeatures; // proprietários e admins globais: acesso total
-  } else if (userModulos) {
-    // Usuário com restrições: interseção entre features do tenant e módulos liberados
-    effectiveFeatures = tenantFeatures.filter((k) => userModulos[k] === true);
+    effectiveFeatures = allTenantFeatures; // proprietários e admins globais: acesso total
+  } else if (groupModulos && Object.keys(groupModulos).length > 0) {
+    // Nível grupo: interseção tenant ∩ grupo
+    const groupFeatures = allTenantFeatures.filter((k) => groupModulos![k] === true);
+    if (userModulos && Object.keys(userModulos).length > 0) {
+      // Nível usuário: restrição adicional sobre o grupo
+      effectiveFeatures = groupFeatures.filter((k) => userModulos[k] === true);
+    } else {
+      effectiveFeatures = groupFeatures;
+    }
+  } else if (userModulos && Object.keys(userModulos).length > 0) {
+    // Sem grupo, com restrições individuais
+    effectiveFeatures = allTenantFeatures.filter((k) => userModulos[k] === true);
   } else {
-    // Sem configuração individual = sem acesso a módulos restritos (somente core)
-    effectiveFeatures = tenantFeatures.filter((k) => k === "dashboard_visao_geral");
+    // Sem grupo, sem configuração → apenas home e vendas (modules com acesso padrão)
+    effectiveFeatures = allTenantFeatures.filter(
+      (k) => k === "dashboard_visao_geral" || k === "modulo_vendas"
+    );
   }
 
   const multiEmpresa = (tenantCountRes.count ?? 0) > 1;
