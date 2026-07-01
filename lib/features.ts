@@ -153,7 +153,6 @@ export function hasFeature(features: string[], featureKey: string): boolean {
 export function getCoreFeatures(): string[] {
   return [
     "dashboard_visao_geral",
-    "modulo_vendas",
     "modulo_financeiro",
     "modulo_produtos",
   ];
