@@ -8,7 +8,6 @@ import { ChartCard } from "@/components/ui/ChartCard";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { CliReceitaTipoChart } from "@/components/charts/CliReceitaTipoChart";
 import { CliConversaoChart } from "@/components/charts/CliConversaoChart";
-import { CliCompradoresChart } from "@/components/charts/CliCompradoresChart";
 import { CliGeoRanking, cidadeKey, SEM_CIDADE } from "@/components/charts/CliGeoRanking";
 import { CliLimitesRanking } from "@/components/charts/CliLimitesRanking";
 
@@ -235,15 +234,6 @@ export default function ClientesPage() {
       return { mes, cadastros: cad, primeiraCompra: pc, conversao: cad > 0 ? (pc / cad) * 100 : null };
     });
 
-    const compradoresChart = data.meses.map((mes) => {
-      let rec = 0, nao = 0;
-      for (const r of data.compradores) {
-        if (r.mes !== mes || !cidadeOk(r.cidade)) continue;
-        if (r.tipo === "R") rec += r.qtde; else nao += r.qtde;
-      }
-      return { mes, recorrentes: rec, naoRecorrentes: nao, total: rec + nao };
-    });
-
     // — KPIs de período (usam escalar quando não há cross-filter; senão recalculam da série)
     const cadastrosVal = noFiltro
       ? data.cadastrosKpi.atual
@@ -281,19 +271,15 @@ export default function ClientesPage() {
     for (const r of conversaoChart) { if (inPeriodo(r.mes)) { cadPeriodo += r.cadastros; pcPeriodo += r.primeiraCompra; } }
     const conversaoMedia = cadPeriodo > 0 ? (pcPeriodo / cadPeriodo) * 100 : null;
 
-    let recBuyers = 0, totalBuyers = 0;
-    for (const r of compradoresChart) { if (inPeriodo(r.mes)) { recBuyers += r.recorrentes; totalBuyers += r.total; } }
-    const taxaMediaRecorrencia = totalBuyers > 0 ? (recBuyers / totalBuyers) * 100 : null;
-
     // — Limites (ranking respeita cidade)
     const limitesF = data.limites.filter((l) => cidadeOk(l.cidade));
 
     return {
       ativos, inativos, totalBase, limiteTotal, comLimite,
       geo, totalBaseAtivos,
-      receitaChart, conversaoChart, compradoresChart,
+      receitaChart, conversaoChart,
       cadastrosVal, primeiraVal, taxaRecorrencia, taxaRecorrenciaPrev,
-      pctReceitaRecorrente, conversaoMedia, taxaMediaRecorrencia,
+      pctReceitaRecorrente, conversaoMedia,
       limitesF, noFiltro,
     };
   }, [data, fMes, fCidade]);
@@ -449,27 +435,6 @@ export default function ClientesPage() {
             )}
           </ChartCard>
         </div>
-
-        {/* ── Linha 4: Compradores por Recorrência ───────────────────────── */}
-        <ChartCard
-          title="Clientes Compradores por Recorrência"
-          subtitle="quantidade de clientes únicos que compraram no mês"
-          animationDelay={300}
-          info="Para cada mês, quantos clientes únicos compraram, separados entre recorrentes (mais de uma compra finalizada) e não recorrentes; a linha é o total de compradores. O rótulo dentro de cada barra mostra a participação de cada grupo no mês. Clique num mês para filtrar o painel."
-        >
-          {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 300 }} /> : (
-            <>
-              {derived.taxaMediaRecorrencia != null && (
-                <div style={{ marginBottom: 8, display: "flex", justifyContent: "flex-end" }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--accent-purple)", padding: "3px 10px", borderRadius: 20, background: "color-mix(in srgb, var(--accent-purple) 12%, transparent)" }}>
-                    Taxa média de recorrência: {pct(derived.taxaMediaRecorrencia, 0)}
-                  </span>
-                </div>
-              )}
-              <CliCompradoresChart data={derived.compradoresChart} selectedMes={fMes} onMesClick={setFMes} />
-            </>
-          )}
-        </ChartCard>
 
       </div>
     </div>
