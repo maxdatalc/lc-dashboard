@@ -9,7 +9,7 @@ export interface ComissaoRow {
   RecebimentoId: number;
   VendaId: number | null;
   TipoVenda: string | null;
-  TipoRecebimento: string;    // pgtTipoOpr: FI, CO, RE, FA, OS, DV, VE…
+  TipoRecebimento: string;
   VendedorId: number | null;
   NomeVendedor: string | null;
   DataPagamento: string;
@@ -19,7 +19,7 @@ export interface ComissaoRow {
   ValorRecebidoRateado: number;
   ValorTotalVenda: number;
   BaseCalculoComissao: number;
-  PercentualComissao: number;     // decimal 0-1 (ex: 0.02 para 2%)
+  PercentualComissao: number;
   ComissaoTotal: number;
   ComissaoPaga: number;
   TipoPagamento: string;
@@ -28,9 +28,10 @@ export interface ComissaoRow {
   SemVinculo: 0 | 1;
 }
 
-// vendedorWhereClause  : "WHERE v.vedAtendente IN (@vid0, ...)"  ou ""
-// semVinculoExtraClause: "AND rec.pgtAtendente IN (@vid0, ...)" ou ""
-function buildQuery(vendedorWhereClause: string, semVinculoExtraClause: string): string {
+// vendedorFilterClause: WHERE aplicado ao SELECT final, filtrando por vendedor em ambos os casos
+// Ex (com filtro): "WHERE (v.vedAtendente IN (@vid0,...) OR (rt.RecebimentoId IS NULL AND rec.pgtAtendente IN (@vid0,...)))"
+// Ex (sem filtro): ""
+function buildQuery(vendedorFilterClause: string): string {
   return `
     WITH Recebimentos AS (
       SELECT
@@ -123,28 +124,35 @@ function buildQuery(vendedorWhereClause: string, semVinculoExtraClause: string):
 
     SELECT
       rec.pgtId AS RecebimentoId,
-      v.vedId AS VendaId,
+      v.vedId   AS VendaId,
       v.vedTipo AS TipoVenda,
       ISNULL(rec.pgtTipoOpr, '') AS TipoRecebimento,
-      v.vedAtendente AS VendedorId,
-      cli.cliNome AS NomeVendedor,
+
+      CASE WHEN rt.RecebimentoId IS NULL THEN rec.pgtAtendente ELSE v.vedAtendente END AS VendedorId,
+      CASE WHEN rt.RecebimentoId IS NULL THEN att.cliNome      ELSE cli.cliNome      END AS NomeVendedor,
+
       rec.pgtDataQuitou AS DataPagamento,
-      ROUND(rt.ValorVenda, 2) AS ValorVendaOrigem,
+
+      ISNULL(ROUND(rt.ValorVenda, 2), 0) AS ValorVendaOrigem,
       rec.pgtValor AS ValorParcela,
       ParcelaVenda.TotalParcelasVenda,
+
       ROUND(
-        (ISNULL(rec.pgtValor,0)-ISNULL(rec.pgtValorJuros,0)-ISNULL(rec.pgtValorMulta,0))
-        * rt.PercentualRateio, 2
+        (ISNULL(rec.pgtValor,0) - ISNULL(rec.pgtValorJuros,0) - ISNULL(rec.pgtValorMulta,0))
+        * ISNULL(rt.PercentualRateio, 1), 2
       ) AS ValorRecebidoRateado,
-      ROUND(ISNULL(TotalVenda.Total,0), 2) AS ValorTotalVenda,
-      ROUND(BaseCalc.Valor, 2) AS BaseCalculoComissao,
-      AliqComissao.AliqPct / 100.0 AS PercentualComissao,
-      ROUND(BaseCalc.Valor * AliqComissao.AliqPct / 100.0, 2) AS ComissaoTotal,
-      ROUND(
+
+      ROUND(ISNULL(TotalVenda.Total, 0), 2) AS ValorTotalVenda,
+      ROUND(BaseCalc.Valor, 2)              AS BaseCalculoComissao,
+      AliqComissao.AliqPct / 100.0          AS PercentualComissao,
+
+      ISNULL(ROUND(BaseCalc.Valor * AliqComissao.AliqPct / 100.0, 2), 0) AS ComissaoTotal,
+
+      ISNULL(ROUND(
         BaseCalc.Valor * AliqComissao.AliqPct / 100.0
         * (
-          (ISNULL(rec.pgtValor,0)-ISNULL(rec.pgtValorJuros,0)-ISNULL(rec.pgtValorMulta,0))
-          * rt.PercentualRateio
+          (ISNULL(rec.pgtValor,0) - ISNULL(rec.pgtValorJuros,0) - ISNULL(rec.pgtValorMulta,0))
+          * ISNULL(rt.PercentualRateio, 1)
           / NULLIF(CASE
               WHEN ParcelaVenda.TotalParcelasVenda IS NOT NULL
                    AND ParcelaVenda.TotalParcelasVenda > rt.ValorVenda
@@ -152,32 +160,36 @@ function buildQuery(vendedorWhereClause: string, semVinculoExtraClause: string):
               ELSE rt.ValorVenda
             END, 0)
         ), 2
-      ) AS ComissaoPaga,
+      ), 0) AS ComissaoPaga,
+
       CASE
-        WHEN rt.pgtTipoVistaOrigem=0 THEN 'Dinheiro'
-        WHEN rt.pgtTipoVistaOrigem=1 THEN 'Cheque a Vista'
-        WHEN rt.pgtTipoVistaOrigem=2 THEN 'Cartao Debito'
-        WHEN rt.pgtTipoVistaOrigem=3 THEN 'Deposito'
-        WHEN rt.pgtTipoVistaOrigem=4 THEN 'Dep./PIX'
-        WHEN rt.pgtTipoPrazoOrigem=0 THEN 'Cartao Credito'
-        WHEN rt.pgtTipoPrazoOrigem=1 THEN 'Cheque Pre'
-        WHEN rt.pgtTipoPrazoOrigem=2 THEN 'Carteira'
-        WHEN rt.pgtTipoPrazoOrigem=3 THEN 'Boleto'
-        WHEN rt.pgtTipoPrazoOrigem=4 THEN 'Vale'
-        WHEN rt.pgtTipoPrazoOrigem=5 THEN 'Cheque Dev.'
-        WHEN rt.pgtTipoPrazoOrigem=6 THEN 'Debito Conta'
-        WHEN rt.pgtTipoPrazoOrigem=7 THEN 'Custodia'
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 0 THEN 'Dinheiro'
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 1 THEN 'Cheque a Vista'
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 2 THEN 'Cartao Debito'
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 3 THEN 'Deposito'
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 4 THEN 'Dep./PIX'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 0 THEN 'Cartao Credito'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 1 THEN 'Cheque Pre'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 2 THEN 'Carteira'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 3 THEN 'Boleto'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 4 THEN 'Vale'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 5 THEN 'Cheque Dev.'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 6 THEN 'Debito Conta'
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 7 THEN 'Custodia'
         ELSE 'Outro'
       END AS TipoPagamento,
-      rt.pgtTipoVistaOrigem AS TipoVistaOrigem,
-      rt.pgtTipoPrazoOrigem AS TipoPrazoOrigem,
-      0 AS SemVinculo
 
-    FROM Rateio rt
-    INNER JOIN Recebimentos rec   ON rec.pgtId  = rt.RecebimentoId
-    INNER JOIN venda v            ON v.vedId    = rt.pgtVendaId AND v.empId = @empId
-    INNER JOIN cliente cli        ON cli.cliId  = v.vedAtendente
-    INNER JOIN configVenda cv     ON cv.empId   = @empId
+      ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) AS TipoVistaOrigem,
+      ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) AS TipoPrazoOrigem,
+
+      CASE WHEN rt.RecebimentoId IS NULL THEN 1 ELSE 0 END AS SemVinculo
+
+    FROM Recebimentos rec
+    LEFT JOIN Rateio rt ON rt.RecebimentoId = rec.pgtId
+    LEFT JOIN venda v   ON v.vedId = rt.pgtVendaId AND v.empId = @empId
+    LEFT JOIN cliente cli ON cli.cliId = v.vedAtendente
+    LEFT JOIN cliente att ON att.cliId = rec.pgtAtendente
+    LEFT JOIN configVenda cv ON cv.empId = @empId
 
     OUTER APPLY (
       SELECT SUM((vi.vdiValor - (vi.vdiValor * ISNULL(vi.vdiDesc, 0))) * vi.vdiQtde) AS Total
@@ -211,70 +223,21 @@ function buildQuery(vendedorWhereClause: string, semVinculoExtraClause: string):
 
     CROSS APPLY (
       SELECT CASE
-        WHEN rec.pgtTipoOpr    = 'DV' THEN 0
-        WHEN rt.pgtTipoVistaOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDinheiro,      0)
-        WHEN rt.pgtTipoVistaOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequeVista,   0)
-        WHEN rt.pgtTipoVistaOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoDebito,  0)
-        WHEN rt.pgtTipoVistaOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDeposito,      0)
-        WHEN rt.pgtTipoVistaOrigem = 4 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroPix,           0)
-        WHEN rt.pgtTipoPrazoOrigem = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoCredito, 0)
-        WHEN rt.pgtTipoPrazoOrigem = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequePrazo,   0)
-        WHEN rt.pgtTipoPrazoOrigem = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCarteira,      0)
-        WHEN rt.pgtTipoPrazoOrigem = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroBoleto,        0)
+        WHEN rec.pgtTipoOpr                              = 'DV' THEN 0
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDinheiro,      0)
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequeVista,   0)
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoDebito,  0)
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroDeposito,      0)
+        WHEN ISNULL(rt.pgtTipoVistaOrigem, rec.pgtTipoVista) = 4 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroPix,           0)
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 0 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCartaoCredito, 0)
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 1 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroChequePrazo,   0)
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 2 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroCarteira,      0)
+        WHEN ISNULL(rt.pgtTipoPrazoOrigem, rec.pgtTipoPrazo) = 3 THEN ISNULL(cv.cofVedAliqComissaoFinanceiroBoleto,        0)
         ELSE 0
       END AS AliqPct
     ) AliqComissao
 
-    ${vendedorWhereClause}
-
-    UNION ALL
-
-    -- Recebimentos sem vínculo com venda: atribuídos ao pgtAtendente
-    SELECT
-      rec.pgtId    AS RecebimentoId,
-      NULL         AS VendaId,
-      NULL         AS TipoVenda,
-      ISNULL(rec.pgtTipoOpr, '') AS TipoRecebimento,
-      rec.pgtAtendente AS VendedorId,
-      att.cliNome  AS NomeVendedor,
-      rec.pgtDataQuitou AS DataPagamento,
-      0            AS ValorVendaOrigem,
-      rec.pgtValor AS ValorParcela,
-      NULL         AS TotalParcelasVenda,
-      ROUND(ISNULL(rec.pgtValor,0) - ISNULL(rec.pgtValorJuros,0) - ISNULL(rec.pgtValorMulta,0), 2) AS ValorRecebidoRateado,
-      0            AS ValorTotalVenda,
-      0            AS BaseCalculoComissao,
-      0.0          AS PercentualComissao,
-      0            AS ComissaoTotal,
-      0            AS ComissaoPaga,
-      CASE
-        WHEN rec.pgtTipoVista=0 THEN 'Dinheiro'
-        WHEN rec.pgtTipoVista=1 THEN 'Cheque a Vista'
-        WHEN rec.pgtTipoVista=2 THEN 'Cartao Debito'
-        WHEN rec.pgtTipoVista=3 THEN 'Deposito'
-        WHEN rec.pgtTipoVista=4 THEN 'Dep./PIX'
-        WHEN rec.pgtTipoPrazo=0 THEN 'Cartao Credito'
-        WHEN rec.pgtTipoPrazo=1 THEN 'Cheque Pre'
-        WHEN rec.pgtTipoPrazo=2 THEN 'Carteira'
-        WHEN rec.pgtTipoPrazo=3 THEN 'Boleto'
-        WHEN rec.pgtTipoPrazo=4 THEN 'Vale'
-        WHEN rec.pgtTipoPrazo=5 THEN 'Cheque Dev.'
-        WHEN rec.pgtTipoPrazo=6 THEN 'Debito Conta'
-        WHEN rec.pgtTipoPrazo=7 THEN 'Custodia'
-        ELSE 'Outro'
-      END          AS TipoPagamento,
-      rec.pgtTipoVista AS TipoVistaOrigem,
-      rec.pgtTipoPrazo AS TipoPrazoOrigem,
-      1            AS SemVinculo
-    FROM Recebimentos rec
-    LEFT JOIN cliente att ON att.cliId = rec.pgtAtendente
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM Rateio rt2
-      INNER JOIN venda sv ON sv.vedId = rt2.pgtVendaId AND sv.empId = @empId
-      WHERE rt2.RecebimentoId = rec.pgtId
-    )
-    ${semVinculoExtraClause}
+    ${vendedorFilterClause}
 
     ORDER BY DataPagamento, RecebimentoId
 
@@ -307,8 +270,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "Bridge não configurada" }, { status: 503 });
 
   const vendedorParams: Record<string, number> = {};
-  let vendedorWhereClause    = "";
-  let semVinculoExtraClause  = "";
+  let vendedorFilterClause = "";
 
   if (vendedorIds.length > 0) {
     const placeholders = vendedorIds.map((id, i) => {
@@ -316,14 +278,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       return `@vid${i}`;
     });
     const inList = placeholders.join(", ");
-    vendedorWhereClause   = `WHERE v.vedAtendente IN (${inList})`;
-    semVinculoExtraClause = `AND rec.pgtAtendente IN (${inList})`;
+    // Com vínculo: filtra por v.vedAtendente | Sem vínculo: filtra por rec.pgtAtendente
+    vendedorFilterClause = `WHERE (v.vedAtendente IN (${inList}) OR (rt.RecebimentoId IS NULL AND rec.pgtAtendente IN (${inList})))`;
   }
 
   try {
     const rows = await queryBridge<ComissaoRow>(
       config,
-      buildQuery(vendedorWhereClause, semVinculoExtraClause),
+      buildQuery(vendedorFilterClause),
       { empId: config.empId, start, end, ...vendedorParams }
     );
     return NextResponse.json({ rows });
