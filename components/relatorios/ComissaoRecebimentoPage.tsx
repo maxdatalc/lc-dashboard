@@ -366,7 +366,7 @@ export default function ComissaoRecebimentoPage() {
   const totalVendas   = new Set(enrichedRows.map((r) => r.VendaId)).size;
   const pctMedio      = totalRecebido > 0 ? (totalComissao / totalRecebido) * 100 : 0;
 
-  const multiVendedor = new Set(enrichedRows.map((r) => r.VendedorId)).size > 1;
+  const multiVendedor = new Set(enrichedRows.filter((r) => r.VendedorId != null).map((r) => r.VendedorId)).size > 1;
 
   // ── Agrupamento por vendedor ─────────────────────────────────────────────
   const vendorGroups = useMemo<VendorGroup[]>(() => {
@@ -378,7 +378,7 @@ export default function ComissaoRecebimentoPage() {
     });
     return Array.from(vendorMap.entries()).map(([id, vRows]) => {
       const sorted = [...vRows].sort((a, b) =>
-        a.DataPagamento.localeCompare(b.DataPagamento) || a.RecebimentoId - b.RecebimentoId
+        (a.DataPagamento ?? "").localeCompare(b.DataPagamento ?? "") || a.RecebimentoId - b.RecebimentoId
       );
       return {
         vendedorId: id,

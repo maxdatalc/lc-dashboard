@@ -20,7 +20,7 @@ function supabaseAdmin() {
 interface LojaComBridge {
   id: string;
   name: string;
-  empresa_id: string;
+  tenant_id: string;
   sql_bridge_url: string | null;
   sql_bridge_token: string | null;
 }
@@ -37,11 +37,11 @@ async function carregarDados(lojaId: string, tenantId: string) {
 
   const { data: loja } = await supabase
     .from("lojas")
-    .select("id, name, empresa_id, sql_bridge_url, sql_bridge_token")
+    .select("id, name, tenant_id, sql_bridge_url, sql_bridge_token")
     .eq("id", lojaId)
     .single<LojaComBridge>();
 
-  if (!loja || loja.empresa_id !== tenantId) return null;
+  if (!loja || loja.tenant_id !== tenantId) return null;
 
   // Busca empresas (empIds) via Bridge
   let empresas: EmpresaMaxManager[] = [];
