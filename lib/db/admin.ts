@@ -342,6 +342,14 @@ export type ErpMapping = {
 export type UserTenantSettings = {
   lojaIds: string[];
   modulos: Record<string, boolean>;
+  groupId: string | null;
+};
+
+export type TenantGroup = {
+  id: string;
+  tenantId: string;
+  name: string;
+  modulos: Record<string, boolean>;
 };
 
 export type UsuarioTenantCompleto = UsuarioTenant & {
@@ -407,7 +415,7 @@ export async function getUsuariosTenantDetalhado(
 
   const [tenantUsersRes, settingsRes, lojasRes] = await Promise.all([
     supabase.from("tenant_users").select("id, user_id, role").eq("tenant_id", tenantId),
-    supabase.from("user_tenant_settings").select("user_id, loja_ids, modulos").eq("tenant_id", tenantId),
+    supabase.from("user_tenant_settings").select("user_id, loja_ids, modulos, group_id").eq("tenant_id", tenantId),
     supabase.from("lojas").select("id, name").eq("tenant_id", tenantId).eq("is_active", true),
   ]);
 
@@ -425,10 +433,11 @@ export async function getUsuariosTenantDetalhado(
   const lojaMap = new Map(lojas.map((l) => [l.id, l.name]));
 
   const settingsMap = new Map(
-    ((settingsRes.data ?? []) as { user_id: string; loja_ids: unknown; modulos: unknown }[]).map(
+    ((settingsRes.data ?? []) as { user_id: string; loja_ids: unknown; modulos: unknown; group_id: unknown }[]).map(
       (s) => [s.user_id, {
         lojaIds: Array.isArray(s.loja_ids) ? (s.loja_ids as string[]) : [],
         modulos: (s.modulos ?? {}) as Record<string, boolean>,
+        groupId: (s.group_id as string | null) ?? null,
       }]
     )
   );
@@ -485,12 +494,68 @@ export async function getUsuariosTenantDetalhado(
 export async function salvarConfigUsuario(
   tenantId: string,
   userId: string,
-  config: { lojaIds: string[]; modulos: Record<string, boolean> }
+  config: { lojaIds: string[]; modulos: Record<string, boolean>; groupId?: string | null }
 ): Promise<void> {
   const supabase = createAdminClient();
   const { error } = await supabase.from("user_tenant_settings").upsert(
-    { tenant_id: tenantId, user_id: userId, loja_ids: config.lojaIds, modulos: config.modulos },
+    {
+      tenant_id: tenantId,
+      user_id: userId,
+      loja_ids: config.lojaIds,
+      modulos: config.modulos,
+      group_id: config.groupId !== undefined ? config.groupId : null,
+    },
     { onConflict: "tenant_id,user_id" }
   );
   if (error) throw new Error(`Erro ao salvar configurações: ${error.message}`);
+}
+
+// ── Grupos de permissão ────────────────────────────────────────────────────────
+
+export async function getGruposTenant(tenantId: string): Promise<TenantGroup[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("tenant_groups")
+    .select("id, tenant_id, name, modulos")
+    .eq("tenant_id", tenantId)
+    .order("name", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as { id: string; tenant_id: string; name: string; modulos: Record<string, boolean> }[]).map(
+    (r) => ({ id: r.id, tenantId: r.tenant_id, name: r.name, modulos: r.modulos ?? {} })
+  );
+}
+
+export async function salvarGrupoDB(
+  tenantId: string,
+  groupId: string | null,
+  name: string,
+  modulos: Record<string, boolean>
+): Promise<string> {
+  const supabase = createAdminClient();
+  if (groupId) {
+    const { error } = await supabase
+      .from("tenant_groups")
+      .update({ name, modulos })
+      .eq("id", groupId)
+      .eq("tenant_id", tenantId);
+    if (error) throw new Error(error.message);
+    return groupId;
+  }
+  const { data, error } = await supabase
+    .from("tenant_groups")
+    .insert({ tenant_id: tenantId, name, modulos })
+    .select("id")
+    .single();
+  if (error) throw new Error(error.message);
+  return (data as { id: string }).id;
+}
+
+export async function deletarGrupoDB(tenantId: string, groupId: string): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("tenant_groups")
+    .delete()
+    .eq("id", groupId)
+    .eq("tenant_id", tenantId);
+  if (error) throw new Error(error.message);
 }

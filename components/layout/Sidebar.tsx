@@ -73,7 +73,7 @@ const GRUPOS: NavGroup[] = [
     label: "Início",
     icon: Home,
     items: [
-      { href: "/home", label: "Visão Geral", icon: LayoutDashboard, exact: true },
+      { href: "/home", label: "Visão Geral", icon: LayoutDashboard, exact: true, featureKey: "dashboard_visao_geral" },
     ],
   },
   {
@@ -81,7 +81,7 @@ const GRUPOS: NavGroup[] = [
     label: "Dashboard",
     icon: LayoutDashboard,
     items: [
-      { href: "/dashboard",            label: "Vendas",     icon: ShoppingCart, exact: true },
+      { href: "/dashboard",            label: "Vendas",     icon: ShoppingCart, exact: true, featureKey: "modulo_vendas" },
       { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark,     featureKey: "modulo_financeiro" },
       { href: "/dashboard/produtos",   label: "Produtos",   icon: Package,      featureKey: "modulo_produtos"   },
       { href: "/dashboard/clientes",   label: "Clientes",   icon: Users,        featureKey: "modulo_clientes"   },

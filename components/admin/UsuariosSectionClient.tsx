@@ -7,7 +7,7 @@ import {
   Download, User, CheckCircle2, Shield, Building2, Trash2,
 } from "lucide-react";
 import { salvarUsuarioERP, salvarAcessoUsuario, removerUsuarioTenant } from "@/lib/actions/admin-lojas";
-import type { UsuarioTenantCompleto, ErpMapping } from "@/lib/db/admin";
+import type { UsuarioTenantCompleto, ErpMapping, TenantGroup } from "@/lib/db/admin";
 import type { ErpUserItem } from "@/app/api/admin/erp-users/route";
 
 type UserRole = "owner" | "admin" | "viewer";
@@ -24,10 +24,12 @@ interface Props {
   usuarios: UsuarioTenantCompleto[];
   lojas: LojaInfo[];
   tenantFeatures: string[];
+  grupos: TenantGroup[];
 }
 
 const MODULES_LABEL: Record<string, string> = {
-  dashboard_visao_geral: "Vendas",
+  dashboard_visao_geral: "Visão Geral",
+  modulo_vendas:         "Dashboard Vendas",
   modulo_financeiro:     "Financeiro",
   modulo_produtos:       "Produtos",
   modulo_clientes:       "Clientes",
@@ -36,7 +38,7 @@ const MODULES_LABEL: Record<string, string> = {
 };
 
 const MODULE_GROUPS: { label: string; keys: string[] }[] = [
-  { label: "Dashboard",  keys: ["dashboard_visao_geral", "modulo_financeiro", "modulo_produtos", "modulo_clientes"] },
+  { label: "Dashboard",  keys: ["dashboard_visao_geral", "modulo_vendas", "modulo_financeiro", "modulo_produtos", "modulo_clientes"] },
   { label: "Módulos",    keys: ["modulo_os"] },
   { label: "Relatórios", keys: ["modulo_relatorios"] },
 ];
@@ -55,7 +57,7 @@ const ROLE_CLS: Record<string, string> = {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeatures }: Props) {
+export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeatures, grupos }: Props) {
   const router = useRouter();
   const [painel, setPainel] = useState<"none" | "add-manual" | "add-erp">("none");
   const [editUserId, setEditUserId] = useState<string | null>(null);
@@ -162,6 +164,7 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
                 tenantId={tenantId}
                 lojas={lojas}
                 configurableModules={configurableModules}
+                grupos={grupos}
                 expanded={editUserId === u.userId}
                 onToggle={() => setEditUserId(editUserId === u.userId ? null : u.userId)}
                 onSaved={refresh}
@@ -179,12 +182,13 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
 // ── Linha de usuário com painel expansível ────────────────────────────────────
 
 function UsuarioRow({
-  usuario, tenantId, lojas, configurableModules, expanded, onToggle, onSaved, onDelete, deleting,
+  usuario, tenantId, lojas, configurableModules, grupos, expanded, onToggle, onSaved, onDelete, deleting,
 }: {
   usuario: UsuarioTenantCompleto;
   tenantId: string;
   lojas: LojaInfo[];
   configurableModules: string[];
+  grupos: TenantGroup[];
   expanded: boolean;
   onToggle: () => void;
   onSaved: () => void;
@@ -255,6 +259,7 @@ function UsuarioRow({
           tenantId={tenantId}
           lojas={lojas}
           configurableModules={configurableModules}
+          grupos={grupos}
           onSaved={onSaved}
         />
       )}
@@ -265,17 +270,20 @@ function UsuarioRow({
 // ── Painel de edição de usuário ───────────────────────────────────────────────
 
 function UsuarioEditPanel({
-  usuario, tenantId, lojas, configurableModules, onSaved,
+  usuario, tenantId, lojas, configurableModules, grupos, onSaved,
 }: {
   usuario: UsuarioTenantCompleto;
   tenantId: string;
   lojas: LojaInfo[];
   configurableModules: string[];
+  grupos: TenantGroup[];
   onSaved: () => void;
 }) {
   const currentModulos = usuario.settings?.modulos ?? {};
   const currentLojaIds = usuario.settings?.lojaIds ?? [];
+  const currentGroupId = usuario.settings?.groupId ?? null;
 
+  const [groupId, setGroupId] = useState<string | null>(currentGroupId);
   const [modulos, setModulos] = useState<Record<string, boolean>>(
     Object.fromEntries(configurableModules.map((k) => [k, currentModulos[k] ?? false]))
   );
@@ -294,7 +302,7 @@ function UsuarioEditPanel({
   const handleSave = async () => {
     setLoading(true);
     setErro(null);
-    const result = await salvarAcessoUsuario(tenantId, usuario.userId, { lojaIds, modulos });
+    const result = await salvarAcessoUsuario(tenantId, usuario.userId, { lojaIds, modulos, groupId });
     setLoading(false);
     if (result.error) { setErro(result.error); return; }
     onSaved();
@@ -308,13 +316,37 @@ function UsuarioEditPanel({
         </div>
       )}
 
+      {/* Grupo */}
+      {grupos.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5 flex items-center gap-1.5">
+            <Shield className="h-3.5 w-3.5" /> Grupo de permissão
+          </p>
+          <select
+            value={groupId ?? ""}
+            onChange={(e) => setGroupId(e.target.value || null)}
+            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all w-full sm:w-auto"
+          >
+            <option value="">Nenhum (configuração individual)</option>
+            {grupos.map((g) => (
+              <option key={g.id} value={g.id}>{g.name}</option>
+            ))}
+          </select>
+          {groupId && (
+            <p className="text-xs text-slate-400 mt-1">
+              O usuário herda os módulos do grupo. Os checkboxes abaixo restringem individualmente.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Módulos agrupados */}
       {configurableModules.length === 0 ? (
         <p className="text-xs text-slate-400">Nenhum módulo habilitado no tenant.</p>
       ) : (
         <div className="space-y-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
-            <Shield className="h-3.5 w-3.5" /> Módulos
+            <Shield className="h-3.5 w-3.5" /> {groupId ? "Restrições individuais (sobre o grupo)" : "Módulos"}
           </p>
           {MODULE_GROUPS.map((group) => {
             const groupMods = group.keys.filter((k) => configurableModules.includes(k));
