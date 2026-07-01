@@ -76,7 +76,7 @@ export const FEATURES_CATALOG: Feature[] = [
     descricao: "Perfil 360º e histórico por cliente",
     categoria: "premium",
     icone: "Users",
-    disponivel: false,
+    disponivel: true,
   },
   {
     key: "consolidado_multilojas",
