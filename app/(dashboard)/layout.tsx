@@ -10,7 +10,6 @@ import { FilterProvider } from "@/lib/contexts/filter-context";
 import { EmpresaProvider } from "@/lib/contexts/empresa-context";
 import { DashLojaSync } from "@/components/layout/DashLojaSync";
 import type { Plan, UserRole } from "@/lib/plans";
-import { getCoreFeatures } from "@/lib/features";
 
 export default async function DashboardLayout({
   children,
@@ -90,13 +89,7 @@ export default async function DashboardLayout({
 
   // Features do tenant (source of truth para o que está ativado)
   const rawFeatures  = (featuresRes.data ?? []) as { feature_key: string }[];
-  const tenantFeatures = rawFeatures.map((r) => r.feature_key);
-
-  // Sempre garante que features core estejam presentes (retro-compatibilidade)
-  const coreFeatures = getCoreFeatures();
-  const allTenantFeatures = tenantFeatures.length > 0
-    ? [...new Set([...coreFeatures, ...tenantFeatures])]
-    : []; // vazio = usa planHasFeature como fallback
+  const allTenantFeatures = rawFeatures.map((r) => r.feature_key);
 
   // Configurações por usuário + grupo
   const userSettings = (userSettingsRes.data as { modulos?: Record<string, boolean>; group_id?: string | null } | null);

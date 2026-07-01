@@ -25,9 +25,8 @@ type Aba = "lojas" | "features" | "usuarios" | "clientes" | "permissoes";
 
 async function salvarFeatures(tenantId: string, formData: FormData) {
   "use server";
-  const features = formData.getAll("feature").map(String);
-  const featuresFinais = Array.from(new Set([...getCoreFeatures(), ...features]));
-  await updateTenantFeatures(tenantId, featuresFinais);
+  const features = [...new Set(formData.getAll("feature").map(String))];
+  await updateTenantFeatures(tenantId, features);
   redirect(`/admin/empresas/${tenantId}?aba=features`);
 }
 
@@ -68,10 +67,8 @@ export default async function GerenciarEmpresaPage({
   const grupos = (abaAtiva === "usuarios" || abaAtiva === "permissoes") ? await getGruposTenant(id) : [];
   const clientesVinculados = abaAtiva === "clientes" ? await getClientesByTenantId(id) : [];
 
-  const emBreveFeatures  = FEATURES_CATALOG.filter((f) => !f.disponivel);
-  const addonFeatures    = FEATURES_CATALOG.filter(
-    (f) => f.disponivel && f.categoria === "premium"
-  );
+  const emBreveFeatures = FEATURES_CATALOG.filter((f) => !f.disponivel);
+  const addonFeatures   = FEATURES_CATALOG.filter((f) => f.disponivel);
 
   const ABAS = [
     { valor: "lojas" as Aba, label: "Lojas", icon: Building2, count: tenant.lojas.length },
@@ -209,39 +206,11 @@ export default async function GerenciarEmpresaPage({
         {abaAtiva === "features" && (
           <div className="space-y-4">
 
-            {/* Incluídos gratuitamente — read-only */}
-            <div className="rounded-xl border border-slate-200 bg-white p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h3 className="text-sm font-semibold text-slate-900">Incluídos em todos os planos</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">Disponíveis para todos os clientes sem custo adicional.</p>
-                </div>
-                <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1 rounded-full font-semibold shrink-0">
-                  Grátis
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {[
-                  { label: "Dashboard Visão Geral", descricao: "KPIs, gráficos e indicadores gerenciais" },
-                  { label: "Financeiro", descricao: "Contas a receber, inadimplência e fluxo de caixa" },
-                  { label: "Produtos & Estoque", descricao: "Catálogo, níveis de estoque e alertas de ruptura" },
-                ].map((m) => (
-                  <div key={m.label} className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg bg-slate-50 border border-slate-100">
-                    <span className="h-2 w-2 rounded-full bg-emerald-400 shrink-0 mt-1.5" />
-                    <div>
-                      <p className="text-xs font-semibold text-slate-700">{m.label}</p>
-                      <p className="text-xs text-slate-400 mt-0.5">{m.descricao}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Add-ons opcionais — dinâmico via FEATURES_CATALOG */}
+            {/* Módulos disponíveis — todos editáveis por empresa */}
             <form action={salvarFeatures.bind(null, id)} className="space-y-3">
               <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">Add-ons opcionais</h3>
-                <p className="text-xs text-slate-400 mb-4">Módulos que requerem ativação e configuração específica por empresa.</p>
+                <h3 className="text-sm font-semibold text-slate-900 mb-1">Módulos</h3>
+                <p className="text-xs text-slate-400 mb-4">Ative ou desative módulos para esta empresa. Todos podem ser configurados livremente.</p>
 
                 <div className="space-y-3">
                   {addonFeatures.map((f) => {

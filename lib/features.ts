@@ -151,9 +151,5 @@ export function hasFeature(features: string[], featureKey: string): boolean {
 
 /** Retorna os keys de features sempre incluídas (independente de plano) */
 export function getCoreFeatures(): string[] {
-  return [
-    "dashboard_visao_geral",
-    "modulo_financeiro",
-    "modulo_produtos",
-  ];
+  return [];
 }
