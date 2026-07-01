@@ -19,7 +19,8 @@ import {
 import { useLoja } from "@/lib/contexts/loja-context";
 import type { ComissaoRow } from "@/app/api/relatorios/comissao-recebimento/route";
 
-function fmtMoeda(v: number) {
+function fmtMoeda(v: number | null | undefined) {
+  if (v == null) return "—";
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
@@ -28,7 +29,8 @@ function fmtData(iso: string) {
   return new Date(iso).toLocaleDateString("pt-BR");
 }
 
-function fmtPct(v: number) {
+function fmtPct(v: number | null | undefined) {
+  if (v == null) return "—";
   return `${v.toFixed(2).replace(".", ",")}%`;
 }
 
@@ -442,7 +444,7 @@ export default function ComissaoRecebimentoPage() {
     fmtMoeda(row.ValorRecebidoRateado),
     fmtMoeda(row.BaseCalculoComissaoParcela),
     row.TipoPagamento,
-    fmtPct(row.PercentualComissao * 100),
+    fmtPct((row.PercentualComissao ?? 0) * 100),
     fmtMoeda(row.ComissaoPaga),
     fmtMoeda(row.ValorLiquidoEmpresa),
   ];
@@ -803,7 +805,7 @@ export default function ComissaoRecebimentoPage() {
         {/* Comissão % */}
         <td style={{ padding: "8px 12px", fontSize: 12, textAlign: "right", whiteSpace: "nowrap" }}>
           <span style={{ color: "var(--accent-cyan)", fontWeight: 600 }}>
-            {fmtPct(row.PercentualComissao * 100)}
+            {fmtPct((row.PercentualComissao ?? 0) * 100)}
           </span>
         </td>
         {/* Vlr. Comissão */}
