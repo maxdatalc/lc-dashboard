@@ -11,7 +11,7 @@ import {
   getUsuariosTenantDetalhado,
   getGruposTenant,
 } from "@/lib/db/admin";
-import { FEATURES_CATALOG, getCoreFeatures } from "@/lib/features";
+import { FEATURES_CATALOG } from "@/lib/features";
 import { getClientesByTenantId, vincularClientesPorCnpjs } from "@/lib/db/clientes-base";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
