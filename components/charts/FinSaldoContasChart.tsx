@@ -37,14 +37,20 @@ export function FinSaldoContasChart({ data, selectedConta, onContaClick }: Props
             key={d.ctaId}
             onClick={() => onContaClick?.(active ? null : d.ctaId)}
             style={{
-              display: "grid", gridTemplateColumns: "104px 1fr 116px", alignItems: "center", gap: 8,
+              display: "grid", gridTemplateColumns: "minmax(0, 1.35fr) minmax(56px, 0.65fr) auto", alignItems: "center", gap: 8,
               padding: "6px 8px", borderRadius: 8, cursor: "pointer", textAlign: "left",
               background: active ? "rgba(127,127,127,0.08)" : "transparent",
               border: `1px solid ${active ? cor + "55" : "transparent"}`,
               opacity: dimmed ? 0.4 : 1, transition: "opacity .2s, background .15s, border-color .15s",
             }}
           >
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={d.ctaNome}>
+            <span
+              style={{
+                fontSize: 11.5, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.25,
+                wordBreak: "break-word",
+              }}
+              title={d.ctaNome}
+            >
               {d.ctaNome}
             </span>
             {/* trilho divergente com zero central */}
