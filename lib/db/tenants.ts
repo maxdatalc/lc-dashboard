@@ -146,6 +146,51 @@ export async function getLojaDbConfig(
   };
 }
 
+// Resolve a bridge SQL de um conjunto de lojas selecionadas e a lista de filiais
+// (empId → nome) que compartilham essa mesma bridge. Usada pelo dashboard financeiro
+// para consultar múltiplas filiais (empId) numa única bridge com `empId IN (...)`.
+export async function getLojasBridge(lojaIds: string[]): Promise<{
+  bridgeUrl: string;
+  token: string;
+  empresas: { empId: number; nome: string }[];
+} | null> {
+  if (lojaIds.length === 0) return null;
+
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("lojas")
+    .select("id, name, emp_id, sql_enabled, sql_bridge_url, sql_bridge_token")
+    .in("id", lojaIds);
+
+  if (error) throw new Error(error.message);
+
+  const rows = ((data as Record<string, unknown>[]) ?? []).filter(
+    (r) => r.sql_enabled && r.sql_bridge_url && r.sql_bridge_token,
+  );
+  if (rows.length === 0) return null;
+
+  // Bridge primária = primeira loja habilitada na ordem selecionada
+  const primary = rows[0];
+  const bridgeUrl = primary.sql_bridge_url as string;
+  const token = decrypt(primary.sql_bridge_token as string);
+
+  // Filiais = todas as lojas que compartilham a mesma bridge, deduplicadas por empId
+  const seen = new Map<number, string>();
+  for (const r of rows) {
+    if (r.sql_bridge_url !== bridgeUrl) continue;
+    const empId = Number(r.emp_id);
+    if (!Number.isFinite(empId) || seen.has(empId)) continue;
+    seen.set(empId, r.name as string);
+  }
+
+  return {
+    bridgeUrl,
+    token,
+    empresas: [...seen].map(([empId, nome]) => ({ empId, nome })),
+  };
+}
+
 // Retorna dados de uma loja com token descriptografado — uso exclusivo do painel admin
 export async function getLojaAdmin(lojaId: string): Promise<{
   id: string;
