@@ -386,7 +386,7 @@ export default function ComissaoRecebimentoPage() {
       );
       return {
         vendedorId: id,
-        nome: id === -1 ? "Sem vínculo com venda/O.S" : (vRows[0].NomeVendedor ?? "Sem vendedor"),
+        nome: vRows[0].NomeVendedor ?? "Sem vendedor",
         rows: sorted,
         subtotalRecebido: vRows.reduce((s, r) => s + r.ValorRecebidoRateado, 0),
         subtotalProdutos: vRows.reduce((s, r) => s + r.BaseCalculoComissaoParcela, 0),
@@ -1385,9 +1385,9 @@ export default function ComissaoRecebimentoPage() {
                       onClick={() => toggleVendor(group.vendedorId)}
                       style={{
                         cursor: "pointer",
-                        borderTop: group.vendedorId === -1 ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border-subtle)",
-                        borderBottom: isVendorOpen ? "none" : (group.vendedorId === -1 ? "1px solid rgba(239,68,68,0.35)" : "1px solid var(--border-subtle)"),
-                        background: group.vendedorId === -1 ? "rgba(239,68,68,0.07)" : "var(--sidebar-item-active-bg)",
+                        borderTop: "1px solid var(--border-subtle)",
+                        borderBottom: isVendorOpen ? "none" : "1px solid var(--border-subtle)",
+                        background: "var(--sidebar-item-active-bg)",
                         userSelect: "none",
                       }}
                       onMouseEnter={(e) => { (e.currentTarget as HTMLTableRowElement).style.filter = "brightness(1.12)"; }}
@@ -1395,11 +1395,19 @@ export default function ComissaoRecebimentoPage() {
                     >
                       <td colSpan={3} style={{ padding: "10px 12px" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                          <Users style={{ width: 13, height: 13, color: group.vendedorId === -1 ? "#f87171" : "var(--accent-cyan)", flexShrink: 0 }} />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: group.vendedorId === -1 ? "#f87171" : "var(--text-primary)" }}>{group.nome}</span>
+                          <Users style={{ width: 13, height: 13, color: "var(--accent-cyan)", flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{group.nome}</span>
                           <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 400 }}>
                             {group.rows.length} recebimento{group.rows.length !== 1 ? "s" : ""}
                           </span>
+                          {group.rows.filter((r) => r.SemVinculo).length > 0 && (
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 4,
+                              background: "rgba(239,68,68,0.15)", color: "#f87171", letterSpacing: "0.03em",
+                            }}>
+                              {group.rows.filter((r) => r.SemVinculo).length} sem vínculo
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" }}>
