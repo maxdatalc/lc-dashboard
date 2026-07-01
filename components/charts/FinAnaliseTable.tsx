@@ -102,7 +102,10 @@ export function FinAnaliseTable({ aReceber, aPagar, pagamentos, filiais, selecte
     URL.revokeObjectURL(url);
   }
 
-  const gridCols = showVenc ? "1.6fr 1.4fr 0.9fr 1.1fr 0.9fr 0.9fr" : "1.8fr 1.8fr 1fr 1.4fr";
+  // Colunas numéricas com largura mínima garantida para os valores completos nunca cortarem.
+  const gridCols = showVenc
+    ? "minmax(128px,1.5fr) minmax(120px,1.3fr) minmax(104px,1fr) minmax(96px,1.1fr) minmax(104px,1fr) minmax(96px,1fr)"
+    : "minmax(150px,1.8fr) minmax(140px,1.7fr) minmax(104px,1fr) minmax(110px,1.4fr)";
 
   return (
     <div>
@@ -139,6 +142,8 @@ export function FinAnaliseTable({ aReceber, aPagar, pagamentos, filiais, selecte
         </button>
       </div>
 
+      {/* Área rolável: garante valores completos sem corte em telas estreitas */}
+      <div style={{ overflowX: "auto" }}>
       {/* Cabeçalho de colunas */}
       <div style={{ display: "grid", gridTemplateColumns: gridCols, gap: 10, padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)" }}>
         <span style={thStyle}>Filial</span>
@@ -173,7 +178,7 @@ export function FinAnaliseTable({ aReceber, aPagar, pagamentos, filiais, selecte
                   </button>
                   <button
                     onClick={() => onFilialClick(filialActive ? null : g.empId)}
-                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                    style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, fontWeight: 700, color: "var(--text-primary)", textAlign: "left", wordBreak: "break-word", lineHeight: 1.25 }}
                     title="Filtrar por esta filial"
                   >
                     {g.nome}
@@ -192,7 +197,7 @@ export function FinAnaliseTable({ aReceber, aPagar, pagamentos, filiais, selecte
                 return (
                   <div key={`${g.empId}-${p.plcId}-${i}`} style={{ display: "grid", gridTemplateColumns: gridCols, gap: 10, padding: "7px 12px", alignItems: "center", borderTop: "1px solid var(--border-subtle)" }}>
                     <span />
-                    <span style={{ fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", paddingLeft: 22 }} title={p.plcDesc}>{p.plcDesc}</span>
+                    <span style={{ fontSize: 12, color: "var(--text-secondary)", wordBreak: "break-word", lineHeight: 1.3, paddingLeft: 22 }} title={p.plcDesc}>{p.plcDesc}</span>
                     <span style={tdNum()}>{fmt(p.valor)}</span>
                     <ParticipacaoBar pct={pPct} accent={accent} />
                     {showVenc && <span style={{ ...tdNum(), color: p.vencido > 0 ? "#ef4444" : "var(--text-muted)" }}>{fmt(p.vencido)}</span>}
@@ -216,6 +221,7 @@ export function FinAnaliseTable({ aReceber, aPagar, pagamentos, filiais, selecte
           {showVenc && <span style={tdNum(true)}>{fmt(totalAVencer)}</span>}
         </div>
       )}
+      </div>
     </div>
   );
 }
@@ -234,5 +240,5 @@ function ParticipacaoBar({ pct, accent, bold }: { pct: number; accent: string; b
 const thStyle: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-muted)" };
 const iconBtn: React.CSSProperties = { background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text-muted)", display: "flex", flexShrink: 0 };
 function tdNum(strong?: boolean): React.CSSProperties {
-  return { fontSize: 12.5, fontWeight: strong ? 700 : 500, fontFamily: "var(--font-mono, monospace)", color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" };
+  return { fontSize: 11.5, fontWeight: strong ? 700 : 500, fontFamily: "var(--font-mono, monospace)", color: "var(--text-primary)", textAlign: "right", whiteSpace: "nowrap" };
 }
