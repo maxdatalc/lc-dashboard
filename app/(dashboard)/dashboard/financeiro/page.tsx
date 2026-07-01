@@ -368,9 +368,11 @@ export default function FinanceiroPage() {
           )}
         </div>
 
-        {/* ── Linha 2: Fluxo + (Contas em Aberto / Saldo por Conta) ──────── */}
+        {/* ── Linha 2: (Fluxo + Análise) / (Contas em Aberto + Saldo) ──────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="lg:col-span-2">
+
+          {/* Coluna esquerda: Fluxo Mensal + Análise por Filial */}
+          <div className="lg:col-span-2 flex flex-col gap-3">
             <ChartCard
               title="Fluxo Financeiro Mensal"
               subtitle={`Últimos 12 meses · ${pLabel} · clique num mês para filtrar o painel`}
@@ -381,8 +383,27 @@ export default function FinanceiroPage() {
                 <FinFluxoMensalChart data={derived.fluxoChart} selectedMes={fMes} onMesClick={setFMes} />
               )}
             </ChartCard>
+
+            <ChartCard
+              title="Análise por Filial e Plano de Contas"
+              subtitle="Títulos em aberto e pagamentos, agrupados por filial · clique na filial para filtrar"
+              animationDelay={250}
+              info="Detalha os valores por filial e plano de contas. Nas abas A Receber e A Pagar, os valores são de títulos em aberto, separados entre vencido e a vencer. Na aba Pagamentos, o valor é o realizado no período. Clique numa filial para filtrar todo o painel; use a seta para expandir os planos de contas."
+            >
+              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 320 }} /> : (
+                <FinAnaliseTable
+                  aReceber={derived.aReceberTbl}
+                  aPagar={derived.aPagarTbl}
+                  pagamentos={derived.pagamentosTbl}
+                  filiais={data?.filiais ?? []}
+                  selectedFilial={fFilial}
+                  onFilialClick={setFFilial}
+                />
+              )}
+            </ChartCard>
           </div>
 
+          {/* Coluna direita: Contas em Aberto + Saldo por Conta */}
           <div className="flex flex-col gap-3">
             <ChartCard
               title="Contas em Aberto"
@@ -407,25 +428,6 @@ export default function FinanceiroPage() {
             </ChartCard>
           </div>
         </div>
-
-        {/* ── Linha 3: Análise por Filial e Plano de Contas ──────────────── */}
-        <ChartCard
-          title="Análise por Filial e Plano de Contas"
-          subtitle="Títulos em aberto e pagamentos, agrupados por filial · clique na filial para filtrar"
-          animationDelay={250}
-          info="Detalha os valores por filial e plano de contas. Nas abas A Receber e A Pagar, os valores são de títulos em aberto, separados entre vencido e a vencer. Na aba Pagamentos, o valor é o realizado no período. Clique numa filial para filtrar todo o painel; use a seta para expandir os planos de contas."
-        >
-          {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 320 }} /> : (
-            <FinAnaliseTable
-              aReceber={derived.aReceberTbl}
-              aPagar={derived.aPagarTbl}
-              pagamentos={derived.pagamentosTbl}
-              filiais={data?.filiais ?? []}
-              selectedFilial={fFilial}
-              onFilialClick={setFFilial}
-            />
-          )}
-        </ChartCard>
 
       </div>
     </div>
