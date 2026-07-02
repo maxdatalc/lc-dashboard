@@ -24,7 +24,7 @@ export function RankingDual({ items, selected, onSelect }: BaseProps) {
 
   return (
     <div className="flex flex-col">
-      {/* Cabeçalho de colunas */}
+      {/* Cabeçalho de colunas (fixo) */}
       <div className="flex items-center gap-2 px-1 pb-2" style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
           <Dot color={COR_CUSTO} /> Custo
@@ -37,6 +37,8 @@ export function RankingDual({ items, selected, onSelect }: BaseProps) {
         <span style={{ width: 44, textAlign: "right" }}>Part.</span>
       </div>
 
+      {/* Lista com scroll interno — evita que o card cresça indefinidamente */}
+      <div className="custom-scroll flex flex-col" style={{ maxHeight: 272, overflowY: "auto" }}>
       {items.map((it, i) => {
         const isSel = selected === it.nome;
         const dim = hasSel && !isSel;
@@ -81,6 +83,7 @@ export function RankingDual({ items, selected, onSelect }: BaseProps) {
           </button>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -97,7 +100,7 @@ export function RankingQtd({ items, selected, onSelect, color = COR_VENDA }: Bas
   const hasSel = selected !== null;
 
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="custom-scroll flex flex-col gap-0.5" style={{ maxHeight: 300, overflowY: "auto" }}>
       {items.map((it, i) => {
         const isSel = selected === it.nome;
         const dim = hasSel && !isSel;

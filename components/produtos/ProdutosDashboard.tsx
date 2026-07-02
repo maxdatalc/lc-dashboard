@@ -77,37 +77,21 @@ export function ProdutosDashboard() {
   const multi = (data?.filiais.length ?? 0) > 1;
 
   return (
-    <div className="px-3 py-4 sm:px-4 md:px-5 md:py-4 flex flex-col gap-4">
+    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
       <TopProgressBar loading={refreshing} />
 
-      {/* Cabeçalho */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex items-center justify-center rounded-xl flex-shrink-0"
-            style={{ width: 38, height: 38, background: "rgba(34,211,238,0.1)", border: "1px solid rgba(34,211,238,0.2)" }}>
-            <Boxes style={{ width: 20, height: 20, color: COR_VENDA }} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.1 }}>Estoque &amp; Capital de Giro</h1>
-              <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: "0.06em", padding: "2px 7px", borderRadius: 999, background: "rgba(124,58,237,0.14)", color: "var(--accent-purple)", border: "1px solid rgba(124,58,237,0.25)" }}>
-                PRO · PRODUTOS
-              </span>
-            </div>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>Diagnóstico de estoque, margem e reposição</p>
-          </div>
-        </div>
-
-        {multi && (
+      {/* Indicador de consolidação multiloja — só aparece quando relevante */}
+      {multi && (
+        <div className="flex justify-end">
           <div className="flex items-center gap-1.5 rounded-full px-3 py-1"
             style={{ background: "rgba(34,211,238,0.08)", border: "1px solid rgba(34,211,238,0.2)" }}>
-            <Building2 style={{ width: 13, height: 13, color: COR_VENDA }} />
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-secondary)" }}>
+            <Building2 style={{ width: 12, height: 12, color: COR_VENDA }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}>
               Consolidado · {data?.filiais.length} lojas
             </span>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Erro */}
       {error && !loading && (
@@ -127,7 +111,7 @@ export function ProdutosDashboard() {
       {loading ? (
         <Skeleton />
       ) : data ? (
-        <div className="flex flex-col gap-4" style={{ opacity: refreshing ? 0.6 : 1, transition: "opacity 0.2s ease", pointerEvents: refreshing ? "none" : "auto" }}>
+        <div className="flex flex-col gap-3" style={{ opacity: refreshing ? 0.6 : 1, transition: "opacity 0.2s ease", pointerEvents: refreshing ? "none" : "auto" }}>
 
           <FiltroChips filters={filters} onRemove={removeFilter} onClear={clearFilters} />
 
@@ -135,7 +119,7 @@ export function ProdutosDashboard() {
           <KpiCards kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
 
           {/* Linha 2 — diagnóstico */}
-          <div className="grid gap-4 grid-cols-1 lg:grid-cols-12">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
             <div className="lg:col-span-5">
               <ChartCard title="Top Marcas por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={60} className="h-full">
                 <RankingDual items={data.topMarcasValor} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
@@ -155,7 +139,7 @@ export function ProdutosDashboard() {
           </div>
 
           {/* Linha 3 — rankings */}
-          <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
             <ChartCard title="Quantidade em Estoque por Marca" subtitle="ranking por quantidade" animationDelay={60} className="h-full">
               <RankingQtd items={data.porMarcaQtd} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
             </ChartCard>
@@ -168,7 +152,7 @@ export function ProdutosDashboard() {
           </div>
 
           {/* Linha 4 — problemas + tabela */}
-          <div className="grid gap-4 grid-cols-1 lg:grid-cols-12">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
             <div className="lg:col-span-3">
               <ChartCard title="Produtos com Margem Negativa" subtitle="ordenado por maior prejuízo" animationDelay={60} className="h-full">
                 <MargemNegativaList items={data.margemNegativa} />
@@ -207,16 +191,16 @@ function SemLoja() {
 
 function Skeleton() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
-        {Array.from({ length: 7 }).map((_, i) => <div key={i} className="skeleton-bar rounded-xl" style={{ height: 104 }} />)}
+        {Array.from({ length: 7 }).map((_, i) => <div key={i} className="skeleton-bar rounded-2xl" style={{ height: 104 }} />)}
       </div>
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-12">
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
         <div className="lg:col-span-5 skeleton-bar rounded-2xl" style={{ height: 300 }} />
         <div className="lg:col-span-4 skeleton-bar rounded-2xl" style={{ height: 300 }} />
         <div className="lg:col-span-3 skeleton-bar rounded-2xl" style={{ height: 300 }} />
       </div>
-      <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+      <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
         {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton-bar rounded-2xl" style={{ height: 240 }} />)}
       </div>
       <div className="skeleton-bar rounded-2xl" style={{ height: 360 }} />

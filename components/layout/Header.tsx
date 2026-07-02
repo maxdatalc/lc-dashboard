@@ -198,6 +198,10 @@ export function Header() {
 
   const title = PAGE_TITLES[pathname] ?? "Dashboard";
 
+  // Estoque é uma fotografia atual — o filtro de período não se aplica, então
+  // escondemos os pills (evita a confusão de um filtro visível que não filtra nada).
+  const isSnapshotPage = pathname === "/dashboard/produtos";
+
   // Label do pill "Personalizado": mostra intervalo quando ativo
   const customLabel =
     period === "custom" && customRange
@@ -265,8 +269,23 @@ export function Header() {
       {/* Multi-select de lojas */}
       <LojaMultiSelect />
 
-      {/* Centro — seletor de período */}
+      {/* Centro — seletor de período (ou aviso de dado em tempo real) */}
       <div className="flex-1 flex items-center justify-center gap-1">
+        {isSnapshotPage ? (
+          <div
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium"
+            style={{ border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
+          >
+            <span
+              style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: "var(--accent-green)", display: "inline-block", flexShrink: 0,
+              }}
+            />
+            Estoque em tempo real — período não se aplica
+          </div>
+        ) : (
+        <>
         {/* Mobile: dropdown compacto */}
         <select
           className="md:hidden text-xs px-2 py-1 rounded-lg"
@@ -397,6 +416,8 @@ export function Header() {
           )}
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Direita — tema */}

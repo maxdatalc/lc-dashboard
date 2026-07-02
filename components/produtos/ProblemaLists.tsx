@@ -10,7 +10,7 @@ function Empty({ msg }: { msg: string }) {
 export function MargemNegativaList({ items }: { items: ProblemaMargem[] }) {
   if (items.length === 0) return <Empty msg="Nenhum produto com margem negativa" />;
   return (
-    <div className="flex flex-col">
+    <div className="custom-scroll flex flex-col" style={{ maxHeight: 280, overflowY: "auto" }}>
       {items.map((p, i) => (
         <div key={p.proId + "-" + i} className="flex items-center gap-2 py-2"
           style={{ borderTop: i > 0 ? "1px solid var(--border-subtle)" : "none" }}>
@@ -29,7 +29,7 @@ export function MargemNegativaList({ items }: { items: ProblemaMargem[] }) {
 export function EstoqueNegativoList({ items }: { items: ProblemaNegativo[] }) {
   if (items.length === 0) return <Empty msg="Nenhum produto com estoque negativo" />;
   return (
-    <div className="flex flex-col">
+    <div className="custom-scroll flex flex-col" style={{ maxHeight: 280, overflowY: "auto" }}>
       {items.map((p, i) => (
         <div key={p.proId + "-" + i} className="flex items-center gap-2 py-2"
           style={{ borderTop: i > 0 ? "1px solid var(--border-subtle)" : "none" }}>

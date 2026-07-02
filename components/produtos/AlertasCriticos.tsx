@@ -43,7 +43,7 @@ export function AlertasCriticos({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="custom-scroll flex flex-col gap-2" style={{ maxHeight: 300, overflowY: "auto" }}>
       {alertas.map((a, i) => {
         const isSel = activeStatus === a.status;
         return (
