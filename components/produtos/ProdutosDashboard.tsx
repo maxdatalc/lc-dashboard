@@ -119,52 +119,52 @@ export function ProdutosDashboard() {
           <KpiCards kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
 
           {/* Linha 2 — diagnóstico */}
-          <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-12 items-start">
             <div className="lg:col-span-5">
-              <ChartCard title="Top Marcas por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={60} className="h-full">
+              <ChartCard title="Top Marcas por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={60}>
                 <RankingDual items={data.topMarcasValor} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
               </ChartCard>
             </div>
             <div className="lg:col-span-4">
-              <ChartCard title="Saúde do Estoque / Cadastro" subtitle="distribuição do cadastro por status" animationDelay={100} className="h-full"
+              <ChartCard title="Saúde do Estoque / Cadastro" subtitle="distribuição do cadastro por status" animationDelay={100}
                 info="A rosca mostra a proporção de posições por status de estoque. Um volume alto de 'mínimo não informado' significa que a maior parte do catálogo não tem parâmetro de reposição — priorize cadastrar mínimos para habilitar a análise de cobertura.">
                 <SaudeDonut kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
               </ChartCard>
             </div>
             <div className="lg:col-span-3">
-              <ChartCard title="Alertas Críticos" subtitle="situações que exigem atenção" animationDelay={140} className="h-full">
+              <ChartCard title="Alertas Críticos" subtitle="situações que exigem atenção" animationDelay={140}>
                 <AlertasCriticos kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
               </ChartCard>
             </div>
           </div>
 
           {/* Linha 3 — rankings */}
-          <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
-            <ChartCard title="Quantidade em Estoque por Marca" subtitle="ranking por quantidade" animationDelay={60} className="h-full">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-3 items-start">
+            <ChartCard title="Quantidade em Estoque por Marca" subtitle="ranking por quantidade" animationDelay={60}>
               <RankingQtd items={data.porMarcaQtd} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
             </ChartCard>
-            <ChartCard title="Top Categorias por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={100} className="h-full">
+            <ChartCard title="Top Categorias por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={100}>
               <RankingDual items={data.topCategoriasValor} selected={filters.categoria} onSelect={(n) => toggle("categoria", n)} />
             </ChartCard>
-            <ChartCard title="Quantidade em Estoque por Grupo" subtitle="ranking por quantidade" animationDelay={140} className="h-full">
+            <ChartCard title="Quantidade em Estoque por Grupo" subtitle="ranking por quantidade" animationDelay={140}>
               <RankingQtd items={data.porGrupoQtd} selected={filters.grupo} onSelect={(n) => toggle("grupo", n)} color="#a78bfa" />
             </ChartCard>
           </div>
 
           {/* Linha 4 — problemas + tabela */}
-          <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
+          <div className="grid gap-3 grid-cols-1 lg:grid-cols-12 items-start">
             <div className="lg:col-span-3">
-              <ChartCard title="Produtos com Margem Negativa" subtitle="ordenado por maior prejuízo" animationDelay={60} className="h-full">
+              <ChartCard title="Produtos com Margem Negativa" subtitle="ordenado por maior prejuízo" animationDelay={60}>
                 <MargemNegativaList items={data.margemNegativa} />
               </ChartCard>
             </div>
             <div className="lg:col-span-3">
-              <ChartCard title="Produtos com Estoque Negativo" subtitle="saldo abaixo de zero" animationDelay={100} className="h-full">
+              <ChartCard title="Produtos com Estoque Negativo" subtitle="saldo abaixo de zero" animationDelay={100}>
                 <EstoqueNegativoList items={data.estoqueNegativo} />
               </ChartCard>
             </div>
             <div className="lg:col-span-6">
-              <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={140} className="h-full">
+              <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={140}>
                 <AcaoTable items={data.exigeAcao} filiais={data.filiais} />
               </ChartCard>
             </div>
