@@ -10,6 +10,7 @@ import { CliReceitaTipoChart } from "@/components/charts/CliReceitaTipoChart";
 import { CliConversaoChart } from "@/components/charts/CliConversaoChart";
 import { cidadeKey, SEM_CIDADE } from "@/components/charts/CliGeoRanking";
 import { MapaClientesCard } from "@/components/charts/MapaClientesCard";
+import { normNome } from "@/lib/utils/ibge-malhas";
 import { CliLimitesRanking } from "@/components/charts/CliLimitesRanking";
 
 // ─── Tipos da resposta do endpoint /overview ───────────────────────────────────
@@ -20,6 +21,7 @@ interface MesCidadeRow { mes: string; cidade: string; qtde: number; }
 interface ReceitaRow { mes: string; tipo: "R" | "N"; cidade: string; receita: number; }
 interface CompradorRow { mes: string; tipo: "R" | "N"; cidade: string; qtde: number; }
 interface VendasCidadeRow { mes: string; cidade: string; qtde: number; }
+interface VendaClienteRow { cliId: number; nome: string; cidade: string; uf: string; mes: string; receita: number; vendas: number; }
 interface LimiteRow { cliId: number; nome: string; valor: number; cidade: string; uf: string; }
 
 interface Overview {
@@ -35,6 +37,7 @@ interface Overview {
   receita: ReceitaRow[];
   compradores: CompradorRow[];
   vendasPorCidade: VendasCidadeRow[];
+  vendasPorCliente: VendaClienteRow[];
   recorrenciaKpi: { totalComp: number; recorrentes: number; totalPrev: number; recorrentesPrev: number };
   limites: LimiteRow[];
 }
@@ -50,6 +53,12 @@ function abbr(v: number): string {
 }
 function num(v: number) { return v.toLocaleString("pt-BR"); }
 function pct(v: number, casas = 1) { return `${v.toLocaleString("pt-BR", { minimumFractionDigits: casas, maximumFractionDigits: casas })}%`; }
+/** Chave estável de município: nome normalizado (sem acento/caixa) + UF, para não
+ *  fragmentar a mesma cidade por grafia divergente (ex.: "Marabá" vs "MARABA") nem
+ *  colidir cidades homônimas de estados diferentes. */
+function muniKey(cidade: string, uf: string) {
+  return cidade ? `${normNome(cidade)}|${(uf || "").toUpperCase()}` : SEM_CIDADE;
+}
 function mesLabel(mes: string) {
   const [y, m] = mes.split("-");
   const meses = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
@@ -205,18 +214,24 @@ export default function ClientesPage() {
     }
     const totalBase = ativos + inativos;
 
-    // Geo (base ativa por cidade) — sempre visível; a seleção só destaca
-    const geoMap = new Map<string, { cidade: string; uf: string; qtde: number }>();
+    // Geo (base ativa por cidade) — sempre visível; a seleção só destaca.
+    // Agrupa por muniKey (nome normalizado + UF) para não fragmentar a mesma
+    // cidade por grafia divergente; exibe a grafia mais frequente do grupo.
+    const geoMap = new Map<string, { cidade: string; uf: string; qtde: number; dom: number }>();
     let totalBaseAtivos = 0;
     for (const r of data.base) {
       if (!r.ativo) continue;
       totalBaseAtivos += r.qtde;
-      const k = cidadeKey(r.cidade);
+      const k = muniKey(r.cidade, r.uf);
       const e = geoMap.get(k);
-      if (e) e.qtde += r.qtde;
-      else geoMap.set(k, { cidade: r.cidade, uf: r.uf, qtde: r.qtde });
+      if (e) {
+        e.qtde += r.qtde;
+        if (r.qtde > e.dom) { e.cidade = r.cidade; e.uf = r.uf; e.dom = r.qtde; }
+      } else {
+        geoMap.set(k, { cidade: r.cidade, uf: r.uf, qtde: r.qtde, dom: r.qtde });
+      }
     }
-    const geo = [...geoMap.values()];
+    const geo = [...geoMap.values()].map(({ cidade, uf, qtde }) => ({ cidade, uf, qtde }));
 
     // — Séries mensais (respeitam cidade; mês só destaca, não remove)
     const sumBy = (rows: { mes: string; qtde: number }[], m: string) =>
@@ -277,24 +292,25 @@ export default function ClientesPage() {
     // — Limites (ranking respeita cidade)
     const limitesF = data.limites.filter((l) => cidadeOk(l.cidade));
 
-    // — Estatísticas por cidade para popup do mapa (respeita fMes, mas NÃO fCidade)
-    const geoStats: Record<string, { receita: number; vendas: number }> = {};
-    for (const r of data.receita) {
+    // — Vendas por cliente no período (respeita fMes, mas NÃO fCidade) — alimenta
+    // o Top 10 Clientes do mapa (por estado e por município) e os totais de
+    // vendas/faturamento por nível geográfico.
+    const clienteMap = new Map<number, { cliId: number; nome: string; cidade: string; uf: string; receita: number; vendas: number }>();
+    for (const r of (data.vendasPorCliente ?? [])) {
       if (!inPeriodo(r.mes)) continue;
-      const k = cidadeKey(r.cidade);
-      if (!geoStats[k]) geoStats[k] = { receita: 0, vendas: 0 };
-      geoStats[k].receita += r.receita;
+      let e = clienteMap.get(r.cliId);
+      if (!e) {
+        e = { cliId: r.cliId, nome: r.nome, cidade: r.cidade, uf: r.uf, receita: 0, vendas: 0 };
+        clienteMap.set(r.cliId, e);
+      }
+      e.receita += r.receita;
+      e.vendas += r.vendas;
     }
-    for (const r of (data.vendasPorCidade ?? [])) {
-      if (!inPeriodo(r.mes)) continue;
-      const k = cidadeKey(r.cidade);
-      if (!geoStats[k]) geoStats[k] = { receita: 0, vendas: 0 };
-      geoStats[k].vendas += r.qtde;
-    }
+    const clientesAgg = [...clienteMap.values()];
 
     return {
       ativos, inativos, totalBase, limiteTotal, comLimite,
-      geo, totalBaseAtivos, geoStats,
+      geo, totalBaseAtivos, clientesAgg,
       receitaChart, conversaoChart,
       cadastrosVal, primeiraVal, taxaRecorrencia, taxaRecorrenciaPrev,
       pctReceitaRecorrente, conversaoMedia,
@@ -428,30 +444,32 @@ export default function ClientesPage() {
         </div>
 
         {/* ── Linha 3: Mapa Geográfico + Maiores Limites ─────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3">
+          <div className="lg:col-span-3">
             <ChartCard
               title="Distribuição Geográfica da Base"
               subtitle="clientes ativos por estado e município · clique para explorar"
               animationDelay={200}
-              info="Mapa do Brasil com divisas oficiais (IBGE) colorido pela concentração de clientes. Clique num estado para ver o resumo e as divisas dos municípios; clique num município para ver clientes, faturamento e vendas/OS — isso filtra todo o painel. O ranking completo fica no colapsável abaixo do mapa."
+              info="Mapa do Brasil com divisas oficiais (IBGE) colorido pela concentração de clientes. Clique num estado para ver o resumo, o Top 10 clientes e as divisas dos municípios; clique num município para ver clientes, faturamento, vendas/OS e o Top 10 clientes locais — isso filtra todo o painel. O ranking completo fica no colapsável abaixo do mapa."
             >
               {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 430 }} /> : (
-                <MapaClientesCard data={derived.geo} totalBase={derived.totalBaseAtivos} selectedCidade={fCidade} onSelect={setFCidade} geoStats={derived.geoStats} />
+                <MapaClientesCard data={derived.geo} totalBase={derived.totalBaseAtivos} selectedCidade={fCidade} onSelect={setFCidade} clientesAgg={derived.clientesAgg} />
               )}
             </ChartCard>
           </div>
 
-          <ChartCard
-            title="Maiores Limites de Crédito"
-            subtitle="top clientes e concentração de risco"
-            animationDelay={250}
-            info="Ranking dos clientes com maior limite de crédito concedido e o quanto o Top 10 concentra do limite total. Clique num cliente para destacá-lo. O limite vem do cadastro do cliente no ERP — quando não há limites definidos, o card fica preparado para quando passarem a ser usados."
-          >
-            {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 320 }} /> : (
-              <CliLimitesRanking data={derived.limitesF} selectedCliId={fCliente} onSelect={setFCliente} />
-            )}
-          </ChartCard>
+          <div className="lg:col-span-2">
+            <ChartCard
+              title="Maiores Limites de Crédito"
+              subtitle="top clientes e concentração de risco"
+              animationDelay={250}
+              info="Ranking dos clientes com maior limite de crédito concedido e o quanto o Top 10 concentra do limite total. Clique num cliente para destacá-lo. O limite vem do cadastro do cliente no ERP — quando não há limites definidos, o card fica preparado para quando passarem a ser usados."
+            >
+              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 320 }} /> : (
+                <CliLimitesRanking data={derived.limitesF} selectedCliId={fCliente} onSelect={setFCliente} />
+              )}
+            </ChartCard>
+          </div>
         </div>
 
       </div>

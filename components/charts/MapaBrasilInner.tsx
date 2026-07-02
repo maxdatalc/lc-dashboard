@@ -2,24 +2,25 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { geoIdentity, geoPath } from "d3-geo";
-import { MapPin, AlertTriangle, ChevronDown, ChevronUp, ChevronLeft, X, Users, DollarSign, Receipt, Loader2 } from "lucide-react";
+import { MapPin, AlertTriangle, ChevronDown, ChevronUp, ChevronLeft, X, Loader2 } from "lucide-react";
 import { fetchMalhaEstados, fetchMalhaMunicipios, normNome, UF_INFO, CODE_TO_UF, type GeoFC, type GeoFeature } from "@/lib/utils/ibge-malhas";
 import { CliGeoRanking, cidadeKey } from "./CliGeoRanking";
 import type { CliGeoItem } from "./CliGeoRanking";
-
-interface GeoStat { receita: number; vendas: number; }
+import type { ClienteVenda } from "./MapaClientesCard";
 
 interface Props {
   data: CliGeoItem[];
   totalBase: number;
   selectedCidade: string | null;
   onSelect: (cidade: string | null) => void;
-  geoStats?: Record<string, GeoStat>;
+  clientesAgg?: ClienteVenda[];
 }
 
-interface UFAgg { clientes: number; receita: number; vendas: number; cidades: CliGeoItem[]; }
+interface MunAgg { nome: string; uf: string; clientes: number; receita: number; vendas: number; }
+interface UFAgg { clientes: number; receita: number; vendas: number; municipios: Map<string, MunAgg>; }
 interface MunSel { codarea: string; nome: string; key: string | null; }
 interface Hover { x: number; y: number; flip: boolean; title: string; lines: string[]; }
+type PanelTab = "municipios" | "clientes";
 
 const W = 880;
 const H = 600;
@@ -33,6 +34,12 @@ function brl(v: number): string {
   if (a >= 1_000)     return `${s}R$ ${(a / 1_000).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} mil`;
   return `${s}R$ ${a.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
+function ticketMedio(receita: number, vendas: number): string {
+  return vendas > 0 ? brl(receita / vendas) : "—";
+}
+function pctStr(parte: number, total: number): string {
+  return total > 0 ? `${((parte / total) * 100).toFixed(1)}%` : "—";
+}
 
 /** Intensidade do preenchimento coroplético (0 clientes = sem cor). */
 function fillOpacity(qtde: number, max: number): number {
@@ -45,7 +52,71 @@ const panelLabel: React.CSSProperties = {
   textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 3,
 };
 
-export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSelect, geoStats }: Props) {
+function StatTile({ label, value, color, sub }: { label: string; value: string; color: string; sub?: string }) {
+  return (
+    <div style={{ padding: "8px 9px", borderRadius: 9, background: `color-mix(in srgb, ${color} 8%, transparent)`, minWidth: 0 }}>
+      <div style={panelLabel}>{label}</div>
+      <div style={{ fontSize: 15, fontWeight: 800, color, fontFamily: "var(--font-numeric, monospace)", lineHeight: 1.2, letterSpacing: "-0.02em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {value}
+      </div>
+      {sub && <div style={{ fontSize: 9.5, color: "var(--text-muted)", marginTop: 2 }}>{sub}</div>}
+    </div>
+  );
+}
+
+function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1, fontSize: 10.5, fontWeight: 700, padding: "6px 8px", borderRadius: 7,
+        border: "none", cursor: "pointer",
+        color: active ? "var(--accent-cyan)" : "var(--text-muted)",
+        background: active ? "color-mix(in srgb, var(--accent-cyan) 12%, transparent)" : "transparent",
+        transition: "background 0.15s, color 0.15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TopClienteRow({ rank, nome, cidade, vendas, receita, participacao }: {
+  rank: number; nome: string; cidade?: string; vendas: number; receita: number; participacao: number;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 2px", borderBottom: "1px solid var(--border-subtle)" }}>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", width: 13, flexShrink: 0, fontFamily: "var(--font-numeric, monospace)" }}>
+        {rank}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 600, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {nome}
+        </div>
+        <div style={{ fontSize: 9, color: "var(--text-muted)", display: "flex", gap: 5, overflow: "hidden" }}>
+          {cidade && <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cidade} ·</span>}
+          <span style={{ flexShrink: 0 }}>{num(vendas)} venda{vendas === 1 ? "" : "s"}</span>
+        </div>
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--accent-green)", fontFamily: "var(--font-numeric, monospace)" }}>
+          {brl(receita)}
+        </div>
+        <div style={{ fontSize: 9, color: "var(--text-muted)" }}>{participacao.toFixed(1)}%</div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyTopClientes() {
+  return (
+    <div style={{ fontSize: 10.5, color: "var(--text-muted)", textAlign: "center", padding: "16px 8px" }}>
+      Nenhum cliente com compras no período selecionado.
+    </div>
+  );
+}
+
+export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSelect, clientesAgg }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [estadosFC, setEstadosFC] = useState<GeoFC | null>(null);
   const [erro, setErro] = useState(false);
@@ -55,6 +126,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   const [munSel, setMunSel] = useState<MunSel | null>(null);
   const [hover, setHover] = useState<Hover | null>(null);
   const [showRanking, setShowRanking] = useState(false);
+  const [panelTab, setPanelTab] = useState<PanelTab>("municipios");
 
   // ── Malha dos estados (1x) ──────────────────────────────────────────────
   useEffect(() => {
@@ -83,41 +155,81 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
     if (munSel?.key && selectedCidade !== munSel.key) setMunSel(null);
   }, [selectedCidade, munSel]);
 
-  // ── Agregados por UF ────────────────────────────────────────────────────
-  const porUF = useMemo(() => {
-    const m = new Map<string, UFAgg>();
+  // ── Índice central: clientes + vendas agregados por estado e por município.
+  // Único ponto "pesado" — depende só de (data, clientesAgg), ou seja, recalcula
+  // apenas quando o período/filtros globais mudam a base carregada; trocar de
+  // estado/município é O(1) (lookup em Map + slice de array pequeno). ────────
+  const index = useMemo(() => {
+    const porUF = new Map<string, UFAgg>();
+    const clientesPorUF = new Map<string, ClienteVenda[]>();
+    const clientesPorMun = new Map<string, ClienteVenda[]>();
+
     for (const d of data) {
       const uf = (d.uf || "").toUpperCase().trim();
       if (!UF_INFO[uf]) continue;
-      let e = m.get(uf);
-      if (!e) { e = { clientes: 0, receita: 0, vendas: 0, cidades: [] }; m.set(uf, e); }
+      let e = porUF.get(uf);
+      if (!e) { e = { clientes: 0, receita: 0, vendas: 0, municipios: new Map() }; porUF.set(uf, e); }
       e.clientes += d.qtde;
-      const st = geoStats?.[cidadeKey(d.cidade)];
-      if (st && d.cidade) { e.receita += st.receita; e.vendas += st.vendas; }
-      if (d.cidade) e.cidades.push(d);
+      if (d.cidade) {
+        const mk = normNome(d.cidade);
+        let m = e.municipios.get(mk);
+        if (!m) { m = { nome: d.cidade, uf, clientes: 0, receita: 0, vendas: 0 }; e.municipios.set(mk, m); }
+        m.clientes += d.qtde;
+      }
     }
-    return m;
-  }, [data, geoStats]);
+
+    for (const c of clientesAgg ?? []) {
+      const uf = (c.uf || "").toUpperCase().trim();
+      if (!UF_INFO[uf]) continue;
+      const e = porUF.get(uf);
+      if (e) { e.receita += c.receita; e.vendas += c.vendas; }
+
+      let listaUF = clientesPorUF.get(uf);
+      if (!listaUF) { listaUF = []; clientesPorUF.set(uf, listaUF); }
+      listaUF.push(c);
+
+      if (c.cidade) {
+        const mk = normNome(c.cidade);
+        const m = e?.municipios.get(mk);
+        if (m) { m.receita += c.receita; m.vendas += c.vendas; }
+        const ck = `${uf}|${mk}`;
+        let listaMun = clientesPorMun.get(ck);
+        if (!listaMun) { listaMun = []; clientesPorMun.set(ck, listaMun); }
+        listaMun.push(c);
+      }
+    }
+
+    return { porUF, clientesPorUF, clientesPorMun };
+  }, [data, clientesAgg]);
 
   const totais = useMemo(() => {
-    let receita = 0, vendas = 0;
-    for (const st of Object.values(geoStats ?? {})) { receita += st.receita; vendas += st.vendas; }
-    return { receita, vendas };
-  }, [geoStats]);
+    let clientes = 0, receita = 0, vendas = 0;
+    for (const e of index.porUF.values()) { clientes += e.clientes; receita += e.receita; vendas += e.vendas; }
+    return { clientes, receita, vendas };
+  }, [index]);
 
-  const maxUF = useMemo(() => Math.max(1, ...[...porUF.values()].map((e) => e.clientes)), [porUF]);
+  const maxUF = useMemo(() => Math.max(1, ...[...index.porUF.values()].map((e) => e.clientes)), [index]);
   const semCidade = useMemo(() => data.filter((d) => !d.cidade).reduce((s, d) => s + d.qtde, 0), [data]);
 
-  // Estatísticas por município da UF ativa (nome normalizado → dados do ERP)
-  const munStats = useMemo(() => {
-    const m = new Map<string, { item: CliGeoItem; receita: number; vendas: number }>();
-    if (!ufSel) return m;
-    for (const d of porUF.get(ufSel)?.cidades ?? []) {
-      const st = geoStats?.[cidadeKey(d.cidade)];
-      m.set(normNome(d.cidade), { item: d, receita: st?.receita ?? 0, vendas: st?.vendas ?? 0 });
-    }
-    return m;
-  }, [ufSel, porUF, geoStats]);
+  const ufAgg = ufSel ? index.porUF.get(ufSel) : null;
+  const maxMun = useMemo(() => Math.max(1, ...[...(ufAgg?.municipios.values() ?? [])].map((e) => e.clientes)), [ufAgg]);
+
+  const topMun = useMemo(() => {
+    if (!ufAgg) return [];
+    return [...ufAgg.municipios.values()].filter((m) => m.clientes > 0).sort((a, b) => b.clientes - a.clientes).slice(0, 10);
+  }, [ufAgg]);
+
+  const topClientesEstado = useMemo(() => {
+    if (!ufSel) return [];
+    return [...(index.clientesPorUF.get(ufSel) ?? [])].sort((a, b) => b.receita - a.receita).slice(0, 10);
+  }, [ufSel, index]);
+
+  const munAgg = ufSel && munSel ? ufAgg?.municipios.get(normNome(munSel.nome)) ?? null : null;
+  const munListKey = ufSel && munSel ? `${ufSel}|${normNome(munSel.nome)}` : null;
+  const topClientesMunicipio = useMemo(() => {
+    if (!munListKey) return [];
+    return [...(index.clientesPorMun.get(munListKey) ?? [])].sort((a, b) => b.receita - a.receita).slice(0, 10);
+  }, [munListKey, index]);
 
   const codareaByNorm = useMemo(() => {
     const m = new Map<string, string>();
@@ -125,15 +237,13 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
     return m;
   }, [mun]);
 
-  const maxMun = useMemo(() => Math.max(1, ...[...munStats.values()].map((e) => e.item.qtde)), [munStats]);
-
   // ── Projeção + zoom ─────────────────────────────────────────────────────
+  // geoIdentity (planar) em vez de geoMercator: as malhas do IBGE têm
+  // polígonos com winding invertido, o que faz o geoMercator (esférico)
+  // renderizá-los como "o resto da esfera" — enchendo o mapa. A projeção
+  // planar ignora winding/clipping esférico. reflectY corrige o eixo Y do SVG.
   const path = useMemo(() => {
     if (!estadosFC) return null;
-    // geoIdentity (planar) em vez de geoMercator: as malhas do IBGE têm
-    // polígonos com winding invertido, o que faz o geoMercator (esférico)
-    // renderizá-los como "o resto da esfera" — enchendo o mapa. A projeção
-    // planar ignora winding/clipping esférico. reflectY corrige o eixo Y do SVG.
     const proj = geoIdentity().reflectY(true);
     proj.fitExtent([[10, 10], [W - 10, H - 10]], estadosFC as never);
     return geoPath(proj);
@@ -154,19 +264,21 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
     if (munSel?.key) onSelect(null);
     setUfSel(null);
     setMunSel(null);
+    setPanelTab("municipios");
   }
 
   function clickEstado(sigla: string) {
     if (ufSel === sigla) { reset(); return; }
     if (munSel?.key) onSelect(null);
     setMunSel(null);
+    setPanelTab("municipios");
     setUfSel(sigla);
   }
 
   function clickMunicipio(codarea: string) {
     const nome = mun?.nomes[codarea] ?? codarea;
-    const st = munStats.get(normNome(nome));
-    const key = st ? cidadeKey(st.item.cidade) : null;
+    const m = ufAgg?.municipios.get(normNome(nome));
+    const key = m && m.clientes > 0 ? cidadeKey(m.nome) : null;
     if (munSel?.codarea === codarea) {
       setMunSel(null);
       if (munSel.key) onSelect(null);
@@ -196,10 +308,6 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
     );
   }
 
-  const ufAgg = ufSel ? porUF.get(ufSel) : null;
-  const munDet = munSel ? munStats.get(normNome(munSel.nome)) : null;
-  const topMun = ufAgg ? [...ufAgg.cidades].sort((a, b) => b.qtde - a.qtde).slice(0, 7) : [];
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <style>{`
@@ -228,7 +336,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
               {/* Estados */}
               {estadosFC.features.map((f) => {
                 const sigla = CODE_TO_UF[f.properties.codarea];
-                const agg = porUF.get(sigla);
+                const agg = index.porUF.get(sigla);
                 const q = agg?.clientes ?? 0;
                 const op = fillOpacity(q, maxUF);
                 const isSel = ufSel === sigla;
@@ -246,8 +354,9 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                     onClick={() => clickEstado(sigla)}
                     onMouseMove={(e) => moveHover(e, `${UF_INFO[sigla]?.nome ?? sigla} · ${sigla}`, [
                       `${num(q)} cliente${q === 1 ? "" : "s"}`,
-                      ...(agg && agg.receita > 0 ? [`${brl(agg.receita)} em vendas`] : []),
-                      isSel ? "Clique para voltar ao Brasil" : "Clique para explorar",
+                      `${num(agg?.vendas ?? 0)} venda${(agg?.vendas ?? 0) === 1 ? "" : "s"}/OS`,
+                      `${brl(agg?.receita ?? 0)} em faturamento`,
+                      isSel ? "Clique para voltar ao Brasil" : "Clique para ver municípios",
                     ])}
                     onMouseLeave={() => setHover(null)}
                   />
@@ -259,8 +368,8 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                 <g key={ufSel} className="mapa-br-anim" style={{ animation: "mapFade 0.45s ease-out both" }}>
                   {mun.malha.features.map((f: GeoFeature) => {
                     const nome = mun.nomes[f.properties.codarea] ?? "";
-                    const st = munStats.get(normNome(nome));
-                    const q = st?.item.qtde ?? 0;
+                    const m = ufAgg?.municipios.get(normNome(nome));
+                    const q = m?.clientes ?? 0;
                     const op = fillOpacity(q, maxMun);
                     const isSel = munSel?.codarea === f.properties.codarea;
                     return (
@@ -274,9 +383,10 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                         vectorEffect="non-scaling-stroke"
                         style={{ cursor: "pointer" }}
                         onClick={(e) => { e.stopPropagation(); clickMunicipio(f.properties.codarea); }}
-                        onMouseMove={(e) => moveHover(e, nome, [
-                          q > 0 ? `${num(q)} cliente${q === 1 ? "" : "s"}` : "Sem clientes na base",
-                          ...(st && st.receita > 0 ? [`${brl(st.receita)} em vendas`] : []),
+                        onMouseMove={(e) => moveHover(e, `${nome} / ${ufSel}`, [
+                          `${num(q)} cliente${q === 1 ? "" : "s"}`,
+                          `${num(m?.vendas ?? 0)} venda${(m?.vendas ?? 0) === 1 ? "" : "s"}/OS`,
+                          `${brl(m?.receita ?? 0)} em faturamento`,
                         ])}
                         onMouseLeave={() => setHover(null)}
                       />
@@ -297,7 +407,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
               <g style={{ opacity: ufSel ? 0 : 1, transition: "opacity 0.3s ease", pointerEvents: "none" }}>
                 {estadosFC.features.map((f) => {
                   const sigla = CODE_TO_UF[f.properties.codarea];
-                  const q = porUF.get(sigla)?.clientes ?? 0;
+                  const q = index.porUF.get(sigla)?.clientes ?? 0;
                   const [cx, cy] = path!.centroid(f as never);
                   if (!isFinite(cx)) return null;
                   return (
@@ -328,7 +438,15 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
           {ufSel && (
             <>
               <span style={{ color: "var(--text-muted)" }}>›</span>
-              <span style={{ color: "var(--text-primary)" }}>{UF_INFO[ufSel].nome}</span>
+              <button onClick={() => setMunSel(null)} style={{ background: "none", border: "none", padding: 0, cursor: munSel ? "pointer" : "default", color: munSel ? "var(--accent-cyan)" : "var(--text-primary)", fontSize: 11, fontWeight: 600 }}>
+                {UF_INFO[ufSel].nome}
+              </button>
+            </>
+          )}
+          {munSel && (
+            <>
+              <span style={{ color: "var(--text-muted)" }}>›</span>
+              <span style={{ color: "var(--text-primary)" }}>{munSel.nome}</span>
             </>
           )}
         </div>
@@ -358,7 +476,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
             transform: hover.flip ? "translate(calc(-100% - 12px), 12px)" : "translate(12px, 12px)",
             background: "color-mix(in srgb, var(--bg-card) 94%, transparent)", backdropFilter: "blur(6px)",
             border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "7px 10px",
-            boxShadow: "0 4px 16px rgba(0,0,0,0.35)", maxWidth: 200,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.35)", maxWidth: 210,
           }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-primary)", marginBottom: 2 }}>{hover.title}</div>
             {hover.lines.map((l, i) => (
@@ -370,11 +488,11 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
         {/* ── Painel de detalhes ─────────────────────────────────────────── */}
         {ufSel && (
           <div className="custom-scroll mapa-br-anim" style={{
-            position: "absolute", top: 10, right: 10, bottom: 10, width: 244, zIndex: 20,
+            position: "absolute", top: 10, right: 10, bottom: 10, width: 258, zIndex: 20,
             background: "color-mix(in srgb, var(--bg-card) 90%, transparent)", backdropFilter: "blur(10px)",
             border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 13,
             overflowY: "auto", animation: "mapSlideIn 0.28s ease-out both",
-            display: "flex", flexDirection: "column", gap: 11,
+            display: "flex", flexDirection: "column", gap: 10,
           }}>
             {munSel ? (
               /* ── Detalhe do município ── */
@@ -399,28 +517,37 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                   </span>
                 )}
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  <div>
-                    <div style={panelLabel}><Users size={9} style={{ display: "inline", marginRight: 4, verticalAlign: "-1px" }} />Clientes</div>
-                    <div style={{ fontSize: 22, fontWeight: 800, color: "var(--accent-cyan)", fontFamily: "var(--font-numeric, monospace)", letterSpacing: "-0.03em", lineHeight: 1 }}>
-                      {num(munDet?.item.qtde ?? 0)}
+                <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                  {(munAgg?.clientes ?? 0) > 0
+                    ? `${pctStr(munAgg?.clientes ?? 0, totalBase)} da base ativa · ${pctStr(munAgg?.receita ?? 0, ufAgg?.receita ?? 0)} do faturamento do estado`
+                    : "Selecionado"}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <StatTile label="Clientes" value={num(munAgg?.clientes ?? 0)} color="var(--accent-cyan)" />
+                  <StatTile label="Faturamento" value={brl(munAgg?.receita ?? 0)} color="var(--accent-green)" />
+                  <StatTile label="Vendas / OS" value={num(munAgg?.vendas ?? 0)} color="var(--accent-purple)" />
+                  <StatTile label="Ticket médio" value={ticketMedio(munAgg?.receita ?? 0, munAgg?.vendas ?? 0)} color="var(--accent-yellow)" />
+                </div>
+
+                <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 9 }}>
+                  <div style={{ ...panelLabel, marginBottom: 4 }}>Top 10 Clientes do Município</div>
+                  {topClientesMunicipio.length === 0 ? (
+                    <EmptyTopClientes />
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {topClientesMunicipio.map((c, i) => (
+                        <TopClienteRow
+                          key={c.cliId}
+                          rank={i + 1}
+                          nome={c.nome}
+                          vendas={c.vendas}
+                          receita={c.receita}
+                          participacao={munAgg && munAgg.receita > 0 ? (c.receita / munAgg.receita) * 100 : 0}
+                        />
+                      ))}
                     </div>
-                    <div style={{ fontSize: 10.5, color: "var(--text-muted)", marginTop: 2 }}>
-                      {totalBase > 0 ? (((munDet?.item.qtde ?? 0) / totalBase) * 100).toFixed(1) : "0"}% da base ativa
-                    </div>
-                  </div>
-                  <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 9 }}>
-                    <div style={panelLabel}><DollarSign size={9} style={{ display: "inline", marginRight: 4, verticalAlign: "-1px" }} />Faturamento no período</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-green)", fontFamily: "var(--font-numeric, monospace)", letterSpacing: "-0.02em", lineHeight: 1 }}>
-                      {brl(munDet?.receita ?? 0)}
-                    </div>
-                  </div>
-                  <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 9 }}>
-                    <div style={panelLabel}><Receipt size={9} style={{ display: "inline", marginRight: 4, verticalAlign: "-1px" }} />Vendas / OS no período</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--accent-purple)", fontFamily: "var(--font-numeric, monospace)", letterSpacing: "-0.02em", lineHeight: 1 }}>
-                      {num(munDet?.vendas ?? 0)}
-                    </div>
-                  </div>
+                  )}
                 </div>
               </>
             ) : (
@@ -434,7 +561,9 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                     <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {UF_INFO[ufSel].nome}
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-muted)" }}>Selecionado</div>
+                    <div style={{ fontSize: 10, color: "var(--text-muted)" }}>
+                      Selecionado · {pctStr(ufAgg?.clientes ?? 0, totalBase)} da base
+                    </div>
                   </div>
                   <button onClick={reset} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: 2, flexShrink: 0 }} aria-label="Fechar">
                     <X size={13} />
@@ -442,48 +571,35 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                 </div>
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <div style={{ padding: "8px 9px", borderRadius: 9, background: "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" }}>
-                    <div style={panelLabel}>Clientes</div>
-                    <div style={{ fontSize: 17, fontWeight: 800, color: "var(--accent-cyan)", fontFamily: "var(--font-numeric, monospace)", lineHeight: 1 }}>
-                      {num(ufAgg?.clientes ?? 0)}
-                    </div>
-                    <div style={{ fontSize: 9.5, color: "var(--text-muted)", marginTop: 2 }}>
-                      {totalBase > 0 ? (((ufAgg?.clientes ?? 0) / totalBase) * 100).toFixed(1) : "0"}% do total
-                    </div>
-                  </div>
-                  <div style={{ padding: "8px 9px", borderRadius: 9, background: "color-mix(in srgb, var(--accent-green) 8%, transparent)" }}>
-                    <div style={panelLabel}>Vendas</div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "var(--accent-green)", fontFamily: "var(--font-numeric, monospace)", lineHeight: 1.2 }}>
-                      {brl(ufAgg?.receita ?? 0)}
-                    </div>
-                    <div style={{ fontSize: 9.5, color: "var(--text-muted)", marginTop: 2 }}>
-                      {totais.receita > 0 ? (((ufAgg?.receita ?? 0) / totais.receita) * 100).toFixed(1) : "0"}% do total
-                    </div>
-                  </div>
+                  <StatTile label="Clientes" value={num(ufAgg?.clientes ?? 0)} color="var(--accent-cyan)" />
+                  <StatTile label="Faturamento" value={brl(ufAgg?.receita ?? 0)} color="var(--accent-green)" sub={`${pctStr(ufAgg?.receita ?? 0, totais.receita)} do total`} />
+                  <StatTile label="Vendas / OS" value={num(ufAgg?.vendas ?? 0)} color="var(--accent-purple)" />
+                  <StatTile label="Ticket médio" value={ticketMedio(ufAgg?.receita ?? 0, ufAgg?.vendas ?? 0)} color="var(--accent-yellow)" />
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 9px", borderRadius: 9, background: "color-mix(in srgb, var(--accent-purple) 8%, transparent)" }}>
-                  <span style={{ ...panelLabel, marginBottom: 0 }}>Vendas / OS</span>
-                  <span style={{ fontSize: 14, fontWeight: 800, color: "var(--accent-purple)", fontFamily: "var(--font-numeric, monospace)" }}>
-                    {num(ufAgg?.vendas ?? 0)}
-                  </span>
+                <div style={{ display: "flex", gap: 4, padding: 3, borderRadius: 9, background: "color-mix(in srgb, var(--text-muted) 6%, transparent)" }}>
+                  <TabButton active={panelTab === "municipios"} onClick={() => setPanelTab("municipios")}>Por Município</TabButton>
+                  <TabButton active={panelTab === "clientes"} onClick={() => setPanelTab("clientes")}>Top Clientes</TabButton>
                 </div>
 
-                {topMun.length > 0 && (
-                  <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 9 }}>
-                    <div style={{ ...panelLabel, marginBottom: 7 }}>Por município</div>
+                {panelTab === "municipios" ? (
+                  topMun.length === 0 ? (
+                    <div style={{ fontSize: 10.5, color: "var(--text-muted)", textAlign: "center", padding: "12px 6px" }}>
+                      Nenhum município identificado no mapa.
+                    </div>
+                  ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                      {topMun.map((c, i) => {
-                        const cod = codareaByNorm.get(normNome(c.cidade));
-                        const barra = Math.min(100, (c.qtde / (topMun[0]?.qtde || 1)) * 100);
+                      {topMun.map((mLoc, i) => {
+                        const cod = codareaByNorm.get(normNome(mLoc.nome));
+                        const barra = Math.min(100, (mLoc.clientes / (topMun[0]?.clientes || 1)) * 100);
                         return (
-                          <button key={c.cidade + i}
+                          <button key={mLoc.nome + i}
                             onClick={() => cod && clickMunicipio(cod)}
                             disabled={!cod}
                             style={{ textAlign: "left", background: "none", border: "none", padding: "5px 2px", cursor: cod ? "pointer" : "default", borderBottom: "1px solid var(--border-subtle)" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", gap: 6, marginBottom: 3 }}>
-                              <span style={{ fontSize: 10.5, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.cidade}</span>
-                              <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-numeric, monospace)", flexShrink: 0 }}>{num(c.qtde)}</span>
+                              <span style={{ fontSize: 10.5, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{mLoc.nome}</span>
+                              <span style={{ fontSize: 10, color: "var(--text-muted)", fontFamily: "var(--font-numeric, monospace)", flexShrink: 0 }}>{num(mLoc.clientes)}</span>
                             </div>
                             <div style={{ height: 3, borderRadius: 2, background: "color-mix(in srgb, var(--text-muted) 12%, transparent)" }}>
                               <div style={{ width: `${barra}%`, height: "100%", borderRadius: 2, background: "var(--accent-cyan)", opacity: 0.8 }} />
@@ -492,10 +608,28 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                         );
                       })}
                     </div>
-                  </div>
+                  )
+                ) : (
+                  topClientesEstado.length === 0 ? (
+                    <EmptyTopClientes />
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column" }}>
+                      {topClientesEstado.map((c, i) => (
+                        <TopClienteRow
+                          key={c.cliId}
+                          rank={i + 1}
+                          nome={c.nome}
+                          cidade={c.cidade}
+                          vendas={c.vendas}
+                          receita={c.receita}
+                          participacao={ufAgg && ufAgg.receita > 0 ? (c.receita / ufAgg.receita) * 100 : 0}
+                        />
+                      ))}
+                    </div>
+                  )
                 )}
 
-                <div style={{ fontSize: 9.5, color: "var(--text-muted)", textAlign: "center", marginTop: "auto", paddingTop: 6 }}>
+                <div style={{ fontSize: 9.5, color: "var(--text-muted)", textAlign: "center", marginTop: "auto", paddingTop: 4 }}>
                   Clique num município para ver detalhes e filtrar o painel
                 </div>
               </>
@@ -508,7 +642,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "0 2px" }}>
         <span style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4 }}>
           <MapPin size={11} />
-          {num(porUF.size)} estado{porUF.size !== 1 ? "s" : ""} com clientes
+          {num(index.porUF.size)} estado{index.porUF.size !== 1 ? "s" : ""} com clientes
         </span>
         {semCidade > 0 && (
           <span style={{ fontSize: 10.5, fontWeight: 600, color: "var(--accent-yellow)", display: "flex", alignItems: "center", gap: 3, padding: "2px 8px", borderRadius: 20, background: "color-mix(in srgb, var(--accent-yellow) 12%, transparent)" }}>

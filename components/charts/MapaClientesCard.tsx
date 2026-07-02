@@ -10,12 +10,14 @@ const Inner = dynamic(() => import("./MapaBrasilInner"), {
   ),
 });
 
+export interface ClienteVenda { cliId: number; nome: string; cidade: string; uf: string; receita: number; vendas: number; }
+
 interface Props {
   data: CliGeoItem[];
   totalBase: number;
   selectedCidade: string | null;
   onSelect: (cidade: string | null) => void;
-  geoStats?: Record<string, { receita: number; vendas: number }>;
+  clientesAgg?: ClienteVenda[];
 }
 
 export function MapaClientesCard(props: Props) {

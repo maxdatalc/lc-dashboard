@@ -90,6 +90,7 @@ export async function GET(request: Request) {
     recorrenciaKpiRes,// 9. taxa de recorrência período atual/anterior
     limitesRes,       // 10. top clientes por limite de crédito
     vendasCidadeRes,  // 11. contagem de transações por mês × cidade (12m)
+    vendasClienteRes, // 12. receita + vendas por cliente × mês (12m) — Top 10 do mapa
   ] = await Promise.allSettled([
 
     // 1. Base de clientes (escopo de filial via cliente_empresa). Uma linha por
@@ -254,6 +255,23 @@ export async function GET(request: Request) {
         AND v.vedFechamento IS NOT NULL AND CONVERT(date, v.vedFechamento) >= @base12m
       GROUP BY FORMAT(v.vedFechamento,'yyyy-MM'), ${CIDADE}
     `, { base12m }),
+
+    // 12. Receita + contagem de vendas por cliente × mês (12m) — alimenta o
+    //     "Top 10 Clientes" do mapa (estado e município). Mesma regra de
+    //     faturamento da query 7 (GERA_FIN, DV subtrai); vendas = OS/VE distintas.
+    q<{ cliId: number; nome: string | null; cidade: string; uf: string; mes: string; receita: number; vendas: number }>(`
+      SELECT v.vedClienteId AS cliId, c.cliNome AS nome, ${CIDADE} AS cidade, ${UF} AS uf,
+        FORMAT(v.vedFechamento,'yyyy-MM') AS mes,
+        ISNULL(SUM(CASE WHEN v.vedTipo='DV' THEN -v.vedTotalNf ELSE v.vedTotalNf END),0) AS receita,
+        COUNT(DISTINCT CASE WHEN v.vedTipo IN ('OS','VE') THEN v.vedId END) AS vendas
+      FROM venda v
+      LEFT JOIN tipoAtend ta ON ta.tatId = v.vedTipoAtend
+      LEFT JOIN cliente c ON c.cliId = v.vedClienteId
+      WHERE v.empId IN (${empList}) AND v.vedStatus='F' AND v.vedTipo IN ('OS','VE','DV')
+        AND v.vedFechamento IS NOT NULL AND CONVERT(date, v.vedFechamento) >= @base12m
+        AND ${GERA_FIN}
+      GROUP BY v.vedClienteId, c.cliNome, ${CIDADE}, ${UF}, FORMAT(v.vedFechamento,'yyyy-MM')
+    `, { base12m }),
   ]);
 
   const val = <T>(r: PromiseSettledResult<T[]>): T[] => (r.status === "fulfilled" ? r.value : []);
@@ -280,6 +298,15 @@ export async function GET(request: Request) {
   const receita = val(receitaRes).map((r) => ({ mes: r.mes, tipo: r.tipo as "R" | "N", cidade: r.cidade || "", receita: Number(r.receita) }));
   const compradores = val(compradoresRes).map((r) => ({ mes: r.mes, tipo: r.tipo as "R" | "N", cidade: r.cidade || "", qtde: Number(r.qtde) }));
   const vendasPorCidade = val(vendasCidadeRes).map((r) => ({ mes: r.mes, cidade: r.cidade || "", qtde: Number(r.qtde) }));
+  const vendasPorCliente = val(vendasClienteRes).map((r) => ({
+    cliId: Number(r.cliId),
+    nome: r.nome ?? `Cliente ${r.cliId}`,
+    cidade: r.cidade || "",
+    uf: r.uf || "",
+    mes: r.mes,
+    receita: Number(r.receita),
+    vendas: Number(r.vendas),
+  }));
 
   const rk = one(recorrenciaKpiRes);
   const recorrenciaKpi = {
@@ -318,6 +345,7 @@ export async function GET(request: Request) {
     receita,
     compradores,
     vendasPorCidade,
+    vendasPorCliente,
     recorrenciaKpi,
     limites,
   });
