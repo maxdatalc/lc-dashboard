@@ -89,6 +89,7 @@ export async function GET(request: Request) {
     compradoresRes,   // 8. compradores únicos por mês × tipo × cidade (12m)
     recorrenciaKpiRes,// 9. taxa de recorrência período atual/anterior
     limitesRes,       // 10. top clientes por limite de crédito
+    vendasCidadeRes,  // 11. contagem de transações por mês × cidade (12m)
   ] = await Promise.allSettled([
 
     // 1. Base de clientes (escopo de filial via cliente_empresa). Uma linha por
@@ -242,6 +243,17 @@ export async function GET(request: Request) {
       WHERE c.cliDesativa = 0 AND c.cliLimitCred > 0 AND ${EXISTS_FILIAL}
       ORDER BY c.cliLimitCred DESC
     `),
+
+    // 11. Contagem de transações (vendas/OS) por mês × cidade (12m)
+    q<{ mes: string; cidade: string; qtde: number }>(`
+      SELECT FORMAT(v.vedFechamento,'yyyy-MM') AS mes, ${CIDADE} AS cidade,
+        COUNT(DISTINCT v.vedId) AS qtde
+      FROM venda v
+      LEFT JOIN cliente c ON c.cliId = v.vedClienteId
+      WHERE v.empId IN (${empList}) AND v.vedStatus='F' AND v.vedTipo IN ('OS','VE')
+        AND v.vedFechamento IS NOT NULL AND CONVERT(date, v.vedFechamento) >= @base12m
+      GROUP BY FORMAT(v.vedFechamento,'yyyy-MM'), ${CIDADE}
+    `, { base12m }),
   ]);
 
   const val = <T>(r: PromiseSettledResult<T[]>): T[] => (r.status === "fulfilled" ? r.value : []);
@@ -267,6 +279,7 @@ export async function GET(request: Request) {
 
   const receita = val(receitaRes).map((r) => ({ mes: r.mes, tipo: r.tipo as "R" | "N", cidade: r.cidade || "", receita: Number(r.receita) }));
   const compradores = val(compradoresRes).map((r) => ({ mes: r.mes, tipo: r.tipo as "R" | "N", cidade: r.cidade || "", qtde: Number(r.qtde) }));
+  const vendasPorCidade = val(vendasCidadeRes).map((r) => ({ mes: r.mes, cidade: r.cidade || "", qtde: Number(r.qtde) }));
 
   const rk = one(recorrenciaKpiRes);
   const recorrenciaKpi = {
@@ -304,6 +317,7 @@ export async function GET(request: Request) {
     primeiraKpi,
     receita,
     compradores,
+    vendasPorCidade,
     recorrenciaKpi,
     limites,
   });

@@ -8,7 +8,8 @@ import { ChartCard } from "@/components/ui/ChartCard";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { CliReceitaTipoChart } from "@/components/charts/CliReceitaTipoChart";
 import { CliConversaoChart } from "@/components/charts/CliConversaoChart";
-import { CliGeoRanking, cidadeKey, SEM_CIDADE } from "@/components/charts/CliGeoRanking";
+import { cidadeKey, SEM_CIDADE } from "@/components/charts/CliGeoRanking";
+import { MapaClientesCard } from "@/components/charts/MapaClientesCard";
 import { CliLimitesRanking } from "@/components/charts/CliLimitesRanking";
 
 // ─── Tipos da resposta do endpoint /overview ───────────────────────────────────
@@ -18,6 +19,7 @@ interface BaseRow { cidade: string; uf: string; cliTipo: number; ativo: boolean;
 interface MesCidadeRow { mes: string; cidade: string; qtde: number; }
 interface ReceitaRow { mes: string; tipo: "R" | "N"; cidade: string; receita: number; }
 interface CompradorRow { mes: string; tipo: "R" | "N"; cidade: string; qtde: number; }
+interface VendasCidadeRow { mes: string; cidade: string; qtde: number; }
 interface LimiteRow { cliId: number; nome: string; valor: number; cidade: string; uf: string; }
 
 interface Overview {
@@ -32,6 +34,7 @@ interface Overview {
   primeiraKpi: { atual: number; anterior: number };
   receita: ReceitaRow[];
   compradores: CompradorRow[];
+  vendasPorCidade: VendasCidadeRow[];
   recorrenciaKpi: { totalComp: number; recorrentes: number; totalPrev: number; recorrentesPrev: number };
   limites: LimiteRow[];
 }
@@ -274,9 +277,24 @@ export default function ClientesPage() {
     // — Limites (ranking respeita cidade)
     const limitesF = data.limites.filter((l) => cidadeOk(l.cidade));
 
+    // — Estatísticas por cidade para popup do mapa (respeita fMes, mas NÃO fCidade)
+    const geoStats: Record<string, { receita: number; vendas: number }> = {};
+    for (const r of data.receita) {
+      if (!inPeriodo(r.mes)) continue;
+      const k = cidadeKey(r.cidade);
+      if (!geoStats[k]) geoStats[k] = { receita: 0, vendas: 0 };
+      geoStats[k].receita += r.receita;
+    }
+    for (const r of (data.vendasPorCidade ?? [])) {
+      if (!inPeriodo(r.mes)) continue;
+      const k = cidadeKey(r.cidade);
+      if (!geoStats[k]) geoStats[k] = { receita: 0, vendas: 0 };
+      geoStats[k].vendas += r.qtde;
+    }
+
     return {
       ativos, inativos, totalBase, limiteTotal, comLimite,
-      geo, totalBaseAtivos,
+      geo, totalBaseAtivos, geoStats,
       receitaChart, conversaoChart,
       cadastrosVal, primeiraVal, taxaRecorrencia, taxaRecorrenciaPrev,
       pctReceitaRecorrente, conversaoMedia,
@@ -409,17 +427,17 @@ export default function ClientesPage() {
           </ChartCard>
         </div>
 
-        {/* ── Linha 3: Distribuição Geográfica + Maiores Limites ─────────── */}
+        {/* ── Linha 3: Mapa Geográfico + Maiores Limites ─────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <div className="lg:col-span-2">
             <ChartCard
               title="Distribuição Geográfica da Base"
-              subtitle="clientes ativos por cidade · preparado para mapa inteligente"
+              subtitle="clientes ativos por cidade · círculos proporcionais por concentração"
               animationDelay={200}
-              info="Ranking dos clientes ativos por cidade de faturamento, com participação sobre a base. Cadastros sem cidade aparecem em âmbar (alerta de cadastro incompleto). Clique numa cidade para filtrar o painel; na próxima etapa este card recebe o mapa interativo com heat."
+              info="Mapa interativo com círculos proporcionais à quantidade de clientes por cidade. A cor vai de azul (baixa concentração) a vermelho (alta concentração). Clique em qualquer cidade para ver os detalhes e filtrar o painel. O ranking completo fica no colapsável abaixo do mapa."
             >
-              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 320 }} /> : (
-                <CliGeoRanking data={derived.geo} totalBase={derived.totalBaseAtivos} selectedCidade={fCidade} onSelect={setFCidade} />
+              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 310 }} /> : (
+                <MapaClientesCard data={derived.geo} totalBase={derived.totalBaseAtivos} selectedCidade={fCidade} onSelect={setFCidade} geoStats={derived.geoStats} />
               )}
             </ChartCard>
           </div>
