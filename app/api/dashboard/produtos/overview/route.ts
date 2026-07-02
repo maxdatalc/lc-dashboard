@@ -5,6 +5,7 @@ import {
   getProdutosOverview,
   type ProdutosFilters,
   type StatusEstoque,
+  type ClasseAbc,
 } from "@/lib/db/produtos-estoque";
 
 export const dynamic = "force-dynamic";
@@ -12,16 +13,22 @@ export const dynamic = "force-dynamic";
 const STATUS_VALIDOS: StatusEstoque[] = [
   "abaixo", "acima", "semMin", "negativo", "margemNeg", "regular",
 ];
+const CLASSES_ABC_VALIDAS: ClasseAbc[] = ["A", "B", "C", "semGiro"];
+const DIAS_VALIDOS = [30, 60, 90];
 
 /**
  * Endpoint consolidado do Dashboard de Produtos & Estoque.
- * Uma única chamada devolve KPIs, rankings, saúde do estoque, alertas, listas de
- * problemas e a tabela "Produtos que Exigem Ação" — tudo agregado no SQL e já
- * respeitando os filtros de cross-filtering (marca, grupo, categoria, status, busca),
+ * Uma única chamada devolve KPIs, rankings, saúde do estoque, alertas, Curva ABC,
+ * produtos parados, oportunidades de transferência entre lojas e a tabela
+ * "Produtos que Exigem Ação" — tudo agregado no SQL e já respeitando os filtros de
+ * cross-filtering (marca, grupo, categoria, status, classeAbc, parado, busca),
  * garantindo que todos os widgets fiquem coerentes entre si.
  *
- * Estoque é uma FOTOGRAFIA atual — não usa filtro de período. Multilojas consolida
- * as posições (produto × filial) das lojas selecionadas.
+ * Estoque é uma FOTOGRAFIA atual — não usa o filtro de período do header. Os
+ * indicadores de giro (Curva ABC, produtos parados, ruptura ativa, sugestão de
+ * compra) usam uma janela local própria (`dias`, 30/60/90), independente do
+ * período global. Multilojas consolida as posições (produto × filial) das lojas
+ * selecionadas.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -43,6 +50,10 @@ export async function GET(request: Request) {
   }
 
   const statusParam = searchParams.get("status");
+  const classeAbcParam = searchParams.get("classeAbc");
+  const diasParam = Number(searchParams.get("dias"));
+  const dias = DIAS_VALIDOS.includes(diasParam) ? diasParam : 90;
+
   const filters: ProdutosFilters = {
     marca: searchParams.get("marca") || null,
     grupo: searchParams.get("grupo") || null,
@@ -50,12 +61,16 @@ export async function GET(request: Request) {
     status: STATUS_VALIDOS.includes(statusParam as StatusEstoque)
       ? (statusParam as StatusEstoque)
       : null,
+    classeAbc: CLASSES_ABC_VALIDAS.includes(classeAbcParam as ClasseAbc)
+      ? (classeAbcParam as ClasseAbc)
+      : null,
+    parado: searchParams.get("parado") === "1",
     busca: searchParams.get("busca") || null,
   };
 
   try {
-    const overview = await getProdutosOverview({ bridgeUrl, token }, empIds, filters);
-    return NextResponse.json({ filiais: empresas, ...overview });
+    const overview = await getProdutosOverview({ bridgeUrl, token }, empIds, empresas, filters, dias);
+    return NextResponse.json({ filiais: empresas, dias, ...overview });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao consultar produtos";
     console.error("[produtos/overview]", message);

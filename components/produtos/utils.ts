@@ -1,6 +1,6 @@
 // Utilitários compartilhados do Dashboard de Produtos & Estoque
 
-import type { StatusEstoque } from "@/lib/db/produtos-estoque";
+import type { StatusEstoque, ClasseAbc } from "@/lib/db/produtos-estoque";
 
 // ── Formatadores (pt-BR — números NÃO abreviados, conforme especificação) ──────
 
@@ -51,3 +51,20 @@ export const STATUS_META: Record<StatusEstoque, StatusMeta> = {
 export const COR_CUSTO = "#f59e0b";  // âmbar — capital investido / custo
 export const COR_VENDA = "#22d3ee";  // ciano — potencial de venda
 export const COR_MARGEM = "#22c55e"; // verde — margem positiva
+
+// ── Metadados de classe ABC (curva de faturamento) ─────────────────────────────
+
+export const ABC_META: Record<ClasseAbc, StatusMeta> = {
+  A:       { label: "Classe A",  color: "#22c55e", bg: "rgba(34,197,94,0.12)" },
+  B:       { label: "Classe B",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  C:       { label: "Classe C",  color: "#64748b", bg: "rgba(100,116,139,0.16)" },
+  semGiro: { label: "Sem giro",  color: "#f43f5e", bg: "rgba(244,63,94,0.14)" },
+};
+
+// ── Formatação de giro/cobertura ────────────────────────────────────────────────
+
+export function fmtGiroDias(dias: number | null): string {
+  if (dias == null || !Number.isFinite(dias)) return "—";
+  if (dias >= 999) return "999+ dias";
+  return `${Math.round(dias)} dias`;
+}

@@ -2,23 +2,50 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { Search, ArrowUpDown, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Search, ArrowUpDown, ChevronLeft, ChevronRight, X, Download, Flame } from "lucide-react";
 import type { ProdutoAcao, StatusEstoque } from "@/lib/db/produtos-estoque";
-import { STATUS_META, fmtMoeda, fmtInt, fmtPct } from "./utils";
+import { STATUS_META, fmtMoeda, fmtInt, fmtPct, fmtGiroDias } from "./utils";
 
-type SortKey = "nome" | "estoqueAtual" | "estoqueMinimo" | "diferenca" | "valorCusto" | "valorVenda" | "margemPct" | "status";
+type SortKey = "nome" | "estoqueAtual" | "estoqueMinimo" | "diferenca" | "valorCusto" | "valorVenda" | "margemPct" | "status" | "giroDias" | "valorSugestao";
 const PAGE_SIZE = 10;
 
-function StatusBadge({ status }: { status: StatusEstoque }) {
+function StatusBadge({ status, rupturaAtiva }: { status: StatusEstoque; rupturaAtiva?: boolean }) {
   const m = STATUS_META[status];
   return (
-    <span style={{
-      display: "inline-block", fontSize: 10.5, fontWeight: 600, padding: "2px 8px",
-      borderRadius: 999, background: m.bg, color: m.color, whiteSpace: "nowrap",
-    }}>
-      {m.label}
+    <span className="inline-flex items-center gap-1">
+      {rupturaAtiva && (
+        <Flame style={{ width: 12, height: 12, color: "#dc2626" }} aria-label="Ruptura ativa — vende e está zerado" />
+      )}
+      <span style={{
+        display: "inline-block", fontSize: 10.5, fontWeight: 600, padding: "2px 8px",
+        borderRadius: 999, background: m.bg, color: m.color, whiteSpace: "nowrap",
+      }}>
+        {m.label}
+      </span>
     </span>
   );
+}
+
+function exportCsv(items: ProdutoAcao[]) {
+  const head = ["Produto", "Codigo", "Marca", "Categoria", "Estoque", "Minimo", "Diferenca", "Giro (dias)", "Sugestao Compra", "Valor Sugestao", "Valor Custo", "Valor Venda", "Margem %", "Status"];
+  const lines = [head.join(";")];
+  for (const p of items) {
+    lines.push([
+      p.nome, p.codigo ?? "", p.marca, p.categoria, p.estoqueAtual.toFixed(0),
+      p.estoqueMinimo?.toFixed(0) ?? "", p.diferenca?.toFixed(0) ?? "",
+      p.giroDias?.toFixed(0) ?? "", p.sugestaoCompra?.toFixed(0) ?? "", p.valorSugestao?.toFixed(2) ?? "",
+      p.valorCusto.toFixed(2), p.valorVenda.toFixed(2), p.margemPct?.toFixed(1) ?? "",
+      STATUS_META[p.status].label,
+    ].join(";"));
+  }
+  const csv = "﻿" + lines.join("\r\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "produtos-exigem-acao.csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function AcaoTable({
@@ -101,9 +128,19 @@ export function AcaoTable({
             style={{ border: "1px solid var(--border-subtle)", background: "var(--bg-primary)", color: "var(--text-primary)", width: 260 }}
           />
         </div>
-        <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
-          {fmtInt(filtrados.length)} {filtrados.length === 1 ? "item" : "itens"}
-        </span>
+        <div className="flex items-center gap-3">
+          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+            {fmtInt(filtrados.length)} {filtrados.length === 1 ? "item" : "itens"}
+          </span>
+          <button
+            type="button"
+            onClick={() => exportCsv(filtrados)}
+            className="inline-flex items-center gap-1.5 rounded-lg transition-colors"
+            style={{ padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
+          >
+            <Download style={{ width: 12, height: 12 }} /> Exportar
+          </button>
+        </div>
       </div>
 
       {/* Tabela — cabeçalho fixo, corpo rolável dentro da altura da linha */}
@@ -113,7 +150,7 @@ export function AcaoTable({
             Nenhum produto exige ação para os filtros atuais.
           </div>
         ) : (
-          <table className="w-full" style={{ borderCollapse: "collapse", minWidth: 860 }}>
+          <table className="w-full" style={{ borderCollapse: "collapse", minWidth: 1020 }}>
             <thead>
               <tr>
                 <Th k="nome">Produto</Th>
@@ -123,6 +160,8 @@ export function AcaoTable({
                 <Th k="estoqueAtual" align="right">Estoque</Th>
                 <Th k="estoqueMinimo" align="right">Mínimo</Th>
                 <Th k="diferenca" align="right">Difer.</Th>
+                <Th k="giroDias" align="right">Giro</Th>
+                <Th k="valorSugestao" align="right">Sugestão</Th>
                 <Th k="valorCusto" align="right">Vlr Custo</Th>
                 <Th k="valorVenda" align="right">Vlr Venda</Th>
                 <Th k="margemPct" align="right">Margem</Th>
@@ -149,12 +188,18 @@ export function AcaoTable({
                   <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12, fontWeight: 600, color: p.diferenca == null ? "var(--text-muted)" : p.diferenca < 0 ? "#ef4444" : "#22c55e", fontVariantNumeric: "tabular-nums" }}>
                     {p.diferenca == null ? "—" : (p.diferenca > 0 ? "+" : "") + fmtInt(p.diferenca)}
                   </td>
+                  <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 11.5, color: p.parado ? "#a78bfa" : "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                    {p.parado ? "Parado" : fmtGiroDias(p.giroDias)}
+                  </td>
+                  <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 11.5, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+                    {p.sugestaoCompra == null ? "—" : `${fmtInt(p.sugestaoCompra)} un`}
+                  </td>
                   <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 11.5, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{fmtMoeda(p.valorCusto)}</td>
                   <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 11.5, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{fmtMoeda(p.valorVenda)}</td>
                   <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 11.5, fontWeight: 600, color: p.margemPct == null ? "var(--text-muted)" : p.margemPct < 0 ? "#f43f5e" : "#22c55e", fontVariantNumeric: "tabular-nums" }}>
                     {p.margemPct == null ? "—" : fmtPct(p.margemPct)}
                   </td>
-                  <td style={{ padding: "8px 10px", textAlign: "center" }}><StatusBadge status={p.status} /></td>
+                  <td style={{ padding: "8px 10px", textAlign: "center" }}><StatusBadge status={p.status} rupturaAtiva={p.rupturaAtiva} /></td>
                 </tr>
               ))}
             </tbody>
@@ -220,7 +265,7 @@ function DetalheModal({ item, loja, onClose }: { item: ProdutoAcao; loja: string
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--bg-card)", border: "1px solid var(--card-header-border)", borderRadius: 16, width: "100%", maxWidth: 440, boxShadow: "0 24px 64px rgba(0,0,0,0.6)", animation: "slideUp 0.2s ease-out", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
           <div style={{ minWidth: 0 }}>
-            <StatusBadge status={item.status} />
+            <StatusBadge status={item.status} rupturaAtiva={item.rupturaAtiva} />
             <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginTop: 6, lineHeight: 1.3 }}>{item.nome}</p>
             <p style={{ fontSize: 11.5, color: "var(--text-muted)", marginTop: 2 }}>
               {item.codigo ? `Cód: ${item.codigo} · ` : ""}{item.marca} · {item.categoria}{loja ? ` · ${loja}` : ""}
@@ -235,6 +280,10 @@ function DetalheModal({ item, loja, onClose }: { item: ProdutoAcao; loja: string
           <Linha label="Estoque atual" valor={fmtInt(item.estoqueAtual)} color={item.estoqueAtual < 0 ? "#f43f5e" : undefined} />
           <Linha label="Estoque mínimo" valor={item.estoqueMinimo != null && item.estoqueMinimo > 0 ? fmtInt(item.estoqueMinimo) : "Não informado"} />
           <Linha label="Diferença" valor={item.diferenca == null ? "—" : (item.diferenca > 0 ? "+" : "") + fmtInt(item.diferenca)} color={item.diferenca != null && item.diferenca < 0 ? "#ef4444" : undefined} />
+          <Linha label="Giro (cobertura)" valor={item.parado ? "Parado — sem venda na janela" : fmtGiroDias(item.giroDias)} color={item.parado ? "#a78bfa" : undefined} />
+          {item.sugestaoCompra != null && (
+            <Linha label="Sugestão de compra" valor={`${fmtInt(item.sugestaoCompra)} un · ${fmtMoeda(item.valorSugestao ?? 0)}`} color="var(--accent-cyan)" />
+          )}
           <Linha label="Custo unitário" valor={fmtMoeda(item.custoUnit)} />
           <Linha label="Venda unitária" valor={fmtMoeda(item.vendaUnit)} />
           <Linha label="Valor em estoque (custo)" valor={fmtMoeda(item.valorCusto)} />

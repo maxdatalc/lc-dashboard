@@ -1,14 +1,16 @@
 "use client";
 
 import { X, Filter } from "lucide-react";
-import type { StatusEstoque } from "@/lib/db/produtos-estoque";
-import { STATUS_META } from "./utils";
+import type { StatusEstoque, ClasseAbc } from "@/lib/db/produtos-estoque";
+import { STATUS_META, ABC_META } from "./utils";
 
 export interface ProdutosFilterState {
   marca: string | null;
   grupo: string | null;
   categoria: string | null;
   status: StatusEstoque | null;
+  classeAbc: ClasseAbc | null;
+  parado: boolean;
 }
 
 interface Chip { key: keyof ProdutosFilterState; label: string; value: string; color?: string }
@@ -25,6 +27,8 @@ export function FiltroChips({
   if (filters.grupo) chips.push({ key: "grupo", label: "Grupo", value: filters.grupo });
   if (filters.categoria) chips.push({ key: "categoria", label: "Categoria", value: filters.categoria });
   if (filters.status) chips.push({ key: "status", label: "Status", value: STATUS_META[filters.status].label, color: STATUS_META[filters.status].color });
+  if (filters.classeAbc) chips.push({ key: "classeAbc", label: "Curva ABC", value: ABC_META[filters.classeAbc].label, color: ABC_META[filters.classeAbc].color });
+  if (filters.parado) chips.push({ key: "parado", label: "Giro", value: "Produtos parados", color: "#a78bfa" });
 
   if (chips.length === 0) return null;
 

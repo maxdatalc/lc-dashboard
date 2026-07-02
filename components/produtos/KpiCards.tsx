@@ -2,7 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import {
-  Coins, Tag, TrendingUp, AlertCircle, ShieldCheck, HelpCircle, PackageX,
+  Coins, Tag, TrendingUp, AlertCircle, ShieldCheck, HelpCircle, PackageX, TimerOff,
 } from "lucide-react";
 import type { ProdutosKpis, StatusEstoque } from "@/lib/db/produtos-estoque";
 import { useCountUp } from "./useCountUp";
@@ -61,13 +61,13 @@ function ValorCard({
   );
 }
 
-// ── Card de contagem/status — clicável (cross-filter) ──────────────────────────
+// ── Card de contagem clicável (cross-filter) — genérico, usado por status e "parado" ──
 
-function StatusCard({
-  icon, label, valor, base, color, status, active, onClick, delay,
+function CountCard({
+  icon, label, valor, base, color, active, onClick, delay, sub,
 }: {
   icon: ReactNode; label: string; valor: number; base: number; color: string;
-  status: StatusEstoque; active: boolean; onClick: (s: StatusEstoque) => void; delay: number;
+  active: boolean; onClick: () => void; delay: number; sub?: string;
 }) {
   const animado = useCountUp(valor);
   const pct = base > 0 ? (valor / base) * 100 : 0;
@@ -82,7 +82,7 @@ function StatusCard({
   };
 
   return (
-    <button type="button" className="kpi-card" onClick={() => onClick(status)} style={style} aria-pressed={active} title={`Filtrar por ${label.toLowerCase()}`}>
+    <button type="button" className="kpi-card" onClick={onClick} style={style} aria-pressed={active} title={`Filtrar por ${label.toLowerCase()}`}>
       <KpiHead label={label} icon={icon} color={color} />
       <div style={{
         fontSize: "clamp(18px,1.7vw,24px)", fontWeight: 800, fontFamily: "var(--font-numeric)",
@@ -92,7 +92,7 @@ function StatusCard({
         {fmtInt(animado)}
       </div>
       <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-        {base > 0 ? `${fmtPct(pct)} da base` : "—"}
+        {sub ?? (base > 0 ? `${fmtPct(pct)} da base` : "—")}
       </div>
     </button>
   );
@@ -101,25 +101,29 @@ function StatusCard({
 // ── Grade de KPIs ──────────────────────────────────────────────────────────────
 
 export function KpiCards({
-  kpis, activeStatus, onStatusClick,
+  kpis, activeStatus, onStatusClick, paradoAtivo, onParadoClick,
 }: {
   kpis: ProdutosKpis;
   activeStatus: StatusEstoque | null;
   onStatusClick: (s: StatusEstoque) => void;
+  paradoAtivo: boolean;
+  onParadoClick: () => void;
 }) {
   const base = kpis.totalPosicoes;
   const IS = { size: 17, strokeWidth: 2 } as const;
 
   return (
-    <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-7">
+    <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
       <ValorCard delay={0}  icon={<Coins {...IS} />}      label="Valor em Estoque — Custo" valor={kpis.valorCusto}      sub="capital investido"        color="var(--accent-yellow)" />
       <ValorCard delay={40} icon={<Tag {...IS} />}        label="Potencial de Venda"        valor={kpis.valorVenda}      sub="estoque a preço de venda" color="var(--accent-cyan)" />
       <ValorCard delay={80} icon={<TrendingUp {...IS} />} label="Margem Potencial"          valor={kpis.margemPotencial} sub="venda − custo"            color="var(--accent-green)" />
 
-      <StatusCard delay={120} icon={<AlertCircle {...IS} />} label="Abaixo do Mínimo"     valor={kpis.abaixoMin} base={base} color="#ef4444" status="abaixo"    active={activeStatus === "abaixo"}    onClick={onStatusClick} />
-      <StatusCard delay={160} icon={<ShieldCheck {...IS} />} label="Acima do Mínimo"      valor={kpis.acimaMin}  base={base} color="var(--accent-yellow)" status="acima"     active={activeStatus === "acima"}     onClick={onStatusClick} />
-      <StatusCard delay={200} icon={<HelpCircle {...IS} />}  label="Mínimo não Informado" valor={kpis.semMin}    base={base} color="var(--text-muted)" status="semMin"    active={activeStatus === "semMin"}    onClick={onStatusClick} />
-      <StatusCard delay={240} icon={<PackageX {...IS} />}    label="Estoque Negativo"     valor={kpis.negativo}  base={base} color="#f43f5e" status="negativo"  active={activeStatus === "negativo"}  onClick={onStatusClick} />
+      <CountCard delay={120} icon={<AlertCircle {...IS} />} label="Abaixo do Mínimo"     valor={kpis.abaixoMin} base={base} color="#ef4444" active={activeStatus === "abaixo"}    onClick={() => onStatusClick("abaixo")} />
+      <CountCard delay={160} icon={<ShieldCheck {...IS} />} label="Acima do Mínimo"      valor={kpis.acimaMin}  base={base} color="var(--accent-yellow)" active={activeStatus === "acima"}     onClick={() => onStatusClick("acima")} />
+      <CountCard delay={200} icon={<HelpCircle {...IS} />}  label="Mínimo não Informado" valor={kpis.semMin}    base={base} color="var(--text-muted)" active={activeStatus === "semMin"}    onClick={() => onStatusClick("semMin")} />
+      <CountCard delay={240} icon={<PackageX {...IS} />}    label="Estoque Negativo"     valor={kpis.negativo}  base={base} color="#f43f5e" active={activeStatus === "negativo"}  onClick={() => onStatusClick("negativo")} />
+      <CountCard delay={280} icon={<TimerOff {...IS} />}    label="Produtos Parados"     valor={kpis.parados}   base={base} color="#a78bfa" active={paradoAtivo} onClick={onParadoClick}
+        sub={kpis.parados > 0 ? `${fmtMoeda(kpis.valorParado)} parados` : undefined} />
     </div>
   );
 }
