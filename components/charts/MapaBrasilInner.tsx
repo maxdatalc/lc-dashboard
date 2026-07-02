@@ -38,11 +38,20 @@ function clampView(v: View): View {
   const maxX = k * W * PAN_SLACK, maxY = k * H * PAN_SLACK;
   return { k, tx: Math.min(maxX, Math.max(-maxX, v.tx)), ty: Math.min(maxY, Math.max(-maxY, v.ty)) };
 }
-/** Zoom em torno do centro do viewport atual (botões +/−), preservando o ponto focal. */
+/** Zoom em torno de um ponto fixo do viewport (screen-space, já em coordenadas
+ *  do viewBox), preservando esse ponto na tela — usado pelos botões +/− (centro
+ *  fixo) e pela roda do mouse (ponto sob o cursor). */
 function zoomAround(v: View, factor: number, cx: number, cy: number): View {
   const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor));
   const r = k / v.k;
   return clampView({ k, tx: cx * (1 - r) + v.tx * r, ty: cy * (1 - r) + v.ty * r });
+}
+/** Fator de crescimento visual do rótulo em função do zoom: sub-linear e com
+ *  teto, para crescer perceptivelmente sem "inflar" junto com o mapa. */
+const LABEL_MAX_GROWTH = 2.4;
+const LABEL_GROWTH_EXP = 0.38;
+function labelGrowth(k: number): number {
+  return Math.min(LABEL_MAX_GROWTH, Math.pow(k, LABEL_GROWTH_EXP));
 }
 
 function num(v: number) { return v.toLocaleString("pt-BR"); }
@@ -274,7 +283,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   // afastar e arrastar livremente por cima, estilo Google Maps. ────────────
   const [view, setView] = useState<View>(HOME_VIEW);
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ active: false, moved: false, startX: 0, startY: 0, startTx: 0, startTy: 0 });
+  const dragRef = useRef({ active: false, moved: false, startX: 0, startY: 0, startTx: 0, startTy: 0, pointerId: 0 });
   const justDraggedRef = useRef(false);
 
   useEffect(() => {
@@ -291,17 +300,41 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
     setView((v) => zoomAround(v, factor, W / 2, H / 2));
   }, []);
 
+  // Zoom pela roda do mouse, centrado no ponto sob o cursor (estilo Google Maps).
+  const onWheelMap = useCallback((e: React.WheelEvent) => {
+    e.preventDefault();
+    const rect = wrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const s = Math.min(rect.width / W, rect.height / H) || 1;
+    const offsetX = (rect.width - s * W) / 2, offsetY = (rect.height - s * H) / 2;
+    const px = (e.clientX - rect.left - offsetX) / s;
+    const py = (e.clientY - rect.top - offsetY) / s;
+    const dy = Math.max(-120, Math.min(120, e.deltaY));
+    const factor = Math.pow(1.0012, -dy);
+    setHover(null);
+    setView((v) => zoomAround(v, factor, px, py));
+  }, []);
+
   const onPointerDownMap = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
-    dragRef.current = { active: true, moved: false, startX: e.clientX, startY: e.clientY, startTx: view.tx, startTy: view.ty };
-    wrapRef.current?.setPointerCapture(e.pointerId);
+    // Não captura o ponteiro aqui: um clique simples (down+up sem mover) não
+    // pode passar por setPointerCapture, senão o pointerup "pertence" a este
+    // wrapper em vez do <path> clicado e o navegador nunca sintetiza o click
+    // nativo — o estado/município fica impossível de selecionar. A captura só
+    // acontece em onPointerMoveMap, quando um arrasto de verdade é confirmado.
+    dragRef.current = { active: true, moved: false, startX: e.clientX, startY: e.clientY, startTx: view.tx, startTy: view.ty, pointerId: e.pointerId };
   }, [view.tx, view.ty]);
 
   const onPointerMoveMap = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current;
     if (!d.active) return;
     const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
-    if (!d.moved && Math.hypot(dx, dy) > 4) { d.moved = true; setIsDragging(true); setHover(null); }
+    if (!d.moved && Math.hypot(dx, dy) > 4) {
+      d.moved = true;
+      setIsDragging(true);
+      setHover(null);
+      wrapRef.current?.setPointerCapture(d.pointerId);
+    }
     if (d.moved) {
       const rect = wrapRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -312,10 +345,12 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
 
   const onPointerUpMap = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current;
-    if (d.active && d.moved) justDraggedRef.current = true;
+    if (d.active && d.moved) {
+      justDraggedRef.current = true;
+      wrapRef.current?.releasePointerCapture(e.pointerId);
+    }
     d.active = false;
     setIsDragging(false);
-    wrapRef.current?.releasePointerCapture(e.pointerId);
   }, []);
 
   // ── Interações ──────────────────────────────────────────────────────────
@@ -394,6 +429,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
         onPointerMove={onPointerMoveMap}
         onPointerUp={onPointerUpMap}
         onPointerCancel={onPointerUpMap}
+        onWheel={onWheelMap}
       >
         {!estadosFC ? (
           <div className="shimmer" style={{ position: "absolute", inset: 0 }} />
@@ -477,16 +513,17 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
               })()}
 
               {/* Siglas + contagem por estado (só no nível Brasil). Cada rótulo é
-                  contra-escalado por 1/view.k em torno do seu próprio centróide, para
-                  manter um tamanho de tela constante independente do zoom aplicado —
-                  como em mapas profissionais (Google Maps, Mapbox). */}
+                  contra-escalado em torno do seu próprio centróide com crescimento
+                  amortecido (labelGrowth): cresce visivelmente ao dar zoom — para não
+                  "sumir" dentro de uma região ampliada — mas com teto, sem inflar
+                  proporcionalmente ao zoom do mapa, como em mapas profissionais. */}
               <g style={{ opacity: ufSel ? 0 : 1, transition: "opacity 0.3s ease", pointerEvents: "none" }}>
                 {estadosFC.features.map((f) => {
                   const sigla = CODE_TO_UF[f.properties.codarea];
                   const q = index.porUF.get(sigla)?.clientes ?? 0;
                   const [cx, cy] = path!.centroid(f as never);
                   if (!isFinite(cx)) return null;
-                  const inv = 1 / view.k;
+                  const inv = labelGrowth(view.k) / view.k;
                   return (
                     <g key={`lbl-${f.properties.codarea}`} transform={`translate(${cx},${cy}) scale(${inv})`}>
                       <text x={0} y={q > 0 ? -1 : 3} textAnchor="middle"
