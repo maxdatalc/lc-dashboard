@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { geoIdentity, geoPath } from "d3-geo";
-import { MapPin, AlertTriangle, ChevronDown, ChevronUp, ChevronLeft, X, Loader2 } from "lucide-react";
+import { MapPin, AlertTriangle, ChevronDown, ChevronUp, ChevronLeft, X, Loader2, Plus, Minus } from "lucide-react";
 import { fetchMalhaEstados, fetchMalhaMunicipios, normNome, UF_INFO, CODE_TO_UF, type GeoFC, type GeoFeature } from "@/lib/utils/ibge-malhas";
 import { CliGeoRanking, cidadeKey } from "./CliGeoRanking";
 import type { CliGeoItem } from "./CliGeoRanking";
@@ -20,11 +20,30 @@ interface MunAgg { nome: string; uf: string; clientes: number; receita: number; 
 interface UFAgg { clientes: number; receita: number; vendas: number; municipios: Map<string, MunAgg>; }
 interface MunSel { codarea: string; nome: string; key: string | null; }
 interface Hover { x: number; y: number; flip: boolean; title: string; lines: string[]; }
+interface View { k: number; tx: number; ty: number; }
 type PanelTab = "municipios" | "clientes";
 
 const W = 880;
 const H = 600;
 const MAP_H = 430;
+const HOME_VIEW: View = { k: 1, tx: 0, ty: 0 };
+const MIN_K = 1;
+const MAX_K = 45;
+const ZOOM_STEP = 1.6;
+/** Margem de arrasto: fração da dimensão escalada que ainda pode sair da tela. */
+const PAN_SLACK = 0.85;
+
+function clampView(v: View): View {
+  const k = Math.min(MAX_K, Math.max(MIN_K, v.k));
+  const maxX = k * W * PAN_SLACK, maxY = k * H * PAN_SLACK;
+  return { k, tx: Math.min(maxX, Math.max(-maxX, v.tx)), ty: Math.min(maxY, Math.max(-maxY, v.ty)) };
+}
+/** Zoom em torno do centro do viewport atual (botões +/−), preservando o ponto focal. */
+function zoomAround(v: View, factor: number, cx: number, cy: number): View {
+  const k = Math.min(MAX_K, Math.max(MIN_K, v.k * factor));
+  const r = k / v.k;
+  return clampView({ k, tx: cx * (1 - r) + v.tx * r, ty: cy * (1 - r) + v.ty * r });
+}
 
 function num(v: number) { return v.toLocaleString("pt-BR"); }
 function brl(v: number): string {
@@ -249,15 +268,55 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
     return geoPath(proj);
   }, [estadosFC]);
 
-  const zoom = useMemo(() => {
-    if (!ufSel || !path || !estadosFC) return { k: 1, tx: 0, ty: 0 };
+  // ── Câmera: view = { k, tx, ty } controla zoom/pan como um todo. Ao
+  // selecionar um estado, a câmera anima até o enquadramento automático
+  // (mesma matemática de antes); a partir daí o usuário pode aproximar,
+  // afastar e arrastar livremente por cima, estilo Google Maps. ────────────
+  const [view, setView] = useState<View>(HOME_VIEW);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ active: false, moved: false, startX: 0, startY: 0, startTx: 0, startTy: 0 });
+  const justDraggedRef = useRef(false);
+
+  useEffect(() => {
+    if (!ufSel || !path || !estadosFC) { setView(HOME_VIEW); return; }
     const code = UF_INFO[ufSel].code;
     const f = estadosFC.features.find((ft) => ft.properties.codarea === code);
-    if (!f) return { k: 1, tx: 0, ty: 0 };
+    if (!f) { setView(HOME_VIEW); return; }
     const [[x0, y0], [x1, y1]] = path.bounds(f as never);
     const k = Math.min(14, 0.9 * Math.min((W * 0.60) / (x1 - x0), (H * 0.92) / (y1 - y0)));
-    return { k, tx: W * 0.34 - k * (x0 + x1) / 2, ty: H * 0.5 - k * (y0 + y1) / 2 };
+    setView({ k, tx: W * 0.34 - k * (x0 + x1) / 2, ty: H * 0.5 - k * (y0 + y1) / 2 });
   }, [ufSel, path, estadosFC]);
+
+  const zoomBy = useCallback((factor: number) => {
+    setView((v) => zoomAround(v, factor, W / 2, H / 2));
+  }, []);
+
+  const onPointerDownMap = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0 && e.pointerType === "mouse") return;
+    dragRef.current = { active: true, moved: false, startX: e.clientX, startY: e.clientY, startTx: view.tx, startTy: view.ty };
+    wrapRef.current?.setPointerCapture(e.pointerId);
+  }, [view.tx, view.ty]);
+
+  const onPointerMoveMap = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (!d.active) return;
+    const dx = e.clientX - d.startX, dy = e.clientY - d.startY;
+    if (!d.moved && Math.hypot(dx, dy) > 4) { d.moved = true; setIsDragging(true); setHover(null); }
+    if (d.moved) {
+      const rect = wrapRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const s = Math.min(rect.width / W, rect.height / H) || 1;
+      setView((v) => clampView({ k: v.k, tx: d.startTx + dx / s, ty: d.startTy + dy / s }));
+    }
+  }, []);
+
+  const onPointerUpMap = useCallback((e: React.PointerEvent) => {
+    const d = dragRef.current;
+    if (d.active && d.moved) justDraggedRef.current = true;
+    d.active = false;
+    setIsDragging(false);
+    wrapRef.current?.releasePointerCapture(e.pointerId);
+  }, []);
 
   // ── Interações ──────────────────────────────────────────────────────────
   function reset() {
@@ -268,6 +327,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   }
 
   function clickEstado(sigla: string) {
+    if (justDraggedRef.current) { justDraggedRef.current = false; return; }
     if (ufSel === sigla) { reset(); return; }
     if (munSel?.key) onSelect(null);
     setMunSel(null);
@@ -276,6 +336,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   }
 
   function clickMunicipio(codarea: string) {
+    if (justDraggedRef.current) { justDraggedRef.current = false; return; }
     const nome = mun?.nomes[codarea] ?? codarea;
     const m = ufAgg?.municipios.get(normNome(nome));
     const key = m && m.clientes > 0 ? cidadeKey(m.nome) : null;
@@ -290,6 +351,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   }
 
   function moveHover(e: React.MouseEvent, title: string, lines: string[]) {
+    if (dragRef.current.moved) return;
     const r = wrapRef.current?.getBoundingClientRect();
     if (!r) return;
     const x = e.clientX - r.left, y = e.clientY - r.top;
@@ -313,6 +375,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
       <style>{`
         @keyframes mapFade { from { opacity: 0 } to { opacity: 1 } }
         @keyframes mapSlideIn { from { opacity: 0; transform: translateX(14px) } to { opacity: 1; transform: translateX(0) } }
+        .mapa-br-zoombtn:hover:not(:disabled) { background: color-mix(in srgb, var(--accent-cyan) 10%, transparent) !important; }
         @media (prefers-reduced-motion: reduce) {
           .mapa-br-zoom { transition: none !important; }
           .mapa-br-anim { animation: none !important; }
@@ -320,7 +383,18 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
       `}</style>
 
       {/* ── Mapa ─────────────────────────────────────────────────────────── */}
-      <div ref={wrapRef} style={{ position: "relative", height: MAP_H, borderRadius: 12, overflow: "hidden", background: "color-mix(in srgb, var(--text-muted) 3%, transparent)", border: "1px solid var(--border-subtle)" }}>
+      <div
+        ref={wrapRef}
+        style={{
+          position: "relative", height: MAP_H, borderRadius: 12, overflow: "hidden",
+          background: "color-mix(in srgb, var(--text-muted) 3%, transparent)", border: "1px solid var(--border-subtle)",
+          cursor: isDragging ? "grabbing" : "grab", touchAction: "none", userSelect: "none",
+        }}
+        onPointerDown={onPointerDownMap}
+        onPointerMove={onPointerMoveMap}
+        onPointerUp={onPointerUpMap}
+        onPointerCancel={onPointerUpMap}
+      >
         {!estadosFC ? (
           <div className="shimmer" style={{ position: "absolute", inset: 0 }} />
         ) : (
@@ -328,9 +402,9 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
             <g
               className="mapa-br-zoom"
               style={{
-                transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${zoom.k})`,
+                transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.k})`,
                 transformOrigin: "0 0",
-                transition: "transform 0.7s cubic-bezier(0.33, 1, 0.35, 1)",
+                transition: isDragging ? "none" : "transform 0.5s cubic-bezier(0.22, 1, 0.36, 1)",
               }}
             >
               {/* Estados */}
@@ -350,7 +424,7 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                     stroke="color-mix(in srgb, var(--text-muted) 45%, transparent)"
                     strokeWidth={0.7}
                     vectorEffect="non-scaling-stroke"
-                    style={{ cursor: "pointer", transition: "fill-opacity 0.35s ease" }}
+                    style={{ transition: "fill-opacity 0.35s ease" }}
                     onClick={() => clickEstado(sigla)}
                     onMouseMove={(e) => moveHover(e, `${UF_INFO[sigla]?.nome ?? sigla} · ${sigla}`, [
                       `${num(q)} cliente${q === 1 ? "" : "s"}`,
@@ -381,7 +455,6 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                         stroke={isSel ? "var(--text-primary)" : "color-mix(in srgb, var(--text-muted) 55%, transparent)"}
                         strokeWidth={isSel ? 2 : 0.5}
                         vectorEffect="non-scaling-stroke"
-                        style={{ cursor: "pointer" }}
                         onClick={(e) => { e.stopPropagation(); clickMunicipio(f.properties.codarea); }}
                         onMouseMove={(e) => moveHover(e, `${nome} / ${ufSel}`, [
                           `${num(q)} cliente${q === 1 ? "" : "s"}`,
@@ -403,21 +476,25 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                 ) : null;
               })()}
 
-              {/* Siglas + contagem por estado (só no nível Brasil) */}
+              {/* Siglas + contagem por estado (só no nível Brasil). Cada rótulo é
+                  contra-escalado por 1/view.k em torno do seu próprio centróide, para
+                  manter um tamanho de tela constante independente do zoom aplicado —
+                  como em mapas profissionais (Google Maps, Mapbox). */}
               <g style={{ opacity: ufSel ? 0 : 1, transition: "opacity 0.3s ease", pointerEvents: "none" }}>
                 {estadosFC.features.map((f) => {
                   const sigla = CODE_TO_UF[f.properties.codarea];
                   const q = index.porUF.get(sigla)?.clientes ?? 0;
                   const [cx, cy] = path!.centroid(f as never);
                   if (!isFinite(cx)) return null;
+                  const inv = 1 / view.k;
                   return (
-                    <g key={`lbl-${f.properties.codarea}`}>
-                      <text x={cx} y={q > 0 ? cy - 1 : cy + 3} textAnchor="middle"
+                    <g key={`lbl-${f.properties.codarea}`} transform={`translate(${cx},${cy}) scale(${inv})`}>
+                      <text x={0} y={q > 0 ? -1 : 3} textAnchor="middle"
                         style={{ fontSize: 10.5, fontWeight: 700, fill: q > 0 ? "var(--text-primary)" : "var(--text-muted)", paintOrder: "stroke", stroke: "var(--bg-card)", strokeWidth: 2.5, strokeLinejoin: "round" }}>
                         {sigla}
                       </text>
                       {q > 0 && (
-                        <text x={cx} y={cy + 10} textAnchor="middle"
+                        <text x={0} y={10} textAnchor="middle"
                           style={{ fontSize: 8.5, fontWeight: 600, fill: "var(--text-secondary)", fontFamily: "var(--font-numeric, monospace)", paintOrder: "stroke", stroke: "var(--bg-card)", strokeWidth: 2.5, strokeLinejoin: "round" }}>
                           {num(q)}
                         </text>
@@ -460,6 +537,46 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3, fontSize: 9, color: "var(--text-muted)" }}>
             <span>Menor</span><span>Maior</span>
           </div>
+        </div>
+
+        {/* Controles de zoom (estilo Google Maps) — desliza para não colidir com o painel */}
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute", bottom: 10, right: ufSel ? 268 : 10, zIndex: 25,
+            display: "flex", flexDirection: "column", borderRadius: 9, overflow: "hidden",
+            border: "1px solid var(--border-subtle)", background: "color-mix(in srgb, var(--bg-card) 92%, transparent)",
+            backdropFilter: "blur(6px)", boxShadow: "0 2px 10px rgba(0,0,0,0.18)",
+            transition: "right 0.3s ease",
+          }}
+        >
+          <button
+            className="mapa-br-zoombtn"
+            onClick={() => zoomBy(ZOOM_STEP)}
+            disabled={view.k >= MAX_K}
+            aria-label="Aproximar"
+            style={{
+              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+              background: "none", border: "none", cursor: view.k >= MAX_K ? "default" : "pointer",
+              color: view.k >= MAX_K ? "var(--text-muted)" : "var(--text-primary)", opacity: view.k >= MAX_K ? 0.4 : 1,
+            }}
+          >
+            <Plus size={15} />
+          </button>
+          <div style={{ height: 1, background: "var(--border-subtle)" }} />
+          <button
+            className="mapa-br-zoombtn"
+            onClick={() => zoomBy(1 / ZOOM_STEP)}
+            disabled={view.k <= MIN_K}
+            aria-label="Afastar"
+            style={{
+              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
+              background: "none", border: "none", cursor: view.k <= MIN_K ? "default" : "pointer",
+              color: view.k <= MIN_K ? "var(--text-muted)" : "var(--text-primary)", opacity: view.k <= MIN_K ? 0.4 : 1,
+            }}
+          >
+            <Minus size={15} />
+          </button>
         </div>
 
         {/* Carregando municípios */}
