@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTheme } from "next-themes";
 import { geoIdentity, geoPath } from "d3-geo";
 import { MapPin, AlertTriangle, ChevronDown, ChevronUp, ChevronLeft, X, Loader2, Plus, Minus } from "lucide-react";
 import { fetchMalhaEstados, fetchMalhaMunicipios, normNome, UF_INFO, CODE_TO_UF, type GeoFC, type GeoFeature } from "@/lib/utils/ibge-malhas";
@@ -69,10 +70,41 @@ function pctStr(parte: number, total: number): string {
   return total > 0 ? `${((parte / total) * 100).toFixed(1)}%` : "—";
 }
 
-/** Intensidade do preenchimento coroplético (0 clientes = sem cor). */
-function fillOpacity(qtde: number, max: number): number {
+// ── Escala de calor do coroplético: amarelo pálido (poucos clientes) até
+// laranja profundo (muitos), em vez do cyan monocromático anterior. Os tons
+// diferem por tema — o modo escuro usa um laranja mais claro/vibrante (para
+// não escurecer contra o card quase-preto), o claro usa um laranja mais
+// profundo/saturado (para não desbotar contra o card branco) — seguindo a
+// mesma convenção já usada pelos outros tokens de --accent-* do app.
+const HEAT_LIGHT = ["#FDE68A", "#FB923C", "#C2410C"] as const;
+const HEAT_DARK  = ["#FDE047", "#FB923C", "#F97316"] as const;
+
+/** Posição 0..1 na escala de calor (curva em raiz para distinguir melhor a
+ *  cauda longa de municípios com poucos clientes; 0 clientes = sem dado). */
+function heatT(qtde: number, max: number): number {
   if (qtde <= 0 || max <= 0) return 0;
-  return 0.14 + 0.72 * Math.sqrt(qtde / max);
+  return Math.sqrt(qtde / max);
+}
+/** Opacidade da escala: no claro, um véu suave sobre o branco já lê bem como
+ *  "fraco → forte". No escuro, amarelo translúcido sobre o navy quase-preto
+ *  desatura para um tom oliva/acastanhado (a cor de fundo "vaza" através do
+ *  alpha) — por isso o piso de opacidade é bem mais alto, deixando a cor
+ *  resistir ao fundo e ler como amarelo de verdade. */
+function heatOpacity(t: number, dark: boolean): number {
+  return dark ? 0.85 + 0.15 * t : 0.55 + 0.4 * t;
+}
+function hexToRgb(hex: string): [number, number, number] {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
+function heatColor(stops: readonly [string, string, string], t: number): string {
+  const tt = Math.min(1, Math.max(0, t));
+  const [c0, c1, c2] = stops.map(hexToRgb);
+  const [a, b] = tt <= 0.5 ? [c0, c1] : [c1, c2];
+  const localT = tt <= 0.5 ? tt * 2 : (tt - 0.5) * 2;
+  const r = lerp(a[0], b[0], localT), g = lerp(a[1], b[1], localT), bl = lerp(a[2], b[2], localT);
+  return `rgb(${Math.round(r)}, ${Math.round(g)}, ${Math.round(bl)})`;
 }
 
 const panelLabel: React.CSSProperties = {
@@ -145,6 +177,9 @@ function EmptyTopClientes() {
 }
 
 export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSelect, clientesAgg }: Props) {
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
+  const heatStops = isDark ? HEAT_DARK : HEAT_LIGHT;
   const wrapRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const [estadosFC, setEstadosFC] = useState<GeoFC | null>(null);
@@ -465,15 +500,16 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                 const sigla = CODE_TO_UF[f.properties.codarea];
                 const agg = index.porUF.get(sigla);
                 const q = agg?.clientes ?? 0;
-                const op = fillOpacity(q, maxUF);
+                const t = heatT(q, maxUF);
+                const op = heatOpacity(t, isDark);
                 const isSel = ufSel === sigla;
                 const dim = ufSel !== null && !isSel;
                 return (
                   <path
                     key={f.properties.codarea}
                     d={path!(f as never) ?? undefined}
-                    fill={q > 0 ? "var(--accent-cyan)" : "color-mix(in srgb, var(--text-muted) 8%, transparent)"}
-                    fillOpacity={q > 0 ? (dim ? op * 0.3 : op) : (dim ? 0.4 : 1)}
+                    fill={q > 0 ? heatColor(heatStops, t) : "color-mix(in srgb, var(--text-muted) 8%, transparent)"}
+                    fillOpacity={q > 0 ? (dim ? op * 0.35 : op) : (dim ? 0.4 : 1)}
                     stroke="color-mix(in srgb, var(--text-muted) 45%, transparent)"
                     strokeWidth={0.7}
                     vectorEffect="non-scaling-stroke"
@@ -497,13 +533,14 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
                     const nome = mun.nomes[f.properties.codarea] ?? "";
                     const m = ufAgg?.municipios.get(normNome(nome));
                     const q = m?.clientes ?? 0;
-                    const op = fillOpacity(q, maxMun);
+                    const t = heatT(q, maxMun);
+                    const op = heatOpacity(t, isDark);
                     const isSel = munSel?.codarea === f.properties.codarea;
                     return (
                       <path
                         key={f.properties.codarea}
                         d={path!(f as never) ?? undefined}
-                        fill={q > 0 ? "var(--accent-cyan)" : "var(--bg-card)"}
+                        fill={q > 0 ? heatColor(heatStops, t) : "var(--bg-card)"}
                         fillOpacity={q > 0 ? Math.min(1, op + (isSel ? 0.18 : 0)) : 0.55}
                         stroke={isSel ? "var(--text-primary)" : "color-mix(in srgb, var(--text-muted) 55%, transparent)"}
                         strokeWidth={isSel ? 2 : 0.5}
@@ -587,9 +624,9 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
           <div style={{ fontSize: 9.5, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 5 }}>
             Concentração de clientes
           </div>
-          <div style={{ width: 110, height: 6, borderRadius: 3, background: "linear-gradient(to right, color-mix(in srgb, var(--accent-cyan) 15%, transparent), var(--accent-cyan))" }} />
+          <div style={{ width: 110, height: 6, borderRadius: 3, background: `linear-gradient(to right, ${heatStops[0]}, ${heatStops[1]}, ${heatStops[2]})` }} />
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3, fontSize: 9, color: "var(--text-muted)" }}>
-            <span>Menor</span><span>Maior</span>
+            <span>Fraco</span><span>Forte</span>
           </div>
         </div>
 
