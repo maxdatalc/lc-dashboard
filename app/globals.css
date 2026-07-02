@@ -506,3 +506,19 @@ main, [data-page] {
     grid-template-columns: 1fr 130px 80px 100px 24px;
   }
 }
+
+/* ── Dashboard de Produtos & Estoque ─────────────────────────────────────── */
+@keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(16px) } to { opacity: 1; transform: translateY(0) } }
+
+.kpi-card { transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease; }
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+.alerta-item:hover { transform: translateX(2px); }
+.acao-row:hover { background: var(--chart-cursor-bg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .kpi-card:hover, .alerta-item:hover { transform: none; }
+}
