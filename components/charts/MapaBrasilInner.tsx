@@ -301,18 +301,27 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   }, []);
 
   // Zoom pela roda do mouse, centrado no ponto sob o cursor (estilo Google Maps).
-  const onWheelMap = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const s = Math.min(rect.width / W, rect.height / H) || 1;
-    const offsetX = (rect.width - s * W) / 2, offsetY = (rect.height - s * H) / 2;
-    const px = (e.clientX - rect.left - offsetX) / s;
-    const py = (e.clientY - rect.top - offsetY) / s;
-    const dy = Math.max(-120, Math.min(120, e.deltaY));
-    const factor = Math.pow(1.0012, -dy);
-    setHover(null);
-    setView((v) => zoomAround(v, factor, px, py));
+  // Listener nativo com passive:false: o onWheel sintético do React não garante
+  // que preventDefault() impeça o scroll da página em todos os navegadores —
+  // com ele "passive", o evento é despachado mas o scroll da página acontece
+  // de qualquer forma. Anexar manualmente com passive:false resolve isso.
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const s = Math.min(rect.width / W, rect.height / H) || 1;
+      const offsetX = (rect.width - s * W) / 2, offsetY = (rect.height - s * H) / 2;
+      const px = (e.clientX - rect.left - offsetX) / s;
+      const py = (e.clientY - rect.top - offsetY) / s;
+      const dy = Math.max(-120, Math.min(120, e.deltaY));
+      const factor = Math.pow(1.0012, -dy);
+      setHover(null);
+      setView((v) => zoomAround(v, factor, px, py));
+    };
+    el.addEventListener("wheel", handler, { passive: false });
+    return () => el.removeEventListener("wheel", handler);
   }, []);
 
   const onPointerDownMap = useCallback((e: React.PointerEvent) => {
@@ -423,13 +432,12 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
         style={{
           position: "relative", height: MAP_H, borderRadius: 12, overflow: "hidden",
           background: "color-mix(in srgb, var(--text-muted) 3%, transparent)", border: "1px solid var(--border-subtle)",
-          cursor: isDragging ? "grabbing" : "grab", touchAction: "none", userSelect: "none",
+          cursor: isDragging ? "grabbing" : "default", touchAction: "none", userSelect: "none",
         }}
         onPointerDown={onPointerDownMap}
         onPointerMove={onPointerMoveMap}
         onPointerUp={onPointerUpMap}
         onPointerCancel={onPointerUpMap}
-        onWheel={onWheelMap}
       >
         {!estadosFC ? (
           <div className="shimmer" style={{ position: "absolute", inset: 0 }} />
@@ -641,13 +649,17 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
 
         {/* ── Painel de detalhes ─────────────────────────────────────────── */}
         {ufSel && (
-          <div className="custom-scroll mapa-br-anim" style={{
-            position: "absolute", top: 10, right: 10, bottom: 10, width: 258, zIndex: 20,
-            background: "color-mix(in srgb, var(--bg-card) 90%, transparent)", backdropFilter: "blur(10px)",
-            border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 13,
-            overflowY: "auto", animation: "mapSlideIn 0.28s ease-out both",
-            display: "flex", flexDirection: "column", gap: 10,
-          }}>
+          <div
+            className="custom-scroll mapa-br-anim"
+            onWheel={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute", top: 10, right: 10, bottom: 10, width: 258, zIndex: 20,
+              background: "color-mix(in srgb, var(--bg-card) 90%, transparent)", backdropFilter: "blur(10px)",
+              border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 13,
+              overflowY: "auto", animation: "mapSlideIn 0.28s ease-out both",
+              display: "flex", flexDirection: "column", gap: 10,
+            }}>
             {munSel ? (
               /* ── Detalhe do município ── */
               <>
