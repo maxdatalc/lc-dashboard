@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { geoMercator, geoPath } from "d3-geo";
+import { geoIdentity, geoPath } from "d3-geo";
 import { MapPin, AlertTriangle, ChevronDown, ChevronUp, ChevronLeft, X, Users, DollarSign, Receipt, Loader2 } from "lucide-react";
 import { fetchMalhaEstados, fetchMalhaMunicipios, normNome, UF_INFO, CODE_TO_UF, type GeoFC, type GeoFeature } from "@/lib/utils/ibge-malhas";
 import { CliGeoRanking, cidadeKey } from "./CliGeoRanking";
@@ -130,7 +130,11 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   // ── Projeção + zoom ─────────────────────────────────────────────────────
   const path = useMemo(() => {
     if (!estadosFC) return null;
-    const proj = geoMercator();
+    // geoIdentity (planar) em vez de geoMercator: as malhas do IBGE têm
+    // polígonos com winding invertido, o que faz o geoMercator (esférico)
+    // renderizá-los como "o resto da esfera" — enchendo o mapa. A projeção
+    // planar ignora winding/clipping esférico. reflectY corrige o eixo Y do SVG.
+    const proj = geoIdentity().reflectY(true);
     proj.fitExtent([[10, 10], [W - 10, H - 10]], estadosFC as never);
     return geoPath(proj);
   }, [estadosFC]);
