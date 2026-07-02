@@ -4,13 +4,13 @@ import type { ProblemaMargem, ProblemaNegativo } from "@/lib/db/produtos-estoque
 import { fmtInt, fmtPct } from "./utils";
 
 function Empty({ msg }: { msg: string }) {
-  return <div className="flex items-center justify-center py-8 text-xs" style={{ color: "var(--text-muted)" }}>{msg}</div>;
+  return <div className="flex items-center justify-center h-full text-xs" style={{ color: "var(--text-muted)" }}>{msg}</div>;
 }
 
 export function MargemNegativaList({ items }: { items: ProblemaMargem[] }) {
   if (items.length === 0) return <Empty msg="Nenhum produto com margem negativa" />;
   return (
-    <div className="custom-scroll flex flex-col" style={{ maxHeight: 280, overflowY: "auto" }}>
+    <div className="custom-scroll flex flex-col h-full" style={{ overflowY: "auto" }}>
       {items.map((p, i) => (
         <div key={p.proId + "-" + i} className="flex items-center gap-2 py-2"
           style={{ borderTop: i > 0 ? "1px solid var(--border-subtle)" : "none" }}>
@@ -29,7 +29,7 @@ export function MargemNegativaList({ items }: { items: ProblemaMargem[] }) {
 export function EstoqueNegativoList({ items }: { items: ProblemaNegativo[] }) {
   if (items.length === 0) return <Empty msg="Nenhum produto com estoque negativo" />;
   return (
-    <div className="custom-scroll flex flex-col" style={{ maxHeight: 280, overflowY: "auto" }}>
+    <div className="custom-scroll flex flex-col h-full" style={{ overflowY: "auto" }}>
       {items.map((p, i) => (
         <div key={p.proId + "-" + i} className="flex items-center gap-2 py-2"
           style={{ borderTop: i > 0 ? "1px solid var(--border-subtle)" : "none" }}>

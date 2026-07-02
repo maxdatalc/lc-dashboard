@@ -47,11 +47,11 @@ export function SaudeDonut({
   const hasSel = activeStatus !== null;
 
   if (total === 0) {
-    return <div className="flex items-center justify-center py-10 text-xs" style={{ color: "var(--text-muted)" }}>Sem produtos para os filtros atuais</div>;
+    return <div className="flex items-center justify-center h-full text-xs" style={{ color: "var(--text-muted)" }}>Sem produtos para os filtros atuais</div>;
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 h-full justify-center">
       <div className="flex items-center gap-4">
         {/* Donut */}
         <div className="relative flex-shrink-0" style={{ width: 150, height: 150 }}>

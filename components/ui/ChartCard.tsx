@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useState, useEffect, useRef } from "react";
+import { type ReactNode, type CSSProperties, useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 interface ChartCardProps {
@@ -10,6 +10,10 @@ interface ChartCardProps {
   className?: string;
   animationDelay?: number;
   info?: string;
+  /** Estilo extra aplicado ao container de conteúdo (ex: altura fixa + scroll interno). */
+  bodyStyle?: CSSProperties;
+  /** Classe extra aplicada ao container de conteúdo (ex: "custom-scroll"). */
+  bodyClassName?: string;
 }
 
 function InfoModal({ title, info, onClose }: { title: string; info: string; onClose: () => void }) {
@@ -105,6 +109,8 @@ export function ChartCard({
   className = "",
   animationDelay = 0,
   info,
+  bodyStyle,
+  bodyClassName = "",
 }: ChartCardProps) {
   const [showInfo, setShowInfo] = useState(false);
 
@@ -187,7 +193,7 @@ export function ChartCard({
       </div>
 
       {/* Conteúdo */}
-      <div className="px-4 py-3 flex-1">{children}</div>
+      <div className={`px-4 py-3 flex-1 ${bodyClassName}`} style={bodyStyle}>{children}</div>
 
       {/* Modal centralizado */}
       {showInfo && info && (

@@ -35,7 +35,7 @@ export function AlertasCriticos({
 
   if (alertas.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
+      <div className="flex flex-col items-center justify-center gap-2 h-full text-center">
         <CheckCircle2 style={{ width: 26, height: 26, color: "#22c55e" }} />
         <span style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>Nenhum alerta crítico no momento.</span>
       </div>
@@ -43,7 +43,7 @@ export function AlertasCriticos({
   }
 
   return (
-    <div className="custom-scroll flex flex-col gap-2" style={{ maxHeight: 300, overflowY: "auto" }}>
+    <div className="custom-scroll flex flex-col gap-2 h-full" style={{ overflowY: "auto" }}>
       {alertas.map((a, i) => {
         const isSel = activeStatus === a.status;
         return (

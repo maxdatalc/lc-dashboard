@@ -23,9 +23,9 @@ export function RankingDual({ items, selected, onSelect }: BaseProps) {
   const hasSel = selected !== null;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Cabeçalho de colunas (fixo) */}
-      <div className="flex items-center gap-2 px-1 pb-2" style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      <div className="flex items-center gap-2 px-1 pb-2 flex-shrink-0" style={{ fontSize: 10, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
           <Dot color={COR_CUSTO} /> Custo
         </span>
@@ -37,8 +37,8 @@ export function RankingDual({ items, selected, onSelect }: BaseProps) {
         <span style={{ width: 44, textAlign: "right" }}>Part.</span>
       </div>
 
-      {/* Lista com scroll interno — evita que o card cresça indefinidamente */}
-      <div className="custom-scroll flex flex-col" style={{ maxHeight: 272, overflowY: "auto" }}>
+      {/* Lista com scroll interno — preenche a altura definida pela linha do grid */}
+      <div className="custom-scroll flex flex-col flex-1" style={{ overflowY: "auto" }}>
       {items.map((it, i) => {
         const isSel = selected === it.nome;
         const dim = hasSel && !isSel;
@@ -100,7 +100,7 @@ export function RankingQtd({ items, selected, onSelect, color = COR_VENDA }: Bas
   const hasSel = selected !== null;
 
   return (
-    <div className="custom-scroll flex flex-col gap-0.5" style={{ maxHeight: 300, overflowY: "auto" }}>
+    <div className="custom-scroll flex flex-col gap-0.5 h-full" style={{ overflowY: "auto" }}>
       {items.map((it, i) => {
         const isSel = selected === it.nome;
         const dim = hasSel && !isSel;

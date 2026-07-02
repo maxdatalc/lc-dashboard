@@ -17,6 +17,12 @@ import { COR_VENDA } from "./utils";
 
 const EMPTY_FILTERS: ProdutosFilterState = { marca: null, grupo: null, categoria: null, status: null };
 
+// Alturas fixas por linha do grid — cards da mesma linha ficam sempre alinhados;
+// conteúdo que exceder rola por dentro do próprio card (nunca estica o layout).
+const ROW2_HEIGHT = 320; // Top Marcas | Saúde do Estoque | Alertas Críticos
+const ROW3_HEIGHT = 260; // Quantidade por Marca | Top Categorias | Quantidade por Grupo
+const ROW4_HEIGHT = 340; // Margem Negativa | Estoque Negativo | Produtos que Exigem Ação
+
 export function ProdutosDashboard() {
   const { selectedLojaId, lojasDisponiveis, lojasSelecionadas } = useLoja();
 
@@ -118,53 +124,62 @@ export function ProdutosDashboard() {
           {/* KPIs */}
           <KpiCards kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
 
-          {/* Linha 2 — diagnóstico */}
+          {/* Linha 2 — diagnóstico (altura uniforme, scroll interno quando precisar) */}
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-12 items-start">
             <div className="lg:col-span-5">
-              <ChartCard title="Top Marcas por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={60}>
+              <ChartCard title="Top Marcas por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={60}
+                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
                 <RankingDual items={data.topMarcasValor} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
               </ChartCard>
             </div>
             <div className="lg:col-span-4">
               <ChartCard title="Saúde do Estoque / Cadastro" subtitle="distribuição do cadastro por status" animationDelay={100}
-                info="A rosca mostra a proporção de posições por status de estoque. Um volume alto de 'mínimo não informado' significa que a maior parte do catálogo não tem parâmetro de reposição — priorize cadastrar mínimos para habilitar a análise de cobertura.">
+                info="A rosca mostra a proporção de posições por status de estoque. Um volume alto de 'mínimo não informado' significa que a maior parte do catálogo não tem parâmetro de reposição — priorize cadastrar mínimos para habilitar a análise de cobertura."
+                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
                 <SaudeDonut kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
               </ChartCard>
             </div>
             <div className="lg:col-span-3">
-              <ChartCard title="Alertas Críticos" subtitle="situações que exigem atenção" animationDelay={140}>
+              <ChartCard title="Alertas Críticos" subtitle="situações que exigem atenção" animationDelay={140}
+                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
                 <AlertasCriticos kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
               </ChartCard>
             </div>
           </div>
 
-          {/* Linha 3 — rankings */}
+          {/* Linha 3 — rankings (altura uniforme, scroll interno quando precisar) */}
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-3 items-start">
-            <ChartCard title="Quantidade em Estoque por Marca" subtitle="ranking por quantidade" animationDelay={60}>
+            <ChartCard title="Quantidade em Estoque por Marca" subtitle="ranking por quantidade" animationDelay={60}
+              bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
               <RankingQtd items={data.porMarcaQtd} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
             </ChartCard>
-            <ChartCard title="Top Categorias por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={100}>
+            <ChartCard title="Top Categorias por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={100}
+              bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
               <RankingDual items={data.topCategoriasValor} selected={filters.categoria} onSelect={(n) => toggle("categoria", n)} />
             </ChartCard>
-            <ChartCard title="Quantidade em Estoque por Grupo" subtitle="ranking por quantidade" animationDelay={140}>
+            <ChartCard title="Quantidade em Estoque por Grupo" subtitle="ranking por quantidade" animationDelay={140}
+              bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
               <RankingQtd items={data.porGrupoQtd} selected={filters.grupo} onSelect={(n) => toggle("grupo", n)} color="#a78bfa" />
             </ChartCard>
           </div>
 
-          {/* Linha 4 — problemas + tabela */}
+          {/* Linha 4 — problemas + tabela (mesma altura; a tabela rola por dentro, cabeçalho fixo) */}
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-12 items-start">
             <div className="lg:col-span-3">
-              <ChartCard title="Produtos com Margem Negativa" subtitle="ordenado por maior prejuízo" animationDelay={60}>
+              <ChartCard title="Produtos com Margem Negativa" subtitle="ordenado por maior prejuízo" animationDelay={60}
+                bodyStyle={{ height: ROW4_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
                 <MargemNegativaList items={data.margemNegativa} />
               </ChartCard>
             </div>
             <div className="lg:col-span-3">
-              <ChartCard title="Produtos com Estoque Negativo" subtitle="saldo abaixo de zero" animationDelay={100}>
+              <ChartCard title="Produtos com Estoque Negativo" subtitle="saldo abaixo de zero" animationDelay={100}
+                bodyStyle={{ height: ROW4_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
                 <EstoqueNegativoList items={data.estoqueNegativo} />
               </ChartCard>
             </div>
             <div className="lg:col-span-6">
-              <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={140}>
+              <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={140}
+                bodyStyle={{ height: ROW4_HEIGHT, overflow: "hidden" }}>
                 <AcaoTable items={data.exigeAcao} filiais={data.filiais} />
               </ChartCard>
             </div>

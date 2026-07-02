@@ -69,7 +69,11 @@ export function AcaoTable({
   }
 
   const Th = ({ k, children, align = "left", w }: { k?: SortKey; children: React.ReactNode; align?: "left" | "right" | "center"; w?: number }) => (
-    <th style={{ padding: "8px 10px", textAlign: align, width: w }}>
+    <th style={{
+      padding: "8px 10px", textAlign: align, width: w,
+      position: "sticky", top: 0, zIndex: 1,
+      background: "var(--card-header-bg)", borderBottom: "1px solid var(--border-subtle)",
+    }}>
       {k ? (
         <button type="button" onClick={() => toggleSort(k)}
           className="inline-flex items-center gap-1 transition-colors"
@@ -84,9 +88,9 @@ export function AcaoTable({
   );
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Busca */}
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+    <div className="flex flex-col gap-3 h-full">
+      {/* Busca — sempre visível */}
+      <div className="flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ width: 14, height: 14, color: "var(--text-muted)" }} />
           <input
@@ -102,8 +106,8 @@ export function AcaoTable({
         </span>
       </div>
 
-      {/* Tabela */}
-      <div className="overflow-x-auto rounded-xl" style={{ border: "1px solid var(--border-subtle)" }}>
+      {/* Tabela — cabeçalho fixo, corpo rolável dentro da altura da linha */}
+      <div className="custom-scroll flex-1 min-h-0 rounded-xl" style={{ border: "1px solid var(--border-subtle)", overflow: "auto" }}>
         {pageItems.length === 0 ? (
           <div className="py-12 text-center text-sm" style={{ color: "var(--text-muted)" }}>
             Nenhum produto exige ação para os filtros atuais.
@@ -111,7 +115,7 @@ export function AcaoTable({
         ) : (
           <table className="w-full" style={{ borderCollapse: "collapse", minWidth: 860 }}>
             <thead>
-              <tr style={{ background: "var(--card-header-bg)", borderBottom: "1px solid var(--border-subtle)" }}>
+              <tr>
                 <Th k="nome">Produto</Th>
                 {multi && <Th>Loja</Th>}
                 <Th>Marca</Th>
@@ -158,9 +162,9 @@ export function AcaoTable({
         )}
       </div>
 
-      {/* Paginação */}
+      {/* Paginação — sempre visível */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-shrink-0">
           <span style={{ fontSize: 11, color: "var(--text-muted)" }}>Página {page + 1} de {totalPages}</span>
           <div className="flex items-center gap-1.5">
             <PagBtn disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}><ChevronLeft style={{ width: 15, height: 15 }} /></PagBtn>
