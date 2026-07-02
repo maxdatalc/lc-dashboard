@@ -97,7 +97,7 @@ export function AcaoTable({
 
   const Th = ({ k, children, align = "left", w }: { k?: SortKey; children: React.ReactNode; align?: "left" | "right" | "center"; w?: number }) => (
     <th style={{
-      padding: "8px 10px", textAlign: align, width: w,
+      padding: "9px 10px", textAlign: align, width: w,
       position: "sticky", top: 0, zIndex: 1,
       background: "var(--card-header-bg)", borderBottom: "1px solid var(--border-subtle)",
     }}>
@@ -124,21 +124,21 @@ export function AcaoTable({
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar produto, marca, código..."
-            className="pl-8 pr-3 py-1.5 rounded-lg text-sm focus:outline-none"
+            className="acao-search pl-8 pr-3 py-2 rounded-lg text-sm focus:outline-none"
             style={{ border: "1px solid var(--border-subtle)", background: "var(--bg-primary)", color: "var(--text-primary)", width: 260 }}
           />
         </div>
         <div className="flex items-center gap-3">
-          <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+          <span style={{ fontSize: 11, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
             {fmtInt(filtrados.length)} {filtrados.length === 1 ? "item" : "itens"}
           </span>
           <button
             type="button"
             onClick={() => exportCsv(filtrados)}
-            className="inline-flex items-center gap-1.5 rounded-lg transition-colors"
-            style={{ padding: "5px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
+            className="btn-ghost inline-flex items-center gap-1.5 rounded-lg"
+            style={{ padding: "6px 12px", fontSize: 11.5, fontWeight: 600, cursor: "pointer", background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)" }}
           >
-            <Download style={{ width: 12, height: 12 }} /> Exportar
+            <Download style={{ width: 13, height: 13 }} /> Exportar
           </button>
         </div>
       </div>
@@ -226,7 +226,7 @@ export function AcaoTable({
 function PagBtn({ children, disabled, onClick }: { children: React.ReactNode; disabled?: boolean; onClick: () => void }) {
   return (
     <button type="button" disabled={disabled} onClick={onClick}
-      className="flex items-center justify-center rounded-lg transition-colors"
+      className="btn-ghost flex items-center justify-center rounded-lg"
       style={{ width: 30, height: 30, border: "1px solid var(--border-subtle)", background: "var(--bg-card)", color: "var(--text-secondary)", opacity: disabled ? 0.4 : 1, cursor: disabled ? "default" : "pointer" }}>
       {children}
     </button>

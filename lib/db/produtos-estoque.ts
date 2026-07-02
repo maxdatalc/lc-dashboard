@@ -78,20 +78,6 @@ export interface ProdutoParadoItem {
   valorParado: number;
 }
 
-export interface TransferenciaOportunidade {
-  proId: number;
-  nome: string;
-  marca: string;
-  lojaOrigemEmpId: number;
-  lojaOrigemNome: string;
-  excesso: number;
-  lojaDestinoEmpId: number;
-  lojaDestinoNome: string;
-  deficit: number;
-  qtdSugerida: number;
-  valorSugerido: number;
-}
-
 export interface ProdutoAcao {
   proId: number;
   codigo: string | null;
@@ -142,7 +128,6 @@ export interface ProdutosOverview {
   porGrupoQtd: RankItem[];
   curvaAbc: AbcResumo[];
   produtosParados: ProdutoParadoItem[];
-  transferencias: TransferenciaOportunidade[];
   exigeAcao: ProdutoAcao[];
 }
 
@@ -312,13 +297,11 @@ function classificarAbc(
 export async function getProdutosOverview(
   cfg: BridgeConfig,
   empIds: number[],
-  empresas: { empId: number; nome: string }[],
   filters: ProdutosFilters,
   dias: number,
 ): Promise<ProdutosOverview> {
   const empList = empIds.filter(Number.isFinite).join(",");
   const q = <T>(sql: string, params: Record<string, unknown>) => runQuery<T>(cfg, sql, params);
-  const nomeLoja = (empId: number) => empresas.find((e) => e.empId === empId)?.nome ?? `Filial ${empId}`;
 
   // ── Passo 1: Curva ABC (roda antes do resto — precisa existir para virar filtro) ──
   // Faturamento por proId respeitando marca/grupo/categoria/busca/status/parado,
@@ -369,7 +352,6 @@ export async function getProdutosOverview(
     porGrupoQtdRes,
     paradosRes,
     acaoRes,
-    transferenciasRes,
   ] = await Promise.allSettled([
 
     // 1. KPIs consolidados (inclui parados/valorParado via LEFT JOIN da CTE de giro)
@@ -479,26 +461,6 @@ export async function getProdutosOverview(
           AND pe.proEstoqueMin > 0 AND pe.proEstoqueAtual >= pe.proEstoqueMin
         )
       ORDER BY sev ASC, pe.proEstoqueAtual ASC`, paramsFull),
-
-    // 8. Candidatos a transferência entre lojas (só roda com multilojas) — pré-filtro
-    // via HAVING isola produtos com excesso em uma filial e déficit em outra antes
-    // de trazer linha a linha, evitando payload grande em catálogos extensos.
-    empIds.length > 1
-      ? q<Record<string, unknown>>(`
-          SELECT pe.proId, p.proDescricao AS nome, ISNULL(f.fabNome, '${SEM_MARCA}') AS marca,
-            pe.empId, CAST(pe.proEstoqueAtual AS float) AS estoqueAtual,
-            CAST(pe.proEstoqueMin AS float) AS estoqueMinimo, CAST(pe.proCusto AS float) AS custoUnit
-          ${JOINS}
-          WHERE ${where}
-            AND pe.proId IN (
-              SELECT proId FROM produto_empresa pe2
-              WHERE pe2.empId IN (${empList})
-              GROUP BY proId
-              HAVING MAX(CASE WHEN proEstoqueMin>0 THEN proEstoqueAtual-proEstoqueMin*1.5 ELSE proEstoqueAtual END) > 0
-                 AND MIN(CASE WHEN proEstoqueMin>0 THEN proEstoqueAtual-proEstoqueMin ELSE proEstoqueAtual END) < 0
-            )
-          ORDER BY pe.proId`, params)
-      : Promise.resolve([]),
   ]);
 
   const val = <T>(r: PromiseSettledResult<T[]>): T[] => (r.status === "fulfilled" ? r.value : []);
@@ -581,47 +543,6 @@ export async function getProdutosOverview(
     };
   });
 
-  // Pareamento de transferências: agrupa por proId, casa maior excesso × maior déficit
-  const porProduto = new Map<number, {
-    nome: string; marca: string;
-    posicoes: { empId: number; estoqueAtual: number; estoqueMinimo: number; custoUnit: number }[];
-  }>();
-  for (const r of val(transferenciasRes)) {
-    const proId = num(r.proId);
-    let g = porProduto.get(proId);
-    if (!g) { g = { nome: String(r.nome ?? ""), marca: String(r.marca ?? SEM_MARCA), posicoes: [] }; porProduto.set(proId, g); }
-    g.posicoes.push({
-      empId: num(r.empId),
-      estoqueAtual: num(r.estoqueAtual),
-      estoqueMinimo: num(r.estoqueMinimo),
-      custoUnit: num(r.custoUnit),
-    });
-  }
-
-  const transferencias: TransferenciaOportunidade[] = [];
-  for (const [proId, g] of porProduto) {
-    if (g.posicoes.length < 2) continue;
-    const excessoDe = (p: typeof g.posicoes[number]) => p.estoqueMinimo > 0 ? p.estoqueAtual - p.estoqueMinimo * 1.5 : p.estoqueAtual;
-    const deficitDe = (p: typeof g.posicoes[number]) => p.estoqueMinimo > 0 ? p.estoqueMinimo - p.estoqueAtual : -p.estoqueAtual;
-
-    const origem = g.posicoes.reduce((a, b) => (excessoDe(b) > excessoDe(a) ? b : a));
-    const destino = g.posicoes.reduce((a, b) => (deficitDe(b) > deficitDe(a) ? b : a));
-    if (origem.empId === destino.empId) continue;
-
-    const excesso = Math.max(0, excessoDe(origem));
-    const deficit = Math.max(0, deficitDe(destino));
-    const qtdSugerida = Math.floor(Math.min(excesso, deficit));
-    if (qtdSugerida <= 0) continue;
-
-    transferencias.push({
-      proId, nome: g.nome, marca: g.marca,
-      lojaOrigemEmpId: origem.empId, lojaOrigemNome: nomeLoja(origem.empId), excesso: origem.estoqueAtual,
-      lojaDestinoEmpId: destino.empId, lojaDestinoNome: nomeLoja(destino.empId), deficit: destino.estoqueAtual,
-      qtdSugerida, valorSugerido: qtdSugerida * origem.custoUnit,
-    });
-  }
-  transferencias.sort((a, b) => b.valorSugerido - a.valorSugerido);
-
   return {
     kpis,
     topMarcasValor: rank(val(topMarcasValorRes)),
@@ -630,7 +551,6 @@ export async function getProdutosOverview(
     porGrupoQtd: rank(val(porGrupoQtdRes)),
     curvaAbc,
     produtosParados,
-    transferencias: transferencias.slice(0, 15),
     exigeAcao,
   };
 }

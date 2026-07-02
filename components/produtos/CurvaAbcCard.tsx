@@ -33,14 +33,15 @@ export function CurvaAbcCard({
             type="button"
             key={r.classe}
             onClick={() => onSelect(r.classe)}
-            className="flex flex-col gap-1 rounded-lg transition-all text-left"
+            className="abc-item flex flex-col gap-1.5 rounded-xl text-left w-full"
             style={{
-              padding: "8px 10px",
+              padding: "9px 12px",
               opacity: hasSel && !isSel ? 0.45 : 1,
-              background: isSel ? `${meta.color}12` : "var(--bg-elevated)",
-              border: `1px solid ${isSel ? meta.color : "var(--border-subtle)"}`,
+              background: isSel ? `color-mix(in srgb, ${meta.color} 8%, var(--bg-card))` : "var(--bg-elevated)",
+              border: `1px solid ${isSel ? `color-mix(in srgb, ${meta.color} 45%, transparent)` : "var(--border-subtle)"}`,
               cursor: "pointer",
             }}
+            aria-pressed={isSel}
             title={`Filtrar por ${meta.label.toLowerCase()}`}
           >
             <div className="flex items-center justify-between gap-2">
@@ -48,7 +49,7 @@ export function CurvaAbcCard({
                 <span style={{ width: 8, height: 8, borderRadius: 3, background: meta.color, flexShrink: 0 }} />
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: meta.color }}>{meta.label}</span>
               </span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>
                 {fmtInt(r.qtdProdutos)} {r.qtdProdutos === 1 ? "produto" : "produtos"}
               </span>
             </div>
@@ -58,9 +59,12 @@ export function CurvaAbcCard({
                 <div className="relative rounded-full overflow-hidden" style={{ height: 6, background: "var(--chart-track-bg)" }}>
                   <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${w}%`, background: meta.color, transition: "width 0.6s cubic-bezier(0.22,1,0.36,1)" }} />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{fmtMoeda(r.faturamento)}</span>
-                  <span style={{ fontSize: 11, fontWeight: 600, color: meta.color }}>{fmtPct(r.pctFaturamento)} do faturamento</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span style={{ fontSize: 11, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{fmtMoeda(r.faturamento)}</span>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: meta.color, fontVariantNumeric: "tabular-nums" }}>
+                    {fmtPct(r.pctFaturamento)}
+                    <span style={{ fontSize: 10, fontWeight: 500, color: "var(--text-muted)", marginLeft: 4 }}>do faturamento</span>
+                  </span>
                 </div>
               </>
             ) : (

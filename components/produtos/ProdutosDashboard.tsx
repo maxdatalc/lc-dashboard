@@ -13,7 +13,6 @@ import { SaudeDonut } from "./SaudeDonut";
 import { AlertasCriticos } from "./AlertasCriticos";
 import { CurvaAbcCard } from "./CurvaAbcCard";
 import { ProdutosParadosRanking } from "./ProdutosParadosRanking";
-import { TransferenciasTable } from "./TransferenciasTable";
 import { GiroSelector } from "./GiroSelector";
 import { AcaoTable } from "./AcaoTable";
 import { FiltroChips, type ProdutosFilterState } from "./FiltroChips";
@@ -26,8 +25,8 @@ const EMPTY_FILTERS: ProdutosFilterState = {
 // Alturas fixas por linha do grid — cards da mesma linha ficam sempre alinhados;
 // conteúdo que exceder rola por dentro do próprio card (nunca estica o layout).
 const ROW2_HEIGHT = 320; // Top Marcas | Saúde do Estoque | Alertas Críticos
-const ROW3_HEIGHT = 280; // Ranking (toggle) | Curva ABC | Produtos Parados
-const ROW4_HEIGHT = 380; // Produtos que Exigem Ação | Oportunidades de Transferência
+const ROW3_HEIGHT = 320; // Curva ABC & Ranking (unificado) | Produtos Parados
+const ROW4_HEIGHT = 380; // Produtos que Exigem Ação
 
 export function ProdutosDashboard() {
   const { selectedLojaId, lojasDisponiveis, lojasSelecionadas } = useLoja();
@@ -168,45 +167,40 @@ export function ProdutosDashboard() {
           {/* Seletor de janela de giro — afeta só os cards baseados em venda abaixo */}
           <GiroSelector dias={dias} onChange={setDias} />
 
-          {/* Linha 3 — giro e composição (altura uniforme, scroll interno quando precisar) */}
-          <div className="grid gap-3 grid-cols-1 lg:grid-cols-3 items-start">
-            <ChartCard title="Ranking por Volume" subtitle="marca · categoria · grupo — clique para trocar a visão" animationDelay={60}
-              bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
-              <RankingToggleCard
-                porMarcaQtd={data.porMarcaQtd} selectedMarca={filters.marca} onSelectMarca={(n) => toggle("marca", n)}
-                topCategoriasValor={data.topCategoriasValor} selectedCategoria={filters.categoria} onSelectCategoria={(n) => toggle("categoria", n)}
-                porGrupoQtd={data.porGrupoQtd} selectedGrupo={filters.grupo} onSelectGrupo={(n) => toggle("grupo", n)}
-              />
-            </ChartCard>
-            <ChartCard title="Curva ABC" subtitle={`por faturamento — últimos ${dias} dias`} animationDelay={100}
-              info="Classifica os produtos pela participação no faturamento: A = até 80% acumulado, B = até 95%, C = o restante. 'Sem giro' são produtos ativos sem nenhuma venda na janela selecionada. Clique numa classe para filtrar o painel."
-              bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
-              <CurvaAbcCard resumo={data.curvaAbc} selected={filters.classeAbc} onSelect={toggleClasseAbc} />
-            </ChartCard>
-            <ChartCard title="Produtos Parados" subtitle={`capital sem giro — últimos ${dias} dias`} animationDelay={140}
-              bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
-              <ProdutosParadosRanking items={data.produtosParados} />
-            </ChartCard>
-          </div>
-
-          {/* Linha 4 — ação (mesma altura; a tabela rola por dentro, cabeçalho fixo) */}
+          {/* Linha 3 — Curva ABC unificada com o ranking + Produtos Parados */}
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-12 items-start">
-            <div className={multi ? "lg:col-span-8" : "lg:col-span-12"}>
-              <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={60}
-                bodyStyle={{ height: ROW4_HEIGHT, overflow: "hidden" }}>
-                <AcaoTable items={data.exigeAcao} filiais={data.filiais} />
+            <div className="lg:col-span-8">
+              <ChartCard title="Curva ABC & Ranking por Volume" subtitle={`por faturamento — últimos ${dias} dias · clique numa classe para detalhar o ranking ao lado`} animationDelay={60}
+                info="Classifica os produtos pela participação no faturamento: A = até 80% acumulado, B = até 95%, C = o restante; 'Sem giro' são produtos ativos sem nenhuma venda na janela. Clique numa classe para filtrar todo o painel — o ranking ao lado passa a mostrar apenas marcas, categorias e grupos daquela classe."
+                bodyStyle={{ height: ROW3_HEIGHT }} bodyClassName="abc-unified-body">
+                <div className="flex flex-col lg:flex-row gap-4 h-full min-h-0">
+                  <div className="custom-scroll flex-1 min-w-0" style={{ overflowY: "auto" }}>
+                    <CurvaAbcCard resumo={data.curvaAbc} selected={filters.classeAbc} onSelect={toggleClasseAbc} />
+                  </div>
+                  <div className="hidden lg:block w-px self-stretch flex-shrink-0" style={{ background: "var(--border-subtle)" }} />
+                  <div className="flex-1 min-w-0 min-h-0">
+                    <RankingToggleCard
+                      porMarcaQtd={data.porMarcaQtd} selectedMarca={filters.marca} onSelectMarca={(n) => toggle("marca", n)}
+                      topCategoriasValor={data.topCategoriasValor} selectedCategoria={filters.categoria} onSelectCategoria={(n) => toggle("categoria", n)}
+                      porGrupoQtd={data.porGrupoQtd} selectedGrupo={filters.grupo} onSelectGrupo={(n) => toggle("grupo", n)}
+                    />
+                  </div>
+                </div>
               </ChartCard>
             </div>
-            {multi && (
-              <div className="lg:col-span-4">
-                <ChartCard title="Oportunidades de Transferência" subtitle="excesso numa loja, déficit em outra" animationDelay={100}
-                  info="Compara o estoque do mesmo produto entre as lojas selecionadas: quando uma loja tem excesso (acima de 1,5x o mínimo) e outra tem déficit (abaixo do mínimo, ou negativo) do mesmo item, sugere a quantidade a transferir em vez de comprar de novo."
-                  bodyStyle={{ height: ROW4_HEIGHT, overflow: "hidden" }}>
-                  <TransferenciasTable items={data.transferencias} />
-                </ChartCard>
-              </div>
-            )}
+            <div className="lg:col-span-4">
+              <ChartCard title="Produtos Parados" subtitle={`capital sem giro — últimos ${dias} dias`} animationDelay={100}
+                bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
+                <ProdutosParadosRanking items={data.produtosParados} />
+              </ChartCard>
+            </div>
           </div>
+
+          {/* Linha 4 — ação (a tabela rola por dentro, cabeçalho fixo) */}
+          <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={60}
+            bodyStyle={{ height: ROW4_HEIGHT, overflow: "hidden" }}>
+            <AcaoTable items={data.exigeAcao} filiais={data.filiais} />
+          </ChartCard>
 
         </div>
       ) : null}
@@ -238,13 +232,11 @@ function Skeleton() {
         <div className="lg:col-span-4 skeleton-bar rounded-2xl" style={{ height: 300 }} />
         <div className="lg:col-span-3 skeleton-bar rounded-2xl" style={{ height: 300 }} />
       </div>
-      <div className="grid gap-3 grid-cols-1 lg:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton-bar rounded-2xl" style={{ height: 260 }} />)}
-      </div>
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">
-        <div className="lg:col-span-8 skeleton-bar rounded-2xl" style={{ height: 380 }} />
-        <div className="lg:col-span-4 skeleton-bar rounded-2xl" style={{ height: 380 }} />
+        <div className="lg:col-span-8 skeleton-bar rounded-2xl" style={{ height: 320 }} />
+        <div className="lg:col-span-4 skeleton-bar rounded-2xl" style={{ height: 320 }} />
       </div>
+      <div className="skeleton-bar rounded-2xl" style={{ height: 380 }} />
     </div>
   );
 }

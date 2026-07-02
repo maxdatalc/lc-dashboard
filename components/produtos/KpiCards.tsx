@@ -9,31 +9,40 @@ import { useCountUp } from "./useCountUp";
 import { fmtMoeda, fmtInt, fmtPct } from "./utils";
 
 // ── Padrão visual compartilhado com o dashboard Financeiro ─────────────────────
-// (mesmo cardBase / IconBadge / KpiHead de app/(dashboard)/dashboard/financeiro)
+// Hierarquia: label pequeno em caixa alta → valor grande tabular → subtítulo curto.
+// Cards financeiros (moeda) têm subtítulo neutro; cards de status (clicáveis para
+// cross-filter) mostram um pill tingido com a participação na base.
 
 const cardBase: CSSProperties = {
-  background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16,
-  padding: "16px 18px", height: "100%", position: "relative", overflow: "hidden",
+  background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 14,
+  padding: "14px 16px", height: "100%", display: "flex", flexDirection: "column",
+  justifyContent: "space-between", gap: 10, overflow: "hidden",
+  boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
   animation: "fadeInUp 0.4s ease-out both",
 };
 
-function IconBadge({ children, color }: { children: ReactNode; color: string }) {
-  return (
-    <div style={{
-      width: 34, height: 34, borderRadius: 10, display: "flex", alignItems: "center",
-      justifyContent: "center", background: `color-mix(in srgb, ${color} 14%, transparent)`,
-      color, flexShrink: 0,
-    }}>
-      {children}
-    </div>
-  );
-}
+const valueStyle = (color: string): CSSProperties => ({
+  fontSize: "clamp(17px,1.6vw,23px)", fontWeight: 800, fontFamily: "var(--font-numeric)",
+  color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap",
+  fontVariantNumeric: "tabular-nums",
+});
 
 function KpiHead({ label, icon, color }: { label: string; icon: ReactNode; color: string }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)" }}>{label}</span>
-      <IconBadge color={color}>{icon}</IconBadge>
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+      <span style={{
+        fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+        color: "var(--text-muted)", lineHeight: 1.35, paddingTop: 2,
+      }}>
+        {label}
+      </span>
+      <div style={{
+        width: 28, height: 28, borderRadius: 8, display: "flex", alignItems: "center",
+        justifyContent: "center", background: `color-mix(in srgb, ${color} 12%, transparent)`,
+        color, flexShrink: 0,
+      }}>
+        {icon}
+      </div>
     </div>
   );
 }
@@ -49,19 +58,15 @@ function ValorCard({
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{
-        fontSize: "clamp(18px,1.7vw,24px)", fontWeight: 800, fontFamily: "var(--font-numeric)",
-        color, letterSpacing: "-0.02em", lineHeight: 1, whiteSpace: "nowrap", marginBottom: 8,
-        fontVariantNumeric: "tabular-nums",
-      }}>
-        {fmtMoeda(animado)}
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        <div style={valueStyle(color)}>{fmtMoeda(animado)}</div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3 }}>{sub}</div>
       </div>
-      <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{sub}</div>
     </div>
   );
 }
 
-// ── Card de contagem clicável (cross-filter) — genérico, usado por status e "parado" ──
+// ── Card de contagem clicável (cross-filter) — status e "parado" ───────────────
 
 function CountCard({
   icon, label, valor, base, color, active, onClick, delay, sub,
@@ -78,21 +83,21 @@ function CountCard({
     textAlign: "left",
     cursor: "pointer",
     border: `1px solid ${active ? `color-mix(in srgb, ${color} 45%, transparent)` : "var(--border-subtle)"}`,
-    background: active ? `color-mix(in srgb, ${color} 8%, var(--bg-card))` : "var(--bg-card)",
+    background: active ? `color-mix(in srgb, ${color} 7%, var(--bg-card))` : "var(--bg-card)",
   };
 
   return (
     <button type="button" className="kpi-card" onClick={onClick} style={style} aria-pressed={active} title={`Filtrar por ${label.toLowerCase()}`}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{
-        fontSize: "clamp(18px,1.7vw,24px)", fontWeight: 800, fontFamily: "var(--font-numeric)",
-        color, letterSpacing: "-0.02em", lineHeight: 1, whiteSpace: "nowrap", marginBottom: 8,
-        fontVariantNumeric: "tabular-nums",
-      }}>
-        {fmtInt(animado)}
-      </div>
-      <div style={{ fontSize: 11.5, color: "var(--text-muted)" }}>
-        {sub ?? (base > 0 ? `${fmtPct(pct)} da base` : "—")}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+        <div style={valueStyle(color)}>{fmtInt(animado)}</div>
+        <span style={{
+          fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
+          background: `color-mix(in srgb, ${color} 9%, transparent)`, color,
+          maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {sub ?? (base > 0 ? `${fmtPct(pct)} da base` : "—")}
+        </span>
       </div>
     </button>
   );
@@ -110,19 +115,19 @@ export function KpiCards({
   onParadoClick: () => void;
 }) {
   const base = kpis.totalPosicoes;
-  const IS = { size: 17, strokeWidth: 2 } as const;
+  const IS = { size: 15, strokeWidth: 2 } as const;
 
   return (
     <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
-      <ValorCard delay={0}  icon={<Coins {...IS} />}      label="Valor em Estoque — Custo" valor={kpis.valorCusto}      sub="capital investido"        color="var(--accent-yellow)" />
-      <ValorCard delay={40} icon={<Tag {...IS} />}        label="Potencial de Venda"        valor={kpis.valorVenda}      sub="estoque a preço de venda" color="var(--accent-cyan)" />
-      <ValorCard delay={80} icon={<TrendingUp {...IS} />} label="Margem Potencial"          valor={kpis.margemPotencial} sub="venda − custo"            color="var(--accent-green)" />
+      <ValorCard delay={0}  icon={<Coins {...IS} />}      label="Valor em Estoque"   valor={kpis.valorCusto}      sub="capital investido a custo" color="var(--accent-yellow)" />
+      <ValorCard delay={40} icon={<Tag {...IS} />}        label="Potencial de Venda" valor={kpis.valorVenda}      sub="estoque a preço de venda"  color="var(--accent-cyan)" />
+      <ValorCard delay={80} icon={<TrendingUp {...IS} />} label="Margem Potencial"   valor={kpis.margemPotencial} sub="venda − custo"             color="var(--accent-green)" />
 
-      <CountCard delay={120} icon={<AlertCircle {...IS} />} label="Abaixo do Mínimo"     valor={kpis.abaixoMin} base={base} color="#ef4444" active={activeStatus === "abaixo"}    onClick={() => onStatusClick("abaixo")} />
-      <CountCard delay={160} icon={<ShieldCheck {...IS} />} label="Acima do Mínimo"      valor={kpis.acimaMin}  base={base} color="var(--accent-yellow)" active={activeStatus === "acima"}     onClick={() => onStatusClick("acima")} />
-      <CountCard delay={200} icon={<HelpCircle {...IS} />}  label="Mínimo não Informado" valor={kpis.semMin}    base={base} color="var(--text-muted)" active={activeStatus === "semMin"}    onClick={() => onStatusClick("semMin")} />
-      <CountCard delay={240} icon={<PackageX {...IS} />}    label="Estoque Negativo"     valor={kpis.negativo}  base={base} color="#f43f5e" active={activeStatus === "negativo"}  onClick={() => onStatusClick("negativo")} />
-      <CountCard delay={280} icon={<TimerOff {...IS} />}    label="Produtos Parados"     valor={kpis.parados}   base={base} color="#a78bfa" active={paradoAtivo} onClick={onParadoClick}
+      <CountCard delay={120} icon={<AlertCircle {...IS} />} label="Abaixo do Mínimo" valor={kpis.abaixoMin} base={base} color="#ef4444" active={activeStatus === "abaixo"}   onClick={() => onStatusClick("abaixo")} />
+      <CountCard delay={160} icon={<ShieldCheck {...IS} />} label="Acima do Mínimo"  valor={kpis.acimaMin}  base={base} color="var(--accent-yellow)" active={activeStatus === "acima"} onClick={() => onStatusClick("acima")} />
+      <CountCard delay={200} icon={<HelpCircle {...IS} />}  label="Sem Mínimo"       valor={kpis.semMin}    base={base} color="var(--text-muted)" active={activeStatus === "semMin"}   onClick={() => onStatusClick("semMin")} />
+      <CountCard delay={240} icon={<PackageX {...IS} />}    label="Estoque Negativo" valor={kpis.negativo}  base={base} color="#f43f5e" active={activeStatus === "negativo"} onClick={() => onStatusClick("negativo")} />
+      <CountCard delay={280} icon={<TimerOff {...IS} />}    label="Produtos Parados" valor={kpis.parados}   base={base} color="#a78bfa" active={paradoAtivo} onClick={onParadoClick}
         sub={kpis.parados > 0 ? `${fmtMoeda(kpis.valorParado)} parados` : undefined} />
     </div>
   );

@@ -19,10 +19,9 @@ const DIAS_VALIDOS = [30, 60, 90];
 /**
  * Endpoint consolidado do Dashboard de Produtos & Estoque.
  * Uma única chamada devolve KPIs, rankings, saúde do estoque, alertas, Curva ABC,
- * produtos parados, oportunidades de transferência entre lojas e a tabela
- * "Produtos que Exigem Ação" — tudo agregado no SQL e já respeitando os filtros de
- * cross-filtering (marca, grupo, categoria, status, classeAbc, parado, busca),
- * garantindo que todos os widgets fiquem coerentes entre si.
+ * produtos parados e a tabela "Produtos que Exigem Ação" — tudo agregado no SQL e
+ * já respeitando os filtros de cross-filtering (marca, grupo, categoria, status,
+ * classeAbc, parado, busca), garantindo que todos os widgets fiquem coerentes entre si.
  *
  * Estoque é uma FOTOGRAFIA atual — não usa o filtro de período do header. Os
  * indicadores de giro (Curva ABC, produtos parados, ruptura ativa, sugestão de
@@ -69,7 +68,7 @@ export async function GET(request: Request) {
   };
 
   try {
-    const overview = await getProdutosOverview({ bridgeUrl, token }, empIds, empresas, filters, dias);
+    const overview = await getProdutosOverview({ bridgeUrl, token }, empIds, filters, dias);
     return NextResponse.json({ filiais: empresas, dias, ...overview });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao consultar produtos";

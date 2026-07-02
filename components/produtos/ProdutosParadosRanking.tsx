@@ -17,25 +17,29 @@ export function ProdutosParadosRanking({ items }: { items: ProdutoParadoItem[] }
   const maxValor = Math.max(...items.map((i) => i.valorParado), 1);
 
   return (
-    <div className="custom-scroll flex flex-col gap-0.5 h-full" style={{ overflowY: "auto" }}>
+    <div className="custom-scroll flex flex-col h-full" style={{ overflowY: "auto" }}>
       {items.map((it, i) => {
         const w = (it.valorParado / maxValor) * 100;
         return (
-          <div key={it.proId + "-" + i} className="flex flex-col gap-1 rounded-lg" style={{ padding: "5px 6px" }}>
-            <div className="flex items-center justify-between gap-2">
-              <span className="truncate" style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)" }} title={it.nome}>
+          <div
+            key={it.proId + "-" + i}
+            className="prod-row flex flex-col gap-1.5 rounded-lg"
+            style={{ padding: "8px 6px", borderTop: i > 0 ? "1px solid var(--border-subtle)" : "none" }}
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="truncate" style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-primary)" }} title={it.nome}>
                 {it.nome}
               </span>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: COR_PARADO, fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: COR_PARADO, fontFamily: "var(--font-numeric)", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
                 {fmtMoeda(it.valorParado)}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <div className="relative flex-1 rounded-full overflow-hidden" style={{ height: 5, background: "var(--chart-track-bg)" }}>
-                <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${w}%`, background: COR_PARADO, opacity: 0.85, transition: "width 0.6s cubic-bezier(0.22,1,0.36,1)" }} />
+                <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: `${w}%`, background: COR_PARADO, opacity: 0.8, transition: "width 0.6s cubic-bezier(0.22,1,0.36,1)" }} />
               </div>
-              <span style={{ fontSize: 10.5, color: "var(--text-muted)", flexShrink: 0 }}>
-                {fmtInt(it.estoqueAtual)} un · {it.marca}
+              <span style={{ fontSize: 10.5, color: "var(--text-muted)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                {fmtInt(it.estoqueAtual)} un{it.marca && it.marca !== "Sem marca" ? ` · ${it.marca}` : ""}
               </span>
             </div>
           </div>

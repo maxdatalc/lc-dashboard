@@ -25,23 +25,28 @@ export function RankingToggleCard({
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      <div className="inline-flex items-center rounded-full p-0.5 flex-shrink-0 self-start"
-        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>
-        {ABAS.map((a) => (
-          <button
-            key={a.key}
-            type="button"
-            onClick={() => setAba(a.key)}
-            className="rounded-full transition-all"
-            style={{
-              padding: "4px 12px", fontSize: 11.5, fontWeight: 600, cursor: "pointer",
-              background: aba === a.key ? "var(--accent-cyan)" : "transparent",
-              color: aba === a.key ? "#0d1117" : "var(--text-secondary)",
-            }}
-          >
-            {a.label}
-          </button>
-        ))}
+      <div className="inline-flex items-center rounded-lg p-0.5 flex-shrink-0 self-start"
+        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)", gap: 2 }}>
+        {ABAS.map((a) => {
+          const ativo = aba === a.key;
+          return (
+            <button
+              key={a.key}
+              type="button"
+              onClick={() => setAba(a.key)}
+              className="seg-btn rounded-md"
+              style={{
+                padding: "4px 12px", fontSize: 11.5, fontWeight: 600, cursor: "pointer",
+                background: ativo ? "var(--bg-card)" : "transparent",
+                color: ativo ? "var(--accent-cyan)" : "var(--text-secondary)",
+                boxShadow: ativo ? "0 1px 3px rgba(16,24,40,0.12)" : "none",
+              }}
+              aria-pressed={ativo}
+            >
+              {a.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex-1 min-h-0">

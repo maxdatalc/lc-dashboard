@@ -63,8 +63,8 @@ export function FiltroChips({
       <button
         type="button"
         onClick={onClear}
-        className="ml-auto inline-flex items-center gap-1 transition-colors"
-        style={{ fontSize: 11, color: "var(--text-muted)", cursor: "pointer", padding: "2px 8px", borderRadius: 6, border: "1px solid var(--border-subtle)", background: "transparent" }}
+        className="btn-ghost ml-auto inline-flex items-center gap-1 rounded-md"
+        style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", cursor: "pointer", padding: "3px 10px", border: "1px solid var(--border-subtle)", background: "transparent" }}
       >
         <X style={{ width: 11, height: 11 }} /> Limpar filtros
       </button>
