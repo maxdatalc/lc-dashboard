@@ -146,6 +146,7 @@ function EmptyTopClientes() {
 
 export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSelect, clientesAgg }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [estadosFC, setEstadosFC] = useState<GeoFC | null>(null);
   const [erro, setErro] = useState(false);
   const [ufSel, setUfSel] = useState<string | null>(null);
@@ -305,10 +306,18 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
   // que preventDefault() impeça o scroll da página em todos os navegadores —
   // com ele "passive", o evento é despachado mas o scroll da página acontece
   // de qualquer forma. Anexar manualmente com passive:false resolve isso.
+  //
+  // Por ser um listener nativo anexado num ancestral (wrapRef), ele dispara
+  // durante a fase de bubble REAL do DOM — ou seja, antes do React sequer
+  // processar o onWheel sintético do painel lateral (que só roda quando o
+  // evento alcança o listener delegado do React, mais acima na árvore).
+  // Por isso stopPropagation() no painel não impede este listener; a
+  // checagem precisa ser feita aqui, vendo se o alvo está dentro do painel.
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
     const handler = (e: WheelEvent) => {
+      if (panelRef.current && e.target instanceof Node && panelRef.current.contains(e.target)) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
       const s = Math.min(rect.width / W, rect.height / H) || 1;
@@ -650,8 +659,8 @@ export default function MapaBrasilInner({ data, totalBase, selectedCidade, onSel
         {/* ── Painel de detalhes ─────────────────────────────────────────── */}
         {ufSel && (
           <div
+            ref={panelRef}
             className="custom-scroll mapa-br-anim"
-            onWheel={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
             style={{
               position: "absolute", top: 10, right: 10, bottom: 10, width: 258, zIndex: 20,
