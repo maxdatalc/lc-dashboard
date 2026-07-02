@@ -58,22 +58,23 @@ export function normNome(s: string): string {
     .trim();
 }
 
-const BASE = "https://servicodados.ibge.gov.br/api";
-const GEOJSON = "formato=application/vnd.geo+json&qualidade=minima";
+// Chamamos nosso proxy interno (/api/geo/malhas), não o IBGE direto: o CSP do
+// app só permite connect-src 'self'. O servidor busca do IBGE e cacheia.
+const PROXY = "/api/geo/malhas";
 
 let cacheEstados: GeoFC | null = null;
 const cacheMunicipios = new Map<string, { malha: GeoFC; nomes: Record<string, string> }>();
 
 async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`IBGE ${res.status}: ${url}`);
+  if (!res.ok) throw new Error(`Proxy ${res.status}: ${url}`);
   return res.json();
 }
 
 /** Polígonos dos 27 estados (codarea = código UF de 2 dígitos). */
 export async function fetchMalhaEstados(): Promise<GeoFC> {
   if (cacheEstados) return cacheEstados;
-  cacheEstados = await getJson<GeoFC>(`${BASE}/v3/malhas/paises/BR?${GEOJSON}&intrarregiao=UF`);
+  cacheEstados = await getJson<GeoFC>(PROXY);
   return cacheEstados;
 }
 
@@ -81,18 +82,9 @@ export async function fetchMalhaEstados(): Promise<GeoFC> {
 export async function fetchMalhaMunicipios(sigla: string): Promise<{ malha: GeoFC; nomes: Record<string, string> }> {
   const hit = cacheMunicipios.get(sigla);
   if (hit) return hit;
-  const info = UF_INFO[sigla];
-  if (!info) throw new Error(`UF desconhecida: ${sigla}`);
+  if (!UF_INFO[sigla]) throw new Error(`UF desconhecida: ${sigla}`);
 
-  const [malha, lista] = await Promise.all([
-    getJson<GeoFC>(`${BASE}/v3/malhas/estados/${info.code}?${GEOJSON}&intrarregiao=municipio`),
-    getJson<{ id: number; nome: string }[]>(`${BASE}/v1/localidades/estados/${info.code}/municipios?orderBy=nome`),
-  ]);
-
-  const nomes: Record<string, string> = {};
-  for (const m of lista) nomes[String(m.id)] = m.nome;
-
-  const entry = { malha, nomes };
+  const entry = await getJson<{ malha: GeoFC; nomes: Record<string, string> }>(`${PROXY}?uf=${sigla}`);
   cacheMunicipios.set(sigla, entry);
   return entry;
 }
