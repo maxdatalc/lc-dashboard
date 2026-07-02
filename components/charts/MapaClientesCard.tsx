@@ -3,10 +3,10 @@
 import dynamic from "next/dynamic";
 import type { CliGeoItem } from "./CliGeoRanking";
 
-const Inner = dynamic(() => import("./MapaClientesCardInner"), {
+const Inner = dynamic(() => import("./MapaBrasilInner"), {
   ssr: false,
   loading: () => (
-    <div className="shimmer rounded-xl" style={{ height: 310 }} />
+    <div className="shimmer rounded-xl" style={{ height: 430 }} />
   ),
 });
 
@@ -21,4 +21,3 @@ interface Props {
 export function MapaClientesCard(props: Props) {
   return <Inner {...props} />;
 }
-

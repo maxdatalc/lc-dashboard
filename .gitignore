@@ -39,3 +39,6 @@ next-env.d.ts
 scripts/explore-*.mjs
 scripts/inspect-*.mjs
 scripts/test-*.mjs
+
+.vercel
+.env*

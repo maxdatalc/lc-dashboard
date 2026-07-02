@@ -432,11 +432,11 @@ export default function ClientesPage() {
           <div className="lg:col-span-2">
             <ChartCard
               title="Distribuição Geográfica da Base"
-              subtitle="clientes ativos por cidade · círculos proporcionais por concentração"
+              subtitle="clientes ativos por estado e município · clique para explorar"
               animationDelay={200}
-              info="Mapa interativo com círculos proporcionais à quantidade de clientes por cidade. A cor vai de azul (baixa concentração) a vermelho (alta concentração). Clique em qualquer cidade para ver os detalhes e filtrar o painel. O ranking completo fica no colapsável abaixo do mapa."
+              info="Mapa do Brasil com divisas oficiais (IBGE) colorido pela concentração de clientes. Clique num estado para ver o resumo e as divisas dos municípios; clique num município para ver clientes, faturamento e vendas/OS — isso filtra todo o painel. O ranking completo fica no colapsável abaixo do mapa."
             >
-              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 310 }} /> : (
+              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 430 }} /> : (
                 <MapaClientesCard data={derived.geo} totalBase={derived.totalBaseAtivos} selectedCidade={fCidade} onSelect={setFCidade} geoStats={derived.geoStats} />
               )}
             </ChartCard>
