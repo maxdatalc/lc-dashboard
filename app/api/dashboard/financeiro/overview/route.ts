@@ -13,11 +13,13 @@ function toStr(d: Date)    { return d.toISOString().split("T")[0]; }
  * Uma única chamada retorna tudo que a tela precisa, com dimensões granulares
  * (mês × filial × plano × conta) para permitir cross-filtering client-side.
  *
- * Fontes de dados no MaxManager (BATAUTO):
+ * Fontes de dados no MaxManager:
  *  - Recebido/Pago realizado → contaMov (ledger de caixa, ctmValor já com sinal)
- *  - A Receber / A Pagar em aberto → vendaPgto (pgtTipoConta 'R'|'P', pgtPago IN 'N','F')
- *  - Saldo por conta bancária → SUM(contaMov.ctmValor) por ctmConta → conta.ctaNome
+ *  - A Receber / A Pagar em aberto → vendaPgto (pgtTipoConta 'R'|'P', pgtPago IN 'N','G' = não quitado)
  *  - Plano de contas → planoConta (contaMov.ctmPlaCont / vendaPgto.pgtPlcId)
+ *
+ * Regra DRE: exclui títulos/movimentos cujo subplano (subPlanoContas via pgtSubPc/ctmSubPc)
+ * esteja marcado spcNaoDemonstrarDRE=1 — são créditos e afins que não entram nos resultados.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -63,7 +65,6 @@ export async function GET(request: Request) {
     flowKpisRes,   // KPIs de fluxo por filial (período atual + anterior)
     fluxoRes,      // série mensal de recebimentos/pagamentos por filial (12m)
     abertosRes,    // títulos em aberto por mês de vencimento × filial × tipo
-    saldoRes,      // saldo acumulado por conta bancária × filial
     analiseRes,    // aberto por filial × plano de contas × tipo (R/P)
     pagRealRes,    // pagamentos realizados no período por filial × plano
   ] = await Promise.allSettled([
@@ -82,6 +83,7 @@ export async function GET(request: Request) {
       FROM contaMov
       WHERE empId IN (${empList}) AND ctmAtivo=0 AND ctmTipoMov IN ('CP','CR')
         AND CONVERT(date,ctmData) BETWEEN @prevStart AND @end
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = contaMov.ctmSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY empId
     `, { start, end, prevStart, prevEnd }),
 
@@ -93,6 +95,7 @@ export async function GET(request: Request) {
       FROM contaMov
       WHERE empId IN (${empList}) AND ctmAtivo=0 AND ctmTipoMov IN ('CP','CR')
         AND CONVERT(date,ctmData) >= @base12m AND CONVERT(date,ctmData) <= @endDate
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = contaMov.ctmSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY FORMAT(ctmData,'yyyy-MM'), empId
     `, { base12m, endDate: end }),
 
@@ -103,38 +106,32 @@ export async function GET(request: Request) {
         ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) <  CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS vencido,
         ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS aVencer
       FROM vendaPgto
-      WHERE empId IN (${empList}) AND pgtPago IN ('N','F') AND pgtTipoConta IN ('R','P')
+      WHERE empId IN (${empList}) AND pgtPago IN ('N','G') AND pgtTipoConta IN ('R','P')
         AND pgtVecmto IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vendaPgto.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY FORMAT(pgtVecmto,'yyyy-MM'), empId, pgtTipoConta
     `),
 
-    // 4. Saldo acumulado por conta bancária × filial (all-time, ledger de caixa)
-    q<{ ctaId: number; ctaNome: string | null; empId: number; saldo: number }>(`
-      SELECT cm.ctmConta AS ctaId, c.ctaNome, cm.empId,
-        ISNULL(SUM(cm.ctmValor),0) AS saldo
-      FROM contaMov cm LEFT JOIN conta c ON cm.ctmConta = c.ctaId
-      WHERE cm.empId IN (${empList}) AND cm.ctmAtivo=0
-      GROUP BY cm.ctmConta, c.ctaNome, cm.empId
-    `),
-
-    // 5. Aberto por filial × plano de contas × tipo (para tabela A Receber / A Pagar)
+    // 4. Aberto por filial × plano de contas × tipo (para tabela A Receber / A Pagar)
     q<{ empId: number; plcId: number | null; plcDesc: string | null; tipo: string; valor: number; vencido: number; aVencer: number }>(`
       SELECT vp.empId, vp.pgtPlcId AS plcId, pc.plcDesc, vp.pgtTipoConta AS tipo,
         ISNULL(SUM(vp.pgtValor),0) AS valor,
         ISNULL(SUM(CASE WHEN CONVERT(date,vp.pgtVecmto) <  CONVERT(date,GETDATE()) THEN vp.pgtValor ELSE 0 END),0) AS vencido,
         ISNULL(SUM(CASE WHEN CONVERT(date,vp.pgtVecmto) >= CONVERT(date,GETDATE()) THEN vp.pgtValor ELSE 0 END),0) AS aVencer
       FROM vendaPgto vp LEFT JOIN planoConta pc ON vp.pgtPlcId = pc.plcId
-      WHERE vp.empId IN (${empList}) AND vp.pgtPago IN ('N','F') AND vp.pgtTipoConta IN ('R','P')
+      WHERE vp.empId IN (${empList}) AND vp.pgtPago IN ('N','G') AND vp.pgtTipoConta IN ('R','P')
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vp.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY vp.empId, vp.pgtPlcId, pc.plcDesc, vp.pgtTipoConta
     `),
 
-    // 6. Pagamentos realizados no período por filial × plano (aba Pagamentos)
+    // 5. Pagamentos realizados no período por filial × plano (aba Pagamentos)
     q<{ empId: number; plcId: number | null; plcDesc: string | null; valor: number }>(`
       SELECT cm.empId, cm.ctmPlaCont AS plcId, pc.plcDesc,
         ISNULL(SUM(ABS(cm.ctmValor)),0) AS valor
       FROM contaMov cm LEFT JOIN planoConta pc ON cm.ctmPlaCont = pc.plcId
       WHERE cm.empId IN (${empList}) AND cm.ctmAtivo=0 AND cm.ctmSinal='-' AND cm.ctmTipoMov IN ('CP','CR')
         AND CONVERT(date,cm.ctmData) BETWEEN @start AND @end
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = cm.ctmSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY cm.empId, cm.ctmPlaCont, pc.plcDesc
     `, { start, end }),
   ]);
@@ -166,13 +163,6 @@ export async function GET(request: Request) {
       vencido: Number(r.vencido),
       aVencer: Number(r.aVencer),
     }));
-
-  const saldoContas = val(saldoRes).map((r) => ({
-    ctaId: Number(r.ctaId),
-    ctaNome: r.ctaNome ?? `Conta ${r.ctaId}`,
-    empId: Number(r.empId),
-    saldo: Number(r.saldo),
-  }));
 
   const analise = val(analiseRes).map((r) => ({
     empId: Number(r.empId),
@@ -206,7 +196,6 @@ export async function GET(request: Request) {
     flowKpis,
     fluxo,
     abertos,
-    saldoContas,
     analise,
     pagamentosPlano,
   });

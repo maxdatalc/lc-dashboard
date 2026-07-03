@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import {
-  ArrowDownCircle, ArrowUpCircle, TrendingUp, HandCoins, ReceiptText, Landmark, AlertTriangle,
+  ArrowDownCircle, ArrowUpCircle, TrendingUp, HandCoins, ReceiptText,
 } from "lucide-react";
 import { useLoja } from "@/lib/contexts/loja-context";
 import { usePeriod, computeRange, type Period } from "@/lib/contexts/period-context";
@@ -10,7 +10,6 @@ import { ChartCard } from "@/components/ui/ChartCard";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { FinFluxoMensalChart } from "@/components/charts/FinFluxoMensalChart";
 import { FinContasAbertoChart } from "@/components/charts/FinContasAbertoChart";
-import { FinSaldoContasChart } from "@/components/charts/FinSaldoContasChart";
 import { FinAnaliseTable, type AnaliseRow } from "@/components/charts/FinAnaliseTable";
 
 // ─── Tipos da resposta do endpoint /overview ───────────────────────────────────
@@ -19,7 +18,6 @@ interface Filial { empId: number; nome: string; }
 interface FlowKpi { empId: number; recebimentos: number; pagamentos: number; recebimentosPrev: number; pagamentosPrev: number; }
 interface FluxoRow { mes: string; empId: number; recebimentos: number; pagamentos: number; }
 interface AbertoRow { mes: string; empId: number; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
-interface SaldoRow { ctaId: number; ctaNome: string; empId: number; saldo: number; }
 interface AnaliseApiRow { empId: number; plcId: number | null; plcDesc: string; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
 interface PagPlanoRow { empId: number; plcId: number | null; plcDesc: string; valor: number; }
 
@@ -30,19 +28,15 @@ interface Overview {
   flowKpis: FlowKpi[];
   fluxo: FluxoRow[];
   abertos: AbertoRow[];
-  saldoContas: SaldoRow[];
   analise: AnaliseApiRow[];
   pagamentosPlano: PagPlanoRow[];
 }
 
 // ─── Utilitários ────────────────────────────────────────────────────────────────
 
-function abbr(v: number): string {
-  const s = v < 0 ? "-" : "";
-  const a = Math.abs(v);
-  if (a >= 1_000_000) return `${s}R$ ${(a / 1_000_000).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} mi`;
-  if (a >= 1_000)     return `${s}R$ ${(a / 1_000).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} mil`;
-  return `${s}R$ ${a.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+// Valor completo, sem abreviação: R$ 3.680.297,90
+function fmtFull(v: number): string {
+  return `${v < 0 ? "-" : ""}R$ ${Math.abs(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 function mesLabel(mes: string) {
   const [y, m] = mes.split("-");
@@ -107,8 +101,8 @@ function KpiSimple({ label, icon, color, value, footer, footerColor, delay = 0 }
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: 27, fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap", marginBottom: 8 }}>{value}</div>
-      <div style={{ fontSize: 11.5, color: footerColor ?? "var(--text-muted)", display: "flex", alignItems: "center", gap: 5 }}>{footer}</div>
+      <div style={{ fontSize: "clamp(15px, 1.32vw, 21px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap", marginBottom: 8 }}>{value}</div>
+      <div style={{ fontSize: 11.5, color: footerColor ?? "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{footer}</div>
     </div>
   );
 }
@@ -119,15 +113,15 @@ function KpiSplit({ label, icon, color, value, vencido, aVencer, delay = 0 }: {
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap", marginBottom: 12 }}>{value}</div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
-        <div>
-          <div style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)", marginBottom: 3 }}>Vencido</div>
-          <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#ef4444", whiteSpace: "nowrap" }}>{vencido}</div>
+      <div style={{ fontSize: "clamp(15px, 1.3vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap", marginBottom: 12 }}>{value}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>Vencido</span>
+          <span style={{ fontSize: "clamp(11px, 0.85vw, 13px)", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#ef4444", whiteSpace: "nowrap" }}>{vencido}</span>
         </div>
-        <div>
-          <div style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)", marginBottom: 3 }}>A vencer</div>
-          <div style={{ fontSize: 12.5, fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{aVencer}</div>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>A vencer</span>
+          <span style={{ fontSize: "clamp(11px, 0.85vw, 13px)", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{aVencer}</span>
         </div>
       </div>
     </div>
@@ -167,7 +161,6 @@ export default function FinanceiroPage() {
   // Cross-filter local (compõe com os filtros globais do header)
   const [fMes, setFMes] = useState<string | null>(null);
   const [fFilial, setFFilial] = useState<number | null>(null);
-  const [fConta, setFConta] = useState<number | null>(null);
 
   function getRange(): { start: string; end: string } {
     if (period === "custom" && customRange) {
@@ -196,7 +189,7 @@ export default function FinanceiroPage() {
 
   useEffect(() => { void fetchDados(); }, [fetchDados]);
   // Reseta cross-filter ao trocar loja/período (evita filtro órfão)
-  useEffect(() => { setFMes(null); setFFilial(null); setFConta(null); }, [lojaKey, period, customRange]);
+  useEffect(() => { setFMes(null); setFFilial(null); }, [lojaKey, period, customRange]);
 
   // ── Derivações (cross-filter client-side) ─────────────────────────────────
   const derived = useMemo(() => {
@@ -259,20 +252,6 @@ export default function FinanceiroPage() {
       .slice(0, 8)
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
-    // Saldo por conta (respeitando filial); agrega por conta somando filiais
-    const saldoMap = new Map<number, { ctaNome: string; saldo: number }>();
-    for (const r of byFilial(data.saldoContas)) {
-      let e = saldoMap.get(r.ctaId);
-      if (!e) { e = { ctaNome: r.ctaNome, saldo: 0 }; saldoMap.set(r.ctaId, e); }
-      e.saldo += r.saldo;
-    }
-    const saldoChart = [...saldoMap.entries()].map(([ctaId, v]) => ({ ctaId, ctaNome: v.ctaNome, saldo: v.saldo }));
-    const contasNeg = saldoChart.filter((c) => c.saldo < 0).length;
-    const saldoTotal = fConta != null
-      ? (saldoChart.find((c) => c.ctaId === fConta)?.saldo ?? 0)
-      : saldoChart.reduce((s, c) => s + c.saldo, 0);
-    const contaNome = fConta != null ? saldoChart.find((c) => c.ctaId === fConta)?.ctaNome ?? null : null;
-
     // Tabela de análise (agrupa por filial dentro do componente)
     const toRow = (r: AnaliseApiRow): AnaliseRow => ({ empId: r.empId, plcId: r.plcId, plcDesc: r.plcDesc, valor: r.valor, vencido: r.vencido, aVencer: r.aVencer });
     const aReceberTbl = data.analise.filter((r) => r.tipo === "R").map(toRow);
@@ -282,17 +261,16 @@ export default function FinanceiroPage() {
     return {
       receb, pag, resultado, varReceb, margem,
       aReceberKpi, aPagarKpi,
-      fluxoChart, contasAbertoChart, saldoChart, contasNeg, saldoTotal, contaNome,
+      fluxoChart, contasAbertoChart,
       aReceberTbl, aPagarTbl, pagamentosTbl,
     };
-  }, [data, fFilial, fMes, fConta]);
+  }, [data, fFilial, fMes]);
 
   if (lojaIds.length === 0) return <SemLoja />;
 
   const pLabel = periodLabel(period, customRange);
   const filialNome = fFilial != null ? data?.filiais.find((f) => f.empId === fFilial)?.nome ?? null : null;
-  const temFiltro = fMes != null || fFilial != null || fConta != null;
-  const negativoSaldo = (derived?.saldoTotal ?? 0) < 0;
+  const temFiltro = fMes != null || fFilial != null;
 
   return (
     <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
@@ -306,22 +284,21 @@ export default function FinanceiroPage() {
             <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Filtros ativos:</span>
             {fMes && <FilterChip label={`Mês: ${mesLabel(fMes)}`} color="var(--accent-cyan)" onClear={() => setFMes(null)} />}
             {fFilial != null && <FilterChip label={`Filial: ${filialNome}`} color="var(--accent-purple)" onClear={() => setFFilial(null)} />}
-            {fConta != null && <FilterChip label={`Conta: ${derived?.contaNome}`} color="var(--accent-green)" onClear={() => setFConta(null)} />}
-            <button onClick={() => { setFMes(null); setFFilial(null); setFConta(null); }} style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+            <button onClick={() => { setFMes(null); setFFilial(null); }} style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
               Limpar tudo
             </button>
           </div>
         )}
 
         {/* ── Linha 1: KPIs ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           {loading || !derived ? (
-            Array.from({ length: 6 }).map((_, i) => <div key={i} className="shimmer rounded-2xl" style={{ height: 138 }} />)
+            Array.from({ length: 5 }).map((_, i) => <div key={i} className="shimmer rounded-2xl" style={{ height: 138 }} />)
           ) : (
             <>
               <KpiSimple
                 label="Recebimentos" icon={<ArrowDownCircle size={18} />} color="var(--accent-cyan)"
-                value={abbr(derived.receb)}
+                value={fmtFull(derived.receb)}
                 footer={derived.varReceb != null
                   ? <><span style={{ color: derived.varReceb >= 0 ? "var(--accent-green)" : "#ef4444", fontWeight: 700 }}>{derived.varReceb >= 0 ? "↑" : "↓"} {Math.abs(derived.varReceb).toFixed(1)}%</span> vs período anterior</>
                   : "Sem base de comparação"}
@@ -329,13 +306,13 @@ export default function FinanceiroPage() {
               />
               <KpiSimple
                 label="Pagamentos" icon={<ArrowUpCircle size={18} />} color="#ef4444"
-                value={abbr(derived.pag)}
+                value={fmtFull(derived.pag)}
                 footer={`${derived.receb > 0 ? ((derived.pag / derived.receb) * 100).toFixed(1) : "0"}% dos recebimentos`}
                 delay={40}
               />
               <KpiSimple
                 label="Resultado Financeiro" icon={<TrendingUp size={18} />} color={derived.resultado >= 0 ? "var(--accent-green)" : "#ef4444"}
-                value={abbr(derived.resultado)}
+                value={fmtFull(derived.resultado)}
                 footer={<>
                   <span>Margem: {derived.margem != null ? `${derived.margem.toFixed(1)}%` : "—"}</span>
                   <span style={{ marginLeft: 6, padding: "1px 7px", borderRadius: 20, fontSize: 10, fontWeight: 700, background: derived.resultado >= 0 ? "color-mix(in srgb, var(--accent-green) 15%, transparent)" : "color-mix(in srgb, #ef4444 15%, transparent)", color: derived.resultado >= 0 ? "var(--accent-green)" : "#ef4444" }}>
@@ -346,23 +323,13 @@ export default function FinanceiroPage() {
               />
               <KpiSplit
                 label="A Receber" icon={<HandCoins size={18} />} color="var(--accent-cyan)"
-                value={abbr(derived.aReceberKpi.valor)} vencido={abbr(derived.aReceberKpi.vencido)} aVencer={abbr(derived.aReceberKpi.aVencer)}
+                value={fmtFull(derived.aReceberKpi.valor)} vencido={fmtFull(derived.aReceberKpi.vencido)} aVencer={fmtFull(derived.aReceberKpi.aVencer)}
                 delay={120}
               />
               <KpiSplit
                 label="A Pagar" icon={<ReceiptText size={18} />} color="var(--accent-yellow)"
-                value={abbr(derived.aPagarKpi.valor)} vencido={abbr(derived.aPagarKpi.vencido)} aVencer={abbr(derived.aPagarKpi.aVencer)}
+                value={fmtFull(derived.aPagarKpi.valor)} vencido={fmtFull(derived.aPagarKpi.vencido)} aVencer={fmtFull(derived.aPagarKpi.aVencer)}
                 delay={160}
-              />
-              <KpiSimple
-                label="Saldo em Contas" icon={<Landmark size={18} />} color={negativoSaldo ? "#ef4444" : "var(--accent-cyan)"}
-                value={abbr(derived.saldoTotal)}
-                footer={derived.contaNome
-                  ? derived.contaNome
-                  : derived.contasNeg > 0
-                    ? <><AlertTriangle size={13} style={{ color: "#ef4444" }} /> <span style={{ color: "#ef4444" }}>{derived.contasNeg} conta{derived.contasNeg !== 1 ? "s" : ""} negativa{derived.contasNeg !== 1 ? "s" : ""}</span></>
-                    : "Todas as contas positivas"}
-                delay={200}
               />
             </>
           )}
@@ -403,7 +370,7 @@ export default function FinanceiroPage() {
             </ChartCard>
           </div>
 
-          {/* Coluna direita: Contas em Aberto + Saldo por Conta */}
+          {/* Coluna direita: Contas em Aberto */}
           <div className="flex flex-col gap-3">
             <ChartCard
               title="Contas em Aberto"
@@ -413,17 +380,6 @@ export default function FinanceiroPage() {
             >
               {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 240 }} /> : (
                 <FinContasAbertoChart data={derived.contasAbertoChart} selectedMes={fMes} onMesClick={setFMes} />
-              )}
-            </ChartCard>
-
-            <ChartCard
-              title="Saldo por Conta"
-              subtitle="Saldo acumulado · clique numa conta para filtrar"
-              animationDelay={200}
-              info="Saldo acumulado de cada conta bancária/caixa (soma de todas as movimentações). Barras azuis à direita são saldos positivos; vermelhas à esquerda, negativos. Ordenado pelo maior impacto. Clique numa conta para destacá-la no painel."
-            >
-              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 180 }} /> : (
-                <FinSaldoContasChart data={derived.saldoChart} selectedConta={fConta} onContaClick={setFConta} />
               )}
             </ChartCard>
           </div>
