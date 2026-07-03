@@ -18,8 +18,8 @@ export interface KpiCardProps {
   emphasis?: boolean;
 }
 
-const POS = "#10b981";
-const NEG = "#ef4444";
+const POS = "var(--accent-green)";
+const NEG = "var(--accent-red)";
 
 export function KpiCard({
   label,
@@ -73,7 +73,7 @@ export function KpiCard({
             {isUp ? "+" : ""}
             {changePercent!.toFixed(1)}%
             <span className="font-normal" style={{ color: "var(--text-muted)" }}>
-              vs. anterior
+              em relação ao período anterior
             </span>
           </span>
         )}

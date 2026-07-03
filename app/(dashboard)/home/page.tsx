@@ -19,7 +19,7 @@ import { KpiCard } from "@/components/home/KpiCard";
 import { AnalyticalCard, type AnalyticalRow } from "@/components/home/AnalyticalCard";
 import { RankingVendedores } from "@/components/home/RankingVendedores";
 import { EvolucaoFaturamentoChart, type EvolucaoPoint } from "@/components/home/EvolucaoFaturamentoChart";
-import { type HomeSummaryResponse, type StatusLevel, isClienteNaoIdentificado } from "@/components/home/types";
+import { type HomeSummaryResponse, type StatusLevel } from "@/components/home/types";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -179,37 +179,39 @@ export default function HomePage() {
   if (!data) return <HomeSkeleton />;
 
   const { kpis, meta, diasUteis, emAberto, modulos } = data;
+  const consumidorFinal = modulos.clientes.consumidorFinal;
+  const maiorClienteIdentificado = modulos.clientes.maiorClienteIdentificado;
 
-  // ── KPI: contexto da projeção ─────────────────────────────────────────────
+  // ── KPI: contexto da projeção — Meta/Projeção/Dias úteis sempre usam o mês
+  // corrente como referência, independentemente do período escolhido no filtro
+  // acima (ver comentário em /api/home/summary/route.ts). Deixamos isso explícito
+  // no texto para não parecer que o card ignora o filtro por engano.
   const projecaoContext =
     meta.valor > 0 && meta.projecaoPercentMeta !== null
-      ? `${meta.projecaoPercentMeta.toFixed(0)}% da meta`
-      : `ritmo atual · ${diasUteis.trabalhados}/${diasUteis.total} dias úteis`;
+      ? `${meta.projecaoPercentMeta.toFixed(0)}% da meta do mês atual`
+      : `ritmo atual · ${diasUteis.trabalhados} de ${diasUteis.total} dias úteis do mês`;
 
-  // ── Alertas contextuais (sem emojis, derivados dos dados) ─────────────────
+  // ── Alertas contextuais dos blocos analíticos (mesma régua de severidade do
+  // Diagnóstico do período, para não divergir entre os dois lugares) ─────────
   const vendasAlert =
     modulos.vendas.metaPercent !== null && modulos.vendas.metaPercent >= 100
-      ? { level: "ok" as StatusLevel, text: "Meta do período superada." }
+      ? { level: "ok" as StatusLevel, text: "Meta do mês atual superada." }
       : modulos.vendas.metaPercent !== null && modulos.vendas.metaPercent >= 80
-      ? { level: "ok" as StatusLevel, text: "No ritmo para atingir a meta." }
+      ? { level: "ok" as StatusLevel, text: "No ritmo para atingir a meta do mês." }
       : null;
 
   const finAlert =
     modulos.financeiro.margemLucro < 0
-      ? { level: "crit" as StatusLevel, text: "Margem negativa: o custo dos produtos superou a receita." }
+      ? { level: "crit" as StatusLevel, text: "Resultado bruto negativo: o custo dos produtos superou o faturamento." }
       : modulos.financeiro.custoReceita > 75
-      ? { level: "warn" as StatusLevel, text: `Custo em ${modulos.financeiro.custoReceita.toFixed(0)}% da receita — pressão na margem.` }
+      ? { level: "warn" as StatusLevel, text: `Custo em ${modulos.financeiro.custoReceita.toFixed(0)}% do faturamento — pressão sobre a margem.` }
       : null;
 
-  const maiorCli = modulos.clientes.maiorCliente;
-  const consumidorShare = maiorCli && kpis.faturamento > 0 ? (maiorCli.valor / kpis.faturamento) * 100 : 0;
-  const isConsumidor = maiorCli ? isClienteNaoIdentificado(maiorCli.nome) : false;
-
   const cliAlert =
-    isConsumidor && consumidorShare >= 15
-      ? { level: "warn" as StatusLevel, text: "Parte relevante das vendas está sem cliente identificado." }
+    consumidorFinal.percentFaturamento >= 50
+      ? { level: "warn" as StatusLevel, text: "Maior parte das vendas sem identificação individual do cliente, o que limita a análise de clientes." }
       : modulos.clientes.taxaRecorrencia > 50
-      ? { level: "ok" as StatusLevel, text: "Boa fidelização: a maioria já havia comprado antes." }
+      ? { level: "ok" as StatusLevel, text: "Boa fidelização: a maioria dos clientes já havia comprado antes." }
       : null;
 
   const topProd = modulos.produtos.topProdutos;
@@ -217,7 +219,7 @@ export default function HomePage() {
   const top3Percent = kpis.faturamento > 0 ? (top3Soma / kpis.faturamento) * 100 : 0;
   const prodAlert =
     topProd[0] && topProd[0].percent > 40
-      ? { level: "warn" as StatusLevel, text: `Alta concentração: um produto responde por ${topProd[0].percent.toFixed(0)}% da receita.` }
+      ? { level: "warn" as StatusLevel, text: `Alta concentração: um produto responde por ${topProd[0].percent.toFixed(0)}% do faturamento.` }
       : null;
 
   // ── Linhas dos blocos analíticos ──────────────────────────────────────────
@@ -232,32 +234,35 @@ export default function HomePage() {
     {
       label: "Meta do mês",
       value: meta.valor > 0 ? formatCurrency(meta.valor) : "Não configurada",
-      subvalue: meta.valor > 0 && meta.percentAtingido !== null ? `${meta.percentAtingido.toFixed(0)}% atingida` : "Defina para acompanhar",
+      subvalue: meta.valor > 0 && meta.percentAtingido !== null
+        ? `${meta.percentAtingido.toFixed(0)}% atingida`
+        : "Defina uma meta para acompanhar o atingimento",
     },
     {
       label: "Orçamentos em aberto",
       value: formatNumber(emAberto.qtd),
       subvalue: `${formatCurrency(emAberto.valorTotal)} estimado`,
+      hint: "Reflete a situação atual dos orçamentos em aberto, não o período selecionado no filtro.",
     },
   ];
 
   const finRows: AnalyticalRow[] = [
     {
-      label: "Resultado bruto est.",
+      label: "Resultado bruto estimado",
       value: formatCurrency(modulos.financeiro.lucroLiquido),
       subvalue: `${modulos.financeiro.margemLucro.toFixed(1)}% de margem`,
       highlight: modulos.financeiro.margemLucro >= 0 ? "ok" : "crit",
-      hint: "Receita menos o custo dos produtos vendidos. Não inclui despesas operacionais (aluguel, folha, etc.).",
+      hint: "Faturamento do período menos o custo dos produtos vendidos. Não desconta devoluções, impostos, despesas operacionais ou outras deduções.",
       wide: true,
     },
     {
-      label: "Custo sobre receita",
+      label: "Custo sobre o faturamento",
       value: `${modulos.financeiro.custoReceita.toFixed(1)}%`,
       subvalue: modulos.financeiro.custoStatus === "ok" ? "dentro do esperado" : "acima do ideal",
       highlight: modulos.financeiro.custoStatus === "ok" ? "ok" : modulos.financeiro.custoStatus === "alert" ? "warn" : "crit",
     },
     {
-      label: "Forma principal",
+      label: "Forma de pagamento principal",
       value: modulos.financeiro.formaPrincipalPagto ?? "—",
       subvalue: modulos.financeiro.formaPrincipalPagto ? `${modulos.financeiro.formaPrincipalPercent.toFixed(0)}% das vendas` : undefined,
     },
@@ -265,42 +270,54 @@ export default function HomePage() {
 
   const cliRows: AnalyticalRow[] = [
     {
-      label: "Atendidos no período",
-      value: formatNumber(modulos.clientes.total),
+      label: "Clientes identificados",
+      value: formatNumber(modulos.clientes.identificados),
       subvalue: `${kpis.clientesNovos} novos · ${kpis.clientesRecorrentes} recorrentes`,
+      hint: "Clientes com cadastro próprio, excluindo o cadastro genérico de consumidor final.",
     },
     {
       label: "Recorrência",
       value: `${modulos.clientes.taxaRecorrencia.toFixed(0)}%`,
-      hint: "Clientes que já haviam comprado antes ÷ total de clientes do período.",
+      hint: "Clientes com mais de uma compra registrada em toda a história do cadastro (não apenas dentro deste período) — mesma regra usada no Dashboard de Clientes.",
       highlight: modulos.clientes.taxaRecorrencia > 45 ? "ok" : "warn",
     },
     {
       label: "Perfil dominante",
       value: `${modulos.clientes.perfilDominante} · ${modulos.clientes.perfilPercent.toFixed(0)}%`,
     },
-    isConsumidor
+    maiorClienteIdentificado
       ? {
-          label: "Sem cliente identificado",
-          value: formatCurrency(maiorCli!.valor),
-          subvalue: "vendas de balcão sem cadastro",
-          highlight: "warn" as StatusLevel,
+          label: "Maior cliente identificado",
+          value: maiorClienteIdentificado.nome,
+          subvalue: `${formatCurrency(maiorClienteIdentificado.valor)} no período`,
+          highlight: "ok" as StatusLevel,
           wide: true,
         }
       : {
-          label: "Maior cliente",
-          value: maiorCli?.nome ?? "—",
-          subvalue: maiorCli ? `${formatCurrency(maiorCli.valor)} no período` : undefined,
-          highlight: maiorCli ? ("ok" as StatusLevel) : null,
+          label: "Maior cliente identificado",
+          value: "Nenhum cliente identificado se destacou",
+          subvalue: consumidorFinal.valor > 0 ? "todo o volume do período foi para consumidor final" : undefined,
           wide: true,
         },
+    ...(consumidorFinal.valor > 0
+      ? [
+          {
+            label: "Vendas para consumidor final",
+            value: formatCurrency(consumidorFinal.valor),
+            subvalue: `${consumidorFinal.percentFaturamento.toFixed(0)}% do faturamento · vendas rápidas de balcão`,
+            highlight: (consumidorFinal.percentFaturamento >= 50 ? "warn" : "info") as StatusLevel,
+            hint: "Vendas atribuídas ao cadastro genérico de consumidor final — uma operação comercial válida (ex.: venda rápida com NFC-e), não um erro de cadastro.",
+            wide: true,
+          },
+        ]
+      : []),
   ];
 
   const prodRows: AnalyticalRow[] = [
     {
-      label: "Top produto",
+      label: "Produto com maior participação",
       value: topProd[0]?.nome ?? "—",
-      subvalue: topProd[0] ? `${topProd[0].percent.toFixed(1)}% da receita · ${formatCurrency(topProd[0].valor)}` : undefined,
+      subvalue: topProd[0] ? `${topProd[0].percent.toFixed(1)}% do faturamento · ${formatCurrency(topProd[0].valor)}` : undefined,
       wide: true,
     },
     {
@@ -314,9 +331,9 @@ export default function HomePage() {
       subvalue: topProd[2] ? formatCurrency(topProd[2].valor) : undefined,
     },
     {
-      label: "Top 3 concentram",
+      label: "Top 3 produtos concentram",
       value: formatCurrency(top3Soma),
-      subvalue: `${top3Percent.toFixed(0)}% do faturamento`,
+      subvalue: `${top3Percent.toFixed(0)}% do faturamento do período`,
       wide: true,
     },
   ];
@@ -341,7 +358,7 @@ export default function HomePage() {
           <span className="text-xs inline-flex items-center gap-1.5" style={{ color: "var(--text-muted)" }}>
             <span
               className={isRefreshing ? "pulse-dot" : ""}
-              style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981", display: "inline-block" }}
+              style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--accent-green)", display: "inline-block" }}
             />
             {isRefreshing ? "Atualizando…" : `Atualizado às ${updatedAt}`}
           </span>
@@ -362,52 +379,59 @@ export default function HomePage() {
         {/* ── KPIs executivos ───────────────────────────────────── */}
         <div className="flex gap-3 flex-wrap">
           <KpiCard
-            label="Faturamento"
+            label="Faturamento do período"
             value={formatCurrency(kpis.faturamento)}
             changePercent={kpis.faturamentoVar}
-            context={`${formatNumber(kpis.totalVendas)} vendas no período`}
+            context={`${formatNumber(kpis.totalVendas)} vendas e ordens de serviço`}
+            hint="Soma das vendas e ordens de serviço finalizadas no período. Não desconta devoluções."
             emphasis
           />
           <KpiCard
-            label="Resultado bruto est."
+            label="Resultado bruto estimado"
             value={formatCurrency(kpis.lucroLiquido)}
             changePercent={kpis.lucroVar}
             context={`${kpis.margemLucro.toFixed(1)}% de margem`}
-            hint="Receita menos o custo dos produtos vendidos. Não inclui despesas operacionais."
+            hint="Faturamento do período menos o custo dos produtos vendidos. Não inclui despesas operacionais, impostos ou outras deduções."
           />
           <KpiCard
             label="Ticket médio"
             value={formatCurrency(kpis.ticketMedio)}
             changePercent={kpis.ticketMedioVar}
+            hint="Faturamento do período dividido pelo número de vendas e ordens de serviço finalizadas."
           />
           <KpiCard
-            label="Vendas / OS"
+            label="Vendas e ordens de serviço"
             value={formatNumber(kpis.totalVendas)}
             changePercent={kpis.vendasVar}
             context={`${formatNumber(kpis.totalVendasAnt)} no período anterior`}
-            hint="Inclui vendas de balcão e ordens de serviço finalizadas."
+            hint="Conta documentos de venda de balcão e de ordens de serviço finalizadas, somados."
           />
           <KpiCard
             label="Clientes atendidos"
             value={formatNumber(kpis.totalClientes)}
             context={`${kpis.clientesNovos} novos · ${kpis.clientesRecorrentes} recorrentes`}
+            hint="Inclui clientes com cadastro identificado e o cadastro genérico de consumidor final (vendas de balcão)."
           />
           <KpiCard
             label="Projeção do mês"
             value={formatCurrency(meta.projecao)}
             context={projecaoContext}
-            hint="Estimativa de fechamento do mês com base no ritmo diário do período."
+            hint="Estimativa de fechamento do mês atual, com base no ritmo diário e nos dias úteis restantes. Sempre se refere ao mês corrente, independentemente do período selecionado no filtro acima."
           />
         </div>
 
         {/* ── Evolução + Ranking ────────────────────────────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           <div className="lg:col-span-2">
-            <ChartCard title="Evolução do faturamento" subtitle="últimos 12 meses">
+            <ChartCard
+              title="Evolução mensal do faturamento"
+              subtitle="Últimos 12 meses · mês atual parcial"
+              info="Este gráfico sempre mostra os últimos 12 meses corridos, com o mês atual parcial (ainda em andamento) — independente do período selecionado no filtro acima, que afeta apenas os cartões de KPI e os blocos analíticos abaixo."
+            >
               <EvolucaoFaturamentoChart data={evolucao} />
             </ChartCard>
           </div>
-          <ChartCard title="Ranking de faturamento" subtitle="vendedores no período">
+          <ChartCard title="Ranking de vendedores" subtitle="Por faturamento no período selecionado">
             <RankingVendedores ranking={data.rankingVendedores} />
           </ChartCard>
         </div>
@@ -416,7 +440,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <AnalyticalCard
             title="Vendas"
-            subtitle="quem e quanto vendeu"
+            subtitle="Vendedores e metas do período"
             icon={ShoppingCart}
             href="/dashboard"
             isUnlocked={hasFeature("modulo_vendas")}
@@ -425,7 +449,7 @@ export default function HomePage() {
             rows={vendasRows}
             progress={
               modulos.vendas.metaPercent !== null
-                ? { value: modulos.vendas.metaPercent, label: `${modulos.vendas.metaPercent.toFixed(0)}% da meta atingida` }
+                ? { value: modulos.vendas.metaPercent, label: `${modulos.vendas.metaPercent.toFixed(0)}% da meta do mês atual atingida` }
                 : undefined
             }
             alert={vendasAlert}
@@ -433,7 +457,7 @@ export default function HomePage() {
 
           <AnalyticalCard
             title="Financeiro"
-            subtitle="resultado e custos"
+            subtitle="Resumo financeiro do período"
             icon={Landmark}
             href="/dashboard/financeiro"
             isUnlocked={hasFeature("modulo_financeiro")}
@@ -442,20 +466,20 @@ export default function HomePage() {
             rows={finRows}
             progress={{
               value: Math.min(modulos.financeiro.custoReceita, 100),
-              label: `Custo sobre receita: ${modulos.financeiro.custoReceita.toFixed(1)}%`,
+              label: `Custo sobre o faturamento: ${modulos.financeiro.custoReceita.toFixed(1)}%`,
               color:
                 modulos.financeiro.custoStatus === "ok"
-                  ? "#10b981"
+                  ? "var(--accent-green)"
                   : modulos.financeiro.custoStatus === "alert"
-                  ? "#f59e0b"
-                  : "#ef4444",
+                  ? "var(--accent-yellow)"
+                  : "var(--accent-red)",
             }}
             alert={finAlert}
           />
 
           <AnalyticalCard
             title="Clientes"
-            subtitle="base atendida no período"
+            subtitle="Clientes no período"
             icon={Users}
             href="/dashboard/clientes"
             isUnlocked={hasFeature("modulo_clientes")}
@@ -468,7 +492,7 @@ export default function HomePage() {
 
           <AnalyticalCard
             title="Produtos"
-            subtitle="concentração da receita"
+            subtitle="Produtos com maior participação"
             icon={Package}
             href="/dashboard/produtos"
             isUnlocked={hasFeature("modulo_produtos")}
@@ -476,7 +500,7 @@ export default function HomePage() {
             onUnlock={openUpgrade}
             rows={prodRows}
             progress={
-              topProd[0] ? { value: topProd[0].percent, label: `Produto principal: ${topProd[0].percent.toFixed(1)}% da receita` } : undefined
+              topProd[0] ? { value: topProd[0].percent, label: `Produto principal: ${topProd[0].percent.toFixed(1)}% do faturamento` } : undefined
             }
             alert={prodAlert}
           />

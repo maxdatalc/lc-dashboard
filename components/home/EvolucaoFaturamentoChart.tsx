@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 import {
   AreaChart,
   Area,
@@ -10,6 +12,14 @@ import {
   CartesianGrid,
 } from "recharts";
 import { formatCurrency } from "@/lib/utils/format";
+
+// Recharts define stroke/fill como atributo SVG e não resolve var() de forma
+// confiável em todos os elementos (ex.: <stop>) — por isso a cor vem em hex fixo,
+// mesma convenção dos demais gráficos do projeto. Para respeitar o tema, o hex é
+// escolhido a partir de --accent-cyan de cada tema (globals.css) em vez de fixar
+// um único tom: o ciano elétrico do escuro fica estridente sobre fundo claro.
+const CYAN_BY_THEME = { dark: "#00e5ff", light: "#1d4ed8" } as const;
+const CARD_BG_BY_THEME = { dark: "#111827", light: "#ffffff" } as const;
 
 export interface EvolucaoPoint {
   mes: string;
@@ -50,6 +60,14 @@ function ChartTooltip({ active, payload, label }: TooltipProps) {
 }
 
 export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  const theme = mounted && resolvedTheme === "light" ? "light" : "dark";
+  const CYAN = CYAN_BY_THEME[theme];
+  const CARD_BG = CARD_BG_BY_THEME[theme];
+
   const temDados = data.some((d) => d.vendas > 0);
 
   if (!temDados) {
@@ -62,11 +80,6 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
       </div>
     );
   }
-
-  // Recharts aplica cor de linha/área como atributo SVG (não resolve var() de CSS),
-  // então usamos hex fixo — mesmo padrão dos demais gráficos do projeto. O ciano
-  // é a cor primária da identidade. Textos de eixo usam vars (funcionam no <text>).
-  const CYAN = "#00e5ff";
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -101,7 +114,7 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
           strokeWidth={2}
           fill="url(#homeFaturGrad)"
           dot={false}
-          activeDot={{ r: 4, fill: CYAN, stroke: "#0a0f1e", strokeWidth: 2 }}
+          activeDot={{ r: 4, fill: CYAN, stroke: CARD_BG, strokeWidth: 2 }}
         />
       </AreaChart>
     </ResponsiveContainer>

@@ -45,10 +45,13 @@ export interface HomeSummaryResponse {
     };
     clientes: {
       total: number;
+      identificados: number;
       taxaRecorrencia: number;
       perfilDominante: "PJ" | "PF";
       perfilPercent: number;
       maiorCliente: { nome: string; valor: number } | null;
+      maiorClienteIdentificado: { nome: string; valor: number } | null;
+      consumidorFinal: { valor: number; qtd: number; clientesDistintos: number; percentFaturamento: number };
       insight: string | null;
     };
     produtos: {
@@ -60,20 +63,32 @@ export interface HomeSummaryResponse {
 }
 
 // ─── Paleta de status (usada pelo diagnóstico e por realces contextuais) ───────
-
-export type StatusLevel = "ok" | "warn" | "crit";
+//
+// "info" é distinto de "ok": não é um veredito positivo, é contexto neutro (ex.: vendas
+// para consumidor final, meta não configurada) que não deve parecer bom nem ruim.
+// Cores usam variáveis CSS (não hex fixo) para se adaptarem corretamente ao tema
+// claro/escuro — cada tema já define seu próprio tom de verde/âmbar/vermelho em
+// app/globals.css.
+export type StatusLevel = "ok" | "warn" | "crit" | "info";
 
 export const STATUS_TOKENS: Record<
   StatusLevel,
   { color: string; soft: string; label: string }
 > = {
-  ok:   { color: "#10b981", soft: "rgba(16,185,129,0.12)", label: "Saudável" },
-  warn: { color: "#f59e0b", soft: "rgba(245,158,11,0.12)", label: "Atenção" },
-  crit: { color: "#ef4444", soft: "rgba(239,68,68,0.12)", label: "Crítico" },
+  ok:   { color: "var(--accent-green)",  soft: "color-mix(in srgb, var(--accent-green) 14%, transparent)",  label: "Saudável" },
+  warn: { color: "var(--accent-yellow)", soft: "color-mix(in srgb, var(--accent-yellow) 14%, transparent)", label: "Atenção" },
+  crit: { color: "var(--accent-red)",    soft: "color-mix(in srgb, var(--accent-red) 14%, transparent)",    label: "Crítico" },
+  info: { color: "var(--accent-cyan)",   soft: "color-mix(in srgb, var(--accent-cyan) 12%, transparent)",   label: "Informativo" },
 };
 
-// "CONSUMIDOR" é o cliente padrão de balcão do MaxManager — não é um cliente real.
-export function isClienteNaoIdentificado(nome: string | null | undefined): boolean {
+// "CONSUMIDOR"/"CLIENTE BALCÃO" é o cadastro genérico de venda rápida/balcão do
+// MaxManager — representa uma operação comercial válida (ex.: NFC-e sem identificação
+// individual do cliente), não um erro de cadastro. Cobre "CONSUMIDOR", "CONSUMIDOR
+// FINAL", "CLIENTE CONSUMIDOR", "CLIENTE BALCÃO/BALCAO", "VENDA BALCÃO/BALCAO".
+// Usada apenas para exibição no frontend — a detecção autoritativa (que também
+// considera cliId = 1) acontece no backend, ver isGenericConsumidor em
+// app/api/home/summary/route.ts.
+export function isConsumidorFinal(nome: string | null | undefined): boolean {
   if (!nome) return false;
-  return /consumidor|não\s*identificad|nao\s*identificad|consumidor\s*final/i.test(nome);
+  return /consumidor|balc/i.test(nome);
 }

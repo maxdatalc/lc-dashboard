@@ -56,10 +56,22 @@ export interface HomeSummaryResponse {
     };
     clientes: {
       total: number;
+      /** total de clientes distintos, excluindo o(s) cadastro(s) genérico(s) de consumidor final (ver consumidorFinal) */
+      identificados: number;
       taxaRecorrencia: number;
       perfilDominante: "PJ" | "PF";
       perfilPercent: number;
+      /** Maior cliente do período em valor — pode ser o cadastro genérico de consumidor final, se ele de fato liderar. */
       maiorCliente: { nome: string; valor: number } | null;
+      /** Maior cliente do período excluindo cadastros genéricos de consumidor final — calculado
+       *  a partir do mesmo dado completo de maiorCliente, não uma estimativa. null apenas se
+       *  100% das vendas do período foram para cadastros genéricos. */
+      maiorClienteIdentificado: { nome: string; valor: number } | null;
+      /** Vendas de balcão/venda rápida atribuídas ao(s) cadastro(s) genérico(s) de consumidor
+       *  final. Detecção: cliId = 1 (observação de campo, não flag documentada do schema) OU
+       *  nome contendo "CONSUMIDOR" ou "BALC" — ver SQL_CONSUMIDOR_FINAL. Representa uma
+       *  operação comercial válida (venda rápida/balcão), não um erro de cadastro. */
+      consumidorFinal: { valor: number; qtd: number; clientesDistintos: number; percentFaturamento: number };
       insight: string | null;
     };
     produtos: {
@@ -122,8 +134,15 @@ interface ProdutoRow {
 }
 
 interface MaiorClienteRow {
+  cliId: number;
   nome: string;
   valor: number;
+}
+
+interface ConsumidorFinalRow {
+  valor: number;
+  clientesDistintos: number;
+  qtd: number;
 }
 
 // ── Período anterior ──────────────────────────────────────────────────────────
@@ -249,6 +268,9 @@ function variacaoPercent(atual: number, anterior: number): number | null {
 
 // ── SQL Queries ───────────────────────────────────────────────────────────────
 
+// vedTotalNf > 0 alinha com /api/dashboard/kpis (buildSqlKpis): exclui documentos de
+// valor zero/negativo da contagem de vendas e do faturamento, mesmo critério usado
+// no Dashboard de Vendas — antes a Home contava esses documentos e o Dashboard não.
 const SQL_KPI = `
   SELECT
     ISNULL(SUM(vedTotalNf), 0)                   AS faturamento,
@@ -258,8 +280,10 @@ const SQL_KPI = `
   WHERE empId = @empId
     AND vedStatus = 'F'
     AND vedTipo IN ('OS', 'VE')
+    AND vedTotalNf > 0
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
 
+// vedTotalNf > 0 no JOIN de venda alinha com /api/dashboard/kpis (buildSqlCusto).
 const SQL_CUSTO = `
   SELECT ISNULL(SUM(vi.vdiQtde * vi.vdiProCustoFinal), 0) AS custo
   FROM vendaItem vi
@@ -267,30 +291,45 @@ const SQL_CUSTO = `
   WHERE v.empId = @empId
     AND v.vedStatus = 'F'
     AND v.vedTipo IN ('OS', 'VE')
+    AND v.vedTotalNf > 0
     AND vi.vdiCancel = 0
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
 
+// Regra de recorrência alinhada à do Dashboard de Clientes (/api/dashboard/clientes/overview,
+// query "Taxa de recorrência"): recorrente = cliente com MAIS DE 1 compra finalizada em toda
+// a vida do cadastro (contagem all-time), não "comprou antes do início deste período". É uma
+// definição diferente da usada em /api/dashboard/charts?type=clientes-retencao (que conta
+// "primeira compra antes do período") — essa era a regra que a Home usava até esta revisão,
+// e por isso batia com o widget de retenção do Dashboard de Vendas, mas não com o Dashboard
+// de Clientes. Escolhemos aqui bater com o Dashboard de Clientes por ser o destino nomeado
+// nesta revisão; isso significa que a Home agora DIVERGE do widget de retenção do Dashboard
+// de Vendas — um mesmo termo ("cliente recorrente") com três regras diferentes já convivia
+// no código antes desta mudança (Home antiga, Dashboard de Vendas, Dashboard de Clientes);
+// unificar as três exigiria alterar também as outras duas telas, fora do escopo desta revisão.
+//
+// Diferença deliberada e documentada em relação à query original do Dashboard de Clientes:
+// aqui excluímos vedClienteId = 0 (sentinela de "sem cliente identificado"), que a query
+// original não exclui — sem essa exclusão, vendas sem cliente identificado seriam contadas
+// como se fossem repetidas compras de um único "cliente" (id 0), inflando artificialmente a
+// contagem de recorrentes.
 const SQL_RECORRENCIA = `
-  WITH curPeriodo AS (
-    SELECT DISTINCT vedClienteId
+  WITH compras AS (
+    SELECT vedClienteId, COUNT(*) AS n
     FROM venda
     WHERE empId = @empId AND vedStatus = 'F' AND vedTipo IN ('OS','VE')
-      AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+      AND vedFechamento IS NOT NULL
       AND vedClienteId IS NOT NULL AND vedClienteId <> 0
-  ),
-  histPeriodo AS (
-    SELECT DISTINCT vedClienteId
-    FROM venda
-    WHERE empId = @empId AND vedStatus = 'F' AND vedTipo IN ('OS','VE')
-      AND CONVERT(date, vedFechamento) < @start
-      AND CONVERT(date, vedFechamento) >= DATEADD(year, -10, @start)
-      AND vedClienteId IS NOT NULL AND vedClienteId <> 0
+    GROUP BY vedClienteId
   )
   SELECT
-    COUNT(DISTINCT CASE WHEN h.vedClienteId IS NULL     THEN c.vedClienteId END) AS novos,
-    COUNT(DISTINCT CASE WHEN h.vedClienteId IS NOT NULL THEN c.vedClienteId END) AS recorrentes
-  FROM curPeriodo c
-  LEFT JOIN histPeriodo h ON h.vedClienteId = c.vedClienteId`;
+    COUNT(DISTINCT CASE WHEN cp.n <= 1 THEN v.vedClienteId END) AS novos,
+    COUNT(DISTINCT CASE WHEN cp.n > 1  THEN v.vedClienteId END) AS recorrentes
+  FROM venda v
+  LEFT JOIN compras cp ON cp.vedClienteId = v.vedClienteId
+  WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
+    AND v.vedFechamento IS NOT NULL
+    AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0
+    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
 
 const SQL_VE_ABERTO = `
   SELECT COUNT(DISTINCT v.vedId) AS qtd,
@@ -326,8 +365,20 @@ const SQL_META = `
   FROM usuarioMetaMensal
   WHERE empId = @empId AND ummAno = YEAR(GETDATE())`;
 
+// Sem TOP: a Home consulta cada loja selecionada separadamente e mescla os resultados
+// no JS (ver loop abaixo). Qualquer TOP aplicado aqui, por maior que seja, corta
+// candidatos ANTES da consolidação multi-loja — um vendedor pode ficar fora do TOP N
+// de cada loja individualmente e ainda assim ser o maior ao somar todas as lojas
+// selecionadas (ex.: 51º em cada uma das 2 lojas, mas 1º ao consolidar). Só é seguro
+// aplicar corte DEPOIS de somar por nome entre lojas — o que já é feito mais abaixo
+// (allVendedores → vendedorMap → rankingVendedores, corte final em 5). O volume desta
+// consulta é por natureza pequeno (um vendedor por linha, tipicamente dezenas por
+// loja), então remover o TOP não tem custo de performance perceptível aqui. Se algum
+// dia o volume crescer a ponto de doer, a alternativa correta é migrar para uma única
+// consulta com `empId IN (...)` via getLojasBridge (como /api/dashboard/charts já faz),
+// que hoje não é usada nesta rota porque cada loja pode ter uma bridge SQL distinta.
 const SQL_VENDEDORES = `
-  SELECT TOP 5
+  SELECT
     c.cliNome AS nome,
     ISNULL(SUM(v.vedTotalNf), 0) AS valor
   FROM venda v
@@ -338,8 +389,13 @@ const SQL_VENDEDORES = `
   GROUP BY c.cliId, c.cliNome
   ORDER BY valor DESC`;
 
+// Sem TOP: retorna todas as formas de pagamento da loja (tipicamente poucas dezenas de
+// linhas). Antes só trazia a líder de CADA loja (TOP 1), então ao combinar lojas a
+// forma realmente dominante podia nunca ser capturada se fosse a 2ª em todas elas.
+// A agregação por nome (allFormas → formaMap, mais abaixo) já soma corretamente
+// entre lojas — só precisava receber o conjunto completo, não só o topo de cada uma.
 const SQL_FORMA_PRINCIPAL = `
-  SELECT TOP 1
+  SELECT
     pgtTipoDesc AS forma,
     SUM(pgtValor) AS total
   FROM vendaPgto vp
@@ -366,8 +422,11 @@ const SQL_PERFIL = `
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
     AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0`;
 
+// Sem TOP, pelo mesmo motivo de SQL_VENDEDORES: qualquer corte por loja antes da
+// consolidação multi-loja pode esconder o produto líder real do conjunto combinado.
+// O corte final (top 3) só é aplicado depois de somar por nome entre lojas, mais abaixo.
 const SQL_TOP_PRODUTOS = `
-  SELECT TOP 3
+  SELECT
     vi.vdiProNome                              AS nome,
     ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0)  AS valor,
     ISNULL(SUM(vi.vdiQtde), 0)                AS qtde
@@ -380,8 +439,16 @@ const SQL_TOP_PRODUTOS = `
   GROUP BY vi.vdiProNome
   ORDER BY valor DESC`;
 
+// Sem TOP (antes TOP 1, depois TOP 50) — nenhum corte antes da consolidação multi-loja.
+// Um cliente que compra em várias lojas tem o valor somado por nome no JS (ver "Maior
+// cliente" mais abaixo) antes de escolher o maior, e sem TOP não há como "sumir" um
+// candidato: todo cliente com pelo menos 1 compra no período retorna nesta consulta.
+// Inclui c.cliId para permitir excluir corretamente o cadastro genérico de consumidor
+// final (cliId = 1, ver SQL_CONSUMIDOR_FINAL) do "maior cliente identificado", sem
+// depender só do nome.
 const SQL_MAIOR_CLIENTE = `
-  SELECT TOP 1
+  SELECT
+    c.cliId AS cliId,
     c.cliNome AS nome,
     ISNULL(SUM(v.vedTotalNf), 0) AS valor
   FROM venda v
@@ -389,8 +456,42 @@ const SQL_MAIOR_CLIENTE = `
   WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
     AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0
-  GROUP BY v.vedClienteId, c.cliNome
+  GROUP BY v.vedClienteId, c.cliId, c.cliNome
   ORDER BY valor DESC`;
+
+// Vendas de balcão para o cadastro genérico "consumidor final" — uma operação comercial
+// válida (ex.: NFC-e de venda rápida), não um erro de cadastro.
+//
+// Detecção (heurística, sem flag dedicada no schema acessível a este projeto):
+//  1. c.cliId = 1 — sinal PRIMÁRIO. Observação de campo (não uma garantia documentada do
+//     MaxManager): o cadastro genérico de consumidor final tende a ocupar sempre o cliId=1
+//     de cada loja/empId, o mesmo padrão já visto em produto (proId=1 é o "curinga" — ver
+//     memória do projeto). Ainda assim é uma convenção observada, não uma regra de schema.
+//  2. Nome contém "CONSUMIDOR" — cobre "CONSUMIDOR", "CONSUMIDOR FINAL", "CLIENTE CONSUMIDOR".
+//  3. Nome contém "BALC" — cobre "CLIENTE BALCÃO"/"CLIENTE BALCAO" e "VENDA BALCÃO"/"VENDA
+//     BALCAO" (substring comum às duas grafias, com e sem acento).
+// Usada tanto para o agregado de "vendas para consumidor final" quanto (via cliId/nome, ver
+// isGenericConsumidor mais abaixo) para excluir esse cadastro do "maior cliente identificado".
+// clientesDistintos permite abater esse(s) cadastro(s) de "clientes atendidos" para chegar
+// em "clientes identificados" sem alterar o total bruto.
+const SQL_CONSUMIDOR_FINAL = `
+  SELECT
+    ISNULL(SUM(v.vedTotalNf), 0)        AS valor,
+    COUNT(*)                             AS qtd,
+    COUNT(DISTINCT v.vedClienteId)       AS clientesDistintos
+  FROM venda v
+  JOIN cliente c ON v.vedClienteId = c.cliId
+  WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
+    AND v.vedTotalNf > 0
+    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+    AND (c.cliId = 1 OR c.cliNome LIKE '%CONSUMIDOR%' OR c.cliNome LIKE '%BALC%')`;
+
+// Mesma heurística de SQL_CONSUMIDOR_FINAL, aplicada no JS sobre as linhas de
+// SQL_MAIOR_CLIENTE (que já trazem cliId) para decidir o "maior cliente identificado".
+function isGenericConsumidor(nome: string, cliId: number): boolean {
+  if (cliId === 1) return true;
+  return /consumidor|balc/i.test(nome);
+}
 
 // ── Route Handler ─────────────────────────────────────────────────────────────
 
@@ -443,6 +544,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   let metaValor = 0;
   let qtdPf = 0, qtdPj = 0;
   let totalPagto = 0;
+  let valorConsumidorFinal = 0, qtdConsumidorFinal = 0, clientesDistintosConsumidorFinal = 0;
 
   // Listas para qualitativo (top vendedores, topProdutos, etc.)
   const allVendedores: VendedorRow[] = [];
@@ -472,6 +574,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       perfilRows,
       topProdutosRows,
       maiorClienteRows,
+      consumidorFinalRows,
     ] = await Promise.all([
       safe(queryBridge<KpiRow>(config, SQL_KPI, { ...ep, ...sp }), []),
       safe(queryBridge<KpiRow>(config, SQL_KPI, { ...ep, ...spa }), []),
@@ -487,6 +590,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       safe(queryBridge<PerfilRow>(config, SQL_PERFIL, { ...ep, ...sp }), []),
       safe(queryBridge<ProdutoRow>(config, SQL_TOP_PRODUTOS, { ...ep, ...sp }), []),
       safe(queryBridge<MaiorClienteRow>(config, SQL_MAIOR_CLIENTE, { ...ep, ...sp }), []),
+      safe(queryBridge<ConsumidorFinalRow>(config, SQL_CONSUMIDOR_FINAL, { ...ep, ...sp }), []),
     ]);
 
     const kpi    = kpiRows[0]    ?? { faturamento: 0, totalVendas: 0, totalClientes: 0 };
@@ -517,10 +621,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     totalPagto += Number(totalPagtoRows[0]?.totalGeral ?? 0);
 
+    const consumidorFinal = consumidorFinalRows[0] ?? { valor: 0, qtd: 0, clientesDistintos: 0 };
+    valorConsumidorFinal              += Number(consumidorFinal.valor ?? 0);
+    qtdConsumidorFinal                += Number(consumidorFinal.qtd ?? 0);
+    clientesDistintosConsumidorFinal  += Number(consumidorFinal.clientesDistintos ?? 0);
+
     for (const v of vendedoresRows) allVendedores.push({ nome: v.nome, valor: Number(v.valor ?? 0) });
     for (const p of topProdutosRows) allProdutos.push({ nome: p.nome, valor: Number(p.valor ?? 0), qtde: Number(p.qtde ?? 0) });
-    if (maiorClienteRows[0]) allClientes.push({ nome: maiorClienteRows[0].nome, valor: Number(maiorClienteRows[0].valor ?? 0) });
-    if (formaPrincipalRows[0]) allFormas.push({ forma: formaPrincipalRows[0].forma, total: Number(formaPrincipalRows[0].total ?? 0) });
+    // Coleta todas as linhas (não só a [0]) — a agregação por nome abaixo soma o
+    // mesmo cliente/forma de pagamento entre lojas antes de escolher o maior.
+    for (const c of maiorClienteRows) allClientes.push({ cliId: Number(c.cliId), nome: c.nome, valor: Number(c.valor ?? 0) });
+    for (const f of formaPrincipalRows) allFormas.push({ forma: f.forma, total: Number(f.total ?? 0) });
   }
 
   if (!bridgeFound) {
@@ -583,8 +694,34 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     percent: faturamento > 0 ? parseFloat(((p.valor / faturamento) * 100).toFixed(2)) : 0,
   }));
 
-  // Maior cliente
-  const maiorCliente = allClientes.sort((a, b) => b.valor - a.valor)[0] ?? null;
+  // Maior cliente: agrupa por nome antes de escolher o maior — um cliente que compra
+  // em mais de uma loja selecionada tem o valor somado entre elas (ver SQL_MAIOR_CLIENTE,
+  // que agora não tem TOP — todo cliente do período entra nesta agregação, sem exceção).
+  const clienteMap = new Map<string, { valor: number; generico: boolean }>();
+  for (const c of allClientes) {
+    const cur = clienteMap.get(c.nome) ?? { valor: 0, generico: false };
+    clienteMap.set(c.nome, {
+      valor: cur.valor + c.valor,
+      generico: cur.generico || isGenericConsumidor(c.nome, c.cliId),
+    });
+  }
+  const clienteEntries = Array.from(clienteMap.entries())
+    .map(([nome, v]) => ({ nome, valor: v.valor, generico: v.generico }))
+    .sort((a, b) => b.valor - a.valor);
+
+  // Maior cliente (geral) — pode ser o cadastro genérico de consumidor final, se ele
+  // de fato concentrar o maior volume do período.
+  const maiorClienteTop = clienteEntries[0];
+  const maiorCliente = maiorClienteTop ? { nome: maiorClienteTop.nome, valor: maiorClienteTop.valor } : null;
+
+  // Maior cliente IDENTIFICADO — calculado a partir do mesmo conjunto completo de dados
+  // (não uma estimativa à parte), apenas excluindo os cadastros genéricos identificados
+  // por isGenericConsumidor. Só fica null se TODAS as vendas do período foram para
+  // cadastros genéricos — nesse caso não há dado para apurar um cliente real "maior".
+  const maiorClienteIdentificadoTop = clienteEntries.find((c) => !c.generico) ?? null;
+  const maiorClienteIdentificado = maiorClienteIdentificadoTop
+    ? { nome: maiorClienteIdentificadoTop.nome, valor: maiorClienteIdentificadoTop.valor }
+    : null;
 
   // Forma principal de pagamento
   const formaMap = new Map<string, number>();
@@ -617,6 +754,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     : null;
 
   const metaPercentVendas = percentAtingido;
+
+  // Consumidor final: "clientes identificados" abate do total os cadastros genéricos
+  // de consumidor final detectados (heurística por nome — ver SQL_CONSUMIDOR_FINAL).
+  const clientesIdentificados = Math.max(totalClientes - clientesDistintosConsumidorFinal, 0);
+  const consumidorFinalPercent = faturamento > 0
+    ? parseFloat(((valorConsumidorFinal / faturamento) * 100).toFixed(2))
+    : 0;
 
   // Label do período
   const periodoLabel = period === "month"
@@ -672,10 +816,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       },
       clientes: {
         total: totalClientes,
+        identificados: clientesIdentificados,
         taxaRecorrencia,
         perfilDominante,
         perfilPercent,
         maiorCliente,
+        maiorClienteIdentificado,
+        consumidorFinal: {
+          valor: valorConsumidorFinal,
+          qtd: qtdConsumidorFinal,
+          clientesDistintos: clientesDistintosConsumidorFinal,
+          percentFaturamento: consumidorFinalPercent,
+        },
         insight: insightClientes(taxaRecorrencia),
       },
       produtos: {
