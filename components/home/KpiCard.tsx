@@ -53,11 +53,16 @@ export function KpiCard({
       </div>
 
       <p
-        className="text-[26px] font-bold leading-none tabular-nums"
+        className="text-[22px] font-bold leading-tight tabular-nums break-words"
         style={{
           color: "var(--text-primary)",
           fontFamily: "var(--font-numeric)",
           letterSpacing: "-0.01em",
+          // O Intl.NumberFormat('pt-BR', { style: 'currency' }) usado por formatCurrency
+          // insere um espaço não separável entre "R$" e o número — sem isso, valores
+          // longos (ex.: "R$ 16.963.030,38") não tinham ponto de quebra e vazavam para
+          // fora do card. overflowWrap permite quebrar como último recurso.
+          overflowWrap: "anywhere",
         }}
       >
         {value}

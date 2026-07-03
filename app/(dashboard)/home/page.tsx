@@ -14,7 +14,6 @@ import { formatCurrency, formatNumber } from "@/lib/utils/format";
 import { ChartCard } from "@/components/ui/ChartCard";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { UpgradeModal } from "@/components/home/UpgradeModal";
-import { DiagnosticoCard } from "@/components/home/DiagnosticoCard";
 import { KpiCard } from "@/components/home/KpiCard";
 import { AnalyticalCard, type AnalyticalRow } from "@/components/home/AnalyticalCard";
 import { RankingVendedores } from "@/components/home/RankingVendedores";
@@ -146,9 +145,16 @@ export default function HomePage() {
 
     const params = new URLSearchParams({ lojaIds: lojaIds.join(","), period, start, end });
 
+    // A Evolução mensal sempre mostra os últimos 12 meses terminando no mês
+    // corrente real (hoje), independente do período selecionado no filtro acima
+    // (ex.: "Ano anterior" ou um intervalo personalizado não devem deslocar essa
+    // janela — só os KPIs e blocos analíticos respeitam o filtro de período).
+    const hojeStr = toLocalStr(new Date());
+    const evolucaoParams = new URLSearchParams({ lojaIds: lojaIds.join(","), period: "month", start: hojeStr, end: hojeStr });
+
     const [summaryRes, evolucaoRes] = await Promise.allSettled([
       fetch(`/api/home/summary?${params}`).then((r) => (r.ok ? (r.json() as Promise<HomeSummaryResponse>) : null)),
-      fetch(`/api/dashboard/charts?${params}&type=faturamento-mensal`).then((r) =>
+      fetch(`/api/dashboard/charts?${evolucaoParams}&type=faturamento-mensal`).then((r) =>
         r.ok ? (r.json() as Promise<Array<{ mes: string; vendas: number }>>) : []
       ),
     ]);
@@ -373,9 +379,6 @@ export default function HomePage() {
         }}
         className="flex flex-col gap-5"
       >
-        {/* ── Diagnóstico (assinatura) ──────────────────────────── */}
-        <DiagnosticoCard data={data} />
-
         {/* ── KPIs executivos ───────────────────────────────────── */}
         <div className="flex gap-3 flex-wrap">
           <KpiCard
