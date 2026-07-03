@@ -48,7 +48,7 @@ const LABEL: CSSProperties = {
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
-  color: 'var(--text-muted)',
+  color: 'var(--text-primary)',
   marginBottom: 4,
   fontFamily: 'var(--font-body)',
   lineHeight: 1,
@@ -113,7 +113,7 @@ function Pill({
 function Badge({
   children,
   color = 'rgba(128,128,128,0.12)',
-  textColor = 'var(--text-secondary)',
+  textColor = 'var(--text-primary)',
 }: {
   children: ReactNode
   color?: string
@@ -132,7 +132,7 @@ function Badge({
 
 function Sub({ children }: { children: ReactNode }) {
   return (
-    <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: '11px', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
       {children}
     </span>
   )
@@ -247,9 +247,9 @@ export function KpiBar({
           )}
         </div>
 
-        {/* ── LUCRO LÍQUIDO ────────────────────────────────────── */}
+        {/* ── LUCRO BRUTO ──────────────────────────────────────── */}
         <div style={STRIP}>
-          <p style={LABEL}>Lucro Líquido</p>
+          <p style={LABEL}>Lucro Bruto</p>
           <span style={{ ...VALUE_STRIP, color: lucroPositivo ? 'var(--accent-green)' : '#ef4444' }}>
             {fmt(lucro)}
           </span>
