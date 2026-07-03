@@ -16,9 +16,9 @@ import { formatCurrency } from "@/lib/utils/format";
 // Recharts define stroke/fill como atributo SVG e não resolve var() de forma
 // confiável em todos os elementos (ex.: <stop>) — por isso a cor vem em hex fixo,
 // mesma convenção dos demais gráficos do projeto. Para respeitar o tema, o hex é
-// escolhido a partir de --accent-cyan de cada tema (globals.css) em vez de fixar
-// um único tom: o ciano elétrico do escuro fica estridente sobre fundo claro.
-const CYAN_BY_THEME = { dark: "#00e5ff", light: "#1d4ed8" } as const;
+// escolhido a partir de --accent-green de cada tema (globals.css) em vez de fixar
+// um único tom.
+const GREEN_BY_THEME = { dark: "#10b981", light: "#059669" } as const;
 const CARD_BG_BY_THEME = { dark: "#111827", light: "#ffffff" } as const;
 
 export interface EvolucaoPoint {
@@ -65,7 +65,7 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
   useEffect(() => setMounted(true), []);
 
   const theme = mounted && resolvedTheme === "light" ? "light" : "dark";
-  const CYAN = CYAN_BY_THEME[theme];
+  const GREEN = GREEN_BY_THEME[theme];
   const CARD_BG = CARD_BG_BY_THEME[theme];
 
   const temDados = data.some((d) => d.vendas > 0);
@@ -86,8 +86,8 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
         <defs>
           <linearGradient id="homeFaturGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={CYAN} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={CYAN} stopOpacity={0} />
+            <stop offset="0%" stopColor={GREEN} stopOpacity={0.28} />
+            <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.14)" />
@@ -106,15 +106,15 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
           tickLine={false}
           width={40}
         />
-        <Tooltip content={<ChartTooltip />} cursor={{ stroke: CYAN, strokeWidth: 1, strokeOpacity: 0.4 }} />
+        <Tooltip content={<ChartTooltip />} cursor={{ stroke: GREEN, strokeWidth: 1, strokeOpacity: 0.4 }} />
         <Area
           type="monotone"
           dataKey="vendas"
-          stroke={CYAN}
+          stroke={GREEN}
           strokeWidth={2}
           fill="url(#homeFaturGrad)"
           dot={false}
-          activeDot={{ r: 4, fill: CYAN, stroke: CARD_BG, strokeWidth: 2 }}
+          activeDot={{ r: 4, fill: GREEN, stroke: CARD_BG, strokeWidth: 2 }}
         />
       </AreaChart>
     </ResponsiveContainer>
