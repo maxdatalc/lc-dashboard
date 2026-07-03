@@ -65,8 +65,7 @@ export async function GET(request: Request) {
     flowKpisRes,   // KPIs de fluxo por filial (período atual + anterior)
     fluxoRes,      // série mensal de recebimentos/pagamentos por filial (12m)
     abertosRes,    // títulos em aberto por mês de vencimento × filial × tipo
-    analiseRes,    // aberto por filial × plano de contas × tipo (R/P)
-    pagRealRes,    // pagamentos realizados no período por filial × plano
+    analiseRes,    // aberto por filial × plano × subplano × tipo (R/P)
   ] = await Promise.allSettled([
 
     // 1. KPIs de fluxo (contaMov CR/CP) — atual + anterior, por filial
@@ -112,28 +111,19 @@ export async function GET(request: Request) {
       GROUP BY FORMAT(pgtVecmto,'yyyy-MM'), empId, pgtTipoConta
     `),
 
-    // 4. Aberto por filial × plano de contas × tipo (para tabela A Receber / A Pagar)
-    q<{ empId: number; plcId: number | null; plcDesc: string | null; tipo: string; valor: number; vencido: number; aVencer: number }>(`
-      SELECT vp.empId, vp.pgtPlcId AS plcId, pc.plcDesc, vp.pgtTipoConta AS tipo,
+    // 4. Aberto por filial × plano × subplano × tipo (para tabela A Receber / A Pagar)
+    q<{ empId: number; plcId: number | null; plcDesc: string | null; spcId: number | null; spcDesc: string | null; tipo: string; valor: number; vencido: number; aVencer: number }>(`
+      SELECT vp.empId, vp.pgtPlcId AS plcId, pc.plcDesc, vp.pgtSubPc AS spcId, sp.spcDesc, vp.pgtTipoConta AS tipo,
         ISNULL(SUM(vp.pgtValor),0) AS valor,
         ISNULL(SUM(CASE WHEN CONVERT(date,vp.pgtVecmto) <  CONVERT(date,GETDATE()) THEN vp.pgtValor ELSE 0 END),0) AS vencido,
         ISNULL(SUM(CASE WHEN CONVERT(date,vp.pgtVecmto) >= CONVERT(date,GETDATE()) THEN vp.pgtValor ELSE 0 END),0) AS aVencer
-      FROM vendaPgto vp LEFT JOIN planoConta pc ON vp.pgtPlcId = pc.plcId
+      FROM vendaPgto vp
+        LEFT JOIN planoConta pc ON vp.pgtPlcId = pc.plcId
+        LEFT JOIN subPlanoContas sp ON vp.pgtSubPc = sp.spcId
       WHERE vp.empId IN (${empList}) AND vp.pgtPago IN ('N','G') AND vp.pgtTipoConta IN ('R','P')
-        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vp.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
-      GROUP BY vp.empId, vp.pgtPlcId, pc.plcDesc, vp.pgtTipoConta
+        AND ISNULL(sp.spcNaoDemonstrarDRE,0) = 0
+      GROUP BY vp.empId, vp.pgtPlcId, pc.plcDesc, vp.pgtSubPc, sp.spcDesc, vp.pgtTipoConta
     `),
-
-    // 5. Pagamentos realizados no período por filial × plano (aba Pagamentos)
-    q<{ empId: number; plcId: number | null; plcDesc: string | null; valor: number }>(`
-      SELECT cm.empId, cm.ctmPlaCont AS plcId, pc.plcDesc,
-        ISNULL(SUM(ABS(cm.ctmValor)),0) AS valor
-      FROM contaMov cm LEFT JOIN planoConta pc ON cm.ctmPlaCont = pc.plcId
-      WHERE cm.empId IN (${empList}) AND cm.ctmAtivo=0 AND cm.ctmSinal='-' AND cm.ctmTipoMov IN ('CP','CR')
-        AND CONVERT(date,cm.ctmData) BETWEEN @start AND @end
-        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = cm.ctmSubPc AND sp.spcNaoDemonstrarDRE = 1)
-      GROUP BY cm.empId, cm.ctmPlaCont, pc.plcDesc
-    `, { start, end }),
   ]);
 
   const val = <T>(r: PromiseSettledResult<T[]>): T[] => (r.status === "fulfilled" ? r.value : []);
@@ -168,17 +158,12 @@ export async function GET(request: Request) {
     empId: Number(r.empId),
     plcId: r.plcId == null ? null : Number(r.plcId),
     plcDesc: r.plcDesc ?? "Sem plano de contas",
+    spcId: r.spcId == null ? null : Number(r.spcId),
+    spcDesc: r.spcDesc ?? "Sem subplano",
     tipo: r.tipo as "R" | "P",
     valor: Number(r.valor),
     vencido: Number(r.vencido),
     aVencer: Number(r.aVencer),
-  }));
-
-  const pagamentosPlano = val(pagRealRes).map((r) => ({
-    empId: Number(r.empId),
-    plcId: r.plcId == null ? null : Number(r.plcId),
-    plcDesc: r.plcDesc ?? "Sem plano de contas",
-    valor: Number(r.valor),
   }));
 
   // Mês base (12m) — lista completa para preencher lacunas no cliente
@@ -197,6 +182,5 @@ export async function GET(request: Request) {
     fluxo,
     abertos,
     analise,
-    pagamentosPlano,
   });
 }

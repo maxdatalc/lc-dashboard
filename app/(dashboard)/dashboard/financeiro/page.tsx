@@ -18,8 +18,7 @@ interface Filial { empId: number; nome: string; }
 interface FlowKpi { empId: number; recebimentos: number; pagamentos: number; recebimentosPrev: number; pagamentosPrev: number; }
 interface FluxoRow { mes: string; empId: number; recebimentos: number; pagamentos: number; }
 interface AbertoRow { mes: string; empId: number; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
-interface AnaliseApiRow { empId: number; plcId: number | null; plcDesc: string; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
-interface PagPlanoRow { empId: number; plcId: number | null; plcDesc: string; valor: number; }
+interface AnaliseApiRow { empId: number; plcId: number | null; plcDesc: string; spcId: number | null; spcDesc: string; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
 
 interface Overview {
   filiais: Filial[];
@@ -29,7 +28,6 @@ interface Overview {
   fluxo: FluxoRow[];
   abertos: AbertoRow[];
   analise: AnaliseApiRow[];
-  pagamentosPlano: PagPlanoRow[];
 }
 
 // ─── Utilitários ────────────────────────────────────────────────────────────────
@@ -252,17 +250,16 @@ export default function FinanceiroPage() {
       .slice(0, 8)
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
-    // Tabela de análise (agrupa por filial dentro do componente)
-    const toRow = (r: AnaliseApiRow): AnaliseRow => ({ empId: r.empId, plcId: r.plcId, plcDesc: r.plcDesc, valor: r.valor, vencido: r.vencido, aVencer: r.aVencer });
+    // Tabela de análise (agrupa por filial → plano → subplano dentro do componente)
+    const toRow = (r: AnaliseApiRow): AnaliseRow => ({ empId: r.empId, plcId: r.plcId, plcDesc: r.plcDesc, spcId: r.spcId, spcDesc: r.spcDesc, valor: r.valor, vencido: r.vencido, aVencer: r.aVencer });
     const aReceberTbl = data.analise.filter((r) => r.tipo === "R").map(toRow);
     const aPagarTbl = data.analise.filter((r) => r.tipo === "P").map(toRow);
-    const pagamentosTbl: AnaliseRow[] = data.pagamentosPlano.map((r) => ({ empId: r.empId, plcId: r.plcId, plcDesc: r.plcDesc, valor: r.valor, vencido: 0, aVencer: 0 }));
 
     return {
       receb, pag, resultado, varReceb, margem,
       aReceberKpi, aPagarKpi,
       fluxoChart, contasAbertoChart,
-      aReceberTbl, aPagarTbl, pagamentosTbl,
+      aReceberTbl, aPagarTbl,
     };
   }, [data, fFilial, fMes]);
 
@@ -335,11 +332,9 @@ export default function FinanceiroPage() {
           )}
         </div>
 
-        {/* ── Linha 2: (Fluxo + Análise) / (Contas em Aberto + Saldo) ──────── */}
+        {/* ── Linha 2: Fluxo Financeiro Mensal + Contas em Aberto ──────────── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-
-          {/* Coluna esquerda: Fluxo Mensal + Análise por Filial */}
-          <div className="lg:col-span-2 flex flex-col gap-3">
+          <div className="lg:col-span-2">
             <ChartCard
               title="Fluxo Financeiro Mensal"
               subtitle={`Últimos 12 meses · ${pLabel} · clique num mês para filtrar o painel`}
@@ -350,28 +345,9 @@ export default function FinanceiroPage() {
                 <FinFluxoMensalChart data={derived.fluxoChart} selectedMes={fMes} onMesClick={setFMes} />
               )}
             </ChartCard>
-
-            <ChartCard
-              title="Análise por Filial e Plano de Contas"
-              subtitle="Títulos em aberto e pagamentos, agrupados por filial · clique na filial para filtrar"
-              animationDelay={250}
-              info="Detalha os valores por filial e plano de contas. Nas abas A Receber e A Pagar, os valores são de títulos em aberto, separados entre vencido e a vencer. Na aba Pagamentos, o valor é o realizado no período. Clique numa filial para filtrar todo o painel; use a seta para expandir os planos de contas."
-            >
-              {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 320 }} /> : (
-                <FinAnaliseTable
-                  aReceber={derived.aReceberTbl}
-                  aPagar={derived.aPagarTbl}
-                  pagamentos={derived.pagamentosTbl}
-                  filiais={data?.filiais ?? []}
-                  selectedFilial={fFilial}
-                  onFilialClick={setFFilial}
-                />
-              )}
-            </ChartCard>
           </div>
 
-          {/* Coluna direita: Contas em Aberto */}
-          <div className="flex flex-col gap-3">
+          <div>
             <ChartCard
               title="Contas em Aberto"
               subtitle="Por mês de vencimento · a receber vs. a pagar"
@@ -384,6 +360,24 @@ export default function FinanceiroPage() {
             </ChartCard>
           </div>
         </div>
+
+        {/* ── Linha 3: Análise por Filial · Plano · Subplano (largura total) ── */}
+        <ChartCard
+          title="Análise por Filial, Plano e Subplano de Contas"
+          subtitle="Títulos em aberto por filial · expanda para ver planos e subplanos · clique na filial para filtrar"
+          animationDelay={250}
+          info="Detalha os títulos em aberto por filial, plano de contas e subplano. Escolha A Receber ou A Pagar; os valores separam o que já está vencido do que ainda vai vencer. Use as setas para abrir cada filial (mostra os planos) e cada plano (mostra os subplanos). Clique no nome da filial para filtrar todo o painel. Créditos e afins marcados como fora do DRE não entram."
+        >
+          {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 380 }} /> : (
+            <FinAnaliseTable
+              aReceber={derived.aReceberTbl}
+              aPagar={derived.aPagarTbl}
+              filiais={data?.filiais ?? []}
+              selectedFilial={fFilial}
+              onFilialClick={setFFilial}
+            />
+          )}
+        </ChartCard>
 
       </div>
     </div>
