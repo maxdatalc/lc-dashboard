@@ -69,18 +69,11 @@ type NavGroup = {
 
 const GRUPOS: NavGroup[] = [
   {
-    key: "home",
-    label: "Início",
-    icon: Home,
-    items: [
-      { href: "/home", label: "Visão Geral", icon: LayoutDashboard, exact: true, featureKey: "dashboard_visao_geral" },
-    ],
-  },
-  {
     key: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
     items: [
+      { href: "/home",                 label: "Visão Geral", icon: Home,         exact: true, featureKey: "dashboard_visao_geral" },
       { href: "/dashboard",            label: "Vendas",     icon: ShoppingCart, exact: true, featureKey: "modulo_vendas" },
       { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark,     featureKey: "modulo_financeiro" },
       { href: "/dashboard/produtos",   label: "Produtos",   icon: Package,      featureKey: "modulo_produtos"   },
@@ -163,11 +156,15 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
 
   // ── Estado dos grupos / categorias / seções ────────────────────────────────
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => ({
-    dashboard: true,
-    movimentacao: isGroupActive(GRUPOS[1]),
-    relatorios: isGroupActive(GRUPOS[2]),
-  }));
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const movimentacao = GRUPOS.find((g) => g.key === "movimentacao");
+    const relatorios   = GRUPOS.find((g) => g.key === "relatorios");
+    return {
+      dashboard: true,
+      movimentacao: movimentacao ? isGroupActive(movimentacao) : false,
+      relatorios: relatorios ? isGroupActive(relatorios) : false,
+    };
+  });
 
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
