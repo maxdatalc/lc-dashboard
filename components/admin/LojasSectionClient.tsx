@@ -70,7 +70,23 @@ function EditLojaRow({
   const [cnpj, setCnpj] = useState(loja.cnpj ?? "");
   const [loading, setLoading] = useState(false);
   const [loadingBridge, setLoadingBridge] = useState(false);
+  const [loadingNomeBridge, setLoadingNomeBridge] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+
+  async function handleBuscarNome() {
+    setLoadingNomeBridge(true);
+    setErro(null);
+    try {
+      const res = await fetch(`/api/admin/lojas/${loja.id}/nome-bridge`);
+      const data = (await res.json()) as { nome?: string; error?: string };
+      if (!res.ok) { setErro(data.error ?? "Erro ao buscar nome"); return; }
+      if (data.nome) setNome(data.nome);
+    } catch {
+      setErro("Erro de rede ao buscar nome");
+    } finally {
+      setLoadingNomeBridge(false);
+    }
+  }
 
   async function handleBuscarCnpj() {
     setLoadingBridge(true);
@@ -112,13 +128,29 @@ function EditLojaRow({
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-36">
           <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
-          <input
-            type="text"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            autoFocus
-            className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
-          />
+          <div className="flex gap-1.5">
+            <input
+              type="text"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              autoFocus
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
+            />
+            {loja.sqlEnabled && (
+              <button
+                type="button"
+                onClick={handleBuscarNome}
+                disabled={loadingNomeBridge}
+                title="Buscar nome via Bridge SQL (MaxManager)"
+                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 transition-all shrink-0"
+              >
+                {loadingNomeBridge
+                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                  : <RefreshCw className="h-3 w-3" />}
+                {loadingNomeBridge ? "Buscando..." : "Bridge"}
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex-1 min-w-36">
           <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ</label>
