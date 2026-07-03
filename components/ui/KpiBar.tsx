@@ -45,13 +45,14 @@ const fmtNum = (v: number) => new Intl.NumberFormat('pt-BR').format(Math.round(v
 
 const LABEL: CSSProperties = {
   fontSize: '9px',
-  fontWeight: 600,
+  fontWeight: 800,
   textTransform: 'uppercase',
   letterSpacing: '0.1em',
   color: 'var(--text-primary)',
   marginBottom: 4,
   fontFamily: 'var(--font-body)',
   lineHeight: 1,
+  opacity: 0.95,
 }
 
 const STRIP: CSSProperties = {
@@ -132,7 +133,7 @@ function Badge({
 
 function Sub({ children }: { children: ReactNode }) {
   return (
-    <span style={{ fontSize: '11px', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: '11px', color: 'var(--text-primary)', fontWeight: 600, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', opacity: 0.9 }}>
       {children}
     </span>
   )
