@@ -143,7 +143,7 @@ export function ChartCard({
               fontSize: "13px",
               fontWeight: 700,
               letterSpacing: "-0.01em",
-              color: "var(--card-title-color)",
+              color: "var(--text-primary)",
               lineHeight: 1.3,
               margin: 0,
             }}
@@ -154,7 +154,7 @@ export function ChartCard({
             <p
               style={{
                 fontSize: "11px",
-                color: "var(--text-muted)",
+                color: "var(--text-secondary)",
                 marginTop: "2px",
                 lineHeight: 1.4,
                 margin: "2px 0 0",
