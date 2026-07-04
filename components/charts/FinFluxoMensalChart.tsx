@@ -26,6 +26,10 @@ function abbr(v: number): string {
   if (a >= 1_000)     return `${s}R$ ${Math.round(a / 1_000).toLocaleString("pt-BR")} mil`;
   return `${s}R$ ${a.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
 }
+// Valor exato, sem abreviação — usado no tooltip (o eixo e os rótulos das barras continuam abreviados)
+function fmtFull(v: number): string {
+  return `${v < 0 ? "-" : ""}R$ ${Math.abs(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
 function axisAbbr(v: number): string {
   const a = Math.abs(v);
   if (a >= 1_000_000) return `${v < 0 ? "-" : ""}R$ ${(a / 1_000_000).toFixed(1)} mi`;
@@ -41,12 +45,12 @@ function mesLabel(mes: string) {
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: { name: string; value: number; color: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 14px", fontSize: 12, minWidth: 190, boxShadow: "0 12px 32px rgba(0,0,0,0.35)" }}>
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 14px", fontSize: 12, minWidth: 260, boxShadow: "0 12px 32px rgba(0,0,0,0.35)" }}>
       <p style={{ color: "var(--text-secondary)", marginBottom: 6, fontWeight: 700 }}>{label ? mesLabel(label) : ""}</p>
       {payload.map((p) => (
         <div key={p.name} style={{ display: "flex", justifyContent: "space-between", gap: 16, color: p.color, marginBottom: 2 }}>
           <span>{p.name}</span>
-          <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 700 }}>{abbr(p.value)}</span>
+          <span style={{ fontFamily: "var(--font-mono, monospace)", fontWeight: 700, whiteSpace: "nowrap" }}>{fmtFull(p.value)}</span>
         </div>
       ))}
     </div>
@@ -80,15 +84,15 @@ export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(127,127,127,0.06)" }} />
         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => <span style={{ color: "var(--text-secondary)" }}>{v}</span>} iconType="circle" />
 
-        <Bar dataKey="recebimentos" name="Recebimentos" radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
+        <Bar dataKey="recebimentos" name="Recebimentos" fill="var(--accent-cyan)" radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
           {data.map((e) => <Cell key={e.mes} fill="url(#fluxoReceb)" opacity={dim(e.mes)} />)}
           {showLabels && <LabelList dataKey="recebimentos" position="top" formatter={(v) => abbr(Number(v))} fill="var(--text-muted)" fontSize={9.5} fontWeight={600} />}
         </Bar>
-        <Bar dataKey="pagamentos" name="Pagamentos" radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
+        <Bar dataKey="pagamentos" name="Pagamentos" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
           {data.map((e) => <Cell key={e.mes} fill="url(#fluxoPag)" opacity={dim(e.mes)} />)}
           {showLabels && <LabelList dataKey="pagamentos" position="top" formatter={(v) => abbr(Number(v))} fill="var(--text-muted)" fontSize={9.5} fontWeight={600} />}
         </Bar>
-        <Line type="monotone" dataKey="resultado" name="Resultado líquido" stroke="var(--accent-green)" strokeWidth={2.5}
+        <Line type="monotone" dataKey="resultado" name="Resultado Bruto" stroke="var(--accent-green)" fill="var(--accent-green)" strokeWidth={2.5}
           dot={{ r: 3.5, fill: "var(--accent-green)", strokeWidth: 0 }} activeDot={{ r: 6, strokeWidth: 0 }}>
           {showLabels && <LabelList dataKey="resultado" position="bottom" formatter={(v) => abbr(Number(v))} fill="var(--accent-green)" fontSize={9.5} fontWeight={700} />}
         </Line>

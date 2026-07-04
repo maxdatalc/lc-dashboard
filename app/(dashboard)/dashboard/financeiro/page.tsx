@@ -341,7 +341,7 @@ export default function FinanceiroPage() {
               title="Fluxo Financeiro Mensal"
               subtitle={`Últimos 12 meses · ${pLabel} · clique num mês para filtrar o painel`}
               animationDelay={100}
-              info="Barras azuis são os recebimentos (dinheiro que entrou no caixa) e vermelhas os pagamentos (dinheiro que saiu), mês a mês. A linha verde é o resultado líquido — quando fica abaixo de zero, as saídas superaram as entradas naquele mês. Clique numa barra para filtrar os KPIs e demais painéis por aquele mês."
+              info="Barras azuis são os recebimentos (dinheiro que entrou no caixa) e vermelhas os pagamentos (dinheiro que saiu), mês a mês. A linha verde é o resultado bruto — quando fica abaixo de zero, as saídas superaram as entradas naquele mês. Clique numa barra para filtrar os KPIs e demais painéis por aquele mês."
             >
               {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 330 }} /> : (
                 <FinFluxoMensalChart data={derived.fluxoChart} selectedMes={fMes} onMesClick={setFMes} />
