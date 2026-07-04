@@ -220,19 +220,20 @@ export default function FinanceiroPage() {
     const varReceb = recebPrev > 0 ? ((receb - recebPrev) / recebPrev) * 100 : null;
     const margem = receb > 0 ? (resultado / receb) * 100 : null;
 
-    // Contas em aberto (respeitando filial). Se mês selecionado, KPIs A Receber/A Pagar usam o mês.
+    // Contas em aberto (respeitando filial). A Receber/A Pagar são uma visão geral de
+    // todo o período em aberto — NÃO respeitam o clique em mês (fMes), diferente de
+    // Recebimentos/Pagamentos/Resultado acima, que são o resultado daquele mês específico.
     const abertosF = byFilial(data.abertos);
-    const somaAberto = (tipo: "R" | "P", mesOnly: boolean) => {
+    const somaAberto = (tipo: "R" | "P") => {
       let valor = 0, vencido = 0, aVencer = 0;
       for (const r of abertosF) {
         if (r.tipo !== tipo) continue;
-        if (mesOnly && fMes && r.mes !== fMes) continue;
         valor += r.valor; vencido += r.vencido; aVencer += r.aVencer;
       }
       return { valor, vencido, aVencer };
     };
-    const aReceberKpi = somaAberto("R", true);
-    const aPagarKpi = somaAberto("P", true);
+    const aReceberKpi = somaAberto("R");
+    const aPagarKpi = somaAberto("P");
 
     // Chart Contas em Aberto: agrega por mês (todos os meses com título em aberto).
     // O componente decide a janela de meses a mostrar conforme a aba ativa

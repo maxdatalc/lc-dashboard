@@ -99,7 +99,7 @@ function LojaMultiSelect() {
         }}
       >
         <Building2 className="h-3 w-3 flex-shrink-0" />
-        <span className="max-w-[120px] truncate">{label}</span>
+        <span className="max-w-[130px] sm:max-w-[220px] truncate" title={label}>{label}</span>
         <ChevronDown
           className="h-3 w-3 flex-shrink-0 transition-transform"
           style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
@@ -110,9 +110,10 @@ function LojaMultiSelect() {
         <div
           className="absolute top-full mt-2 z-50 rounded-xl shadow-xl py-1.5 flex flex-col"
           style={{
-            backgroundColor: "#111827",
-            border: "1px solid rgba(255,255,255,0.08)",
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border-subtle)",
             minWidth: 200,
+            maxWidth: 320,
             right: 0,
           }}
           onClick={(e) => e.stopPropagation()}
@@ -123,16 +124,16 @@ function LojaMultiSelect() {
             className="flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left"
             style={{
               color: allSelected ? "var(--text-primary)" : "var(--text-secondary)",
-              backgroundColor: allSelected ? "rgba(255,255,255,0.04)" : "transparent",
+              backgroundColor: allSelected ? "var(--bg-card-hover)" : "transparent",
             }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = allSelected ? "rgba(255,255,255,0.04)" : "transparent")}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-card-hover)")}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = allSelected ? "var(--bg-card-hover)" : "transparent")}
           >
             <div
               className="flex-shrink-0 flex items-center justify-center rounded"
               style={{
                 width: 14, height: 14,
-                border: allSelected ? "none" : "1.5px solid rgba(255,255,255,0.2)",
+                border: allSelected ? "none" : "1.5px solid var(--border-subtle)",
                 backgroundColor: allSelected ? "var(--accent-cyan)" : "transparent",
               }}
             >
@@ -141,34 +142,34 @@ function LojaMultiSelect() {
             <span className="font-medium">Todas as lojas</span>
           </button>
 
-          <div style={{ height: 1, backgroundColor: "rgba(255,255,255,0.05)", margin: "4px 0" }} />
+          <div style={{ height: 1, backgroundColor: "var(--border-subtle)", margin: "4px 0" }} />
 
-          {/* Lista de lojas */}
+          {/* Lista de lojas — nome quebra linha em vez de truncar (não há restrição de altura aqui) */}
           {lojasDisponiveis.map((loja) => {
             const checked = lojasSelecionadas.includes(loja.id);
             return (
               <button
                 key={loja.id}
                 onClick={() => toggleLoja(loja.id)}
-                className="flex items-center gap-2.5 px-3 py-2 text-xs transition-colors text-left"
+                className="flex items-start gap-2.5 px-3 py-2 text-xs transition-colors text-left"
                 style={{
                   color: checked ? "var(--text-primary)" : "var(--text-secondary)",
-                  backgroundColor: checked ? "rgba(255,255,255,0.04)" : "transparent",
+                  backgroundColor: checked ? "var(--bg-card-hover)" : "transparent",
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = checked ? "rgba(255,255,255,0.04)" : "transparent")}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "var(--bg-card-hover)")}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = checked ? "var(--bg-card-hover)" : "transparent")}
               >
                 <div
                   className="flex-shrink-0 flex items-center justify-center rounded"
                   style={{
-                    width: 14, height: 14,
-                    border: checked ? "none" : "1.5px solid rgba(255,255,255,0.2)",
+                    width: 14, height: 14, marginTop: 1,
+                    border: checked ? "none" : "1.5px solid var(--border-subtle)",
                     backgroundColor: checked ? "var(--accent-cyan)" : "transparent",
                   }}
                 >
                   {checked && <Check style={{ width: 10, height: 10, color: "#0d1117", strokeWidth: 3 }} />}
                 </div>
-                <span className="truncate max-w-[160px]">{loja.name}</span>
+                <span style={{ wordBreak: "break-word", lineHeight: 1.35 }}>{loja.name}</span>
               </button>
             );
           })}
