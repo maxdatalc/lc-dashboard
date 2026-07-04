@@ -25,9 +25,16 @@ function toStr(d: Date)    { return d.toISOString().split("T")[0]; }
  *    pgtClienteId preenchido e CONTAM no relatório. Confirmado batendo no centavo comparando com
  *    exportação real do relatório 105/106 (empId 1, fev/2026): Pagamentos R$40.852,60 (114 regs)
  *    e Recebimentos R$335.089,37 (683 regs).
- *  - A Receber / A Pagar em aberto → vendaPgto (pgtTipoConta 'R'|'P', pgtPago='N' = aberto).
- *    'G' foi testado e descartado: são desdobramentos de outro título (pgtRef aponta pro pai,
- *    que pode já estar quitado ou ainda aberto) — contá-los duplica valor e diverge da tela do ERP.
+ *  - A Receber / A Pagar em aberto (KPIs + gráfico Contas em Aberto) → vendaPgto
+ *    (pgtTipoConta 'R'|'P', pgtPago='N' = aberto). 'G' foi testado e descartado: são
+ *    desdobramentos de outro título (pgtRef aponta pro pai, que pode já estar quitado
+ *    ou ainda aberto) — contá-los duplica valor e diverge da tela do ERP.
+ *  - Análise por Filial/Plano/Subplano → REALIZADO (mesma regra do Recebido/Pago acima:
+ *    pgtPago='S', pgtDataQuitou, pgtClienteId IS NOT NULL), detalhado por plano de contas,
+ *    no período selecionado (@start/@end). Equivale à tela "343 - Relatório de Centro de
+ *    Custos / Plano de Contas" do ERP — mostra o que já foi recebido/pago, não títulos
+ *    em aberto. Diferente da tela do ERP, lançamentos sem plano/subplano classificado
+ *    aparecem como "Sem plano de contas"/"Sem subplano" em vez de serem omitidos.
  *  - Plano de contas → planoConta (contaMov.ctmPlaCont / vendaPgto.pgtPlcId)
  *
  * Regra DRE: exclui títulos/movimentos cujo subplano (subPlanoContas via pgtSubPc/ctmSubPc)
@@ -129,19 +136,22 @@ export async function GET(request: Request) {
       GROUP BY ISNULL(FORMAT(pgtVecmto,'yyyy-MM'), 'sem-venc'), empId, pgtTipoConta
     `),
 
-    // 4. Aberto por filial × plano × subplano × tipo (para tabela A Receber / A Pagar)
-    q<{ empId: number; plcId: number | null; plcDesc: string | null; spcId: number | null; spcDesc: string | null; tipo: string; valor: number; vencido: number; aVencer: number }>(`
+    // 4. Realizado (recebido/pago) por filial × plano × subplano × tipo, no período
+    // selecionado — mesma regra de "Recebido/Pago realizado" (query 1), só que
+    // detalhada por plano de contas. Equivalente à tela "343 - Relatório de Centro
+    // de Custos / Plano de Contas" do ERP: mostra o que já foi recebido e o que já
+    // foi pago no período, não títulos em aberto.
+    q<{ empId: number; plcId: number | null; plcDesc: string | null; spcId: number | null; spcDesc: string | null; tipo: string; valor: number }>(`
       SELECT vp.empId, vp.pgtPlcId AS plcId, pc.plcDesc, vp.pgtSubPc AS spcId, sp.spcDesc, vp.pgtTipoConta AS tipo,
-        ISNULL(SUM(vp.pgtValor),0) AS valor,
-        ISNULL(SUM(CASE WHEN CONVERT(date,vp.pgtVecmto) <  CONVERT(date,GETDATE()) THEN vp.pgtValor ELSE 0 END),0) AS vencido,
-        ISNULL(SUM(CASE WHEN CONVERT(date,vp.pgtVecmto) >= CONVERT(date,GETDATE()) THEN vp.pgtValor ELSE 0 END),0) AS aVencer
+        ISNULL(SUM(vp.pgtValor),0) AS valor
       FROM vendaPgto vp
         LEFT JOIN planoConta pc ON vp.pgtPlcId = pc.plcId
         LEFT JOIN subPlanoContas sp ON vp.pgtSubPc = sp.spcId
-      WHERE vp.empId IN (${empList}) AND vp.pgtPago = 'N' AND vp.pgtTipoConta IN ('R','P')
+      WHERE vp.empId IN (${empList}) AND vp.pgtPago = 'S' AND vp.pgtClienteId IS NOT NULL AND vp.pgtTipoConta IN ('R','P')
+        AND CONVERT(date,vp.pgtDataQuitou) BETWEEN @start AND @end
         AND ISNULL(sp.spcNaoDemonstrarDRE,0) = 0
       GROUP BY vp.empId, vp.pgtPlcId, pc.plcDesc, vp.pgtSubPc, sp.spcDesc, vp.pgtTipoConta
-    `),
+    `, { start, end }),
   ]);
 
   const val = <T>(r: PromiseSettledResult<T[]>): T[] => (r.status === "fulfilled" ? r.value : []);
@@ -180,8 +190,6 @@ export async function GET(request: Request) {
     spcDesc: r.spcDesc ?? "Sem subplano",
     tipo: r.tipo as "R" | "P",
     valor: Number(r.valor),
-    vencido: Number(r.vencido),
-    aVencer: Number(r.aVencer),
   }));
 
   // Mês base (12m) — lista completa para preencher lacunas no cliente

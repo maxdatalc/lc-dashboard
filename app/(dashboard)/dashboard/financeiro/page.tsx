@@ -18,7 +18,7 @@ interface Filial { empId: number; nome: string; }
 interface FlowKpi { empId: number; recebimentos: number; pagamentos: number; recebimentosPrev: number; pagamentosPrev: number; }
 interface FluxoRow { mes: string; empId: number; recebimentos: number; pagamentos: number; }
 interface AbertoRow { mes: string; empId: number; tipo: "R" | "P"; valor: number; vencido: number; hoje: number; aVencer: number; }
-interface AnaliseApiRow { empId: number; plcId: number | null; plcDesc: string; spcId: number | null; spcDesc: string; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
+interface AnaliseApiRow { empId: number; plcId: number | null; plcDesc: string; spcId: number | null; spcDesc: string; tipo: "R" | "P"; valor: number; }
 
 interface Overview {
   filiais: Filial[];
@@ -251,7 +251,7 @@ export default function FinanceiroPage() {
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
     // Tabela de análise (agrupa por filial → plano → subplano dentro do componente)
-    const toRow = (r: AnaliseApiRow): AnaliseRow => ({ empId: r.empId, plcId: r.plcId, plcDesc: r.plcDesc, spcId: r.spcId, spcDesc: r.spcDesc, valor: r.valor, vencido: r.vencido, aVencer: r.aVencer });
+    const toRow = (r: AnaliseApiRow): AnaliseRow => ({ empId: r.empId, plcId: r.plcId, plcDesc: r.plcDesc, spcId: r.spcId, spcDesc: r.spcDesc, valor: r.valor });
     const aReceberTbl = data.analise.filter((r) => r.tipo === "R").map(toRow);
     const aPagarTbl = data.analise.filter((r) => r.tipo === "P").map(toRow);
 
@@ -366,9 +366,9 @@ export default function FinanceiroPage() {
         {/* ── Linha 3: Análise por Filial · Plano · Subplano (largura total) ── */}
         <ChartCard
           title="Análise por Filial, Plano e Subplano de Contas"
-          subtitle="Títulos em aberto por filial · expanda para ver planos e subplanos · clique na filial para filtrar"
+          subtitle={`Recebido e pago no período (${pLabel}) · expanda para ver planos e subplanos · clique na filial para filtrar`}
           animationDelay={250}
-          info="Detalha os títulos em aberto por filial, plano de contas e subplano. Escolha A Receber ou A Pagar; os valores separam o que já está vencido do que ainda vai vencer. Use as setas para abrir cada filial (mostra os planos) e cada plano (mostra os subplanos). Clique no nome da filial para filtrar todo o painel. Créditos e afins marcados como fora do DRE não entram."
+          info="Detalha o que já foi recebido e o que já foi pago no período selecionado, por filial, plano de contas e subplano — equivalente ao relatório de Centro de Custos/Plano de Contas do ERP. Escolha A Receber ou A Pagar. Use as setas para abrir cada filial (mostra os planos) e cada plano (mostra os subplanos). Clique no nome da filial para filtrar todo o painel. Créditos e afins marcados como fora do DRE não entram; lançamentos sem plano/subplano aparecem agrupados como 'Sem plano de contas'."
         >
           {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 380 }} /> : (
             <FinAnaliseTable

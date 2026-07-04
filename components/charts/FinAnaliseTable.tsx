@@ -10,8 +10,6 @@ export interface AnaliseRow {
   spcId: number | null;
   spcDesc: string;
   valor: number;
-  vencido: number;
-  aVencer: number;
 }
 
 type TabKey = "R" | "P";
@@ -38,9 +36,9 @@ function fmtPct(v: number) {
 
 // ─── Estrutura em árvore: Filial → Plano → Subplano ───────────────────────────
 
-interface SubGroup { spcId: number | null; spcDesc: string; valor: number; vencido: number; aVencer: number; }
-interface PlanoGroup { plcId: number | null; plcDesc: string; valor: number; vencido: number; aVencer: number; subs: SubGroup[]; }
-interface FilialGroup { empId: number; nome: string; valor: number; vencido: number; aVencer: number; planos: PlanoGroup[]; }
+interface SubGroup { spcId: number | null; spcDesc: string; valor: number; }
+interface PlanoGroup { plcId: number | null; plcDesc: string; valor: number; subs: SubGroup[]; }
+interface FilialGroup { empId: number; nome: string; valor: number; planos: PlanoGroup[]; }
 
 export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onFilialClick }: Props) {
   const [tab, setTab] = useState<TabKey>("R");
@@ -51,22 +49,22 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
   const rows = tab === "R" ? aReceber : aPagar;
   const nomeDe = (empId: number) => filiais.find((f) => f.empId === empId)?.nome ?? `Filial ${empId}`;
 
-  const { groups, totalGeral, totalVencido, totalAVencer } = useMemo(() => {
+  const { groups, totalGeral } = useMemo(() => {
     const fMap = new Map<number, FilialGroup>();
     for (const r of rows) {
       let fg = fMap.get(r.empId);
-      if (!fg) { fg = { empId: r.empId, nome: nomeDe(r.empId), valor: 0, vencido: 0, aVencer: 0, planos: [] }; fMap.set(r.empId, fg); }
-      fg.valor += r.valor; fg.vencido += r.vencido; fg.aVencer += r.aVencer;
+      if (!fg) { fg = { empId: r.empId, nome: nomeDe(r.empId), valor: 0, planos: [] }; fMap.set(r.empId, fg); }
+      fg.valor += r.valor;
 
       const pKey = r.plcId ?? -1;
       let pg = fg.planos.find((p) => (p.plcId ?? -1) === pKey);
-      if (!pg) { pg = { plcId: r.plcId, plcDesc: r.plcDesc, valor: 0, vencido: 0, aVencer: 0, subs: [] }; fg.planos.push(pg); }
-      pg.valor += r.valor; pg.vencido += r.vencido; pg.aVencer += r.aVencer;
+      if (!pg) { pg = { plcId: r.plcId, plcDesc: r.plcDesc, valor: 0, subs: [] }; fg.planos.push(pg); }
+      pg.valor += r.valor;
 
       const sKey = r.spcId ?? -1;
       let sg = pg.subs.find((s) => (s.spcId ?? -1) === sKey);
-      if (!sg) { sg = { spcId: r.spcId, spcDesc: r.spcDesc, valor: 0, vencido: 0, aVencer: 0 }; pg.subs.push(sg); }
-      sg.valor += r.valor; sg.vencido += r.vencido; sg.aVencer += r.aVencer;
+      if (!sg) { sg = { spcId: r.spcId, spcDesc: r.spcDesc, valor: 0 }; pg.subs.push(sg); }
+      sg.valor += r.valor;
     }
     const groups = [...fMap.values()].sort((a, b) => b.valor - a.valor);
     for (const g of groups) {
@@ -74,9 +72,7 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
       for (const p of g.planos) p.subs.sort((a, b) => b.valor - a.valor);
     }
     const totalGeral = groups.reduce((s, g) => s + g.valor, 0);
-    const totalVencido = groups.reduce((s, g) => s + g.vencido, 0);
-    const totalAVencer = groups.reduce((s, g) => s + g.aVencer, 0);
-    return { groups, totalGeral, totalVencido, totalAVencer };
+    return { groups, totalGeral };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rows, filiais]);
 
@@ -107,11 +103,11 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
   });
 
   function exportCsv() {
-    const head = ["Filial", "Plano de Contas", "Subplano de Contas", "Valor", "Participacao %", "Vencido", "A Vencer"];
+    const head = ["Filial", "Plano de Contas", "Subplano de Contas", "Valor", "Participacao %"];
     const lines = [head.join(";")];
     for (const g of groups) for (const p of g.planos) for (const s of p.subs) {
       const pct = totalGeral > 0 ? (s.valor / totalGeral) * 100 : 0;
-      lines.push([g.nome, p.plcDesc, s.spcDesc, s.valor.toFixed(2), pct.toFixed(2), s.vencido.toFixed(2), s.aVencer.toFixed(2)].join(";"));
+      lines.push([g.nome, p.plcDesc, s.spcDesc, s.valor.toFixed(2), pct.toFixed(2)].join(";"));
     }
     const csv = "﻿" + lines.join("\r\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
@@ -157,18 +153,18 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
 
       <div style={{ overflowX: "auto" }}>
         {/* Cabeçalho de colunas */}
-        <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 12, padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", minWidth: 720 }}>
+        <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 12, padding: "8px 12px", borderBottom: "1px solid var(--border-subtle)", minWidth: 560 }}>
           <span style={thStyle}>Filial · Plano · Subplano</span>
           <span style={{ ...thStyle, textAlign: "right" }}>Valor (R$)</span>
           <span style={thStyle}>Participação</span>
-          <span style={{ ...thStyle, textAlign: "right" }}>Vencido (R$)</span>
-          <span style={{ ...thStyle, textAlign: "right" }}>A Vencer (R$)</span>
         </div>
 
         {groups.length === 0 ? (
-          <div style={{ padding: "48px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>Nenhum título em aberto para este filtro.</div>
+          <div style={{ padding: "48px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 13 }}>
+            {tab === "R" ? "Nenhum recebimento no período." : "Nenhum pagamento no período."}
+          </div>
         ) : (
-          <div style={{ minWidth: 720 }}>
+          <div style={{ minWidth: 560 }}>
             {groups.map((g) => {
               const fOpen = openFiliais.has(g.empId);
               const gPct = totalGeral > 0 ? (g.valor / totalGeral) * 100 : 0;
@@ -197,8 +193,6 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
                     </span>
                     <span style={tdNum(700)}>{fmt(g.valor)}</span>
                     <ParticipacaoBar pct={gPct} accent={accent} bold />
-                    <span style={{ ...tdNum(600), color: g.vencido > 0 ? "#ef4444" : "var(--text-muted)" }}>{fmt(g.vencido)}</span>
-                    <span style={tdNum(600)}>{fmt(g.aVencer)}</span>
                   </div>
 
                   {/* Nível 1 — Planos */}
@@ -224,8 +218,6 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
                           </span>
                           <span style={tdNum(600)}>{fmt(p.valor)}</span>
                           <ParticipacaoBar pct={pPct} accent={accent} />
-                          <span style={{ ...tdNum(500), color: p.vencido > 0 ? "#ef4444" : "var(--text-muted)" }}>{fmt(p.vencido)}</span>
-                          <span style={tdNum(500)}>{fmt(p.aVencer)}</span>
                         </div>
 
                         {/* Nível 2 — Subplanos */}
@@ -239,8 +231,6 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
                               </span>
                               <span style={tdNum(500)}>{fmt(s.valor)}</span>
                               <ParticipacaoBar pct={sPct} accent={accent} subtle />
-                              <span style={{ ...tdNum(500), color: s.vencido > 0 ? "#ef4444" : "var(--text-muted)" }}>{fmt(s.vencido)}</span>
-                              <span style={tdNum(500)}>{fmt(s.aVencer)}</span>
                             </div>
                           );
                         })}
@@ -256,8 +246,6 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
               <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Total Geral</span>
               <span style={tdNum(800)}>{fmt(totalGeral)}</span>
               <ParticipacaoBar pct={100} accent={accent} bold />
-              <span style={{ ...tdNum(800), color: "#ef4444" }}>{fmt(totalVencido)}</span>
-              <span style={tdNum(800)}>{fmt(totalAVencer)}</span>
             </div>
           </div>
         )}
@@ -277,7 +265,7 @@ function ParticipacaoBar({ pct, accent, bold, subtle }: { pct: number; accent: s
   );
 }
 
-const GRID = "minmax(280px, 3fr) minmax(130px,1.05fr) minmax(150px,1.5fr) minmax(120px,1fr) minmax(120px,1fr)";
+const GRID = "minmax(280px, 3fr) minmax(140px,1fr) minmax(200px,1.5fr)";
 const thStyle: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", textTransform: "uppercase", color: "var(--text-muted)" };
 const chevronBtn: React.CSSProperties = { background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--text-muted)", display: "flex", flexShrink: 0 };
 const actionBtn: React.CSSProperties = {
