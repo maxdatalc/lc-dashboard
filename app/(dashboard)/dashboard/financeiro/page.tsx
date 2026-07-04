@@ -105,13 +105,14 @@ function KpiSimple({ label, icon, color, value, footer, footerColor, delay = 0 }
   );
 }
 
-function KpiSplit({ label, icon, color, value, vencido, aVencer, delay = 0 }: {
-  label: string; icon: React.ReactNode; color: string; value: string; vencido: string; aVencer: string; delay?: number;
+function KpiSplit({ label, icon, color, value, vencido, aVencer, note, delay = 0 }: {
+  label: string; icon: React.ReactNode; color: string; value: string; vencido: string; aVencer: string; note?: string; delay?: number;
 }) {
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: "clamp(15px, 1.3vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap", marginBottom: 12 }}>{value}</div>
+      <div style={{ fontSize: "clamp(15px, 1.3vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap", marginBottom: note ? 4 : 12 }}>{value}</div>
+      {note && <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 10 }}>{note}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>Vencido</span>
@@ -321,11 +322,13 @@ export default function FinanceiroPage() {
               <KpiSplit
                 label="A Receber" icon={<HandCoins size={18} />} color="var(--accent-cyan)"
                 value={fmtFull(derived.aReceberKpi.valor)} vencido={fmtFull(derived.aReceberKpi.vencido)} aVencer={fmtFull(derived.aReceberKpi.aVencer)}
+                note="Sem calcular juros e multas"
                 delay={120}
               />
               <KpiSplit
                 label="A Pagar" icon={<ReceiptText size={18} />} color="var(--accent-yellow)"
                 value={fmtFull(derived.aPagarKpi.valor)} vencido={fmtFull(derived.aPagarKpi.vencido)} aVencer={fmtFull(derived.aPagarKpi.aVencer)}
+                note="Sem calcular juros e multas"
                 delay={160}
               />
             </>
