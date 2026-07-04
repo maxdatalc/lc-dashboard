@@ -34,6 +34,30 @@ function fmtPct(v: number) {
   return `${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
+// Ordena plano/subplano como no ERP: primeiro quem tem numeral entre parênteses
+// (ex. "(2.1) DESPESA OPERACIONAL", "(3.5.02) CONTA DE ENERGIA"), em ordem numérica
+// segmento a segmento; depois, sem numeral, em ordem alfabética.
+function parseNumeralPrefix(desc: string): number[] | null {
+  const m = desc.match(/^\((\d+(?:\.\d+)*)\)/);
+  if (!m) return null;
+  return m[1].split(".").map(Number);
+}
+function compareContaDesc(a: string, b: string): number {
+  const na = parseNumeralPrefix(a);
+  const nb = parseNumeralPrefix(b);
+  if (na && nb) {
+    const len = Math.max(na.length, nb.length);
+    for (let i = 0; i < len; i++) {
+      const diff = (na[i] ?? 0) - (nb[i] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  }
+  if (na && !nb) return -1;
+  if (!na && nb) return 1;
+  return a.localeCompare(b, "pt-BR");
+}
+
 // ─── Estrutura em árvore: Filial → Plano → Subplano ───────────────────────────
 
 interface SubGroup { spcId: number | null; spcDesc: string; valor: number; }
@@ -68,8 +92,8 @@ export function FinAnaliseTable({ aReceber, aPagar, filiais, selectedFilial, onF
     }
     const groups = [...fMap.values()].sort((a, b) => b.valor - a.valor);
     for (const g of groups) {
-      g.planos.sort((a, b) => b.valor - a.valor);
-      for (const p of g.planos) p.subs.sort((a, b) => b.valor - a.valor);
+      g.planos.sort((a, b) => compareContaDesc(a.plcDesc, b.plcDesc));
+      for (const p of g.planos) p.subs.sort((a, b) => compareContaDesc(a.spcDesc, b.spcDesc));
     }
     const totalGeral = groups.reduce((s, g) => s + g.valor, 0);
     return { groups, totalGeral };
