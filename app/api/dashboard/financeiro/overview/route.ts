@@ -15,7 +15,9 @@ function toStr(d: Date)    { return d.toISOString().split("T")[0]; }
  *
  * Fontes de dados no MaxManager:
  *  - Recebido/Pago realizado → contaMov (ledger de caixa, ctmValor já com sinal)
- *  - A Receber / A Pagar em aberto → vendaPgto (pgtTipoConta 'R'|'P', pgtPago IN 'N','G' = não quitado)
+ *  - A Receber / A Pagar em aberto → vendaPgto (pgtTipoConta 'R'|'P', pgtPago='N' = aberto).
+ *    'G' foi testado e descartado: são desdobramentos de outro título (pgtRef aponta pro pai,
+ *    que pode já estar quitado ou ainda aberto) — contá-los duplica valor e diverge da tela do ERP.
  *  - Plano de contas → planoConta (contaMov.ctmPlaCont / vendaPgto.pgtPlcId)
  *
  * Regra DRE: exclui títulos/movimentos cujo subplano (subPlanoContas via pgtSubPc/ctmSubPc)
@@ -105,7 +107,7 @@ export async function GET(request: Request) {
         ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) <  CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS vencido,
         ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS aVencer
       FROM vendaPgto
-      WHERE empId IN (${empList}) AND pgtPago IN ('N','G') AND pgtTipoConta IN ('R','P')
+      WHERE empId IN (${empList}) AND pgtPago = 'N' AND pgtTipoConta IN ('R','P')
         AND pgtVecmto IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vendaPgto.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY FORMAT(pgtVecmto,'yyyy-MM'), empId, pgtTipoConta
@@ -120,7 +122,7 @@ export async function GET(request: Request) {
       FROM vendaPgto vp
         LEFT JOIN planoConta pc ON vp.pgtPlcId = pc.plcId
         LEFT JOIN subPlanoContas sp ON vp.pgtSubPc = sp.spcId
-      WHERE vp.empId IN (${empList}) AND vp.pgtPago IN ('N','G') AND vp.pgtTipoConta IN ('R','P')
+      WHERE vp.empId IN (${empList}) AND vp.pgtPago = 'N' AND vp.pgtTipoConta IN ('R','P')
         AND ISNULL(sp.spcNaoDemonstrarDRE,0) = 0
       GROUP BY vp.empId, vp.pgtPlcId, pc.plcDesc, vp.pgtSubPc, sp.spcDesc, vp.pgtTipoConta
     `),
