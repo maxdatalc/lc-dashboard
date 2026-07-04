@@ -17,7 +17,7 @@ import { FinAnaliseTable, type AnaliseRow } from "@/components/charts/FinAnalise
 interface Filial { empId: number; nome: string; }
 interface FlowKpi { empId: number; recebimentos: number; pagamentos: number; recebimentosPrev: number; pagamentosPrev: number; }
 interface FluxoRow { mes: string; empId: number; recebimentos: number; pagamentos: number; }
-interface AbertoRow { mes: string; empId: number; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
+interface AbertoRow { mes: string; empId: number; tipo: "R" | "P"; valor: number; vencido: number; hoje: number; aVencer: number; }
 interface AnaliseApiRow { empId: number; plcId: number | null; plcDesc: string; spcId: number | null; spcDesc: string; tipo: "R" | "P"; valor: number; vencido: number; aVencer: number; }
 
 interface Overview {
@@ -234,21 +234,19 @@ export default function FinanceiroPage() {
     const aReceberKpi = somaAberto("R", true);
     const aPagarKpi = somaAberto("P", true);
 
-    // Chart Contas em Aberto: agrega por mês, janela de 8 meses mais próximos de hoje
-    const abMap = new Map<string, { rVencido: number; rAVencer: number; pVencido: number; pAVencer: number }>();
+    // Chart Contas em Aberto: agrega por mês (todos os meses com título em aberto).
+    // O componente decide a janela de meses a mostrar conforme a aba ativa
+    // (Vencidos/Hoje/A Vencer). "sem-venc" entra no KPI acima mas não tem mês pra plotar.
+    const abMap = new Map<string, { rVencido: number; rHoje: number; rAVencer: number; pVencido: number; pHoje: number; pAVencer: number }>();
     for (const r of abertosF) {
+      if (r.mes === "sem-venc") continue;
       let e = abMap.get(r.mes);
-      if (!e) { e = { rVencido: 0, rAVencer: 0, pVencido: 0, pAVencer: 0 }; abMap.set(r.mes, e); }
-      if (r.tipo === "R") { e.rVencido += r.vencido; e.rAVencer += r.aVencer; }
-      else { e.pVencido += r.vencido; e.pAVencer += r.aVencer; }
+      if (!e) { e = { rVencido: 0, rHoje: 0, rAVencer: 0, pVencido: 0, pHoje: 0, pAVencer: 0 }; abMap.set(r.mes, e); }
+      if (r.tipo === "R") { e.rVencido += r.vencido; e.rHoje += r.hoje; e.rAVencer += r.aVencer; }
+      else { e.pVencido += r.vencido; e.pHoje += r.hoje; e.pAVencer += r.aVencer; }
     }
-    const nowKey = new Date().toISOString().slice(0, 7);
-    const nowIdx = (k: string) => { const [y, m] = k.split("-").map(Number); return y * 12 + (m - 1); };
-    const baseIdx = nowIdx(nowKey);
     const contasAbertoChart = [...abMap.entries()]
       .map(([mes, v]) => ({ mes, ...v }))
-      .sort((a, b) => Math.abs(nowIdx(a.mes) - baseIdx) - Math.abs(nowIdx(b.mes) - baseIdx))
-      .slice(0, 8)
       .sort((a, b) => a.mes.localeCompare(b.mes));
 
     // Tabela de análise (agrupa por filial → plano → subplano dentro do componente)
@@ -353,9 +351,9 @@ export default function FinanceiroPage() {
           <div>
             <ChartCard
               title="Contas em Aberto"
-              subtitle="Por mês de vencimento · a receber vs. a pagar"
+              subtitle="Vencidos · Hoje · A Vencer"
               animationDelay={150}
-              info="Compara, por mês de vencimento, o que a empresa tem a receber (azul) e a pagar (âmbar). O tom cheio de cada barra é a parte já vencida; o tom claro, a que ainda vai vencer. Serve para antecipar a pressão de caixa dos próximos meses."
+              info="Compara o que a empresa tem a receber (azul) e a pagar (âmbar), separado em três recortes: Vencidos (já passou do vencimento), Hoje (vence exatamente hoje) e A Vencer (vencimento futuro). Nas abas Vencidos e A Vencer, os valores são agrupados por mês de vencimento — clique numa barra para filtrar o painel por aquele mês. Serve para antecipar a pressão de caixa dos próximos meses."
             >
               {loading || !derived ? <div className="shimmer rounded-lg w-full" style={{ height: 240 }} /> : (
                 <FinContasAbertoChart data={derived.contasAbertoChart} selectedMes={fMes} onMesClick={setFMes} />

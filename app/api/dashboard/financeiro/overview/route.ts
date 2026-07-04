@@ -14,7 +14,17 @@ function toStr(d: Date)    { return d.toISOString().split("T")[0]; }
  * (mês × filial × plano × conta) para permitir cross-filtering client-side.
  *
  * Fontes de dados no MaxManager:
- *  - Recebido/Pago realizado → contaMov (ledger de caixa, ctmValor já com sinal)
+ *  - Recebido/Pago realizado → vendaPgto (pgtPago='S' = quitado, data = pgtDataQuitou,
+ *    pgtClienteId IS NOT NULL). Antes usava contaMov.ctmData (data do lançamento em caixa),
+ *    mas isso diverge da tela "Contas a Pagar/Receber - Pesquisa" do ERP quando pgtDataQuitou
+ *    fica defasada em relação ao lançamento em caixa (ex.: título quitado registrado num dado
+ *    migrado com data antiga, mas o lançamento em contaMov só é feito depois).
+ *    pgtClienteId IS NOT NULL exclui lançamentos internos sem cliente vinculado (tarifas/estornos
+ *    automáticos de portador) que o relatório do ERP também não soma — NÃO usar `pgtValor>0`:
+ *    estornos legítimos de um cliente real (nota fiscal cancelada) têm valor negativo mas
+ *    pgtClienteId preenchido e CONTAM no relatório. Confirmado batendo no centavo comparando com
+ *    exportação real do relatório 105/106 (empId 1, fev/2026): Pagamentos R$40.852,60 (114 regs)
+ *    e Recebimentos R$335.089,37 (683 regs).
  *  - A Receber / A Pagar em aberto → vendaPgto (pgtTipoConta 'R'|'P', pgtPago='N' = aberto).
  *    'G' foi testado e descartado: são desdobramentos de outro título (pgtRef aponta pro pai,
  *    que pode já estar quitado ou ainda aberto) — contá-los duplica valor e diverge da tela do ERP.
@@ -70,47 +80,53 @@ export async function GET(request: Request) {
     analiseRes,    // aberto por filial × plano × subplano × tipo (R/P)
   ] = await Promise.allSettled([
 
-    // 1. KPIs de fluxo (contaMov CR/CP) — atual + anterior, por filial
+    // 1. KPIs de fluxo (vendaPgto quitado, pgtDataQuitou) — atual + anterior, por filial
     q<{ empId: number; recCur: number; pagCur: number; recPrev: number; pagPrev: number }>(`
       SELECT empId,
-        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @start AND @end AND ctmSinal='+'
-                        THEN ctmValor ELSE 0 END),0) AS recCur,
-        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @start AND @end AND ctmSinal='-'
-                        THEN ABS(ctmValor) ELSE 0 END),0) AS pagCur,
-        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @prevStart AND @prevEnd AND ctmSinal='+'
-                        THEN ctmValor ELSE 0 END),0) AS recPrev,
-        ISNULL(SUM(CASE WHEN CONVERT(date,ctmData) BETWEEN @prevStart AND @prevEnd AND ctmSinal='-'
-                        THEN ABS(ctmValor) ELSE 0 END),0) AS pagPrev
-      FROM contaMov
-      WHERE empId IN (${empList}) AND ctmAtivo=0 AND ctmTipoMov IN ('CP','CR')
-        AND CONVERT(date,ctmData) BETWEEN @prevStart AND @end
-        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = contaMov.ctmSubPc AND sp.spcNaoDemonstrarDRE = 1)
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end AND pgtTipoConta='R'
+                        THEN pgtValor ELSE 0 END),0) AS recCur,
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @start AND @end AND pgtTipoConta='P'
+                        THEN pgtValor ELSE 0 END),0) AS pagCur,
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @prevStart AND @prevEnd AND pgtTipoConta='R'
+                        THEN pgtValor ELSE 0 END),0) AS recPrev,
+        ISNULL(SUM(CASE WHEN CONVERT(date,pgtDataQuitou) BETWEEN @prevStart AND @prevEnd AND pgtTipoConta='P'
+                        THEN pgtValor ELSE 0 END),0) AS pagPrev
+      FROM vendaPgto
+      WHERE empId IN (${empList}) AND pgtPago='S' AND pgtTipoConta IN ('R','P') AND pgtClienteId IS NOT NULL
+        AND CONVERT(date,pgtDataQuitou) BETWEEN @prevStart AND @end
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vendaPgto.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
       GROUP BY empId
     `, { start, end, prevStart, prevEnd }),
 
-    // 2. Série mensal (12m) de recebimentos/pagamentos por filial
+    // 2. Série mensal (12m) de recebimentos/pagamentos por filial (vendaPgto quitado)
     q<{ mes: string; empId: number; recebimentos: number; pagamentos: number }>(`
-      SELECT FORMAT(ctmData,'yyyy-MM') AS mes, empId,
-        ISNULL(SUM(CASE WHEN ctmSinal='+' THEN ctmValor ELSE 0 END),0) AS recebimentos,
-        ISNULL(SUM(CASE WHEN ctmSinal='-' THEN ABS(ctmValor) ELSE 0 END),0) AS pagamentos
-      FROM contaMov
-      WHERE empId IN (${empList}) AND ctmAtivo=0 AND ctmTipoMov IN ('CP','CR')
-        AND CONVERT(date,ctmData) >= @base12m AND CONVERT(date,ctmData) <= @endDate
-        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = contaMov.ctmSubPc AND sp.spcNaoDemonstrarDRE = 1)
-      GROUP BY FORMAT(ctmData,'yyyy-MM'), empId
+      SELECT FORMAT(pgtDataQuitou,'yyyy-MM') AS mes, empId,
+        ISNULL(SUM(CASE WHEN pgtTipoConta='R' THEN pgtValor ELSE 0 END),0) AS recebimentos,
+        ISNULL(SUM(CASE WHEN pgtTipoConta='P' THEN pgtValor ELSE 0 END),0) AS pagamentos
+      FROM vendaPgto
+      WHERE empId IN (${empList}) AND pgtPago='S' AND pgtTipoConta IN ('R','P') AND pgtClienteId IS NOT NULL
+        AND CONVERT(date,pgtDataQuitou) >= @base12m AND CONVERT(date,pgtDataQuitou) <= @endDate
+        AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vendaPgto.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
+      GROUP BY FORMAT(pgtDataQuitou,'yyyy-MM'), empId
     `, { base12m, endDate: end }),
 
-    // 3. Títulos em aberto por mês de vencimento × filial × tipo (estado atual)
-    q<{ mes: string; empId: number; tipo: string; valor: number; vencido: number; aVencer: number }>(`
-      SELECT FORMAT(pgtVecmto,'yyyy-MM') AS mes, empId, pgtTipoConta AS tipo,
+    // 3. Títulos em aberto por mês de vencimento × filial × tipo (estado atual).
+    // Alguns títulos têm pgtVecmto NULO (raro, mas existe): não entram em nenhuma
+    // barra do gráfico mensal (não têm mês), mas o valor precisa continuar contando
+    // no KPI — por isso caem no "mês" sentinela 'sem-venc' e são tratados como vencido.
+    // `hoje` é um recorte adicional dentro de `aVencer` (que mantém >= para não alterar
+    // os KPIs A Receber/A Pagar do topo) usado só pelo gráfico Contas em Aberto, que
+    // subtrai hoje de aVencer no cliente para separar "vence hoje" de "vence no futuro".
+    q<{ mes: string; empId: number; tipo: string; valor: number; vencido: number; hoje: number; aVencer: number }>(`
+      SELECT ISNULL(FORMAT(pgtVecmto,'yyyy-MM'), 'sem-venc') AS mes, empId, pgtTipoConta AS tipo,
         ISNULL(SUM(pgtValor),0) AS valor,
-        ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) <  CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS vencido,
-        ISNULL(SUM(CASE WHEN CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS aVencer
+        ISNULL(SUM(CASE WHEN pgtVecmto IS NULL OR CONVERT(date,pgtVecmto) < CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS vencido,
+        ISNULL(SUM(CASE WHEN pgtVecmto IS NOT NULL AND CONVERT(date,pgtVecmto) = CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS hoje,
+        ISNULL(SUM(CASE WHEN pgtVecmto IS NOT NULL AND CONVERT(date,pgtVecmto) >= CONVERT(date,GETDATE()) THEN pgtValor ELSE 0 END),0) AS aVencer
       FROM vendaPgto
       WHERE empId IN (${empList}) AND pgtPago = 'N' AND pgtTipoConta IN ('R','P')
-        AND pgtVecmto IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM subPlanoContas sp WHERE sp.spcId = vendaPgto.pgtSubPc AND sp.spcNaoDemonstrarDRE = 1)
-      GROUP BY FORMAT(pgtVecmto,'yyyy-MM'), empId, pgtTipoConta
+      GROUP BY ISNULL(FORMAT(pgtVecmto,'yyyy-MM'), 'sem-venc'), empId, pgtTipoConta
     `),
 
     // 4. Aberto por filial × plano × subplano × tipo (para tabela A Receber / A Pagar)
@@ -146,13 +162,13 @@ export async function GET(request: Request) {
   }));
 
   const abertos = val(abertosRes)
-    .filter((r) => r.mes) // ignora vencimentos nulos remanescentes
     .map((r) => ({
       mes: r.mes,
       empId: Number(r.empId),
       tipo: r.tipo as "R" | "P",
       valor: Number(r.valor),
       vencido: Number(r.vencido),
+      hoje: Number(r.hoje),
       aVencer: Number(r.aVencer),
     }));
 
