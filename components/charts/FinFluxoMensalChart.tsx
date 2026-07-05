@@ -4,6 +4,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, ReferenceLine, Legend, LabelList,
 } from "recharts";
+import { useEmpresa } from "@/lib/contexts/empresa-context";
 
 export interface FinFluxoMensalData {
   mes: string;
@@ -58,6 +59,9 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
+  const { getModuleColor } = useEmpresa();
+  const pagamentosColor = getModuleColor("modulo_financeiro") ?? "#ef4444";
+
   const handleClick = (entry: FinFluxoMensalData) => {
     if (onMesClick) onMesClick(selectedMes === entry.mes ? null : entry.mes);
   };
@@ -73,8 +77,8 @@ export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
             <stop offset="100%" stopColor="var(--accent-cyan)" stopOpacity={0.55} />
           </linearGradient>
           <linearGradient id="fluxoPag" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9} />
-            <stop offset="100%" stopColor="#ef4444" stopOpacity={0.5} />
+            <stop offset="0%" stopColor={pagamentosColor} stopOpacity={0.9} />
+            <stop offset="100%" stopColor={pagamentosColor} stopOpacity={0.5} />
           </linearGradient>
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
@@ -88,7 +92,7 @@ export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
           {data.map((e) => <Cell key={e.mes} fill="url(#fluxoReceb)" opacity={dim(e.mes)} />)}
           {showLabels && <LabelList dataKey="recebimentos" position="top" formatter={(v) => abbr(Number(v))} fill="var(--text-muted)" fontSize={9.5} fontWeight={600} />}
         </Bar>
-        <Bar dataKey="pagamentos" name="Pagamentos" fill="#ef4444" radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
+        <Bar dataKey="pagamentos" name="Pagamentos" fill={pagamentosColor} radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
           {data.map((e) => <Cell key={e.mes} fill="url(#fluxoPag)" opacity={dim(e.mes)} />)}
           {showLabels && <LabelList dataKey="pagamentos" position="top" formatter={(v) => abbr(Number(v))} fill="var(--text-muted)" fontSize={9.5} fontWeight={600} />}
         </Bar>
