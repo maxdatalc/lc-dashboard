@@ -12,11 +12,22 @@ function makeAdminClient() {
 
 async function checkPlan(tenantId: string, featureKey: string): Promise<NextResponse | null> {
   const admin = makeAdminClient();
-  const { data: tenant } = await admin
-    .from("tenants")
-    .select("plan")
-    .eq("id", tenantId)
-    .maybeSingle();
+
+  const [{ data: tenant }, { data: moduleSetting }] = await Promise.all([
+    admin.from("tenants").select("plan").eq("id", tenantId).maybeSingle(),
+    admin
+      .from("module_settings")
+      .select("kill_switch_enabled")
+      .eq("feature_key", featureKey)
+      .maybeSingle(),
+  ]);
+
+  if ((moduleSetting as { kill_switch_enabled?: boolean } | null)?.kill_switch_enabled === true) {
+    return NextResponse.json(
+      { error: "Módulo temporariamente indisponível", feature: featureKey },
+      { status: 403 }
+    );
+  }
 
   const plan = (tenant as { plan?: string } | null)?.plan ?? "free";
 
