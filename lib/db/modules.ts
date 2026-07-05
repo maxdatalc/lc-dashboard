@@ -237,3 +237,167 @@ export async function updateModuleAppearance(
   });
   if (auditError) throw new Error(`Erro ao registrar auditoria: ${auditError.message}`);
 }
+
+export type ModuleAccessRankingItem = {
+  tenantId: string;
+  tenantName: string;
+  totalAccesses: number;
+  lastSeenAt: string;
+};
+
+/** Ranking de empresas por acessos a um módulo, mais acessado primeiro (aba Métricas). */
+export async function getModuleAccessRanking(
+  featureKey: string
+): Promise<ModuleAccessRankingItem[]> {
+  const supabase = createAdminClient();
+
+  const { data: stats, error: statsErr } = await supabase
+    .from("tenant_module_access_stats")
+    .select("tenant_id, total_accesses, last_seen_at")
+    .eq("feature_key", featureKey)
+    .order("total_accesses", { ascending: false });
+  if (statsErr) throw new Error(statsErr.message);
+
+  const rows = (stats ?? []) as { tenant_id: string; total_accesses: number; last_seen_at: string }[];
+  if (rows.length === 0) return [];
+
+  const tenantIds = rows.map((r) => r.tenant_id);
+  const { data: tenantsData, error: tenantsErr } = await supabase
+    .from("tenants")
+    .select("id, name")
+    .in("id", tenantIds);
+  if (tenantsErr) throw new Error(tenantsErr.message);
+
+  const nameById = new Map(
+    ((tenantsData ?? []) as { id: string; name: string }[]).map((t) => [t.id, t.name])
+  );
+
+  return rows.map((r) => ({
+    tenantId: r.tenant_id,
+    tenantName: nameById.get(r.tenant_id) ?? "—",
+    totalAccesses: r.total_accesses,
+    lastSeenAt: r.last_seen_at,
+  }));
+}
+
+export type ModuleChangeRequest = {
+  id: string;
+  featureKey: string;
+  tenantId: string | null;
+  tenantName: string | null;
+  titulo: string;
+  descricao: string | null;
+  status: "aberto" | "em_andamento" | "concluido";
+  createdAt: string;
+};
+
+/** Lista as solicitações de alteração de um módulo, mais recentes primeiro (aba Solicitações). */
+export async function listChangeRequests(featureKey: string): Promise<ModuleChangeRequest[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("module_change_requests")
+    .select("id, feature_key, tenant_id, titulo, descricao, status, created_at")
+    .eq("feature_key", featureKey)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as {
+    id: string;
+    feature_key: string;
+    tenant_id: string | null;
+    titulo: string;
+    descricao: string | null;
+    status: string;
+    created_at: string;
+  }[];
+  if (rows.length === 0) return [];
+
+  const tenantIds = [...new Set(rows.map((r) => r.tenant_id).filter((id): id is string => !!id))];
+  let nameById = new Map<string, string>();
+  if (tenantIds.length > 0) {
+    const { data: tenantsData, error: tenantsErr } = await supabase
+      .from("tenants")
+      .select("id, name")
+      .in("id", tenantIds);
+    if (tenantsErr) throw new Error(tenantsErr.message);
+    nameById = new Map(
+      ((tenantsData ?? []) as { id: string; name: string }[]).map((t) => [t.id, t.name])
+    );
+  }
+
+  return rows.map((r) => ({
+    id: r.id,
+    featureKey: r.feature_key,
+    tenantId: r.tenant_id,
+    tenantName: r.tenant_id ? nameById.get(r.tenant_id) ?? "—" : null,
+    titulo: r.titulo,
+    descricao: r.descricao,
+    status: r.status as ModuleChangeRequest["status"],
+    createdAt: r.created_at,
+  }));
+}
+
+/** Cria uma nova solicitação de alteração para um módulo. */
+export async function createChangeRequest(
+  featureKey: string,
+  input: { titulo: string; descricao: string | null; tenantId: string | null },
+  actorId: string
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("module_change_requests").insert({
+    feature_key: featureKey,
+    tenant_id: input.tenantId,
+    titulo: input.titulo,
+    descricao: input.descricao,
+    created_by: actorId,
+  });
+  if (error) throw new Error(`Erro ao criar solicitação: ${error.message}`);
+}
+
+/** Atualiza o status de uma solicitação de alteração. */
+export async function updateChangeRequestStatus(
+  id: string,
+  status: "aberto" | "em_andamento" | "concluido"
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("module_change_requests")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw new Error(`Erro ao atualizar status: ${error.message}`);
+}
+
+export type ModuleAuditLogEntry = {
+  id: string;
+  eventType: string;
+  actorId: string | null;
+  detalhes: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+/** Histórico de ações administrativas de um módulo, mais recentes primeiro (aba Histórico). Limitado às últimas 100 entradas. */
+export async function listModuleAuditLog(featureKey: string): Promise<ModuleAuditLogEntry[]> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("module_audit_log")
+    .select("id, event_type, actor_id, detalhes, created_at")
+    .eq("feature_key", featureKey)
+    .order("created_at", { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  return (
+    (data ?? []) as {
+      id: string;
+      event_type: string;
+      actor_id: string | null;
+      detalhes: Record<string, unknown> | null;
+      created_at: string;
+    }[]
+  ).map((r) => ({
+    id: r.id,
+    eventType: r.event_type,
+    actorId: r.actor_id,
+    detalhes: r.detalhes,
+    createdAt: r.created_at,
+  }));
+}
