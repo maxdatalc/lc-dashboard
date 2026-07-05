@@ -2,14 +2,22 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { FEATURES_CATALOG } from "@/lib/features";
 import { getAllModuleSettings } from "@/lib/db/modules";
-import { getAllTenants } from "@/lib/db/admin";
+import { getAllTenants, isSystemAdmin } from "@/lib/db/admin";
 import { getFeatureIcon } from "@/lib/features-icons";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminCard } from "@/components/admin/AdminCard";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function ModulosPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const admin = await isSystemAdmin(user.id);
+  if (!admin) redirect("/dashboard");
+
   const [moduleSettings, tenants] = await Promise.all([
     getAllModuleSettings(),
     getAllTenants(),

@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { FEATURES_CATALOG } from "@/lib/features";
 import {
   getModuleSettings,
@@ -11,7 +11,8 @@ import {
   listChangeRequests,
   listModuleAuditLog,
 } from "@/lib/db/modules";
-import { getAllTenants } from "@/lib/db/admin";
+import { getAllTenants, isSystemAdmin } from "@/lib/db/admin";
+import { createClient } from "@/lib/supabase/server";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ModuloKillSwitchButton } from "@/components/admin/ModuloKillSwitchButton";
 import { ModuloAcessoForm } from "@/components/admin/ModuloAcessoForm";
@@ -37,6 +38,12 @@ export default async function ModuloDetalhePage({
   params: Promise<{ key: string }>;
   searchParams: Promise<{ aba?: string }>;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const admin = await isSystemAdmin(user.id);
+  if (!admin) redirect("/dashboard");
+
   const { key } = await params;
   const { aba: abaParam } = await searchParams;
   const abaAtiva: Aba = (ABAS.some((a) => a.valor === abaParam) ? abaParam : "acesso") as Aba;

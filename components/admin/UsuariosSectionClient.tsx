@@ -25,6 +25,7 @@ interface Props {
   lojas: LojaInfo[];
   tenantFeatures: string[];
   grupos: TenantGroup[];
+  killedFeatureKeys: string[];
 }
 
 const MODULES_LABEL: Record<string, string> = {
@@ -57,7 +58,7 @@ const ROLE_CLS: Record<string, string> = {
 
 // ── Componente principal ─────────────────────────────────────────────────────
 
-export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeatures, grupos }: Props) {
+export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeatures, grupos, killedFeatureKeys }: Props) {
   const router = useRouter();
   const [painel, setPainel] = useState<"none" | "add-manual" | "add-erp">("none");
   const [editUserId, setEditUserId] = useState<string | null>(null);
@@ -165,6 +166,7 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
                 lojas={lojas}
                 configurableModules={configurableModules}
                 grupos={grupos}
+                killedFeatureKeys={killedFeatureKeys}
                 expanded={editUserId === u.userId}
                 onToggle={() => setEditUserId(editUserId === u.userId ? null : u.userId)}
                 onSaved={refresh}
@@ -182,13 +184,14 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
 // ── Linha de usuário com painel expansível ────────────────────────────────────
 
 function UsuarioRow({
-  usuario, tenantId, lojas, configurableModules, grupos, expanded, onToggle, onSaved, onDelete, deleting,
+  usuario, tenantId, lojas, configurableModules, grupos, killedFeatureKeys, expanded, onToggle, onSaved, onDelete, deleting,
 }: {
   usuario: UsuarioTenantCompleto;
   tenantId: string;
   lojas: LojaInfo[];
   configurableModules: string[];
   grupos: TenantGroup[];
+  killedFeatureKeys: string[];
   expanded: boolean;
   onToggle: () => void;
   onSaved: () => void;
@@ -260,6 +263,7 @@ function UsuarioRow({
           lojas={lojas}
           configurableModules={configurableModules}
           grupos={grupos}
+          killedFeatureKeys={killedFeatureKeys}
           onSaved={onSaved}
         />
       )}
@@ -270,13 +274,14 @@ function UsuarioRow({
 // ── Painel de edição de usuário ───────────────────────────────────────────────
 
 function UsuarioEditPanel({
-  usuario, tenantId, lojas, configurableModules, grupos, onSaved,
+  usuario, tenantId, lojas, configurableModules, grupos, killedFeatureKeys, onSaved,
 }: {
   usuario: UsuarioTenantCompleto;
   tenantId: string;
   lojas: LojaInfo[];
   configurableModules: string[];
   grupos: TenantGroup[];
+  killedFeatureKeys: string[];
   onSaved: () => void;
 }) {
   const currentModulos = usuario.settings?.modulos ?? {};
@@ -357,17 +362,30 @@ function UsuarioEditPanel({
                   {group.label}
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {groupMods.map((k) => (
-                    <label key={k} className="flex items-center gap-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={modulos[k] ?? false}
-                        onChange={() => toggleModulo(k)}
-                        className="rounded border-slate-300 text-slate-800"
-                      />
-                      <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
-                    </label>
-                  ))}
+                  {groupMods.map((k) => {
+                    const killedGlobally = killedFeatureKeys.includes(k);
+                    return (
+                      <label
+                        key={k}
+                        className={`flex items-center gap-1.5 ${killedGlobally ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                        title={killedGlobally ? "Desativado globalmente — reative em Módulos" : undefined}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={modulos[k] ?? false}
+                          onChange={() => toggleModulo(k)}
+                          disabled={killedGlobally}
+                          className="rounded border-slate-300 text-slate-800"
+                        />
+                        <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
+                        {killedGlobally && (
+                          <span className="text-[9px] font-semibold uppercase tracking-wider px-1 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
+                            Global
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                 </div>
               </div>
             );

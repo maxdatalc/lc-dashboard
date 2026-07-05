@@ -12,6 +12,7 @@ import {
   getGruposTenant,
 } from "@/lib/db/admin";
 import { FEATURES_CATALOG } from "@/lib/features";
+import { getKilledFeatureKeys } from "@/lib/db/modules";
 import { getClientesByTenantId, vincularClientesPorCnpjs } from "@/lib/db/clientes-base";
 import { LojasSectionClient } from "@/components/admin/LojasSectionClient";
 import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient";
@@ -66,6 +67,7 @@ export default async function GerenciarEmpresaPage({
   const usuarios = (abaAtiva === "usuarios" || abaAtiva === "permissoes") ? await getUsuariosTenantDetalhado(id) : [];
   const grupos = (abaAtiva === "usuarios" || abaAtiva === "permissoes") ? await getGruposTenant(id) : [];
   const clientesVinculados = abaAtiva === "clientes" ? await getClientesByTenantId(id) : [];
+  const killedFeatureKeys = (abaAtiva === "features" || abaAtiva === "usuarios") ? await getKilledFeatureKeys() : [];
 
   const emBreveFeatures = FEATURES_CATALOG.filter((f) => !f.disponivel);
   const addonFeatures   = FEATURES_CATALOG.filter((f) => f.disponivel);
@@ -215,23 +217,45 @@ export default async function GerenciarEmpresaPage({
                 <div className="space-y-3">
                   {addonFeatures.map((f) => {
                     const ativo = tenant.features.includes(f.key);
+                    const killedGlobally = killedFeatureKeys.includes(f.key);
                     return (
                       <div key={f.key}>
                         <label
-                          className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all hover:-translate-y-px hover:shadow-sm ${
-                            ativo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"
+                          className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
+                            killedGlobally
+                              ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
+                              : `cursor-pointer hover:-translate-y-px hover:shadow-sm ${ativo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"}`
                           }`}
                         >
+                          {killedGlobally && ativo && (
+                            <input type="hidden" name="feature" value={f.key} />
+                          )}
                           <input
                             type="checkbox"
                             name="feature"
                             value={f.key}
                             defaultChecked={ativo}
+                            disabled={killedGlobally}
                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-slate-800">{f.label}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-semibold text-slate-800">{f.label}</p>
+                              {killedGlobally && (
+                                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
+                                  Desativado globalmente
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-slate-500 mt-0.5">{f.descricao}</p>
+                            {killedGlobally && (
+                              <Link
+                                href={`/admin/modulos/${f.key}`}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 mt-1"
+                              >
+                                Reative em Módulos → {f.label}
+                              </Link>
+                            )}
                           </div>
                         </label>
 
@@ -338,6 +362,7 @@ export default async function GerenciarEmpresaPage({
             }))}
             tenantFeatures={tenant.features}
             grupos={grupos}
+            killedFeatureKeys={killedFeatureKeys}
           />
         )}
 
