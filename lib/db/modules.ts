@@ -146,3 +146,94 @@ export async function setKillSwitch(
 
   return { affectedTenantIds };
 }
+
+/**
+ * Substitui o conjunto de empresas com acesso a uma feature específica,
+ * sem tocar nas outras features de cada tenant (diferente de
+ * updateTenantFeatures, que substitui TODAS as features de UM tenant).
+ */
+export async function setTenantsForFeature(
+  featureKey: string,
+  tenantIds: string[],
+  actorId: string
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { data: current, error: curErr } = await supabase
+    .from("tenant_features")
+    .select("tenant_id")
+    .eq("feature_key", featureKey);
+  if (curErr) throw new Error(curErr.message);
+
+  const currentIds = new Set(
+    ((current ?? []) as { tenant_id: string }[]).map((r) => r.tenant_id)
+  );
+  const nextIds = new Set(tenantIds);
+
+  const toRemove = [...currentIds].filter((id) => !nextIds.has(id));
+  const toAdd = [...nextIds].filter((id) => !currentIds.has(id));
+
+  if (toRemove.length > 0) {
+    const { error } = await supabase
+      .from("tenant_features")
+      .delete()
+      .eq("feature_key", featureKey)
+      .in("tenant_id", toRemove);
+    if (error) throw new Error(error.message);
+  }
+
+  if (toAdd.length > 0) {
+    const { error } = await supabase
+      .from("tenant_features")
+      .insert(toAdd.map((tenantId) => ({ tenant_id: tenantId, feature_key: featureKey })));
+    if (error) throw new Error(error.message);
+  }
+
+  const { error: auditError } = await supabase.from("module_audit_log").insert({
+    feature_key: featureKey,
+    event_type: "acesso_empresa_alterado",
+    actor_id: actorId,
+    detalhes: { added: toAdd, removed: toRemove },
+  });
+  if (auditError) throw new Error(`Erro ao registrar auditoria: ${auditError.message}`);
+}
+
+export type ModuleAppearanceInput = {
+  accentColor: string | null;
+  pricingModel: "incluso_free" | "incluso_premium" | "avulso";
+  precoAvulso: number | null;
+};
+
+/** Atualiza cor de destaque e modelo comercial de um módulo (upsert parcial). */
+export async function updateModuleAppearance(
+  featureKey: string,
+  input: ModuleAppearanceInput,
+  actorId: string
+): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase.from("module_settings").upsert(
+    {
+      feature_key: featureKey,
+      accent_color: input.accentColor,
+      pricing_model: input.pricingModel,
+      preco_avulso: input.precoAvulso,
+      updated_at: new Date().toISOString(),
+      updated_by: actorId,
+    },
+    { onConflict: "feature_key" }
+  );
+  if (error) throw new Error(`Erro ao atualizar aparência do módulo: ${error.message}`);
+
+  const { error: auditError } = await supabase.from("module_audit_log").insert({
+    feature_key: featureKey,
+    event_type: "cor_alterada",
+    actor_id: actorId,
+    detalhes: {
+      accent_color: input.accentColor,
+      pricing_model: input.pricingModel,
+      preco_avulso: input.precoAvulso,
+    },
+  });
+  if (auditError) throw new Error(`Erro ao registrar auditoria: ${auditError.message}`);
+}
