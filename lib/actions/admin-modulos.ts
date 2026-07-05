@@ -9,6 +9,8 @@ import {
   setKillSwitch,
   setTenantsForFeature,
   updateModuleAppearance,
+  createChangeRequest,
+  updateChangeRequestStatus,
   type ModuleAppearanceInput,
 } from "@/lib/db/modules";
 
@@ -59,5 +61,27 @@ export async function salvarAparenciaModulo(featureKey: string, formData: FormDa
     precoAvulso: precoAvulsoRaw ? Number(precoAvulsoRaw) : null,
   };
   await updateModuleAppearance(featureKey, input, actorId);
+  revalidatePath(`/admin/modulos/${featureKey}`);
+}
+
+/** Cria uma nova solicitação de alteração para um módulo (aba Solicitações). */
+export async function criarSolicitacao(featureKey: string, formData: FormData): Promise<void> {
+  const actorId = await requireAdminUserId();
+  const titulo = String(formData.get("titulo") || "").trim();
+  if (!titulo) throw new Error("Título é obrigatório");
+  const descricao = String(formData.get("descricao") || "").trim() || null;
+  const tenantId = String(formData.get("tenant_id") || "").trim() || null;
+  await createChangeRequest(featureKey, { titulo, descricao, tenantId }, actorId);
+  revalidatePath(`/admin/modulos/${featureKey}`);
+}
+
+/** Atualiza o status de uma solicitação de alteração (aba Solicitações). */
+export async function atualizarStatusSolicitacao(
+  requestId: string,
+  status: "aberto" | "em_andamento" | "concluido",
+  featureKey: string
+): Promise<void> {
+  await requireAdminUserId();
+  await updateChangeRequestStatus(requestId, status);
   revalidatePath(`/admin/modulos/${featureKey}`);
 }
