@@ -4,18 +4,30 @@ export const revalidate = 0;
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FEATURES_CATALOG } from "@/lib/features";
-import { getModuleSettings, countTenantsWithFeature } from "@/lib/db/modules";
+import {
+  getModuleSettings,
+  countTenantsWithFeature,
+  getModuleAccessRanking,
+  listChangeRequests,
+  listModuleAuditLog,
+} from "@/lib/db/modules";
 import { getAllTenants } from "@/lib/db/admin";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { ModuloKillSwitchButton } from "@/components/admin/ModuloKillSwitchButton";
 import { ModuloAcessoForm } from "@/components/admin/ModuloAcessoForm";
 import { ModuloAparenciaForm } from "@/components/admin/ModuloAparenciaForm";
+import { ModuloMetricasTab } from "@/components/admin/ModuloMetricasTab";
+import { ModuloHistoricoTab } from "@/components/admin/ModuloHistoricoTab";
+import { ModuloSolicitacoesForm } from "@/components/admin/ModuloSolicitacoesForm";
 
-type Aba = "acesso" | "aparencia";
+type Aba = "acesso" | "aparencia" | "metricas" | "solicitacoes" | "historico";
 
 const ABAS: { valor: Aba; label: string }[] = [
   { valor: "acesso", label: "Acesso" },
   { valor: "aparencia", label: "Aparência/Comercial" },
+  { valor: "metricas", label: "Métricas" },
+  { valor: "solicitacoes", label: "Solicitações" },
+  { valor: "historico", label: "Histórico" },
 ];
 
 export default async function ModuloDetalhePage({
@@ -32,11 +44,15 @@ export default async function ModuloDetalhePage({
   const feature = FEATURES_CATALOG.find((f) => f.key === key);
   if (!feature || !feature.disponivel) notFound();
 
-  const [settings, tenants, tenantsComFeature] = await Promise.all([
-    getModuleSettings(key),
-    getAllTenants(),
-    countTenantsWithFeature(key),
-  ]);
+  const [settings, tenants, tenantsComFeature, ranking, changeRequests, auditLog] =
+    await Promise.all([
+      getModuleSettings(key),
+      getAllTenants(),
+      countTenantsWithFeature(key),
+      getModuleAccessRanking(key),
+      listChangeRequests(key),
+      listModuleAuditLog(key),
+    ]);
 
   const killed = settings?.killSwitchEnabled ?? false;
   const displayLabel = settings?.labelOverride || feature.label;
@@ -97,6 +113,18 @@ export default async function ModuloDetalhePage({
           initialPrecoAvulso={settings?.precoAvulso ?? null}
         />
       )}
+
+      {abaAtiva === "metricas" && <ModuloMetricasTab ranking={ranking} />}
+
+      {abaAtiva === "solicitacoes" && (
+        <ModuloSolicitacoesForm
+          featureKey={key}
+          requests={changeRequests}
+          tenants={tenants.map((t) => ({ id: t.id, name: t.name }))}
+        />
+      )}
+
+      {abaAtiva === "historico" && <ModuloHistoricoTab entries={auditLog} />}
     </div>
   );
 }
