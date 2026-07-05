@@ -29,7 +29,7 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
 
-  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes, tenantCountRes, killedRes] = await Promise.all([
+  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes, tenantCountRes, killedRes, moduleColorsRes] = await Promise.all([
     adminClient
       .from("profiles")
       .select("is_system_admin")
@@ -81,6 +81,12 @@ export default async function DashboardLayout({
       .from("module_settings")
       .select("feature_key")
       .eq("kill_switch_enabled", true),
+
+    // Cores de destaque configuradas por módulo (para propagar aos gráficos do cliente)
+    adminClient
+      .from("module_settings")
+      .select("feature_key, accent_color")
+      .not("accent_color", "is", null),
   ]);
 
   const isAdmin =
@@ -119,6 +125,12 @@ export default async function DashboardLayout({
     (r) => r.feature_key
   );
 
+  const moduleColors = Object.fromEntries(
+    ((moduleColorsRes.data ?? []) as { feature_key: string; accent_color: string }[]).map(
+      (r) => [r.feature_key, r.accent_color]
+    )
+  );
+
   const effectiveFeatures = resolveEffectiveFeatures({
     allTenantFeatures,
     isOwnerOrAdmin: isAdmin || effectiveRole === "owner",
@@ -152,6 +164,7 @@ export default async function DashboardLayout({
       userRole={isAdmin ? "owner" : userRole}
       features={effectiveFeatures}
       killedFeatureKeys={killedFeatureKeys}
+      moduleColors={moduleColors}
     >
       <DashLojaSync lojaId={selectedLojaId} />
       <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>

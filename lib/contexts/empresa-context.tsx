@@ -11,6 +11,8 @@ export type EmpresaContextValue = {
   userRole:    UserRole;
   /** Verifica se a feature está disponível (considera kill-switch global) */
   hasFeature:  (key: string) => boolean;
+  /** Cor de destaque configurada para um módulo (admin), ou undefined se não houver override */
+  getModuleColor: (key: string) => string | undefined;
   /** Usuário pode editar configurações */
   canEdit:     boolean;
   /** Usuário pode gerenciar outros usuários */
@@ -27,6 +29,7 @@ export function EmpresaProvider({
   userRole,
   features,
   killedFeatureKeys,
+  moduleColors,
 }: {
   children:    React.ReactNode;
   empresaId:   string;
@@ -35,6 +38,7 @@ export function EmpresaProvider({
   userRole:    UserRole;
   features?:   string[];
   killedFeatureKeys?: string[];
+  moduleColors?: Record<string, string>;
 }) {
   const killedSet = new Set(killedFeatureKeys ?? []);
 
@@ -47,6 +51,7 @@ export function EmpresaProvider({
       if (killedSet.has(key)) return false;
       return features ? features.includes(key) : planHasFeature(plan, key);
     },
+    getModuleColor: (key) => moduleColors?.[key],
     canEdit:        roleCanEdit(userRole),
     canManageUsers: roleCanManageUsers(userRole),
   };
