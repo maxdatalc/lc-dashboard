@@ -6,6 +6,7 @@ import {
   Activity,
   ShieldCheck,
   BookUser,
+  Zap,
 } from "lucide-react";
 import { createClient, createAdminClient } from "@/lib/supabase/server";
 import { AdminNavLink } from "@/components/admin/AdminNavLink";
@@ -127,6 +128,10 @@ export default async function AdminLayout({
               <AdminNavLink href="/admin/usuarios">
                 <Users className="h-4 w-4 shrink-0" />
                 Usuários
+              </AdminNavLink>
+              <AdminNavLink href="/admin/modulos">
+                <Zap className="h-4 w-4 shrink-0" />
+                Módulos
               </AdminNavLink>
             </NavGroup>
           )}
