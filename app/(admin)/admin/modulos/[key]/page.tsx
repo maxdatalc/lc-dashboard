@@ -30,7 +30,7 @@ export default async function ModuloDetalhePage({
   const abaAtiva: Aba = (ABAS.some((a) => a.valor === abaParam) ? abaParam : "acesso") as Aba;
 
   const feature = FEATURES_CATALOG.find((f) => f.key === key);
-  if (!feature) notFound();
+  if (!feature || !feature.disponivel) notFound();
 
   const [settings, tenants, tenantsComFeature] = await Promise.all([
     getModuleSettings(key),
@@ -39,17 +39,18 @@ export default async function ModuloDetalhePage({
   ]);
 
   const killed = settings?.killSwitchEnabled ?? false;
+  const displayLabel = settings?.labelOverride || feature.label;
 
   return (
     <div className="space-y-6 p-8">
       <AdminPageHeader
         eyebrow="Módulos"
-        title={settings?.labelOverride || feature.label}
+        title={displayLabel}
         subtitle={feature.descricao}
         actions={
           <ModuloKillSwitchButton
             featureKey={key}
-            featureLabel={feature.label}
+            featureLabel={displayLabel}
             killSwitchEnabled={killed}
             affectedTenantCount={tenantsComFeature}
           />
