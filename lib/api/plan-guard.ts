@@ -10,6 +10,22 @@ function makeAdminClient() {
   );
 }
 
+// Throttle: evita gravar no banco mais de 1x por minuto por tenant+módulo
+const _moduleAccessCache = new Map<string, number>();
+
+/** Registra 1 acesso ao módulo (para "módulos mais acessados"), com throttle de 60s. */
+async function trackModuleAccess(tenantId: string, featureKey: string): Promise<void> {
+  const cacheKey = `${tenantId}:${featureKey}`;
+  if (Date.now() - (_moduleAccessCache.get(cacheKey) ?? 0) <= 60_000) return;
+  _moduleAccessCache.set(cacheKey, Date.now());
+  const admin = makeAdminClient();
+  try {
+    await admin.rpc("track_module_access", { p_tenant_id: tenantId, p_feature_key: featureKey });
+  } catch (e) {
+    console.error("[module-access-tracking] falha ao registrar acesso:", e);
+  }
+}
+
 async function checkPlan(tenantId: string, featureKey: string): Promise<NextResponse | null> {
   const admin = makeAdminClient();
 
@@ -48,8 +64,14 @@ async function checkPlan(tenantId: string, featureKey: string): Promise<NextResp
 export async function requireFeature(featureKey: string): Promise<NextResponse | null> {
   const ctx = await requireTenantAccess();
   if (ctx instanceof NextResponse) return ctx;
-  if (ctx.isSystemAdmin) return null;
-  return checkPlan(ctx.tenantId, featureKey);
+  if (ctx.isSystemAdmin) {
+    await trackModuleAccess(ctx.tenantId, featureKey);
+    return null;
+  }
+  const blocked = await checkPlan(ctx.tenantId, featureKey);
+  if (blocked) return blocked;
+  await trackModuleAccess(ctx.tenantId, featureKey);
+  return null;
 }
 
 /**
@@ -62,6 +84,12 @@ export async function requireFeatureWithLojas(
 ): Promise<NextResponse | null> {
   const ctx = await requireTenantAccess(lojaIds);
   if (ctx instanceof NextResponse) return ctx;
-  if (ctx.isSystemAdmin) return null;
-  return checkPlan(ctx.tenantId, featureKey);
+  if (ctx.isSystemAdmin) {
+    await trackModuleAccess(ctx.tenantId, featureKey);
+    return null;
+  }
+  const blocked = await checkPlan(ctx.tenantId, featureKey);
+  if (blocked) return blocked;
+  await trackModuleAccess(ctx.tenantId, featureKey);
+  return null;
 }
