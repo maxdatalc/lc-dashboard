@@ -10,6 +10,7 @@ import { FilterProvider } from "@/lib/contexts/filter-context";
 import { EmpresaProvider } from "@/lib/contexts/empresa-context";
 import { DashLojaSync } from "@/components/layout/DashLojaSync";
 import type { Plan, UserRole } from "@/lib/plans";
+import { resolveEffectiveFeatures } from "@/lib/access/resolve-modules";
 
 export default async function DashboardLayout({
   children,
@@ -28,7 +29,7 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const selectedTenantId = cookieStore.get("selected_tenant_id")?.value ?? null;
 
-  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes, tenantCountRes] = await Promise.all([
+  const [profileRes, tenantAccessRes, empresaRes, featuresRes, userSettingsRes, tenantCountRes, killedRes] = await Promise.all([
     adminClient
       .from("profiles")
       .select("is_system_admin")
@@ -74,6 +75,12 @@ export default async function DashboardLayout({
       .from("tenant_users")
       .select("tenant_id", { count: "exact", head: true })
       .eq("user_id", user.id),
+
+    // Módulos com kill-switch ligado globalmente (afeta todos os tenants)
+    adminClient
+      .from("module_settings")
+      .select("feature_key")
+      .eq("kill_switch_enabled", true),
   ]);
 
   const isAdmin =
@@ -108,30 +115,16 @@ export default async function DashboardLayout({
     groupModulos = (grp as { modulos?: Record<string, boolean> } | null)?.modulos ?? null;
   }
 
-  // Resolução de permissões em 3 níveis: tenant → grupo → usuário
-  let effectiveFeatures: string[] | undefined;
-  if (allTenantFeatures.length === 0) {
-    effectiveFeatures = undefined; // sem features = usa planHasFeature como fallback
-  } else if (isAdmin || effectiveRole === "owner") {
-    effectiveFeatures = allTenantFeatures; // proprietários e admins globais: acesso total
-  } else if (groupModulos && Object.keys(groupModulos).length > 0) {
-    // Nível grupo: interseção tenant ∩ grupo
-    const groupFeatures = allTenantFeatures.filter((k) => groupModulos![k] === true);
-    if (userModulos && Object.keys(userModulos).length > 0) {
-      // Nível usuário: restrição adicional sobre o grupo
-      effectiveFeatures = groupFeatures.filter((k) => userModulos[k] === true);
-    } else {
-      effectiveFeatures = groupFeatures;
-    }
-  } else if (userModulos && Object.keys(userModulos).length > 0) {
-    // Sem grupo, com restrições individuais
-    effectiveFeatures = allTenantFeatures.filter((k) => userModulos[k] === true);
-  } else {
-    // Sem grupo, sem configuração → apenas home e vendas (modules com acesso padrão)
-    effectiveFeatures = allTenantFeatures.filter(
-      (k) => k === "dashboard_visao_geral" || k === "modulo_vendas"
-    );
-  }
+  const killedFeatureKeys = ((killedRes.data ?? []) as { feature_key: string }[]).map(
+    (r) => r.feature_key
+  );
+
+  const effectiveFeatures = resolveEffectiveFeatures({
+    allTenantFeatures,
+    isOwnerOrAdmin: isAdmin || effectiveRole === "owner",
+    groupModulos,
+    userModulos,
+  });
 
   const multiEmpresa = (tenantCountRes.count ?? 0) > 1;
 
@@ -158,6 +151,7 @@ export default async function DashboardLayout({
       plan={plan}
       userRole={isAdmin ? "owner" : userRole}
       features={effectiveFeatures}
+      killedFeatureKeys={killedFeatureKeys}
     >
       <DashLojaSync lojaId={selectedLojaId} />
       <LojaProvider lojas={lojas} selectedLojaId={selectedLojaId}>

@@ -9,7 +9,7 @@ export type EmpresaContextValue = {
   empresaNome: string;
   plan:        Plan;
   userRole:    UserRole;
-  /** Verifica se a feature está disponível no plano atual */
+  /** Verifica se a feature está disponível (considera kill-switch global) */
   hasFeature:  (key: string) => boolean;
   /** Usuário pode editar configurações */
   canEdit:     boolean;
@@ -26,6 +26,7 @@ export function EmpresaProvider({
   plan,
   userRole,
   features,
+  killedFeatureKeys,
 }: {
   children:    React.ReactNode;
   empresaId:   string;
@@ -33,13 +34,19 @@ export function EmpresaProvider({
   plan:        Plan;
   userRole:    UserRole;
   features?:   string[];
+  killedFeatureKeys?: string[];
 }) {
+  const killedSet = new Set(killedFeatureKeys ?? []);
+
   const value: EmpresaContextValue = {
     empresaId,
     empresaNome,
     plan,
     userRole,
-    hasFeature:     (key) => features ? features.includes(key) : planHasFeature(plan, key),
+    hasFeature: (key) => {
+      if (killedSet.has(key)) return false;
+      return features ? features.includes(key) : planHasFeature(plan, key);
+    },
     canEdit:        roleCanEdit(userRole),
     canManageUsers: roleCanManageUsers(userRole),
   };
