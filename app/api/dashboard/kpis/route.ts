@@ -94,8 +94,11 @@ function periodoAnterior(
 interface KpiRow {
   faturamento: number;
   totalVendas: number;
-  clientes: number;
   ticketMedio: number;
+}
+
+interface ClienteIdRow {
+  clienteId: number;
 }
 
 interface CustoRow {
@@ -112,8 +115,23 @@ function buildSqlKpis(vClause: string, extra = "") {
   SELECT
     ISNULL(SUM(vedTotalNf), 0)                                                   AS faturamento,
     COUNT(*)                                                                       AS totalVendas,
-    COUNT(DISTINCT NULLIF(vedClienteId, 0))                                       AS clientes,
     ISNULL(CASE WHEN COUNT(*) > 0 THEN SUM(vedTotalNf)/COUNT(*) ELSE 0 END, 0)  AS ticketMedio
+  FROM venda
+  WHERE vedStatus = 'F'
+    AND vedTipo IN ('OS','VE')
+    AND vedTotalNf > 0
+    AND empId = @empId
+    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+    ${vClause}${extra}`;
+}
+
+// Lista de clientes distintos (não um COUNT agregado): somar COUNT(DISTINCT ...) por loja
+// duplicaria clientes que compram em mais de uma loja selecionada. Em vez disso, cada loja
+// devolve os IDs e o chamador consolida um Set único chaveado por bridge (mesma bridge =
+// mesmo banco cliente = mesmo espaço de cliId; bridges diferentes nunca são comparáveis).
+function buildSqlClientes(vClause: string, extra = "") {
+  return `
+  SELECT DISTINCT NULLIF(vedClienteId, 0) AS clienteId
   FROM venda
   WHERE vedStatus = 'F'
     AND vedTipo IN ('OS','VE')
@@ -213,13 +231,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   let faturamento = 0;
   let totalVendas = 0;
-  let clientes = 0;
   let custo = 0;
   let totalDevolucoes = 0;
   let valorDevolvido = 0;
   let faturamentoAnt = 0;
   let totalVendasAnt = 0;
   let custoAnt = 0;
+
+  // Clientes distintos consolidados entre lojas — chave inclui a bridge porque cliId só é
+  // comparável dentro do mesmo banco (mesma bridge); somar COUNT(DISTINCT) por loja
+  // duplicaria clientes que compram em mais de uma loja selecionada na mesma bridge.
+  const clienteIdsSet = new Set<string>();
 
   let bridgeFound = false;
   let lastError = "";
@@ -233,21 +255,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     try {
       const vp = vendedorId ? { vendedorId } : {};
       const ep = { empId: config.empId };
-      const SQL_KPIS  = buildSqlKpis(vendedorClause,  `${cClause}${pClause}${tpClause}${fpClause}`);
-      const SQL_CUSTO = buildSqlCusto(vendedorClauseJ, `${cClauseJ}${pClauseJ}${tpClause}${fpClauseJ}`);
-      const SQL_DEV   = buildSqlDev(vendedorClause,    `${cClause}${pClause}${tpClause}${fpClause}`);
+      const SQL_KPIS     = buildSqlKpis(vendedorClause,  `${cClause}${pClause}${tpClause}${fpClause}`);
+      const SQL_CUSTO    = buildSqlCusto(vendedorClauseJ, `${cClauseJ}${pClauseJ}${tpClause}${fpClauseJ}`);
+      const SQL_DEV      = buildSqlDev(vendedorClause,    `${cClause}${pClause}${tpClause}${fpClause}`);
+      const SQL_CLIENTES = buildSqlClientes(vendedorClause, `${cClause}${pClause}${tpClause}${fpClause}`);
 
-      const [atual, ant, custoAtual, custoAnterior, dev] = await Promise.all([
+      const [atual, ant, custoAtual, custoAnterior, dev, clienteIds] = await Promise.all([
         queryBridge<KpiRow>(config, SQL_KPIS,  { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
         queryBridge<KpiRow>(config, SQL_KPIS,  { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp, ...tp, ...fp }),
         queryBridge<CustoRow>(config, SQL_CUSTO, { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
         queryBridge<CustoRow>(config, SQL_CUSTO, { start: anterior.start, end: anterior.end, ...ep, ...vp, ...cp, ...tp, ...fp }),
         queryBridge<DevRow>(config, SQL_DEV,   { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
+        queryBridge<ClienteIdRow>(config, SQL_CLIENTES, { start, end, ...ep, ...vp, ...cp, ...tp, ...fp }),
       ]);
 
       faturamento     += Number(atual[0]?.faturamento        ?? 0);
       totalVendas     += Number(atual[0]?.totalVendas        ?? 0);
-      clientes        += Number(atual[0]?.clientes           ?? 0);
+      for (const row of clienteIds) {
+        if (row.clienteId != null) clienteIdsSet.add(`${config.bridgeUrl}::${row.clienteId}`);
+      }
       custo           += Number(custoAtual[0]?.custo         ?? 0);
       totalDevolucoes += Number(dev[0]?.totalDevolucoes      ?? 0);
       valorDevolvido  += Number(dev[0]?.valorDevolvido       ?? 0);
@@ -259,6 +285,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       console.error(`[kpis] bridge error loja ${id}:`, lastError);
     }
   }
+
+  const clientes = clienteIdsSet.size;
 
   if (!bridgeFound) {
     return NextResponse.json(

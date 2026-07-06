@@ -13,23 +13,31 @@ function toStr(d: Date)    { return d.toISOString().split("T")[0]; }
  * Uma única chamada retorna tudo que a tela precisa, com dimensões granulares
  * (mês × tipo × cidade) para permitir cross-filtering client-side.
  *
- * Fontes de dados no MaxManager (BATAUTO):
+ * Fontes de dados no MaxManager (validado contra o bridge de testes oficial, banco SALES —
+ * ver docs/wiki/bridge-sql-constraints.md; nunca usar BATAUTO):
  *  - Base de clientes (ativos/inativos/PF-PJ/limite) → `cliente`, escopo de filial
  *    via EXISTS em `cliente_empresa` (cliId × empId). Ativo = cliDesativa=0.
  *  - Cidade/UF da base → cliFatCidade / cliFatUf (cliFatCep disponível p/ mapa futuro).
- *  - Limite de crédito → cliente.cliLimitCred (zero neste banco migrado; acende em produção).
- *  - Cadastro por período → cliente_empresa.cliDatCad (fallback DataInclusao).
+ *  - Limite de crédito → cliente.cliLimitCred (NÃO é zero em produção — comentário anterior
+ *    estava desatualizado, escrito para o banco de testes antigo antes da migração para o
+ *    bridge SALES; no bridge atual 633 de 2.976 clientes já têm limite > 0).
+ *  - Cadastro por período → cliente_empresa.cliDatCad (fallback DataInclusao) — colapsado
+ *    para a data mais antiga POR CLIENTE antes de agrupar por mês (ver queries 3/4): essa
+ *    data pode divergir entre filiais do mesmo cliente.
  *  - Receita / recorrência / 1ª compra → `venda` (vedStatus='F', vedTotalNf).
- *    "Gera financeiro" via tipoAtend (vedTipoAtend → tatProGeraFinanceiro / tatServGeraFinanceiro);
- *    DV (devoluções) sempre subtraem. Recorrente = > 1 compra finalizada (all-time).
+ *    "Gera financeiro": DV e VE sempre contam; OS depende de tipoAtend (vedTipoAtend →
+ *    tatProGeraFinanceiro/tatServGeraFinanceiro) — vedTipoAtend é sempre NULL para VE, então
+ *    VE nunca pode depender desse join (ver GERA_FIN). DV sempre subtrai. Recorrente = > 1
+ *    compra finalizada nas lojas selecionadas (não all-time cross-tenant — ver CTE `compras`).
  *
  * Observações de dado (documentadas):
  *  - `cliente` não tem coluna de filial; a segmentação por filial vem de cliente_empresa.
- *    Neste banco migrado cliente_empresa é um cross-join (todo cliente em toda filial),
+ *    No bridge de testes cliente_empresa é um cross-join (todo cliente em toda filial),
  *    então localmente as filiais mostram números idênticos — o padrão é correto e
  *    segmenta em produção.
- *  - Só ~1,9% da base tem histórico de compra neste banco → widgets derivados de compra
- *    ficam esparsos aqui e densos em produção.
+ *  - "CONSUMIDOR" (cliId=1 e variantes por nome) é um cadastro genérico legítimo de venda
+ *    balcão, não erro de cadastro — mas é excluído do ranking "Top Clientes" (query 12)
+ *    para não competir como se fosse um cliente fiel.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -72,8 +80,13 @@ export async function GET(request: Request) {
   const CIDADE = "ISNULL(NULLIF(LTRIM(RTRIM(c.cliFatCidade)),''),'')";
   const UF     = "ISNULL(c.cliFatUf,'')";
   const EXISTS_FILIAL = `EXISTS (SELECT 1 FROM cliente_empresa ce WHERE ce.cliId = c.cliId AND ce.empId IN (${empList}))`;
-  // Vendas que geram financeiro: DV sempre conta; demais dependem do tipoAtend
-  const GERA_FIN = "(v.vedTipo = 'DV' OR ta.tatProGeraFinanceiro = 1 OR ta.tatServGeraFinanceiro = 1)";
+  // Vendas que geram financeiro: DV e VE sempre contam; OS depende do tipoAtend.
+  // Correção 2026-07-06: vedTipoAtend é SEMPRE NULL para vedTipo='VE' (esse conceito só
+  // existe para OS), então o LEFT JOIN com tipoAtend nunca casava para VE e a condição
+  // antiga (só DV OR tatProGeraFinanceiro/tatServGeraFinanceiro) ficava sempre falsa para
+  // venda balcão — nenhuma venda VE nunca contava como receita em nenhuma métrica deste
+  // arquivo. Validado no bridge de testes: subestimava a receita do período em 13,2%.
+  const GERA_FIN = "(v.vedTipo IN ('DV','VE') OR ta.tatProGeraFinanceiro = 1 OR ta.tatServGeraFinanceiro = 1)";
 
   const q = <T>(sql: string, params?: Record<string, unknown>) =>
     queryBridge<T>({ bridgeUrl, token }, sql, params);
@@ -105,7 +118,10 @@ export async function GET(request: Request) {
       GROUP BY ${CIDADE}, ${UF}, c.cliTipo, c.cliDesativa
     `),
 
-    // 2. Clientes ativos com histórico de compra cuja última compra passou de 90 dias
+    // 2. Clientes ativos com histórico de compra cuja última compra passou de 90 dias.
+    // Correção 2026-07-06: não filtrava cliDesativa — contava como "churn" contas que o
+    // próprio ERP já marca como encerradas (cliDesativa=-1), o que não bate com o texto
+    // do comentário ("clientes ativos"). Achado no bridge de testes: 4,5% dos casos.
     q<{ semCompra90: number }>(`
       SELECT COUNT(DISTINCT u.vedClienteId) AS semCompra90
       FROM (
@@ -115,31 +131,42 @@ export async function GET(request: Request) {
           AND v.vedFechamento IS NOT NULL
         GROUP BY v.vedClienteId
       ) u
+      JOIN cliente c ON c.cliId = u.vedClienteId AND c.cliDesativa = 0
       WHERE u.ult < DATEADD(day, -90, CONVERT(date, GETDATE()))
     `),
 
-    // 3. Novos cadastros por mês × cidade (12m) — cliDatCad com fallback DataInclusao
+    // 3. Novos cadastros por mês × cidade (12m) — cliDatCad com fallback DataInclusao.
+    // Correção 2026-07-06: cliente_empresa tem uma linha por (cliId, empId), e a data de
+    // cadastro pode divergir entre filiais do mesmo cliente (datas de migração distintas
+    // por loja) — sem o GROUP BY x.cliId abaixo, cada loja selecionada contribuía sua
+    // própria data pro agrupamento por mês, contando o MESMO cliente como "novo cadastro"
+    // em mais de um mês simultaneamente quando 2+ lojas eram selecionadas. Validado no
+    // bridge de testes: 93% dos clientes tinham datas divergentes entre filiais, quase
+    // dobrando o total de pares (cliente, mês) na série. Agora colapsa para a data MAIS
+    // ANTIGA por cliente (entre as lojas selecionadas) antes de agrupar por mês.
     q<{ mes: string; cidade: string; qtde: number }>(`
       SELECT FORMAT(x.dt,'yyyy-MM') AS mes, ${CIDADE} AS cidade, COUNT(DISTINCT x.cliId) AS qtde
       FROM (
-        SELECT ce.cliId, CONVERT(date, COALESCE(ce.cliDatCad, ce.DataInclusao)) AS dt
+        SELECT ce.cliId, MIN(CONVERT(date, COALESCE(ce.cliDatCad, ce.DataInclusao))) AS dt
         FROM cliente_empresa ce
         WHERE ce.empId IN (${empList}) AND COALESCE(ce.cliDatCad, ce.DataInclusao) IS NOT NULL
+        GROUP BY ce.cliId
       ) x
       JOIN cliente c ON c.cliId = x.cliId
       WHERE x.dt >= @base12m
       GROUP BY FORMAT(x.dt,'yyyy-MM'), ${CIDADE}
     `, { base12m }),
 
-    // 4. Novos cadastros — período atual e anterior
+    // 4. Novos cadastros — período atual e anterior (mesma correção da query 3 acima)
     q<{ atual: number; anterior: number }>(`
       SELECT
         COUNT(DISTINCT CASE WHEN x.dt BETWEEN @start AND @end THEN x.cliId END) AS atual,
         COUNT(DISTINCT CASE WHEN x.dt BETWEEN @prevStart AND @prevEnd THEN x.cliId END) AS anterior
       FROM (
-        SELECT ce.cliId, CONVERT(date, COALESCE(ce.cliDatCad, ce.DataInclusao)) AS dt
+        SELECT ce.cliId, MIN(CONVERT(date, COALESCE(ce.cliDatCad, ce.DataInclusao))) AS dt
         FROM cliente_empresa ce
         WHERE ce.empId IN (${empList})
+        GROUP BY ce.cliId
       ) x
     `, { start, end, prevStart, prevEnd }),
 
@@ -160,10 +187,18 @@ export async function GET(request: Request) {
       GROUP BY FORMAT(pc.primeira,'yyyy-MM'), ${CIDADE}
     `, { base12m }),
 
-    // 6. Primeira compra — período atual e anterior
+    // 6. Primeira compra — período atual e anterior.
+    // Correção 2026-07-06: usava MIN(v.empId) — a MENOR empId entre TODAS as vendas
+    // históricas do cliente — para decidir se ele "pertence" às lojas selecionadas, em vez
+    // da loja onde a primeira compra de fato ocorreu. Um cliente cuja primeira compra foi
+    // na loja 2 mas que também comprou depois na loja 1 caía em empId=1 (o menor), então
+    // filtrar por empId IN (2) o excluía incorretamente (e filtrar por empId IN (1) o
+    // incluía incorretamente). Corrigido replicando o join da query 5 (série mensal):
+    // junta de volta na venda real do dia da primeira compra e filtra pelo empId dessa
+    // venda específica. Achado no bridge de testes em 146 clientes distintos.
     q<{ atual: number; anterior: number }>(`
       WITH pc AS (
-        SELECT v.vedClienteId, MIN(CONVERT(date, v.vedFechamento)) AS primeira, MIN(v.empId) AS empId
+        SELECT v.vedClienteId, MIN(CONVERT(date, v.vedFechamento)) AS primeira
         FROM venda v
         WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.vedFechamento IS NOT NULL
         GROUP BY v.vedClienteId
@@ -172,15 +207,21 @@ export async function GET(request: Request) {
         COUNT(DISTINCT CASE WHEN pc.primeira BETWEEN @start AND @end THEN pc.vedClienteId END) AS atual,
         COUNT(DISTINCT CASE WHEN pc.primeira BETWEEN @prevStart AND @prevEnd THEN pc.vedClienteId END) AS anterior
       FROM pc
-      WHERE pc.empId IN (${empList})
+      JOIN venda v ON v.vedClienteId = pc.vedClienteId AND CONVERT(date, v.vedFechamento) = pc.primeira
+        AND v.vedStatus='F' AND v.empId IN (${empList})
     `, { start, end, prevStart, prevEnd }),
 
     // 7. Receita líquida por mês × tipo(recorrente) × cidade (12m)
     q<{ mes: string; tipo: string; cidade: string; receita: number }>(`
+      -- Correção 2026-07-06: CTE não tinha filtro de empId — contava compras all-time em
+      -- TODAS as lojas do ERP, não só as selecionadas. Diverge de /api/home/summary (que
+      -- escopa por empId), então um cliente que compra em 2+ lojas podia ser classificado
+      -- diferente entre as duas telas dependendo de quais lojas estavam selecionadas.
       WITH compras AS (
         SELECT v.vedClienteId, COUNT(*) AS n
         FROM venda v
         WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.vedFechamento IS NOT NULL
+          AND v.empId IN (${empList})
         GROUP BY v.vedClienteId
       )
       SELECT FORMAT(v.vedFechamento,'yyyy-MM') AS mes,
@@ -199,10 +240,15 @@ export async function GET(request: Request) {
 
     // 8. Compradores únicos por mês × tipo × cidade (12m)
     q<{ mes: string; tipo: string; cidade: string; qtde: number }>(`
+      -- Correção 2026-07-06: CTE não tinha filtro de empId — contava compras all-time em
+      -- TODAS as lojas do ERP, não só as selecionadas. Diverge de /api/home/summary (que
+      -- escopa por empId), então um cliente que compra em 2+ lojas podia ser classificado
+      -- diferente entre as duas telas dependendo de quais lojas estavam selecionadas.
       WITH compras AS (
         SELECT v.vedClienteId, COUNT(*) AS n
         FROM venda v
         WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.vedFechamento IS NOT NULL
+          AND v.empId IN (${empList})
         GROUP BY v.vedClienteId
       )
       SELECT FORMAT(v.vedFechamento,'yyyy-MM') AS mes,
@@ -219,10 +265,15 @@ export async function GET(request: Request) {
 
     // 9. Taxa de recorrência — período atual e anterior
     q<{ totalComp: number; recorrentes: number; totalPrev: number; recorrentesPrev: number }>(`
+      -- Correção 2026-07-06: CTE não tinha filtro de empId — contava compras all-time em
+      -- TODAS as lojas do ERP, não só as selecionadas. Diverge de /api/home/summary (que
+      -- escopa por empId), então um cliente que compra em 2+ lojas podia ser classificado
+      -- diferente entre as duas telas dependendo de quais lojas estavam selecionadas.
       WITH compras AS (
         SELECT v.vedClienteId, COUNT(*) AS n
         FROM venda v
         WHERE v.vedStatus='F' AND v.vedTipo IN ('OS','VE') AND v.vedFechamento IS NOT NULL
+          AND v.empId IN (${empList})
         GROUP BY v.vedClienteId
       )
       SELECT
@@ -259,6 +310,14 @@ export async function GET(request: Request) {
     // 12. Receita + contagem de vendas por cliente × mês (12m) — alimenta o
     //     "Top 10 Clientes" do mapa (estado e município). Mesma regra de
     //     faturamento da query 7 (GERA_FIN, DV subtrai); vendas = OS/VE distintas.
+    //     Correção 2026-07-06: exclui o(s) cadastro(s) genéricos de "consumidor final"
+    //     (mesma heurística de SQL_CONSUMIDOR_FINAL em /api/home/summary — cliId=1 OU
+    //     nome contendo CONSUMIDOR/BALC). Sem isso, o cadastro genérico concentrava mais
+    //     receita que qualquer cliente real (venda balcão somada de todos os atendimentos)
+    //     e aparecia como #1 do ranking — não é erro de dado, mas não deveria competir
+    //     num ranking de "cliente fiel". Segregar num bucket "consumidor final" à parte
+    //     (como a Home já faz) seria mais completo, mas exige mudança de UI fora do
+    //     escopo desta correção.
     q<{ cliId: number; nome: string | null; cidade: string; uf: string; mes: string; receita: number; vendas: number }>(`
       SELECT v.vedClienteId AS cliId, c.cliNome AS nome, ${CIDADE} AS cidade, ${UF} AS uf,
         FORMAT(v.vedFechamento,'yyyy-MM') AS mes,
@@ -270,6 +329,7 @@ export async function GET(request: Request) {
       WHERE v.empId IN (${empList}) AND v.vedStatus='F' AND v.vedTipo IN ('OS','VE','DV')
         AND v.vedFechamento IS NOT NULL AND CONVERT(date, v.vedFechamento) >= @base12m
         AND ${GERA_FIN}
+        AND NOT (c.cliId = 1 OR c.cliNome LIKE '%CONSUMIDOR%' OR c.cliNome LIKE '%BALC%')
       GROUP BY v.vedClienteId, c.cliNome, ${CIDADE}, ${UF}, FORMAT(v.vedFechamento,'yyyy-MM')
     `, { base12m }),
   ]);

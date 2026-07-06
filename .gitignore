@@ -42,3 +42,16 @@ scripts/test-*.mjs
 
 .vercel
 .env*
+
+# gravações e transcrições brutas de ligações — conteúdo sensível/estratégico,
+# nunca deve ir para o repositório. Só o que é distilado manualmente para
+# docs/wiki/business-decisions-log.md ou docs/TASKS.md é versionado.
+/reunioes/audio/*
+/reunioes/transcricoes/*
+!/reunioes/audio/.gitkeep
+!/reunioes/transcricoes/.gitkeep
+
+# extratos brutos de sessões do Claude Code — só local, nunca versionar (contêm
+# transcrições verbatim que já vazaram credenciais reais coladas em conversas
+# antigas). O destilado vai para docs/wiki/.
+/raw/

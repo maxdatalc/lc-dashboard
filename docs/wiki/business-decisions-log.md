@@ -1,0 +1,12 @@
+# Decisões de produto/negócio registradas nas sessões
+
+Decisões que não estão (ou não estarão de forma óbvia) no código — contexto de "por quê", não "o quê".
+
+- **Monetização por módulo, não plano binário**: o modelo é módulos como unidade de cobrança, não free/premium flat. Free = dashboards (vendas/produtos/clientes/financeiro); pago = módulos individuais (ex.: O.S.). Qualquer trabalho futuro de billing/entitlements deve assumir entitlement por módulo (`tenant_modules`), não uma flag binária de plano. (sessão `21e973ec`)
+- **Gateway de pagamento escolhido: Asaas** (não Stripe) para cobrança dos módulos pagos. (sessão `21e973ec`, implementado a partir de `3cf99a32`)
+- **Modelo de controle de acesso**: cada camada de permissão (catálogo → tenant → grupo → usuário) é um "teto que só restringe, nunca concede" — uma camada mais baixa nunca pode reabilitar algo que uma camada mais alta negou. Usar esse modelo para qualquer trabalho futuro de feature-gating. (sessão `ee4b30f0`)
+- **Migração de arquitetura**: sync via MaxData/Edge Functions foi completamente abandonado em favor de consulta em tempo real via SQL Bridge — ver [bridge-sql-constraints.md](bridge-sql-constraints.md). `docs/ARCHITECTURE.md` e `docs/BUSINESS_RULES.md` ainda descrevem o modelo antigo e estão desatualizados nesse ponto. (sessão `51357dca`, `b15f12b6`)
+- **ERP do cliente não tolera concorrência**: o servidor MaxManager local do cliente não tolera requisições paralelas — qualquer sync/integração contra ele deve rodar sequencial (`for...of`), nunca `Promise.all`, com pequeno delay entre chamadas. Restrição fundacional para qualquer integração futura. (sessão `6d63568e`, reforçada em `4218f033`)
+- **Divisão de responsabilidade de sync** (histórica, pré-Bridge): `sync-erp` (rotina de 25 min) só sincroniza cabeçalho de venda; item/pagamento é exclusividade do `sync-queue-processor`. Reintroduzir fetch de item/pagamento no `sync-erp` reintroduz rate-limit. (sessão `6d63568e`)
+- **Upgrade Next.js 14→15 avaliado e adiado deliberadamente** por risco alto (mudança de `cookies()`/`headers()`/`params` para async, mudança de comportamento de cache de fetch) — não sugerir de novo sem reconfirmar prontidão do projeto. (sessão `381f5da7`)
+- **Sem framework de testes configurado** até a sessão `ee4b30f0` (só `next lint`) — Vitest foi adotado especificamente para fazer TDD do motor de resolução de acesso; ainda não é convenção geral do projeto, foi bootstrap pontual.

@@ -87,16 +87,15 @@ export interface HomeSummaryResponse {
 interface KpiRow {
   faturamento: number;
   totalVendas: number;
-  totalClientes: number;
 }
 
 interface CustoRow {
   custo: number;
 }
 
-interface RecorrenciaRow {
-  novos: number;
-  recorrentes: number;
+interface ClienteStatsRow {
+  clienteId: number;
+  n: number;
 }
 
 interface EmAbertoRow {
@@ -274,8 +273,7 @@ function variacaoPercent(atual: number, anterior: number): number | null {
 const SQL_KPI = `
   SELECT
     ISNULL(SUM(vedTotalNf), 0)                   AS faturamento,
-    COUNT(*)                                       AS totalVendas,
-    COUNT(DISTINCT NULLIF(vedClienteId, 0))        AS totalClientes
+    COUNT(*)                                       AS totalVendas
   FROM venda
   WHERE empId = @empId
     AND vedStatus = 'F'
@@ -312,7 +310,16 @@ const SQL_CUSTO = `
 // original não exclui — sem essa exclusão, vendas sem cliente identificado seriam contadas
 // como se fossem repetidas compras de um único "cliente" (id 0), inflando artificialmente a
 // contagem de recorrentes.
-const SQL_RECORRENCIA = `
+//
+// IMPORTANTE (correção 2026-07-06): a classificação novo/recorrente NÃO é feita mais dentro
+// desta query. Antes ela rodava uma vez por loja e já devolvia "novos"/"recorrentes" prontos,
+// que o chamador somava entre lojas — isso conta errado um cliente que compra em mais de uma
+// loja selecionada (ex.: 1 compra na loja A + 1 compra na loja B = deveria ser "recorrente"
+// no total, mas cada loja isoladamente via só 1 compra e classificava como "novo" duas vezes).
+// Agora esta query só devolve, por cliente, a contagem all-time de compras NESTA loja; o
+// chamador soma essa contagem entre lojas da MESMA bridge (mesmo banco = mesmo cliId) antes
+// de decidir novo (n<=1) vs recorrente (n>1) — ver consolidação após o loop.
+const SQL_CLIENTES_STATS = `
   WITH compras AS (
     SELECT vedClienteId, COUNT(*) AS n
     FROM venda
@@ -321,15 +328,15 @@ const SQL_RECORRENCIA = `
       AND vedClienteId IS NOT NULL AND vedClienteId <> 0
     GROUP BY vedClienteId
   )
-  SELECT
-    COUNT(DISTINCT CASE WHEN cp.n <= 1 THEN v.vedClienteId END) AS novos,
-    COUNT(DISTINCT CASE WHEN cp.n > 1  THEN v.vedClienteId END) AS recorrentes
-  FROM venda v
-  LEFT JOIN compras cp ON cp.vedClienteId = v.vedClienteId
-  WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
-    AND v.vedFechamento IS NOT NULL
-    AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0
-    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
+  SELECT DISTINCT cp.vedClienteId AS clienteId, cp.n AS n
+  FROM compras cp
+  WHERE EXISTS (
+    SELECT 1 FROM venda v
+    WHERE v.vedClienteId = cp.vedClienteId AND v.empId = @empId
+      AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
+      AND v.vedFechamento IS NOT NULL
+      AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+  )`;
 
 const SQL_VE_ABERTO = `
   SELECT COUNT(DISTINCT v.vedId) AS qtd,
@@ -537,14 +544,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     });
 
   // Acumuladores para multi-loja
-  let faturamento    = 0, totalVendas    = 0, custo    = 0, totalClientes = 0;
+  let faturamento    = 0, totalVendas    = 0, custo    = 0;
   let faturamentoAnt = 0, totalVendasAnt = 0, custoAnt = 0;
-  let clientesNovos  = 0, clientesRecorrentes = 0;
   let qtdVendas = 0, qtdOs = 0, valorAbertoVe = 0, valorAbertoOs = 0;
   let metaValor = 0;
   let qtdPf = 0, qtdPj = 0;
   let totalPagto = 0;
   let valorConsumidorFinal = 0, qtdConsumidorFinal = 0, clientesDistintosConsumidorFinal = 0;
+
+  // Estatísticas de cliente (contagem all-time de compras) consolidadas entre lojas antes de
+  // classificar novo/recorrente — chave inclui a bridge porque cliId só é comparável dentro do
+  // mesmo banco. Ver comentário em SQL_CLIENTES_STATS para o motivo da correção.
+  const clienteStatsMap = new Map<string, number>();
 
   // Listas para qualitativo (top vendedores, topProdutos, etc.)
   const allVendedores: VendedorRow[] = [];
@@ -566,7 +577,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const [
       kpiRows, kpiAntRows,
       custoRows, custoAntRows,
-      recorrenciaRows,
+      clienteStatsRows,
       veAbertoRows, osAbertoRows,
       metaRows,
       vendedoresRows,
@@ -580,7 +591,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       safe(queryBridge<KpiRow>(config, SQL_KPI, { ...ep, ...spa }), []),
       safe(queryBridge<CustoRow>(config, SQL_CUSTO, { ...ep, ...sp }), []),
       safe(queryBridge<CustoRow>(config, SQL_CUSTO, { ...ep, ...spa }), []),
-      safe(queryBridge<RecorrenciaRow>(config, SQL_RECORRENCIA, { ...ep, ...sp }), []),
+      safe(queryBridge<ClienteStatsRow>(config, SQL_CLIENTES_STATS, { ...ep, ...sp }), []),
       safe(queryBridge<EmAbertoRow>(config, SQL_VE_ABERTO, ep), []),
       safe(queryBridge<EmAbertoRow>(config, SQL_OS_ABERTO, ep), []),
       safe(queryBridge<MetaRow>(config, SQL_META, ep), []),
@@ -593,20 +604,20 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       safe(queryBridge<ConsumidorFinalRow>(config, SQL_CONSUMIDOR_FINAL, { ...ep, ...sp }), []),
     ]);
 
-    const kpi    = kpiRows[0]    ?? { faturamento: 0, totalVendas: 0, totalClientes: 0 };
-    const kpiAnt = kpiAntRows[0] ?? { faturamento: 0, totalVendas: 0, totalClientes: 0 };
+    const kpi    = kpiRows[0]    ?? { faturamento: 0, totalVendas: 0 };
+    const kpiAnt = kpiAntRows[0] ?? { faturamento: 0, totalVendas: 0 };
 
     faturamento     += Number(kpi.faturamento    ?? 0);
     totalVendas     += Number(kpi.totalVendas    ?? 0);
     custo           += Number(custoRows[0]?.custo    ?? 0);
-    totalClientes   += Number(kpi.totalClientes  ?? 0);
     faturamentoAnt  += Number(kpiAnt.faturamento ?? 0);
     totalVendasAnt  += Number(kpiAnt.totalVendas ?? 0);
     custoAnt        += Number(custoAntRows[0]?.custo ?? 0);
 
-    const recorrencia = recorrenciaRows[0] ?? { novos: 0, recorrentes: 0 };
-    clientesNovos       += Number(recorrencia.novos       ?? 0);
-    clientesRecorrentes += Number(recorrencia.recorrentes ?? 0);
+    for (const row of clienteStatsRows) {
+      const key = `${config.bridgeUrl}::${row.clienteId}`;
+      clienteStatsMap.set(key, (clienteStatsMap.get(key) ?? 0) + Number(row.n ?? 0));
+    }
 
     qtdVendas      += Number(veAbertoRows[0]?.qtd        ?? 0);
     qtdOs          += Number(osAbertoRows[0]?.qtd        ?? 0);
@@ -639,6 +650,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       { error: "Bridge SQL não configurada para esta loja. Acesse Admin → Empresas → Lojas → Bridge." },
       { status: 503 }
     );
+  }
+
+  // Classifica novo/recorrente só agora, depois de consolidar a contagem all-time de compras
+  // por cliente entre todas as lojas selecionadas da mesma bridge (ver SQL_CLIENTES_STATS).
+  let totalClientes = 0, clientesNovos = 0, clientesRecorrentes = 0;
+  for (const n of clienteStatsMap.values()) {
+    totalClientes++;
+    if (n > 1) clientesRecorrentes++; else clientesNovos++;
   }
 
   // ── Cálculos derivados ────────────────────────────────────────────────────

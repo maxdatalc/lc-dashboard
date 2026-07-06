@@ -33,7 +33,17 @@ export const SEM_GRUPO = "Sem grupo";
 export const SEM_CATEGORIA = "Sem categoria";
 
 // Produto "coringa" do MaxManager — lançado avulso na venda, sem representar
-// estoque real de um SKU específico. Excluído de todo cálculo de giro.
+// estoque real de um SKU específico. Excluído de todo cálculo de giro, KPI, margem
+// e ranking (buildFilter).
+//
+// ATENÇÃO — isto é uma convenção observada num cliente específico (BATAUTO), não uma
+// regra de schema do MaxManager: proId é autoincremento por banco, então proId=1 é só
+// "o primeiro produto cadastrado" — em outro banco pode ser um produto real e relevante
+// (confirmado: no bridge de testes SALES, proId=1 é um farol de verdade, não um coringa).
+// Excluir esse ID sem reconfirmar por cliente pode descartar vendas/estoque reais
+// silenciosamente. Antes de habilitar em produção para um tenant novo, confirmar com o
+// cliente qual é o proId (ou nome) do produto coringa dele — idealmente evoluir para uma
+// configuração por tenant em vez desta constante global.
 const PRO_ID_CURINGA = 1;
 
 export type StatusEstoque =
@@ -171,16 +181,25 @@ function vendaJanelaCte(empList: string): string {
 
 function statusSql(status: StatusEstoque): string {
   switch (status) {
-    case "abaixo":    return "pe.proEstoqueMin > 0 AND pe.proEstoqueAtual < pe.proEstoqueMin";
+    // "abaixo"/"semMin" excluem estoque negativo (>= 0) para não se sobrepor com "negativo" —
+    // uma posição com estoque negativo E mínimo informado batia em "negativo" E "abaixo" ao
+    // mesmo tempo antes desta correção (mesma classe de bug do "regular", achada ao validar
+    // a correção acima contra o bridge de testes).
+    case "abaixo":    return "pe.proEstoqueAtual >= 0 AND pe.proEstoqueMin > 0 AND pe.proEstoqueAtual < pe.proEstoqueMin";
     case "acima":     return "pe.proEstoqueMin > 0 AND pe.proEstoqueAtual > pe.proEstoqueMin";
-    case "semMin":    return "(pe.proEstoqueMin IS NULL OR pe.proEstoqueMin <= 0)";
+    case "semMin":    return "pe.proEstoqueAtual >= 0 AND (pe.proEstoqueMin IS NULL OR pe.proEstoqueMin <= 0)";
     case "negativo":  return "pe.proEstoqueAtual < 0";
     case "margemNeg": return "pe.proVenda < pe.proCusto AND pe.proCusto > 0";
     case "regular":
+      // Mutuamente exclusivo com abaixo/acima/semMin/negativo/margemNeg — espelha a cadeia
+      // de prioridade usada na classificação em JS (exigeAcao, mais abaixo): só é "regular"
+      // quando o mínimo está informado E o estoque bate exatamente nele. A definição antiga
+      // ("sem mínimo OU no/acima do mínimo") sobrepunha quase todo o catálogo com "semMin" e
+      // "acima", fazendo os segmentos do donut de saúde somarem quase 2x o total de posições.
       return (
         "pe.proEstoqueAtual >= 0 " +
         "AND NOT (pe.proVenda < pe.proCusto AND pe.proCusto > 0) " +
-        "AND (pe.proEstoqueMin IS NULL OR pe.proEstoqueMin <= 0 OR pe.proEstoqueAtual >= pe.proEstoqueMin)"
+        "AND pe.proEstoqueMin > 0 AND pe.proEstoqueAtual = pe.proEstoqueMin"
       );
   }
 }
@@ -212,6 +231,7 @@ function buildFilter(
     `pe.empId IN (${empList})`,
     "p.proTipo = 'P'",
     "pe.proDesativaProd = 0",
+    `p.proId <> ${PRO_ID_CURINGA}`,
   ];
   const params: Record<string, unknown> = {};
 
@@ -361,14 +381,14 @@ export async function getProdutosOverview(
         COUNT(*) AS totalPosicoes,
         ISNULL(SUM(CAST(pe.proEstoqueAtual AS float) * CAST(pe.proCusto AS float)), 0) AS valorCusto,
         ISNULL(SUM(CAST(pe.proEstoqueAtual AS float) * CAST(pe.proVenda AS float)), 0) AS valorVenda,
-        SUM(CASE WHEN pe.proEstoqueMin > 0 AND pe.proEstoqueAtual < pe.proEstoqueMin THEN 1 ELSE 0 END) AS abaixoMin,
+        SUM(CASE WHEN pe.proEstoqueAtual >= 0 AND pe.proEstoqueMin > 0 AND pe.proEstoqueAtual < pe.proEstoqueMin THEN 1 ELSE 0 END) AS abaixoMin,
         SUM(CASE WHEN pe.proEstoqueMin > 0 AND pe.proEstoqueAtual > pe.proEstoqueMin THEN 1 ELSE 0 END) AS acimaMin,
-        SUM(CASE WHEN pe.proEstoqueMin IS NULL OR pe.proEstoqueMin <= 0 THEN 1 ELSE 0 END) AS semMin,
+        SUM(CASE WHEN pe.proEstoqueAtual >= 0 AND (pe.proEstoqueMin IS NULL OR pe.proEstoqueMin <= 0) THEN 1 ELSE 0 END) AS semMin,
         SUM(CASE WHEN pe.proEstoqueAtual < 0 THEN 1 ELSE 0 END) AS negativo,
         SUM(CASE WHEN pe.proVenda < pe.proCusto AND pe.proCusto > 0 THEN 1 ELSE 0 END) AS margemNeg,
         SUM(CASE WHEN pe.proEstoqueAtual >= 0
                   AND NOT (pe.proVenda < pe.proCusto AND pe.proCusto > 0)
-                  AND (pe.proEstoqueMin IS NULL OR pe.proEstoqueMin <= 0 OR pe.proEstoqueAtual >= pe.proEstoqueMin)
+                  AND pe.proEstoqueMin > 0 AND pe.proEstoqueAtual = pe.proEstoqueMin
                  THEN 1 ELSE 0 END) AS regular,
         SUM(CASE WHEN pe.proEstoqueAtual > 0 AND ve.qtd IS NULL THEN 1 ELSE 0 END) AS parados,
         SUM(CASE WHEN pe.proEstoqueAtual > 0 AND ve.qtd IS NULL

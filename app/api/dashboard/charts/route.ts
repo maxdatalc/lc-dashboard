@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDateRange } from "@/lib/utils/format";
 import { requireTenantAccess } from "@/lib/api/tenant-guard";
-import { getLojaDbConfig } from "@/lib/db/tenants";
+import { getLojasBridge } from "@/lib/db/tenants";
 import { queryBridge, BridgeError } from "@/lib/mssql/client";
 
 export const dynamic = "force-dynamic";
@@ -9,21 +9,6 @@ export const dynamic = "force-dynamic";
 function isDate(s: string) { return /^\d{4}-\d{2}-\d{2}$/.test(s); }
 
 const NOMES_MES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-
-// Retorna o config da bridge (do primeiro válido) + todos os empIds das lojas selecionadas.
-// Isso permite consultar múltiplas lojas na mesma instância com empId IN (1,2,3).
-async function getMultiConfig(lojaIds: string[]) {
-  const results = await Promise.all(
-    lojaIds.map((id) => getLojaDbConfig(id).catch(() => null))
-  );
-  const valid = results.filter((c): c is NonNullable<typeof c> => c !== null);
-  if (!valid.length) return null;
-  return {
-    bridgeUrl: valid[0].bridgeUrl,
-    token: valid[0].token,
-    empIds: valid.map((c) => c.empId),
-  };
-}
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const { searchParams } = req.nextUrl;
@@ -81,7 +66,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ? { start: startParam, end: endParam }
       : getDateRange(period);
 
-  const mc = await getMultiConfig(lojaIds);
+  const mc = await getLojasBridge(lojaIds);
   if (!mc) {
     return NextResponse.json(
       { error: "Bridge SQL não configurada para esta loja." },
@@ -90,8 +75,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   }
 
   const config = { bridgeUrl: mc.bridgeUrl, token: mc.token };
-  // empId IN (1,2,3) — interpolação segura pois são inteiros do nosso próprio banco
-  const empIn = mc.empIds.join(",");
+  // empId IN (1,2,3) — interpolação segura pois são inteiros do nosso próprio banco.
+  // getLojasBridge já filtra só as lojas que compartilham a mesma bridge física de mc.bridgeUrl
+  // (lojas em bridges diferentes ficam de fora — mesmo comportamento de /produtos/overview e
+  // /clientes/overview, que usam o mesmo helper).
+  const empIn = mc.empresas.map((e) => e.empId).join(",");
 
   // Cláusulas de filtro que referenciam empId são construídas após ter empIn
   const cClause  = clienteNomeRaw ? `AND vedClienteId IN (SELECT cliId FROM cliente WHERE cliNome = @clienteNome AND empId IN (${empIn}))` : "";
@@ -203,7 +191,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           config,
           `SELECT TOP 50
             vi.vdiProNome                                                           AS nome,
-            MIN(p.zzz_proCodigo)                                                   AS codigo,
+            MIN(pe.proCodigo)                                                      AS codigo,
             MIN(f.fabNome)                                                         AS fabricante,
             MIN(gp.gdpNome)                                                        AS grupo,
             MIN(p.proTipo)                                                         AS proTipo,
@@ -217,6 +205,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           FROM vendaItem vi
           JOIN venda v ON vi.vdiVedId = v.vedId
           LEFT JOIN produto p ON vi.vdiItemId = p.proId
+          -- Código real por filial (produto_empresa), nao o zzz_proCodigo legado de produto
+          -- (visto divergir do codigo exibido no MaxManager por filial - ver docs/wiki).
+          -- Ainda mistura codigos entre filiais diferentes ao agregar multi-loja (MIN pega
+          -- qualquer uma); aceitavel pois e so um rotulo de exibicao, nao usado em calculo.
+          LEFT JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = v.empId
           LEFT JOIN fabricante f ON p.proFab = f.fabId
           LEFT JOIN grupoProd gp ON p.proGrupo = gp.gdpId
           WHERE v.vedStatus = 'F'

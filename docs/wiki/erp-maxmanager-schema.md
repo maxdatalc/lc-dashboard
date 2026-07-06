@@ -1,0 +1,54 @@
+# ERP MaxManager — nomes reais de schema e armadilhas
+
+Aprendizados de schema descobertos na prática (via Bridge, contra bancos reais como BATAUTO). A causa raiz de quase toda a lista abaixo foi **assumir** um nome de coluna/tabela em vez de consultar o schema real primeiro — ver [collaboration-workflow.md](collaboration-workflow.md) para o padrão de prevenção.
+
+## Cliente / usuário
+- `cliUsu` **não existe** na tabela `cliente`. Vínculo real: `cliUsuarioUsaSistema` (bit, é usuário do sistema), `cliUsuLoginId`, `cliUsuEmpIdPadrao` (loja padrão), `cliEmail`.
+- `cliente_empresa(cliId, empId)` **não** restringe um usuário a empresas específicas — todo usuário aparece em todo empId ali. Escopo por empresa real é `cliUsuEmpIdPadrao`.
+- `cliDesativa`: 0 = ativo, **-1** = inativo (não é 0/1). Não existe `cliAtivo`.
+- Endereço/cidade: `cliFatCidade`/`cliFatUf` (não `cliCidade`/`cliUf`).
+- Documento: coluna única `cliCpfCgc` (não há CNPJ/CPF separados). PF vs PJ não é confiável via `cliTipoCad` (pode ser NULL/inconsistente) — usar o tamanho do documento: 11 dígitos = PF, 14 = PJ.
+- `"CONSUMIDOR"` é um cadastro genérico legítimo de venda balcão/rápida (mesmo com NFC-e emitida) — **não** é erro de qualidade de dado. No bridge de testes, `cliId=1` é literalmente esse cadastro (documento em branco); também existe variante `'* CONSUMIDOR'` compartilhando um CPF fictício `'88888888888'`. Excluir de rankings tipo "Top Clientes" (não de KPIs de volume/receita, onde é uma operação válida).
+- `venda.vedConsumidorFinal` (bit) existe e indica se a venda foi emitida como consumidor final — **não é equivalente** a `vedClienteId = 1` (no bridge de testes, milhares de vendas do cliId=1 têm `vedConsumidorFinal=false`). São dois conceitos distintos; não usar um no lugar do outro sem checar.
+- `cliente.cliTipo` (diferente de `cliTipoCad`) é uma coluna confiável de PF(0)/PJ(1) — validado consistente com o tamanho do documento no bridge de testes. Nem toda coluna "tipo" do cliente é não confiável, só `cliTipoCad`.
+- `cliente_empresa.cliDatCad`/`DataInclusao` **variam por linha (cliId, empId)** para o mesmo cliente (datas de cadastro/migração diferentes por loja/filial). Qualquer query de "novos cadastros" que agregue múltiplas lojas precisa colapsar para uma data por cliente (ex.: `MIN`) antes de agrupar por mês — não fazer isso conta o mesmo cliente como "novo" em mais de um mês.
+- Vendedor/atendente é um registro na própria tabela `cliente` (`vedAtendente`/`pgtAtendente = cliId`) e **não** deve ser filtrado por `empId` no join — replicar o padrão já existente de "top 50 vendedores" em vez de reinventar.
+- Departamento do usuário: `lotacUsuario` (chave `ltuUsuId`, **não** `ltuCliId`) + `depto` (VENDAS = `depId=2`).
+
+## Produto / estoque
+- `proTipo`: `'P'` = Produto, `'S'` = Serviço.
+- `proCodigo` é o código do **fabricante**, não o código interno — usar `proId` para o código interno.
+- Nome do produto está desnormalizado em `vendaItem.vdiProNome` (não em `produto.proDesc`/`proDescricao`).
+- FK de item para produto é `vendaItem.vdiItemId` (não `vdiProId`).
+- Estoque/preço reais por loja ficam em `produto_empresa`, não em `produto`. Colunas prefixadas `zzz_` em `produto` são legado morto.
+- `produto.proId = 1` ("CURINGA") é item coringa sem validação de estoque para venda avulsa em alguns clientes — volume desprezível (<0,1%), excluir de analytics de estoque/margem/giro **nesses clientes**. **Não é regra universal**: `proId` é autoincremento por banco, então `proId=1` em outro cliente pode ser (e já foi confirmado ser, no bridge de testes SALES) um produto real e relevante. Sempre reconfirmar por cliente antes de aplicar essa exclusão — nunca assumir pelo valor 1 sozinho.
+- `produto.zzz_proCodigo` **não está sempre vazio** (apesar do nome sugerir legado morto) — tem dado, mas diverge do código real por filial em `produto_empresa.proCodigo` (varia entre lojas para o mesmo produto). Usar sempre `produto_empresa.proCodigo` (que também pode ser `NULL`), nunca `zzz_proCodigo`, para exibir o código do produto.
+- `vendaItem.vdiProCustoFinal` é o custo usado para cálculo de margem/custo médio por produto (ex.: em rankings de top produtos).
+- MaxAPI **ignora** o `valor` enviado no corpo ao adicionar item — sempre usa o preço cadastrado do produto.
+
+## Vendas / financeiro
+- `vendaPgto` (pagamentos/recebíveis) **pode ou não ter** coluna `empId` — **varia por bridge/versão do MaxManager** (confirmado ausente num cliente, presente no bridge de testes SALES). Onde não existe, escopar por empresa via `JOIN venda ON venda.empId = @empId`; onde existe, código que assume ausência (ou presença) pode quebrar — checar o schema real do bridge de destino antes de escrever a query, não assumir pelo que funcionou em outro cliente.
+- "Em aberto" em `vendaPgto` **não é** simplesmente `pgtPago IN ('N','F')`. `F` = já quitado (tem `pgtDataQuitou`). O tratamento de `G` varia por cliente/bridge: em alguns é parcela futura em aberto (incluir), em outros é detalhamento duplicado de um registro pai via `pgtRef` (incluir duplica contagem) — **sempre validar por bridge/cliente antes de confiar num filtro de status que funcionou em outro lugar**. O bridge de testes (SALES) também tem `pgtPago='S'` (quitado, majoritário), `'C'` e `'P'` (ambos quase sempre com `pgtDataQuitou` preenchido) — o conjunto de códigos válidos varia por instalação, não assumir que é só N/F/G.
+- `venda.vedStatus` tem mais valores além de `F`/`C`/`O` (finalizada/cancelada/pendente): no bridge de testes aparecem também `A` (parece "em andamento", `vedFechamento` NULL), `Q`, `S`, `Z` (raros) e **`X`** — este último com `vedFechamento` e `vedTotalNf` reais e não-zero, mas não tratado em nenhum dashboard/KPI hoje. Vale investigar `X` como possível receita real não contabilizada antes de assumir que os únicos status relevantes são F/C/O.
+- Para "realizado" (recebimentos/pagamentos), não usar `contaMov` (`ctmData` pode estar dessincronizado da realidade — visto 170 títulos quitados todos com a mesma data). Usar `vendaPgto.pgtDataQuitou` + filtrar `pgtClienteId IS NOT NULL` (exclui ajustes internos/estornos sem cliente vinculado).
+- Juros/multa não são pré-calculados (`pgtValorJuros`/`pgtValorMulta` ficam nulos/zero) — calculado dinamicamente a partir de `config.cofJuroDia`. Qualquer feature "com multa" precisa de motor de cálculo próprio.
+- Regra de exclusão do DRE: quando `subPlanoContas.spcNaoDemonstrarDRE = true`, excluir esse subplano do demonstrativo (operações internas/não-P&L). Join via `vendaPgto.pgtSubPc` / `contaMov.ctmSubPc` → `subPlanoContas.spcId`.
+- Ordenação de plano/subplano de contas: itens com prefixo numérico "(X.Y.Z)" ordenam primeiro por esse número; itens sem prefixo ordenam alfabeticamente depois — replica a ordenação do próprio relatório do ERP.
+- `vedTotalNf = 0` para pedidos em aberto/não faturados — para valor de "pedidos em aberto" somar `vendaItem.vdiValor`, não confiar em `vedTotalNf`.
+- Se uma venda "gera financeiro" (conta como receita) é decidido por `venda.vedTipoAtend`, **não** por CFOP (CFOP não é joinável para esse fim neste schema) — mas **`vedTipoAtend` é sempre NULL para `vedTipo='VE'`** (esse conceito só existe para `OS`). Uma condição do tipo `(vedTipo='DV' OR tatProGeraFinanceiro=1 OR tatServGeraFinanceiro=1)` fica **sempre falsa** para venda balcão (`VE`), porque o LEFT JOIN com `tipoAtend` nunca casa — já causou subestimação de receita em ~13% num dashboard (2026-07-06). Regra correta: `VE` gera financeiro **incondicionalmente** (venda direta finalizada não depende de tipo de atendimento); só `OS` depende do join com `tipoAtend`.
+- Comissão deve ser atribuída por `venda.vedAtendente` (quem fez a venda original), não por `vendaPgto.pgtAtendente` (quem registrou o pagamento) — um faturamento pode agrupar vendas de vendedores diferentes e usar `pgtAtendente` perde o vendedor certo.
+- Devolução (DV) tem valor negativo e deve ser explicitamente excluída do cálculo de comissão.
+- `caixaVendas` é uma tabela de import único e morta (29 linhas, set-out/2025) — usar sempre `vendaPgto` (tabela viva, 29k+ linhas) para dados de forma de pagamento.
+
+## Config / empresa
+- `config.cofEmpApelido` (chave `cofId = empId`) é o texto literal exibido no seletor de empresa/filial do próprio MaxManager — fonte da verdade para sincronizar o "nome real" de uma loja no dashboard.
+
+## Armadilhas gerais de query MSSQL
+- Nomear uma CTE igual a uma tabela real (`WITH Venda AS (...)` colidindo com a tabela `venda`) faz o SQL Server tratar como CTE recursiva — resultado silenciosamente errado, não é erro de sintaxe. Sempre dar nomes de CTE distintos de tabelas reais.
+- SQL Server rejeita `SUM(CASE WHEN EXISTS(...))` (agregação em torno de EXISTS/NOT EXISTS) — reescrever como `LEFT JOIN` + `CASE`.
+- Join de `venda` com `vendaItem` para KPI por venda infla contagem (venda de 5 itens conta 5x em `COUNT(vedId)`) — separar KPI de venda de custo por item.
+- Range de data ilimitado em `venda` causa timeout (table scan). Sempre limitar a janela para usar índice.
+- Agregação multi-loja: fazer TOP N **por loja antes de mesclar** pode esconder o líder real (ex.: produto 51º em cada loja isoladamente pode ser #1 no total). Sempre agregar entre todas as lojas selecionadas primeiro, depois aplicar TOP N.
+- Banco de teste/demo (BATAUTO) tem dados de vendas congelados (última venda real ~5 semanas antes do "agora") — janelas rolantes (30/60/90 dias) podem retornar 0 linhas em dev mesmo com a query correta. Ancorar validação em `MAX(data)`, não assumir bug de query.
+
+Ver também as memórias `reference_financeiro_schema` e `reference_produtos_schema` do Claude para o mapa semântico completo (contaMov, plano vs subplano, giro de estoque, Curva ABC) — não duplicado aqui para evitar desatualização em dois lugares.
