@@ -24,7 +24,7 @@ Justificativa: evita duplicar autenticação e gestão de loja; mantém o storef
 | 2 | Conta de cliente | Cadastro/login no storefront; vínculo com o cliente já existente no MaxManager por CPF/e-mail; criação de cliente novo (Supabase + ERP) se não existir | Catálogo |
 | 3 | Carrinho/Checkout | Carrinho; cálculo de frete — cliente escolhe entre retirada na loja ou entrega via Correios/transportadora | Catálogo + Conta |
 | 4 | Pagamento | Integração com Mercado Pago (PIX, cartão, boleto) via checkout transparente; webhook de confirmação | Checkout |
-| 5 | Pedido → ERP | Ao confirmar pagamento, cria a venda no MaxManager via endpoint de escrita do MaxAPI | Pagamento |
+| 5 | Pedido → ERP | Ao confirmar pagamento, envia a venda para a fila de **Supervisão de Vendas** no MaxManager (estoque fica reservado/pendente); ao ser concluída manualmente pela loja, estoque baixa de fato e o pedido é atualizado | Pagamento |
 | 6 | Painel admin (módulo no lc-dashboard) | Lojista habilita a loja, configura frete/aparência, acompanha pedidos | Constrói-se em paralelo com 1–5, crescendo junto de cada entrega |
 
 A ordem 1→5 é sequencial: cada item é pré-requisito técnico do seguinte (não há como testar pagamento sem checkout, nem checkout sem catálogo). O painel admin (6) começa em paralelo desde o início, mesmo que simples, porque cada sub-projeto anterior precisa de uma tela de configuração correspondente.
@@ -44,12 +44,16 @@ flowchart TD
   G -->|checkout| H[Valida estoque ao vivo via MaxAPI/Bridge]
   H -->|escolhe frete| I[Retirada ou Correios/transportadora]
   I --> J[Mercado Pago: PIX/cartao/boleto]
-  J -->|webhook pago| K[Cria venda no MaxManager via MaxAPI]
-  K -->|sucesso| L[Pedido confirmado + estoque baixado no ERP]
-  K -->|falha| M["Pedido fica 'pago, pendente de sync' + alerta no painel admin"]
+  J -->|webhook pago| K[Envia venda para Supervisão de Vendas no MaxManager]
+  K -->|sucesso| N["Pedido: 'venda confirmada - preparando pedido' + estoque fica pendente/reservado no ERP"]
+  K -->|falha ao enviar| M["Pedido fica 'pago, pendente de envio ao ERP' + alerta no painel admin"]
+  N -->|loja concluiu na Supervisão de Vendas| O["Estoque baixa de fato + pedido: 'venda concluída - em processo de entrega'"]
+  N -->|polling periódico do status| O
 ```
 
-**Ponto crítico (K → M):** se a criação da venda no ERP falhar após o cliente já ter pago, o pedido não pode simplesmente se perder. Precisa de um estado intermediário (`pago_pendente_erp`) com retry, visível no painel admin do lojista.
+**Ponto crítico (K → M):** se o envio da venda para a Supervisão de Vendas falhar após o cliente já ter pago, o pedido não pode simplesmente se perder. Precisa de um estado intermediário (`pago_pendente_erp`) com retry, visível no painel admin do lojista.
+
+**Detecção de conclusão (N → O):** o sistema consulta periodicamente (a cada poucos minutos, mesmo padrão da sincronização incremental já usada hoje) o status da venda no MaxManager, e assim que detecta que a loja concluiu na Supervisão de Vendas, atualiza o pedido para "venda concluída - em processo de entrega".
 
 ## 4. Tratamento de erros
 
