@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useLoja } from "@/lib/contexts/loja-context";
+import { formatDateBR } from "@/lib/utils/format";
 import type { ComissaoRow } from "@/app/api/relatorios/comissao-recebimento/route";
 
 function fmtMoeda(v: number | null | undefined) {
@@ -25,10 +26,9 @@ function fmtMoeda(v: number | null | undefined) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function fmtData(iso: string) {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleDateString("pt-BR");
-}
+// Delega ao helper compartilhado: nunca passar por new Date() (recuava 1 dia em UTC-3,
+// exibindo recebimentos de 01/06 como 31/05). Ver formatDateBR em lib/utils/format.ts.
+const fmtData = formatDateBR;
 
 function fmtPct(v: number | null | undefined) {
   if (v == null) return "—";

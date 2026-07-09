@@ -30,6 +30,19 @@ function hojeBrasilStr(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 }
 
+// Formata uma data de negócio como DD/MM/AAAA SEM passar por new Date() — evita o
+// rollover de fuso. As datas do ERP chegam ou como 'YYYY-MM-DD' (filtro) ou como
+// 'YYYY-MM-DDT00:00:00.000Z' (bridge serializa datetime do banco como meia-noite UTC).
+// `new Date('...T00:00:00.000Z').toLocaleDateString('pt-BR')` num browser de Brasília
+// (UTC-3) recua para 21h do dia anterior e exibe o dia -1 — foi o que fazia recebimentos
+// de 01/06 aparecerem como 31/05 no relatório. Fatiar a parte YYYY-MM-DD da string é
+// imune ao fuso do browser e do servidor.
+export function formatDateBR(value: string | null | undefined): string {
+  if (!value) return "-";
+  const [y, m, d] = value.slice(0, 10).split("-");
+  return d && m && y ? `${d}/${m}/${y}` : String(value);
+}
+
 export function getDateRange(period: string): { start: string; end: string } {
   const toStr = (d: Date) => d.toISOString().split("T")[0];
   const hojeStr = hojeBrasilStr();
