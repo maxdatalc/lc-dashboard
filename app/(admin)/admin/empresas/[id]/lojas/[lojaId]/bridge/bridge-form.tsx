@@ -22,6 +22,9 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
   const [enabled, setEnabled] = useState(loja.sqlEnabled);
   const [verToken, setVerToken] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [revealing, setRevealing] = useState(false);
+  const [revealErro, setRevealErro] = useState("");
+  const [revelado, setRevelado] = useState(false);
 
   const [testStatus, setTestStatus] = useState<TestStatus>("idle");
   const [testErro, setTestErro] = useState("");
@@ -31,6 +34,28 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
     await navigator.clipboard.writeText(token);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
+  }
+
+  async function revelarToken() {
+    setRevealing(true);
+    setRevealErro("");
+    try {
+      const res = await fetch(`/api/admin/lojas/${lojaId}/reveal-token`, {
+        method: "POST",
+      });
+      const data = (await res.json()) as { token?: string; error?: string };
+      if (res.ok && data.token) {
+        setToken(data.token);
+        setVerToken(true);
+        setRevelado(true);
+      } else {
+        setRevealErro(data.error ?? "Falha ao revelar token");
+      }
+    } catch {
+      setRevealErro("Erro de rede ao revelar token");
+    } finally {
+      setRevealing(false);
+    }
   }
 
   async function testarConexao() {
@@ -141,6 +166,25 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
         <p className="text-xs text-slate-400 mt-0.5">
           Armazenado criptografado (AES-256-GCM). Deixe em branco para manter o token atual.
         </p>
+        {loja.hasToken && !token && (
+          <button
+            type="button"
+            onClick={revelarToken}
+            disabled={revealing}
+            className="mt-2 inline-flex items-center gap-1.5 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          >
+            {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+            {revealing ? "Revelando..." : "Revelar token atual"}
+          </button>
+        )}
+        {revelado && (
+          <p className="text-xs text-amber-600 mt-1.5">
+            Token revelado — este acesso foi registrado.
+          </p>
+        )}
+        {revealErro && (
+          <p className="text-xs text-red-600 mt-1.5">{revealErro}</p>
+        )}
       </div>
 
       {/* ── Testar conexão ────────────────────────────────────────────── */}
