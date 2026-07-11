@@ -59,7 +59,8 @@ flowchart TD
 
 - **Estoque insuficiente no checkout**: revalidado ao vivo antes de gerar cobrança; se não bater, o cliente é avisado antes de pagar, não depois.
 - **Falha no gateway de pagamento** (Mercado Pago indisponível, cartão recusado): pedido fica em `aguardando_pagamento`; nada é criado no ERP até confirmação via webhook.
-- **Falha ao criar venda no ERP**: pedido pago fica em `pago_pendente_erp` + retry automático com backoff + alerta no painel admin para lançamento manual como último recurso. Um pedido pago nunca pode ser perdido.
+- **Falha ao enviar a venda para a Supervisão de Vendas**: pedido pago fica em `pago_pendente_erp` + retry automático com backoff + alerta no painel admin para lançamento manual como último recurso. Um pedido pago nunca pode ser perdido.
+- **Venda parada na Supervisão de Vendas sem conclusão**: o pedido permanece em "venda confirmada - preparando pedido" até a loja concluir manualmente; não é tratado como erro do sistema, é um passo humano esperado do fluxo.
 - **Falha de frete** (API dos Correios/transportadora indisponível): fallback temporário para "só retirada", com aviso na tela, em vez de travar o checkout inteiro.
 - **Webhook duplicado ou fora de ordem** (Mercado Pago pode reenviar notificações): idempotência por identificador externo do pagamento antes de processar.
 
@@ -67,12 +68,12 @@ flowchart TD
 
 - **Catálogo/Checkout**: testes de integração garantindo que preço/estoque exibido bate com o Supabase, e que a revalidação de estoque ao vivo bloqueia corretamente quando insuficiente.
 - **Pagamento**: testes do webhook do Mercado Pago com payloads simulados (pago, recusado, duplicado), verificando idempotência.
-- **Pedido → ERP**: teste do endpoint de escrita do MaxAPI contra o ambiente de testes (mesma Bridge de validação já usada — `BRIDGE_TEST_URL`) antes de qualquer coisa em produção. Usar a skill `erp-validation` para reconciliar a venda criada com o que aparece no MaxManager real.
+- **Pedido → ERP**: teste do envio da venda para a fila de Supervisão de Vendas contra o ambiente de testes (mesma Bridge de validação já usada — `BRIDGE_TEST_URL`) antes de qualquer coisa em produção, incluindo o ciclo completo: envio → estoque pendente → conclusão manual simulada → estoque baixado → status do pedido atualizado. Usar a skill `erp-validation` para reconciliar cada etapa com o que aparece no MaxManager real.
 - **RLS do Supabase**: teste garantindo que a anon key do storefront não consegue ler/escrever fora do escopo da própria loja/cliente (isolamento entre lojas e entre clientes).
 - **E2E do fluxo completo**: cliente compra → pedido aparece no painel admin → estado correto em cada etapa, incluindo o cenário de falha do item 4.
 
 ## 6. Riscos e premissas em aberto
 
-- **Endpoint de escrita no MaxAPI (crítico)**: a decisão do item 5 (criar venda automaticamente no ERP) depende de um endpoint `POST` de escrita no MaxAPI que **ainda não foi usado neste projeto** — hoje só há uso documentado de endpoints `GET` (`docs/API_MAXDATA.md`), e a Bridge SQL usada para validação é **somente leitura** (`docs/wiki/bridge-sql-constraints.md`, aceita apenas SELECT). O usuário confirmou que esse endpoint existe; **é obrigatório validar tecnicamente esse endpoint contra o ambiente de testes antes de depender dele em produção** (sub-projeto 5).
+- **Mecanismo de envio para a Supervisão de Vendas (crítico)**: a decisão do item 5 mudou — em vez de criar uma venda já finalizada no ERP, o pedido pago é enviado para a fila de **Supervisão de Vendas** do MaxManager, ficando com estoque pendente/reservado até um funcionário da loja concluir manualmente (o que então baixa o estoque de fato). O caminho técnico exato para esse envio (endpoint do MaxAPI? outra via?) **ainda não foi usado neste projeto** — hoje só há uso documentado de endpoints `GET` (`docs/API_MAXDATA.md`), e a Bridge SQL usada para validação é **somente leitura** (`docs/wiki/bridge-sql-constraints.md`, aceita apenas SELECT). **É obrigatório validar tecnicamente esse mecanismo contra o ambiente de testes antes de depender dele em produção** (sub-projeto 5), incluindo como detectar a conclusão manual — a decisão foi por consulta periódica (polling a cada poucos minutos), no mesmo padrão da sincronização incremental já usada hoje, em vez de depender de um webhook do MaxManager.
 - **Gateway Mercado Pago** é uma integração nova neste projeto (distinta do Asaas, já usado só para billing premium das lojas) — vai precisar de client lib, webhook e fluxo de teste próprios, não há nada reaproveitável do Asaas além do padrão arquitetural.
 - **Frete via Correios/transportadora** é uma integração externa nova — o sub-projeto 3 precisa escolher e validar o provedor específico antes de detalhar o plano.
