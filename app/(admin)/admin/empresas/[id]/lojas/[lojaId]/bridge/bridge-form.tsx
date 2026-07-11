@@ -39,6 +39,7 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
   async function revelarToken() {
     setRevealing(true);
     setRevealErro("");
+    setRevelado(false);
     try {
       const res = await fetch(`/api/admin/lojas/${lojaId}/reveal-token`, {
         method: "POST",
