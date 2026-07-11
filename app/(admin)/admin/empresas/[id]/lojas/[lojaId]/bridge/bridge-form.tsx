@@ -10,13 +10,15 @@ type TestStatus = "idle" | "testing" | "ok" | "erro";
 
 interface Props {
   action: (formData: FormData) => Promise<void>;
-  loja: { sqlEnabled: boolean; bridgeUrl: string; bridgeToken: string };
+  loja: { sqlEnabled: boolean; bridgeUrl: string; hasToken: boolean };
+  lojaId: string;
   tenantId: string;
 }
 
-export default function BridgeForm({ action, loja, tenantId }: Props) {
+export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
   const [bridgeUrl, setBridgeUrl] = useState(loja.bridgeUrl);
-  const [token, setToken] = useState(loja.bridgeToken);
+  // O token nunca é enviado ao browser. Campo começa vazio: em branco = manter o atual.
+  const [token, setToken] = useState("");
   const [enabled, setEnabled] = useState(loja.sqlEnabled);
   const [verToken, setVerToken] = useState(false);
   const [copiado, setCopiado] = useState(false);
@@ -32,7 +34,9 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
   }
 
   async function testarConexao() {
-    if (!bridgeUrl || !token) return;
+    // Testa com o token digitado; se em branco e já existe um salvo, o servidor
+    // usa o token armazenado (via lojaId) sem nunca trafegá-lo até o browser.
+    if (!bridgeUrl || (!token && !loja.hasToken)) return;
     setTestStatus("testing");
     setTestErro("");
     setTestRow(null);
@@ -40,7 +44,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
       const res = await fetch("/api/admin/testar-bridge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bridgeUrl, token }),
+        body: JSON.stringify(token ? { bridgeUrl, token } : { bridgeUrl, lojaId }),
       });
       const data = (await res.json()) as {
         success: boolean;
@@ -112,7 +116,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
               name="token"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Token gerado pelo instalar-bridge.ps1"
+              placeholder={loja.hasToken ? "•••••• (token salvo — digite para substituir)" : "Token gerado pelo instalar-bridge.ps1"}
               className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
             />
             <button
@@ -144,7 +148,7 @@ export default function BridgeForm({ action, loja, tenantId }: Props) {
         <button
           type="button"
           onClick={testarConexao}
-          disabled={testStatus === "testing" || !bridgeUrl || !token}
+          disabled={testStatus === "testing" || !bridgeUrl || (!token && !loja.hasToken)}
           className="inline-flex items-center gap-2 border border-slate-200 rounded-lg px-3.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
         >
           {testStatus === "idle"    && <Plug         className="h-3.5 w-3.5" />}

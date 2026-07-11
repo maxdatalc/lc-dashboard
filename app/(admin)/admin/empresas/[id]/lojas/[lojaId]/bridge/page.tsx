@@ -65,8 +65,9 @@ export default async function BridgePage({
         loja={{
           sqlEnabled: loja.sqlEnabled,
           bridgeUrl: loja.bridgeUrl ?? "",
-          bridgeToken: loja.bridgeToken ?? "",
+          hasToken: !!loja.bridgeToken,
         }}
+        lojaId={lojaId}
         tenantId={tenantId}
       />
     </div>
