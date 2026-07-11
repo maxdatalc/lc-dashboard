@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireTenantAccess } from "@/lib/api/tenant-guard";
+import { requireFeatureWithLojas } from "@/lib/api/plan-guard";
 import { getLojaDbConfig } from "@/lib/db/tenants";
 import { queryBridge, BridgeError } from "@/lib/mssql/client";
 
@@ -518,7 +518,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: "lojaId ou lojaIds é obrigatório" }, { status: 400 });
   }
 
-  const guard = await requireTenantAccess(lojaIds);
+  const guard = await requireFeatureWithLojas("dashboard_visao_geral", lojaIds);
   if (guard instanceof NextResponse) return guard;
 
   // Período — usa parâmetros do cliente se fornecidos, senão mês atual

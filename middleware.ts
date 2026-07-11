@@ -97,9 +97,20 @@ export async function middleware(request: NextRequest) {
     // Se o cookie expirou, deixa o usuário chegar na tela de login para re-selecionar empresa.
     const hasTenantCookie = !!request.cookies.get("selected_tenant_id")?.value;
     if (hasTenantCookie) {
+      // Se o módulo Visão Geral estiver com kill-switch ligado, pula direto para o
+      // dashboard de Vendas em vez de mandar pro /home (que ficaria vazio/bloqueado).
+      const { data: visaoGeralSettings } = await adminClient
+        .from("module_settings")
+        .select("kill_switch_enabled")
+        .eq("feature_key", "dashboard_visao_geral")
+        .maybeSingle();
+      const visaoGeralKilled =
+        (visaoGeralSettings as { kill_switch_enabled?: boolean } | null)?.kill_switch_enabled === true;
+      const destino = visaoGeralKilled ? "/dashboard" : "/home";
+
       return IS_DEV
-        ? NextResponse.redirect(new URL("/home", request.url))
-        : NextResponse.redirect(`${APP_URL}/home`);
+        ? NextResponse.redirect(new URL(destino, request.url))
+        : NextResponse.redirect(`${APP_URL}${destino}`);
     }
 
     // Sem empresa selecionada: vai para tela de seleção

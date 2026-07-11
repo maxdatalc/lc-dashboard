@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
   Landmark,
@@ -100,6 +101,8 @@ export default function HomePage() {
   const { selectedLojaId, lojasDisponiveis, lojasSelecionadas } = useLoja();
   const { period, customRange } = usePeriod();
   const { hasFeature } = useEmpresa();
+  const router = useRouter();
+  const podeVerVisaoGeral = hasFeature("dashboard_visao_geral");
 
   const [data, setData] = useState<HomeSummaryResponse | null>(null);
   const [evolucao, setEvolucao] = useState<EvolucaoPoint[]>([]);
@@ -174,12 +177,18 @@ export default function HomePage() {
   }, [lojaIds.join(","), period, customRange]);
 
   useEffect(() => {
+    if (!podeVerVisaoGeral) return;
     void fetchDados();
-  }, [fetchDados]);
+  }, [fetchDados, podeVerVisaoGeral]);
+
+  useEffect(() => {
+    if (!podeVerVisaoGeral) router.replace("/dashboard");
+  }, [podeVerVisaoGeral, router]);
 
   const openUpgrade = (featureKey: string, title: string) => setUpgradeModal({ open: true, featureKey, title });
   const closeUpgrade = () => setUpgradeModal((prev) => ({ ...prev, open: false }));
 
+  if (!podeVerVisaoGeral) return null;
   if (lojaIds.length === 0) return <SemLoja />;
   if (loading) return <HomeSkeleton />;
   if (!data) return <HomeSkeleton />;
