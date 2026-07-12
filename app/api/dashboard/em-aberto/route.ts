@@ -36,25 +36,29 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (!config) continue;
 
     try {
-      // Vendas VE em aberto — aguardando supervisão (tela 113) ou caixa (tela 107)
-      // vdiValor = total da linha (qtde × preço − desconto), somado dos itens não cancelados
+      // Vendas VE aguardando supervisão (tela 113 do MaxManager = vedStatus 'S').
+      // vedStatus 'O' NÃO é essa fila: são vendas abandonadas (vedTotalNf sempre 0,
+      // nenhuma recente) — confirmado no bridge de testes (SALES) em 2026-07-11.
+      // vdiValor é o preço UNITÁRIO do item, não o total da linha — multiplicar por
+      // vdiQtde. Não há desconto a subtrair aqui porque a venda ainda não fechou
+      // (vedTotalNf = 0 para status 'S'), então qtde × preço é a melhor estimativa.
       const SQL_VE = `
         SELECT COUNT(DISTINCT v.vedId) AS qtd,
-               ISNULL(SUM(vi.vdiValor), 0) AS valorTotal
+               ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valorTotal
         FROM venda v
         LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
-        WHERE v.vedStatus = 'O'
+        WHERE v.vedStatus = 'S'
           AND v.vedTipo = 'VE'
           AND v.empId = @empId`;
 
-      // OS em aberto com tipo de atendimento que gera financeiro
+      // OS aguardando supervisão, com tipo de atendimento que gera financeiro
       const SQL_OS = `
         SELECT COUNT(DISTINCT v.vedId) AS qtd,
-               ISNULL(SUM(vi.vdiValor), 0) AS valorTotal
+               ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valorTotal
         FROM venda v
         INNER JOIN tipoAtend ta ON ta.tatId = CAST(v.vedTipoAtend AS INT)
         LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
-        WHERE v.vedStatus = 'O'
+        WHERE v.vedStatus = 'S'
           AND v.vedTipo = 'OS'
           AND ta.tatServGeraFinanceiro = 1
           AND v.empId = @empId`;

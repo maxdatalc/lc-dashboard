@@ -55,3 +55,8 @@ scripts/test-*.mjs
 # transcrições verbatim que já vazaram credenciais reais coladas em conversas
 # antigas). O destilado vai para docs/wiki/.
 /raw/
+
+# permissões locais do Claude Code — já é protegido pelo gitignore global do
+# usuário, mas isso não viaja com o repo (outro clone/CI ficaria exposto).
+# Já apareceu com token Bearer hardcoded numa allowlist de curl — nunca versionar.
+.claude/settings.local.json

@@ -338,22 +338,25 @@ const SQL_CLIENTES_STATS = `
       AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
   )`;
 
+// Aguardando supervisão (tela 113 do MaxManager = vedStatus 'S'), não 'O' —
+// 'O' são vendas abandonadas, confirmado no bridge de testes (SALES) em 2026-07-11.
+// vdiValor é preço unitário, não total da linha — multiplicar por vdiQtde.
 const SQL_VE_ABERTO = `
   SELECT COUNT(DISTINCT v.vedId) AS qtd,
-         ISNULL(SUM(vi.vdiValor), 0) AS valorTotal
+         ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valorTotal
   FROM venda v
   LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
-  WHERE v.vedStatus = 'O'
+  WHERE v.vedStatus = 'S'
     AND v.vedTipo = 'VE'
     AND v.empId = @empId`;
 
 const SQL_OS_ABERTO = `
   SELECT COUNT(DISTINCT v.vedId) AS qtd,
-         ISNULL(SUM(vi.vdiValor), 0) AS valorTotal
+         ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valorTotal
   FROM venda v
   INNER JOIN tipoAtend ta ON ta.tatId = CAST(v.vedTipoAtend AS INT)
   LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
-  WHERE v.vedStatus = 'O'
+  WHERE v.vedStatus = 'S'
     AND v.vedTipo = 'OS'
     AND ta.tatServGeraFinanceiro = 1
     AND v.empId = @empId`;

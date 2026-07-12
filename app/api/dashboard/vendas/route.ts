@@ -14,7 +14,7 @@ function mapStatus(vedStatus: string): string {
   switch (vedStatus) {
     case "F": return "finalizada";
     case "C": return "cancelada";
-    case "O": return "pendente";
+    case "S": return "pendente";
     default:  return vedStatus;
   }
 }
@@ -74,8 +74,8 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   if (statusFiltro === "finalizada") conditions.push("vedStatus = 'F'");
   else if (statusFiltro === "cancelada") conditions.push("vedStatus = 'C'");
-  else if (statusFiltro === "pendente") conditions.push("vedStatus = 'O'");
-  else conditions.push("vedStatus IN ('F','C','O')");
+  else if (statusFiltro === "pendente") conditions.push("vedStatus = 'S'");
+  else conditions.push("vedStatus IN ('F','C','S')");
 
   if (tipoFiltro === "venda") conditions.push("vedTipo = 'VE'");
   else if (tipoFiltro === "devolucao") conditions.push("vedTipo = 'DV'");
