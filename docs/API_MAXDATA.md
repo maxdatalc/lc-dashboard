@@ -1,42 +1,89 @@
-# Integração com API MaxData (ERP MaxManager)
+# Integração com a MaxAPI (ERP MaxManager)
+
+> Reescrito em 2026-07-11 a partir de `lib/maxapi/maxapi-client.ts` (fonte da verdade)
+> e de testes diretos contra o ambiente de testes da MaxAPI. A versão anterior deste
+> doc estava desatualizada: afirmava que só existiam endpoints GET e que o token era
+> cacheado em Redis — ambos errados, ver correções abaixo.
 
 ## Visão geral
-A integração com o ERP MaxManager (apelidado MaxData no código) é feita via REST (prefixo `/v2`). A autenticação é por endpoint `/v2/auth` retornando um token Bearer, que é cacheado em Upstash Redis para reduzir chamadas.
 
-## Endpoints utilizados (observados no código)
-- `POST /v2/auth` — autenticação (body: `{ empId, terminal }`)
-- `GET /v2/product` — produtos (paginado)
-- `GET /v2/client` — clientes (paginado)
-- `GET /v2/sale` — vendas (paginado), com filtros de data para sync incremental
-- `GET /v2/sale/:id/items` — itens da venda
-- `GET /v2/sale/:id/payment` — pagamentos da venda
+A MaxAPI é a API REST oficial do MaxManager (prefixo `/v2`). No lc-dashboard ela é
+usada apenas para **escrita** de dados (criar OS, adicionar item, cancelar item) —
+leitura é feita pela Bridge SQL (ver [bridge-sql-constraints.md](wiki/bridge-sql-constraints.md)),
+nunca pela MaxAPI para dados que o Bridge já cobre.
 
-## Processo de autenticação
-1. `getMaxDataToken()` faz `POST /v2/auth` com `{ empId, terminal }`.
-2. Token retornado é armazenado no Redis com TTL (~50 minutos) para reuso.
-3. Em caso de `401` nas requisições subsequentes, o cache é invalidado e uma nova autenticação é feita.
+```
+Auth:      POST /v2/auth  { empid, terminal }  → JWT Bearer token
+TTL JWT:   3600s (1 hora exata)
+Cache:     Supabase (integration_configs.maxapi_token_cache /
+           maxapi_token_expires_at), TTL de aplicação 3000s — NÃO é Redis/Upstash.
+```
 
-## Fluxo de sincronização
-- Sincronização inicial: janela de 30 dias (quando não existe `sync_log` concluído).
-- Sincronização incremental: janela de 25 minutos desde o último sync concluído.
-- Paginação: `fetchAllPages()` itera páginas (limit 50 por página) e respeita um limite máximo por execução (ex.: 80 páginas) para evitar timeouts.
-- Lógica: dados são transformados para o schema local e upsertados no Supabase por `loja_id` + `external_id`.
+## Endpoints implementados em `lib/maxapi/maxapi-client.ts`
 
-## Mapeamento entre ERP e banco local (exemplos)
-- Produto: `MaxDataProduto.id` → `produtos.external_id` ; campos `nome`, `preco_venda`, `estoque_atual`.
-- Cliente: `MaxDataCliente.id` → `clientes.external_id` ; `nome`, `cnpj_cpf`, `email`, `telefone`.
-- Venda: `MaxDataVenda.id` → `vendas.external_id` ; `data_venda`, `valor_total`, `status`.
+| Método | Path | Função | Observação |
+|---|---|---|---|
+| POST | `/v2/auth` | `fetchNewToken` | body usa `empid` minúsculo, não `empId` |
+| GET | `/v2/serviceorder` | `listServiceOrdersMaxApi` | paginado, filtros `nomeCliente`/`veiculoPlaca`/`status` |
+| GET | `/v2/serviceorder/:id` | `getServiceOrderMaxApi` | objeto direto, não paginado |
+| POST | `/v2/serviceorder` | `createServiceOrder` | já em uso em produção |
+| POST | `/v2/serviceorder/items` | `addItemToServiceOrderMaxApi` | MaxAPI **ignora** `valor` enviado — sempre usa o preço cadastrado do produto |
+| DELETE | `/v2/serviceorder/items/:id` | `cancelServiceOrderItem` | retorna 204 |
+| GET | `/v2/product` | `searchProductsMaxApi` | paginado, filtro `descricao` |
+| GET | `/v2/product/:id` | `getProductMaxApi` | campo `estoque` = estoque físico do `empId` do JWT |
 
-## Tratamento de erros
-- Falhas em loja específica são registradas em `sync_log` (status `erro`) e não interrompem a sincronização de outras lojas.
-- Timeouts são tratados com `AbortController`/`AbortSignal` e geram mensagens de erro legíveis.
-- Em casos de `401` a camada client limpa o cache do token e tenta nova autenticação.
+Todas as chamadas passam por `maxApiRequest()`, que faz retry automático de auth em
+`401` (invalida o cache e reautentica uma vez; se falhar de novo, propaga o erro).
 
-## Estratégia de sincronização incremental
-- Executar job periódico (pg_cron ou Edge Function agendada) que chama a função de sincronização.
-- Para cada loja: se não houve sync anterior, executar janela de 30 dias; senão, usar janela curta (~25 min).
-- Registrar início/fim/erro and total_registros em `sync_log`.
+**Confirmado — `GET /v2/serviceorder/items?OsId=X` retorna 405.** Itens de OS só são
+legíveis via Bridge SQL (`vendaItem`), nunca pela MaxAPI.
 
-## Observações operacionais
-- Não logar o campo `terminal` nem tokens completos (usar previews).
-- Monitorar duração de execuções e número de páginas paginadas para ajustar `maxPages` e evitar timeouts.
+## Endpoints confirmados mas NÃO implementados neste client
+
+Verificados contra o ambiente de testes da MaxAPI (2026-07), fora do fluxo do
+lc-dashboard (exploração para o lc-storefront). Existem no servidor, mas **nenhuma
+função em `lib/maxapi/maxapi-client.ts` os chama hoje** — antes de consumi-los,
+implementar seguindo o mesmo padrão de `maxApiRequest()`/cache de token acima.
+
+| Método | Path | Observação |
+|---|---|---|
+| POST | `/v2/sale` | Cria venda com status "pendente". Exige só `clienteId` + `atendenteId`. Retorna 201. |
+| POST | `/v2/sale/items` | Adiciona item à venda. Retorna 201. **Não baixa estoque** — item fica reservado até a venda ser processada (mesmo comportamento de reserva que `serviceorder/items`). |
+| POST | `/v2/client` | Cria cliente. Exige o campo `tipo`. |
+
+## Endpoints que NÃO existem (não confundir com o sync antigo)
+
+O doc anterior listava `GET /v2/client`, `GET /v2/sale`, `GET /v2/sale/:id/items` e
+`GET /v2/sale/:id/payment` como "endpoints utilizados" — pertenciam a uma Edge
+Function de sync (`supabase/functions/sync-erp`) que **foi removida**. Esse sync não
+existe mais no código atual; a integração viva com o ERP é via Bridge SQL (leitura)
++ MaxAPI (escrita), não replicação para o Supabase.
+
+## Ciclo de vida do token
+
+```
+1. getOrRefreshToken() busca o cache em integration_configs (por loja_id).
+2. Token presente e não expirado (maxapi_token_expires_at > agora)? → usa direto.
+3. Senão: POST /v2/auth { empid, terminal } → novo JWT.
+   Salva em integration_configs com expiração agora + 3000s.
+4. Requisição feita com Authorization: Bearer {token}.
+5. Resposta 401? → limpa o cache (maxapi_token_cache = null) e refaz getOrRefreshToken
+   + a requisição, uma única vez. 401 de novo → erro é propagado para o chamador.
+```
+
+Token nunca chega ao browser nem é logado — só usado server-side, dentro de
+`maxApiRequest()` (`lib/maxapi/maxapi-client.ts:89`).
+
+## Configuração por loja
+
+`buildMaxApiConfig()` monta o `MaxApiConfig` a partir de:
+- `integration_configs.maxapi_url` (URL base, sem barra final)
+- `lojas.emp_id_maxdata` (empId numérico usado no auth)
+- `lojas.terminal_maxdata` (terminal usado no auth)
+
+Falta de qualquer um desses três lança erro explícito antes de tentar a requisição.
+
+## Tipos
+
+Ver `lib/maxapi/maxapi-types.ts` — `TokenDto`, `ServiceOrder`, `ServiceOrderBody`,
+`ServiceOrderItem`, `MaxApiProduct`, `MaxApiPaginated<T>`, `MaxApiError`.
