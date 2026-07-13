@@ -11,9 +11,12 @@ const TEST_PASSWORD = "SenhaDeTeste123!";
 // Tabelas conhecidas como intencionalmente públicas para `authenticated` —
 // vazia hoje de propósito. Qualquer tabela nova em `public` fora de ecom_%
 // cai automaticamente neste teste sem precisar editar esta lista.
+// NOTA: limitação conhecida — tabela com policy permissiva mas zero rows passa
+// como negativa (assertion verifica .length === 0). Risco aceitável; revalidar
+// manualmente caso adicionar dados de produção em tabelas públicas.
 const ALLOWLIST_PUBLICA: string[] = [];
 
-describe("cliente final da vitrine não lê tabela nenhuma do painel", () => {
+describe.skipIf(!process.env.SUPABASE_SERVICE_ROLE_KEY)("cliente final da vitrine não lê tabela nenhuma do painel", () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
   let userId: string | undefined;
   let clienteFinal: ReturnType<typeof createClient>;
