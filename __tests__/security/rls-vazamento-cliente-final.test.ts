@@ -8,13 +8,33 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const TEST_EMAIL = `rls-leak-test-${Date.now()}@teste.invalido`;
 const TEST_PASSWORD = "SenhaDeTeste123!";
 
-// Tabelas conhecidas como intencionalmente públicas para `authenticated` —
-// vazia hoje de propósito. Qualquer tabela nova em `public` fora de ecom_%
-// cai automaticamente neste teste sem precisar editar esta lista.
-// NOTA: limitação conhecida — tabela com policy permissiva mas zero rows passa
-// como negativa (assertion verifica .length === 0). Risco aceitável; revalidar
-// manualmente caso adicionar dados de produção em tabelas públicas.
-const ALLOWLIST_PUBLICA: string[] = [];
+// Tabelas onde `authenticated` ver alguma linha é esperado e verificado como
+// correto — não entram no loop de "zero linhas". Cada entrada precisa de uma
+// causa raiz confirmada no banco (policy lida direto), não suposição.
+//
+// - fs_profiles: RLS é `USING (auth.uid() = user_id)` — só pode devolver a
+//   própria linha, nunca a de outra pessoa. O trigger fs_handle_new_user()
+//   (pré-existente, fora do escopo da fase 2) cria uma linha aqui para TODO
+//   novo auth.users, painel ou vitrine, então uma linha própria é esperada.
+//   Descoberto em 13/07/2026 investigando uma falha deste teste — a falha
+//   era a própria linha do usuário efêmero de teste, não vazamento
+//   cross-user; a confusão só aconteceu porque user_id tem ON DELETE CASCADE
+//   e a linha já tinha sumido quando a investigação rodou a consulta
+//   seguinte. Confirmado com um segundo usuário efêmero e uma função de
+//   debug temporária (auth.uid()/auth.role() batendo com a própria linha).
+// - cfop_classificacoes: policy "Qualquer autenticado pode ver CFOPs",
+//   `USING (true)`, deliberada. Códigos fiscais (CFOP) padronizados pela
+//   Receita Federal — dado público de referência, não associado a cliente
+//   ou loja nenhum. Confirmado lendo a policy direto no banco em 13/07/2026.
+// - profiles: RLS é `USING (id = auth.uid())` (4 policies, redundantes mas
+//   todas com essa mesma condição — confirmado direto no banco). O trigger
+//   handle_new_user() (pré-existente, também fora do escopo da fase 2) cria
+//   uma linha aqui para TODO novo auth.users. Já era um "achado aceito"
+//   documentado no design da fase 2 (docs/superpowers/specs no lc-storefront,
+//   seção "Convivência com os triggers existentes") — só não tinha entrado
+//   nesta allowlist antes. is_system_admin/is_suporte nascem NULL/false, sem
+//   risco de acesso a /admin.
+const EXCECOES_VALIDADAS: string[] = ["fs_profiles", "cfop_classificacoes", "profiles"];
 
 describe.skipIf(!process.env.SUPABASE_SERVICE_ROLE_KEY)("cliente final da vitrine não lê tabela nenhuma do painel", () => {
   const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
@@ -52,7 +72,7 @@ describe.skipIf(!process.env.SUPABASE_SERVICE_ROLE_KEY)("cliente final da vitrin
 
     const alvo = (tabelas ?? [])
       .map((t: { table_name: string }) => t.table_name)
-      .filter((nome: string) => !ALLOWLIST_PUBLICA.includes(nome));
+      .filter((nome: string) => !EXCECOES_VALIDADAS.includes(nome));
 
     // Guarda contra a RPC devolver vazio em silêncio (o que faria o teste
     // "passar" sem checar nada).
