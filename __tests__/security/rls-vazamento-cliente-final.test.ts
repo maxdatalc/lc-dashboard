@@ -66,21 +66,27 @@ describe.skipIf(!process.env.SUPABASE_SERVICE_ROLE_KEY)("cliente final da vitrin
     if (userId) await admin.auth.admin.deleteUser(userId);
   });
 
-  it("lê zero linhas de toda tabela fora de ecom_*", async () => {
-    const { data: tabelas, error } = await admin.rpc("list_tables_for_rls_leak_test");
-    if (error) throw new Error(`Falha ao listar tabelas: ${error.message}`);
+  it(
+    "lê zero linhas de toda tabela fora de ecom_*",
+    async () => {
+      const { data: tabelas, error } = await admin.rpc("list_tables_for_rls_leak_test");
+      if (error) throw new Error(`Falha ao listar tabelas: ${error.message}`);
 
-    const alvo = (tabelas ?? [])
-      .map((t: { table_name: string }) => t.table_name)
-      .filter((nome: string) => !EXCECOES_VALIDADAS.includes(nome));
+      const alvo = (tabelas ?? [])
+        .map((t: { table_name: string }) => t.table_name)
+        .filter((nome: string) => !EXCECOES_VALIDADAS.includes(nome));
 
-    // Guarda contra a RPC devolver vazio em silêncio (o que faria o teste
-    // "passar" sem checar nada).
-    expect(alvo.length).toBeGreaterThan(0);
+      // Guarda contra a RPC devolver vazio em silêncio (o que faria o teste
+      // "passar" sem checar nada).
+      expect(alvo.length).toBeGreaterThan(0);
 
-    for (const tabela of alvo) {
-      const { data } = await clienteFinal.from(tabela).select("*").limit(1);
-      expect(data ?? [], `vazamento em "${tabela}"`).toHaveLength(0);
-    }
-  });
+      for (const tabela of alvo) {
+        const { data } = await clienteFinal.from(tabela).select("*").limit(1);
+        expect(data ?? [], `vazamento em "${tabela}"`).toHaveLength(0);
+      }
+    },
+    // Uma requisição de rede real por tabela do banco inteiro — o timeout
+    // padrão de 5s do Vitest é curto demais em runners de CI mais lentos.
+    30_000,
+  );
 });
