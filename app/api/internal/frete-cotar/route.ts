@@ -125,7 +125,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "frete_indisponivel" }, { status: 503 });
     }
 
-    servicos = (await res.json()) as MelhorEnvioServico[];
+    const corpoResposta: unknown = await res.json();
+    if (!Array.isArray(corpoResposta)) {
+      console.error(
+        `[frete-cotar] resposta da Melhor Envio não é um array para a loja ${loja_id}: ${JSON.stringify(corpoResposta).slice(0, 300)}`,
+      );
+      return NextResponse.json({ error: "frete_indisponivel" }, { status: 503 });
+    }
+    servicos = corpoResposta as MelhorEnvioServico[];
   } catch (err) {
     const mensagem = err instanceof Error ? err.message : String(err);
     console.error(`[frete-cotar] falha para a loja ${loja_id}: ${mensagem}`);
