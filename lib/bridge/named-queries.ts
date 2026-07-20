@@ -336,7 +336,11 @@ SELECT
   ISNULL(pe.proEstoqueAtual, 0) AS proEstoqueAtual,
   ISNULL(g.gdpNome, '')         AS grupoNome,
   ISNULL(sg.sgpNome, '')        AS subGrupoNome,
-  ISNULL(f.fabNome, '')         AS marcaNome
+  ISNULL(f.fabNome, '')         AS marcaNome,
+  p.proPeso                     AS proPeso,
+  p.proAltura                   AS proAltura,
+  p.proLargura                  AS proLargura,
+  p.proComprimento               AS proComprimento
 FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
 LEFT JOIN grupoProd    g  ON g.gdpId  = p.proGrupo
