@@ -60,3 +60,6 @@ scripts/test-*.mjs
 # usuário, mas isso não viaja com o repo (outro clone/CI ficaria exposto).
 # Já apareceu com token Bearer hardcoded numa allowlist de curl — nunca versionar.
 .claude/settings.local.json
+
+# superpowers scratch (progress ledgers, per-task briefs/reports)
+.superpowers/

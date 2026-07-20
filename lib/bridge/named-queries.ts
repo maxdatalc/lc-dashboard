@@ -313,12 +313,79 @@ WHERE vdi.vdiVedId = @osId
 ORDER BY vdi.vdiId
 `;
 
+/**
+ * Catálogo do e-commerce (lc-storefront).
+ *
+ * Só produto marcado como e-commerce NO ERP: `produto.proUsaEcommerce` é o flag
+ * nativo do MaxManager (bit), editável na tela de produto. Validado contra a
+ * bridge de testes (banco SALES) em 2026-07-11: a coluna existe, mas naquele
+ * banco está zerada em 100% dos 12.903 produtos — ou seja, a vitrine só passa a
+ * exibir algo depois que o lojista marcar os produtos dentro do MaxManager.
+ *
+ * Preço e estoque vêm de `produto_empresa` (por empId), NUNCA de `produto`.
+ * `proDesativaProd`: 0/NULL = ativo, -1 = inativo (não é 0/1).
+ */
+const LIST_ECOMMERCE_PRODUCTS = `
+SELECT
+  p.proId                       AS proId,
+  p.proDescricao                AS proDescricao,
+  ISNULL(p.proAplicacao, '')    AS proAplicacao,
+  ISNULL(p.proUn, '')           AS proUn,
+  ISNULL(pe.proCodigo, '')      AS proCodigo,
+  pe.proVenda                   AS proVenda,
+  ISNULL(pe.proEstoqueAtual, 0) AS proEstoqueAtual,
+  ISNULL(g.gdpNome, '')         AS grupoNome,
+  ISNULL(sg.sgpNome, '')        AS subGrupoNome,
+  ISNULL(f.fabNome, '')         AS marcaNome
+FROM produto p
+INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
+LEFT JOIN grupoProd    g  ON g.gdpId  = p.proGrupo
+LEFT JOIN subGrupoProd sg ON sg.sgpId = p.proSubGrupo
+LEFT JOIN fabricante   f  ON f.fabId  = p.proFab
+WHERE p.proUsaEcommerce = 1
+  AND (pe.proDesativaProd IS NULL OR pe.proDesativaProd = 0)
+  AND ISNULL(p.proTipo, 'P') = 'P'
+  AND pe.proVenda > 0
+ORDER BY p.proId
+`;
+
+/**
+ * Estoque ao vivo de vários produtos, para revalidar o carrinho ANTES de cobrar
+ * (lc-storefront, fase 3). O selo mostrado na navegação vem do snapshot do sync;
+ * a quantidade que autoriza a cobrança vem daqui, do ERP, na hora.
+ *
+ * `@proIds` é uma lista separada por vírgula ("1,3,7"). A bridge só aceita
+ * parâmetros escalares nomeados, então não há como passar array — e STRING_SPLIT
+ * NÃO existe neste SQL Server (testado contra o banco SALES em 2026-07-11:
+ * "Invalid object name 'STRING_SPLIT'"). Daí a comparação por string delimitada,
+ * que funciona em qualquer versão. As vírgulas nas pontas evitam que o proId 1
+ * case com 13 ou 17.
+ */
+const GET_ECOMMERCE_STOCK = `
+SELECT
+  p.proId                       AS proId,
+  ISNULL(pe.proEstoqueAtual, 0) AS proEstoqueAtual,
+  ISNULL(pe.proVenda, 0)        AS proVenda,
+  ISNULL(pe.proDesativaProd, 0) AS proDesativaProd
+FROM produto p
+INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
+WHERE ',' + @proIds + ',' LIKE '%,' + CAST(p.proId AS VARCHAR(20)) + ',%'
+`;
+
 type QueryDef = {
   sql: string;
   allowedParams: string[];
 };
 
 const REGISTRY: Record<string, QueryDef> = {
+  LIST_ECOMMERCE_PRODUCTS: {
+    sql: LIST_ECOMMERCE_PRODUCTS,
+    allowedParams: ["empId"],
+  },
+  GET_ECOMMERCE_STOCK: {
+    sql: GET_ECOMMERCE_STOCK,
+    allowedParams: ["empId", "proIds"],
+  },
   SEARCH_PRODUCTS: {
     sql: SEARCH_PRODUCTS,
     allowedParams: ["empId", "termoDesc", "termoCodigo", "termoCodigoExato", "termoCodigoId", "grupo"],
