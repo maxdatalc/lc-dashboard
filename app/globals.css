@@ -63,6 +63,8 @@
     --accent-purple: #7c3aed;
     --accent-red: #dc2626;
     --accent-orange: #ea580c;
+    --accent-rose: #fb7185;
+    --chart-mist: #e2e8f0;
     --sidebar-bg: #1e293b;
     --sidebar-text: #94a3b8;
     --sidebar-active: #00e5ff;
@@ -106,6 +108,8 @@
     --accent-yellow: #d97706;
     --accent-purple: #7c3aed;
     --accent-orange: #ea580c;
+    --accent-rose: #fb7185;
+    --chart-mist: #e2e8f0;
 
     /* Sidebar no light — acompanha o tema */
     --sidebar-bg: #f8fafc;
@@ -164,6 +168,8 @@
     --accent-purple: #7c3aed;
     --accent-red: #ef4444;
     --accent-orange: #f97316;
+    --accent-rose: #f43f5e;
+    --chart-mist: #1f2937;
     --sidebar-bg: #0d1117;
     --sidebar-text: #94a3b8;
     --sidebar-active: #00e5ff;
