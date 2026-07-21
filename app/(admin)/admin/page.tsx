@@ -157,6 +157,7 @@ export default async function AdminPage() {
             </p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--adm-line)" }}>
@@ -243,6 +244,7 @@ export default async function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </AdminCard>
     </div>

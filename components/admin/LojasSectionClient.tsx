@@ -245,7 +245,7 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
           </Link>
         </div>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+        <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">

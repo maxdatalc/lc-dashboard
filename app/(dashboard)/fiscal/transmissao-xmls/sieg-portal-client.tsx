@@ -226,7 +226,7 @@ export default function SiegPortalClient({ lojaId, empresas: empresasIniciais }:
               </div>
 
               {/* Métricas da empresa */}
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 gap-3 xs:grid-cols-4">
                 {[
                   { label: "Total",     valor: emp.total,     cor: "var(--text-secondary)" },
                   { label: "Enviados",  valor: emp.enviados,  cor: "var(--accent-green, #22c55e)" },

@@ -248,7 +248,7 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
 
       {/* Tabela */}
       <div
-        className="adm-rise overflow-hidden rounded-xl"
+        className="adm-rise overflow-x-auto rounded-xl"
         style={{ animationDelay: "80ms", background: "var(--adm-surface)", border: "1px solid var(--adm-line)", boxShadow: "var(--adm-shadow-sm)" }}
       >
         <table className="w-full text-sm">

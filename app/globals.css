@@ -567,3 +567,9 @@ main, [data-page] {
 @media (max-width: 1023.98px) {
   .abc-unified-body { height: auto !important; overflow: visible; }
 }
+
+/* Generalização do padrão acima: cards com altura fixa por linha (Produtos)
+   mantêm o alinhamento no desktop e empilham livres abaixo de md */
+@media (max-width: 767.98px) {
+  .chart-card-fixed-body { height: auto !important; overflow: visible !important; }
+}

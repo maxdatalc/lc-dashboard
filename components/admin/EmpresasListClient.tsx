@@ -91,6 +91,7 @@ export function EmpresasListClient({
           </div>
         ) : (
           <>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--adm-line)" }}>
@@ -239,6 +240,7 @@ export function EmpresasListClient({
                 ))}
               </tbody>
             </table>
+            </div>
 
             {busca && (
               <div

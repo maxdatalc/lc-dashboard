@@ -1,4 +1,5 @@
 import type { ModuleAccessRankingItem } from "@/lib/db/modules";
+import { ResponsiveRowList } from "@/components/ui/ResponsiveRowList";
 
 export function ModuloMetricasTab({ ranking }: { ranking: ModuleAccessRankingItem[] }) {
   if (ranking.length === 0) {
@@ -10,37 +11,38 @@ export function ModuloMetricasTab({ ranking }: { ranking: ModuleAccessRankingIte
   }
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--adm-line)" }}>
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ background: "var(--adm-surface-2)" }}>
-            <th className="text-left px-4 py-2.5 font-medium" style={{ color: "var(--adm-text-dim)" }}>
-              Empresa
-            </th>
-            <th className="text-right px-4 py-2.5 font-medium" style={{ color: "var(--adm-text-dim)" }}>
-              Acessos
-            </th>
-            <th className="text-right px-4 py-2.5 font-medium" style={{ color: "var(--adm-text-dim)" }}>
-              Último acesso
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {ranking.map((r) => (
-            <tr key={r.tenantId} style={{ borderTop: "1px solid var(--adm-line)" }}>
-              <td className="px-4 py-2.5" style={{ color: "var(--adm-text)" }}>
-                {r.tenantName}
-              </td>
-              <td className="px-4 py-2.5 text-right font-semibold" style={{ color: "var(--adm-text)" }}>
-                {r.totalAccesses}
-              </td>
-              <td className="px-4 py-2.5 text-right" style={{ color: "var(--adm-text-dim)" }}>
+    <div className="rounded-xl" style={{ border: "1px solid var(--adm-line)" }}>
+      <ResponsiveRowList<ModuleAccessRankingItem>
+        keyField="tenantId"
+        rows={ranking}
+        columns={[
+          {
+            key: "empresa",
+            header: "Empresa",
+            width: "minmax(0, 1fr)",
+            render: (r) => r.tenantName,
+          },
+          {
+            key: "acessos",
+            header: "Acessos",
+            width: "72px",
+            align: "right",
+            render: (r) => <span className="font-semibold">{r.totalAccesses}</span>,
+          },
+          {
+            key: "ultimo",
+            header: "Último acesso",
+            width: "170px",
+            align: "right",
+            minBreakpoint: "sm",
+            render: (r) => (
+              <span style={{ color: "var(--adm-text-dim)" }}>
                 {new Date(r.lastSeenAt).toLocaleString("pt-BR")}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </span>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

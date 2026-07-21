@@ -64,7 +64,7 @@ export function ModuloAcessoForm({
         </button>
       </div>
 
-      <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--adm-line)" }}>
+      <div className="rounded-xl overflow-x-auto" style={{ border: "1px solid var(--adm-line)" }}>
         <table className="w-full text-sm">
           <thead>
             <tr style={{ background: "var(--adm-surface-2)" }}>

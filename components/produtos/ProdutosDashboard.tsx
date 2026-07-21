@@ -142,20 +142,20 @@ export function ProdutosDashboard() {
           <div className="grid gap-3 grid-cols-1 lg:grid-cols-12 items-start">
             <div className="lg:col-span-5">
               <ChartCard title="Top Marcas por Valor em Estoque" subtitle="custo × venda · participação" animationDelay={60}
-                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
+                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll chart-card-fixed-body">
                 <RankingDual items={data.topMarcasValor} selected={filters.marca} onSelect={(n) => toggle("marca", n)} />
               </ChartCard>
             </div>
             <div className="lg:col-span-4">
               <ChartCard title="Saúde do Estoque / Cadastro" subtitle="distribuição do cadastro por status" animationDelay={100}
                 info="A rosca mostra a proporção de posições por status de estoque. Um volume alto de 'mínimo não informado' significa que a maior parte do catálogo não tem parâmetro de reposição — priorize cadastrar mínimos para habilitar a análise de cobertura."
-                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
+                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll chart-card-fixed-body">
                 <SaudeDonut kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus} />
               </ChartCard>
             </div>
             <div className="lg:col-span-3">
               <ChartCard title="Alertas Críticos" subtitle="situações que exigem atenção" animationDelay={140}
-                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
+                bodyStyle={{ height: ROW2_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll chart-card-fixed-body">
                 <AlertasCriticos
                   kpis={data.kpis} activeStatus={filters.status} onStatusClick={toggleStatus}
                   paradoAtivo={filters.parado} onParadoClick={toggleParado}
@@ -190,7 +190,7 @@ export function ProdutosDashboard() {
             </div>
             <div className="lg:col-span-4">
               <ChartCard title="Produtos Parados" subtitle={`capital sem giro — últimos ${dias} dias`} animationDelay={100}
-                bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll">
+                bodyStyle={{ height: ROW3_HEIGHT, overflowY: "auto" }} bodyClassName="custom-scroll chart-card-fixed-body">
                 <ProdutosParadosRanking items={data.produtosParados} />
               </ChartCard>
             </div>
@@ -198,7 +198,7 @@ export function ProdutosDashboard() {
 
           {/* Linha 4 — ação (a tabela rola por dentro, cabeçalho fixo) */}
           <ChartCard title="Produtos que Exigem Ação" subtitle="itens críticos ou fora do parâmetro — clique para detalhes" animationDelay={60}
-            bodyStyle={{ height: ROW4_HEIGHT, overflow: "hidden" }}>
+            bodyStyle={{ height: ROW4_HEIGHT, overflow: "hidden" }} bodyClassName="chart-card-fixed-body">
             <AcaoTable items={data.exigeAcao} filiais={data.filiais} />
           </ChartCard>
 
