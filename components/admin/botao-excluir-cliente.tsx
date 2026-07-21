@@ -55,7 +55,8 @@ export function BotaoExcluirCliente({ tenantId, tenantName }: Props) {
         size="sm"
         onClick={handleExcluir}
         disabled={loading}
-        className="h-auto px-1.5 py-1 text-red-500 hover:text-red-700 hover:bg-red-50"
+        className="adm-focusable h-auto px-1.5 py-1"
+        style={{ color: "var(--adm-alert)" }}
       >
         {loading ? (
           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -63,7 +64,7 @@ export function BotaoExcluirCliente({ tenantId, tenantName }: Props) {
           <Trash2 className="h-3.5 w-3.5" />
         )}
       </Button>
-      {erro && <span className="text-xs text-red-500">{erro}</span>}
+      {erro && <span className="text-xs" style={{ color: "var(--adm-alert)" }}>{erro}</span>}
     </div>
   );
 }
