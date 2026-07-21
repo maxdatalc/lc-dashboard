@@ -81,6 +81,22 @@ export async function getCurrentUserContext(): Promise<UserContext> {
         }>,
       };
 
+  // Lojas visíveis por usuário (loja_ids vazio = todas as lojas do tenant)
+  const { data: settingsRows } = tenantIds.length
+    ? await supabaseAdmin
+        .from("user_tenant_settings")
+        .select("tenant_id,loja_ids")
+        .eq("user_id", userId)
+        .in("tenant_id", tenantIds)
+    : { data: [] as Array<{ tenant_id: string; loja_ids: string[] }> };
+
+  const allowedLojaIdsByTenant = new Map(
+    ((settingsRows ?? []) as Array<{ tenant_id: string; loja_ids: string[] }>).map((s) => [
+      s.tenant_id,
+      s.loja_ids ?? [],
+    ]),
+  );
+
   const roleMap = new Map(
     ((vinculos ?? []) as Array<{ tenant_id: string; role: string }>).map((v) => [
       v.tenant_id,
@@ -111,6 +127,11 @@ export async function getCurrentUserContext(): Promise<UserContext> {
         : "viewer"),
     lojas: lojaRows
       .filter((l) => l.tenant_id === t.id)
+      .filter((l) => {
+        if (isAdmin) return true;
+        const allowed = allowedLojaIdsByTenant.get(t.id) ?? [];
+        return allowed.length === 0 || allowed.includes(l.id);
+      })
       .map((l): LojaContext => ({
         id: l.id,
         empresa_id: l.tenant_id,

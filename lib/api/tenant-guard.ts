@@ -85,6 +85,22 @@ export async function requireTenantAccess(
     if ((lojas ?? []).length !== lojaIds.length) {
       return NextResponse.json({ error: "Acesso negado a esta loja" }, { status: 403 });
     }
+
+    // Valida que o usuário tem permissão explícita às lojas (user_tenant_settings.loja_ids)
+    // loja_ids vazio = acesso a todas as lojas do tenant
+    if (!isSystemAdmin) {
+      const { data: settings } = await admin
+        .from("user_tenant_settings")
+        .select("loja_ids")
+        .eq("user_id", user.id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      const allowedLojaIds = (settings as { loja_ids?: string[] } | null)?.loja_ids ?? [];
+      if (allowedLojaIds.length > 0 && lojaIds.some((id) => !allowedLojaIds.includes(id))) {
+        return NextResponse.json({ error: "Acesso negado a esta loja" }, { status: 403 });
+      }
+    }
   }
 
   // Registra acesso (throttle 60s em memória, await garante execução no serverless)

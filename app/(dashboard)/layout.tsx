@@ -60,11 +60,11 @@ export default async function DashboardLayout({
           .eq("tenant_id", selectedTenantId)
       : Promise.resolve({ data: [] }),
 
-    // Configurações por usuário: módulos liberados e grupo atribuído
+    // Configurações por usuário: módulos liberados, grupo atribuído e lojas visíveis
     selectedTenantId
       ? adminClient
           .from("user_tenant_settings")
-          .select("modulos, group_id")
+          .select("modulos, group_id, loja_ids")
           .eq("user_id", user.id)
           .eq("tenant_id", selectedTenantId)
           .maybeSingle()
@@ -105,9 +105,10 @@ export default async function DashboardLayout({
   const allTenantFeatures = rawFeatures.map((r) => r.feature_key);
 
   // Configurações por usuário + grupo
-  const userSettings = (userSettingsRes.data as { modulos?: Record<string, boolean>; group_id?: string | null } | null);
+  const userSettings = (userSettingsRes.data as { modulos?: Record<string, boolean>; group_id?: string | null; loja_ids?: string[] } | null);
   const userModulos = userSettings?.modulos ?? null;
   const groupId = userSettings?.group_id ?? null;
+  const allowedLojaIds = userSettings?.loja_ids ?? [];
   const effectiveRole = isAdmin ? "owner" : userRole;
 
   // Carrega modulos do grupo se o usuário pertence a um
@@ -149,7 +150,12 @@ export default async function DashboardLayout({
         .order("name", { ascending: true })
     : { data: [] };
 
-  const lojas = (lojasData ?? []) as { id: string; name: string }[];
+  const allLojas = (lojasData ?? []) as { id: string; name: string }[];
+  // loja_ids vazio = acesso a todas as lojas do tenant (regra de negócio de user_tenant_settings)
+  const lojas =
+    !isAdmin && allowedLojaIds.length > 0
+      ? allLojas.filter((l) => allowedLojaIds.includes(l.id))
+      : allLojas;
 
   let selectedLojaId = await getSelectedLojaId();
   if (selectedLojaId === null && lojas.length > 0) {

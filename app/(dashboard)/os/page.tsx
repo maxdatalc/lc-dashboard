@@ -25,7 +25,7 @@ const STATUS_TABS = [
 ] as const;
 
 export default function OrdensPage() {
-  const { empresas, empresaAtiva, lojaAtiva, setEmpresaAtiva, setLojaAtiva } = useFiscalAuth();
+  const { empresaAtiva, lojaAtiva, setLojaAtiva } = useFiscalAuth();
 
   const [ordens, setOrdens] = useState<OrdemServico[]>([]);
   const [tipos, setTipos] = useState<TipoAtendimento[]>([]);
@@ -101,20 +101,6 @@ export default function OrdensPage() {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {empresas.length > 1 && (
-              <Select value={empresaAtiva?.id ?? ""} onValueChange={setEmpresaAtiva}>
-                <SelectTrigger className="w-[160px]">
-                  <SelectValue placeholder="Empresa" />
-                </SelectTrigger>
-                <SelectContent>
-                  {empresas.map((e) => (
-                    <SelectItem key={e.id} value={e.id}>
-                      {e.nome_fantasia}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
             {(empresaAtiva?.lojas?.length ?? 0) > 1 && (
               <Select value={lojaAtiva?.id ?? ""} onValueChange={setLojaAtiva}>
                 <SelectTrigger className="w-[160px]">

@@ -27,8 +27,9 @@ export async function selectLoja(lojaId: string): Promise<void> {
 
   const admin = makeAdminClient();
 
-  // Verifica que o usuário pertence ao tenant E que a loja pertence ao tenant
-  const [membershipRes, lojaRes] = await Promise.all([
+  // Verifica que o usuário pertence ao tenant, que a loja pertence ao tenant,
+  // e que a loja está entre as permitidas em user_tenant_settings (loja_ids vazio = todas)
+  const [membershipRes, lojaRes, settingsRes] = await Promise.all([
     admin
       .from("tenant_users")
       .select("role")
@@ -41,10 +42,21 @@ export async function selectLoja(lojaId: string): Promise<void> {
       .eq("id", lojaId)
       .eq("tenant_id", tenantId)
       .maybeSingle(),
+    admin
+      .from("user_tenant_settings")
+      .select("loja_ids")
+      .eq("user_id", user.id)
+      .eq("tenant_id", tenantId)
+      .maybeSingle(),
   ]);
 
   if (!membershipRes.data) throw new Error("Sem acesso ao tenant");
   if (!lojaRes.data) throw new Error("Loja inválida ou sem acesso");
+
+  const allowedLojaIds = (settingsRes.data as { loja_ids?: string[] } | null)?.loja_ids ?? [];
+  if (allowedLojaIds.length > 0 && !allowedLojaIds.includes(lojaId)) {
+    throw new Error("Loja inválida ou sem acesso");
+  }
 
   cookieStore.set(LOJA_COOKIE, lojaId, {
     httpOnly: true,
