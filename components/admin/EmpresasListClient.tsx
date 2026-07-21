@@ -4,6 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { Building2, Users, LayoutDashboard, Search } from "lucide-react";
 import { BotaoExcluirCliente } from "@/components/admin/botao-excluir-cliente";
+import { AdminBadge, AdminStatusDot } from "@/components/admin/AdminBadge";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
+import {
+  AdminTable,
+  AdminTableHead,
+  AdminTh,
+  AdminTBody,
+  AdminTr,
+  AdminTd,
+} from "@/components/admin/AdminTable";
 
 type Loja = { id: string; sqlEnabled: boolean; isActive: boolean; empId: number; name: string };
 
@@ -58,202 +69,115 @@ export function EmpresasListClient({
           placeholder="Buscar por nome ou slug…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="adm-field w-full py-2.5 pl-10 pr-4 text-sm"
+          className="adm-field adm-focusable w-full py-2.5 pl-10 pr-4 text-sm"
         />
       </div>
 
       {/* Tabela */}
-      <div
-        className="adm-rise overflow-x-auto rounded-xl"
-        style={{
-          animationDelay: "80ms",
-          background: "var(--adm-surface)",
-          border: "1px solid var(--adm-line)",
-          boxShadow: "var(--adm-shadow-sm)",
-        }}
-      >
-        {filtered.length === 0 ? (
-          <div className="py-20 text-center">
-            <Building2
-              className="mx-auto mb-3 h-10 w-10"
-              style={{ color: "var(--adm-text-faint)" }}
-            />
-            <p className="text-sm font-medium" style={{ color: "var(--adm-text-dim)" }}>
-              {busca
-                ? <>Nenhuma empresa encontrada para &ldquo;{busca}&rdquo;</>
-                : "Nenhuma empresa cadastrada"}
-            </p>
-            {!busca && isAdmin && (
-              <p className="mt-1 text-xs" style={{ color: "var(--adm-text-faint)" }}>
-                Clique em &ldquo;+ Novo Grupo&rdquo; para começar.
-              </p>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr style={{ borderBottom: "1px solid var(--adm-line)" }}>
-                  {["Empresa", "Lojas / Usuários", "Plano", "Cadastrado em", ""].map(
-                    (col) => (
-                      <th
-                        key={col}
-                        className="px-5 py-3.5 text-left text-[11px] font-semibold uppercase tracking-wider"
-                        style={{ color: "var(--adm-text-faint)" }}
-                      >
-                        {col}
-                      </th>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((t, i) => (
-                  <tr
-                    key={t.id}
-                    className="adm-rise adm-row group"
-                    style={{
-                      borderTop: i === 0 ? "none" : "1px solid var(--adm-line)",
-                      animationDelay: `${i * 28}ms`,
-                    }}
-                  >
-                    {/* Empresa */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="inline-block h-2 w-2 shrink-0 rounded-full"
-                          style={{
-                            background: t.isActive ? "var(--adm-signal)" : "var(--adm-text-faint)",
-                          }}
-                          title={t.isActive ? "Ativa" : "Inativa"}
-                        />
-                        <div>
-                          <div
-                            className="font-semibold leading-tight"
-                            style={{ color: "var(--adm-text)" }}
-                          >
-                            {t.name}
-                          </div>
-                          <div
-                            className="adm-mono mt-0.5 text-xs"
-                            style={{ color: "var(--adm-text-faint)" }}
-                          >
-                            {t.slug}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+      {filtered.length === 0 ? (
+        <div
+          className="adm-rise rounded-xl"
+          style={{
+            animationDelay: "80ms",
+            background: "var(--adm-surface)",
+            border: "1px solid var(--adm-line)",
+          }}
+        >
+          <AdminEmptyState
+            icon={Building2}
+            title={busca ? `Nenhuma empresa encontrada para "${busca}"` : "Nenhuma empresa cadastrada"}
+            description={!busca && isAdmin ? 'Clique em "+ Novo Grupo" para começar.' : undefined}
+          />
+        </div>
+      ) : (
+        <div className="adm-rise space-y-2" style={{ animationDelay: "80ms" }}>
+          <AdminTable>
+            <AdminTableHead>
+              <AdminTh>Empresa</AdminTh>
+              <AdminTh>Lojas / Usuários</AdminTh>
+              <AdminTh>Plano</AdminTh>
+              <AdminTh>Cadastrado em</AdminTh>
+              <AdminTh />
+            </AdminTableHead>
+            <AdminTBody>
+              {filtered.map((t, i) => (
+                <AdminTr key={t.id} noBorder={i === 0}>
+                  {/* Empresa — nome em destaque, slug discreto, status como dot+label */}
+                  <AdminTd>
+                    <div className="text-[15px] font-semibold leading-tight">{t.name}</div>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                        {t.slug}
+                      </span>
+                      <span style={{ color: "var(--adm-line-strong)" }}>·</span>
+                      <AdminStatusDot active={t.isActive} />
+                    </div>
+                  </AdminTd>
 
-                    {/* Lojas / Usuários */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-4">
-                        <span
-                          className="flex items-center gap-1.5 text-xs"
-                          style={{ color: "var(--adm-text-dim)" }}
-                        >
-                          <Building2 className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
-                          <span className="adm-mono font-semibold" style={{ color: "var(--adm-text)" }}>
-                            {t.lojas.length}
-                          </span>
+                  {/* Lojas / Usuários */}
+                  <AdminTd>
+                    <div className="flex items-center gap-4">
+                      <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                        <Building2 className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
+                        <span className="adm-mono font-semibold" style={{ color: "var(--adm-text)" }}>
+                          {t.lojas.length}
                         </span>
-                        <span
-                          className="flex items-center gap-1.5 text-xs"
-                          style={{ color: "var(--adm-text-dim)" }}
-                        >
-                          <Users className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
-                          <span className="adm-mono font-semibold" style={{ color: "var(--adm-text)" }}>
-                            {t.totalUsuarios}
-                          </span>
+                      </span>
+                      <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                        <Users className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
+                        <span className="adm-mono font-semibold" style={{ color: "var(--adm-text)" }}>
+                          {t.totalUsuarios}
                         </span>
-                      </div>
-                    </td>
+                      </span>
+                    </div>
+                  </AdminTd>
 
-                    {/* Plano */}
-                    <td className="px-5 py-4">
-                      {t.plan === "premium" ? (
-                        <span
-                          className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold"
-                          style={{ background: "var(--adm-warn-soft)", color: "var(--adm-warn)" }}
-                        >
-                          ★ Premium
-                        </span>
-                      ) : (
-                        <span
-                          className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
-                          style={{ background: "var(--adm-surface-2)", color: "var(--adm-text-dim)" }}
-                        >
-                          Free
-                        </span>
+                  {/* Plano */}
+                  <AdminTd>
+                    {t.plan === "premium" ? (
+                      <AdminBadge variant="premium">★ Premium</AdminBadge>
+                    ) : (
+                      <AdminBadge variant="neutral">Free</AdminBadge>
+                    )}
+                  </AdminTd>
+
+                  {/* Criado em */}
+                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                    {formatarData(t.createdAt)}
+                  </AdminTd>
+
+                  {/* Ações — discretas, aparecem no hover da linha */}
+                  <AdminTd align="right">
+                    <div className="flex items-center justify-end gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      {isAdmin && acessarDashboard && (
+                        <form action={acessarDashboard}>
+                          <input type="hidden" name="tenantId" value={t.id} />
+                          <AdminButton type="submit" variant="subtle" size="sm" title={`Acessar dashboard de ${t.name}`}>
+                            <LayoutDashboard className="h-3.5 w-3.5" />
+                            Dashboard
+                          </AdminButton>
+                        </form>
                       )}
-                    </td>
 
-                    {/* Criado em */}
-                    <td
-                      className="adm-mono px-5 py-4 text-xs"
-                      style={{ color: "var(--adm-text-faint)" }}
-                    >
-                      {formatarData(t.createdAt)}
-                    </td>
+                      {isAdmin && <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />}
 
-                    {/* Ações */}
-                    <td className="px-5 py-4">
-                      <div className="flex items-center justify-end gap-2">
-                        {/* Dashboard — só admin */}
-                        {isAdmin && acessarDashboard && (
-                          <form action={acessarDashboard} className="opacity-0 transition-opacity group-hover:opacity-100">
-                            <input type="hidden" name="tenantId" value={t.id} />
-                            <button
-                              type="submit"
-                              title={`Acessar dashboard de ${t.name}`}
-                              className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all"
-                              style={{
-                                color: "var(--adm-text-dim)",
-                                border: "1px solid var(--adm-line-strong)",
-                                background: "var(--adm-surface-2)",
-                              }}
-                            >
-                              <LayoutDashboard className="h-3.5 w-3.5" />
-                              Dashboard
-                            </button>
-                          </form>
-                        )}
+                      <AdminButton href={`/admin/empresas/${t.id}`} size="sm">
+                        {isAdmin ? "Gerenciar →" : "Ver detalhes →"}
+                      </AdminButton>
+                    </div>
+                  </AdminTd>
+                </AdminTr>
+              ))}
+            </AdminTBody>
+          </AdminTable>
 
-                        {/* Excluir — só admin */}
-                        {isAdmin && (
-                          <div className="opacity-0 transition-opacity group-hover:opacity-100">
-                            <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
-                          </div>
-                        )}
-
-                        {/* Gerenciar — todos podem ver */}
-                        <Link
-                          href={`/admin/empresas/${t.id}`}
-                          className="inline-flex items-center gap-1 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all"
-                          style={{ background: "var(--adm-accent)", color: "#04121a" }}
-                        >
-                          {isAdmin ? "Gerenciar →" : "Ver detalhes →"}
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            </div>
-
-            {busca && (
-              <div
-                className="px-5 py-2.5 text-xs"
-                style={{ borderTop: "1px solid var(--adm-line)", color: "var(--adm-text-faint)" }}
-              >
-                {filtered.length} de {tenants.length}{" "}
-                {tenants.length === 1 ? "empresa" : "empresas"}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          {busca && (
+            <p className="px-1 text-xs" style={{ color: "var(--adm-text-faint)" }}>
+              {filtered.length} de {tenants.length} {tenants.length === 1 ? "empresa" : "empresas"}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

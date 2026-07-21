@@ -7,6 +7,16 @@ import { getAllTenants } from "@/lib/db/admin";
 import { FEATURES_CATALOG } from "@/lib/features";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminBadge } from "@/components/admin/AdminBadge";
+import {
+  AdminTable,
+  AdminTableHead,
+  AdminTh,
+  AdminTBody,
+  AdminTr,
+  AdminTd,
+} from "@/components/admin/AdminTable";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 
 function formatarData(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("pt-BR");
@@ -126,20 +136,14 @@ export default async function AdminPage() {
       </div>
 
       {/* Últimos clientes */}
-      <AdminCard
-        className="adm-rise overflow-hidden"
-        style={{ animationDelay: "200ms" }}
-      >
-        <div
-          className="flex items-center justify-between px-5 py-4"
-          style={{ borderBottom: "1px solid var(--adm-line)" }}
-        >
+      <div className="adm-rise space-y-3" style={{ animationDelay: "200ms" }}>
+        <div className="flex items-center justify-between px-1">
           <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
             Últimos clientes cadastrados
           </h2>
           <Link
             href="/admin/empresas"
-            className="text-xs font-medium transition-colors hover:opacity-80"
+            className="adm-focusable rounded text-xs font-medium transition-colors hover:opacity-80"
             style={{ color: "var(--adm-accent)" }}
           >
             Ver todos →
@@ -147,106 +151,55 @@ export default async function AdminPage() {
         </div>
 
         {ultimos5.length === 0 ? (
-          <div className="py-12 text-center">
-            <Building2
-              className="mx-auto mb-2 h-8 w-8"
-              style={{ color: "var(--adm-text-faint)" }}
-            />
-            <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
-              Nenhum cliente cadastrado ainda.
-            </p>
-          </div>
+          <AdminCard>
+            <AdminEmptyState icon={Building2} title="Nenhum cliente cadastrado ainda." />
+          </AdminCard>
         ) : (
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--adm-line)" }}>
-                {["Cliente", "Lojas", "Plano", "Cadastrado em", ""].map((col) => (
-                  <th
-                    key={col}
-                    className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider"
-                    style={{ color: "var(--adm-text-faint)" }}
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
+          <AdminTable>
+            <AdminTableHead>
+              <AdminTh>Cliente</AdminTh>
+              <AdminTh>Lojas</AdminTh>
+              <AdminTh>Plano</AdminTh>
+              <AdminTh>Cadastrado em</AdminTh>
+              <AdminTh />
+            </AdminTableHead>
+            <AdminTBody>
               {ultimos5.map((t, i) => (
-                <tr
-                  key={t.id}
-                  className="adm-rise adm-row group"
-                  style={{
-                    borderTop: i === 0 ? "none" : "1px solid var(--adm-line)",
-                    animationDelay: `${250 + i * 30}ms`,
-                  }}
-                >
-                  <td className="px-5 py-3.5">
-                    <div
-                      className="font-medium leading-tight"
-                      style={{ color: "var(--adm-text)" }}
-                    >
-                      {t.name}
-                    </div>
-                    <div
-                      className="adm-mono mt-0.5 text-xs"
-                      style={{ color: "var(--adm-text-faint)" }}
-                    >
+                <AdminTr key={t.id} noBorder={i === 0}>
+                  <AdminTd>
+                    <div className="font-medium leading-tight">{t.name}</div>
+                    <div className="adm-mono mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
                       {t.slug}
                     </div>
-                  </td>
-                  <td
-                    className="adm-mono px-5 py-3.5 text-sm"
-                    style={{ color: "var(--adm-text-dim)" }}
-                  >
+                  </AdminTd>
+                  <AdminTd className="adm-mono" style={{ color: "var(--adm-text-dim)" }}>
                     {t.lojas.length}
-                  </td>
-                  <td className="px-5 py-3.5">
+                  </AdminTd>
+                  <AdminTd>
                     {t.plan === "premium" ? (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                        style={{
-                          background: "var(--adm-warn-soft)",
-                          color: "var(--adm-warn)",
-                        }}
-                      >
-                        ★ Premium
-                      </span>
+                      <AdminBadge variant="premium">★ Premium</AdminBadge>
                     ) : (
-                      <span
-                        className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-                        style={{
-                          background: "var(--adm-surface-2)",
-                          color: "var(--adm-text-dim)",
-                        }}
-                      >
-                        Free
-                      </span>
+                      <AdminBadge variant="neutral">Free</AdminBadge>
                     )}
-                  </td>
-                  <td
-                    className="adm-mono px-5 py-3.5 text-xs"
-                    style={{ color: "var(--adm-text-faint)" }}
-                  >
+                  </AdminTd>
+                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     {formatarData(t.createdAt)}
-                  </td>
-                  <td className="px-5 py-3.5">
+                  </AdminTd>
+                  <AdminTd align="right">
                     <Link
                       href={`/admin/empresas/${t.id}`}
-                      className="text-xs font-medium opacity-0 transition-all group-hover:opacity-100"
+                      className="adm-focusable rounded text-xs font-medium opacity-0 transition-all group-hover:opacity-100"
                       style={{ color: "var(--adm-accent)" }}
                     >
                       Gerenciar →
                     </Link>
-                  </td>
-                </tr>
+                  </AdminTd>
+                </AdminTr>
               ))}
-            </tbody>
-          </table>
-          </div>
+            </AdminTBody>
+          </AdminTable>
         )}
-      </AdminCard>
+      </div>
     </div>
   );
 }

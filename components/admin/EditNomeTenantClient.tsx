@@ -51,11 +51,14 @@ export function EditNomeTenantClient({ tenantId, currentName }: Props) {
 
   if (!editing) {
     return (
-      <div className="flex items-center gap-2 group">
-        <h1 className="text-2xl font-bold text-slate-900 leading-tight">{currentName}</h1>
+      <div className="group flex items-center gap-2">
+        <h1 className="text-2xl font-bold leading-tight tracking-tight" style={{ color: "var(--adm-text)" }}>
+          {currentName}
+        </h1>
         <button
           onClick={() => setEditing(true)}
-          className="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+          className="adm-focusable rounded p-1 opacity-0 transition-all group-hover:opacity-100"
+          style={{ color: "var(--adm-text-faint)" }}
           title="Editar nome"
         >
           <Pencil className="h-4 w-4" />
@@ -65,7 +68,7 @@ export function EditNomeTenantClient({ tenantId, currentName }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-2 flex-wrap">
+    <div className="flex flex-wrap items-center gap-2">
       <input
         type="text"
         value={nome}
@@ -75,25 +78,32 @@ export function EditNomeTenantClient({ tenantId, currentName }: Props) {
           if (e.key === "Escape") handleCancel();
         }}
         autoFocus
-        className="text-2xl font-bold text-slate-900 border-b-2 border-slate-400 bg-transparent focus:outline-none focus:border-slate-900 leading-tight pb-0.5 min-w-[200px]"
+        className="adm-focusable min-w-[200px] border-b-2 bg-transparent pb-0.5 text-2xl font-bold leading-tight"
+        style={{ color: "var(--adm-text)", borderColor: "var(--adm-line-strong)" }}
       />
       <div className="flex items-center gap-1">
         <button
           onClick={handleSave}
           disabled={loading}
-          className="p-1.5 rounded-lg bg-slate-900 text-white hover:bg-slate-700 disabled:opacity-50 transition-colors"
+          className="adm-focusable rounded-lg p-1.5 transition-colors disabled:opacity-50"
+          style={{ background: "var(--adm-accent)", color: "#04121a" }}
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
         </button>
         <button
           onClick={handleCancel}
           disabled={loading}
-          className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 transition-colors"
+          className="adm-focusable rounded-lg p-1.5 transition-colors"
+          style={{ border: "1px solid var(--adm-line-strong)", color: "var(--adm-text-dim)" }}
         >
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      {erro && <p className="text-xs text-red-500 w-full">{erro}</p>}
+      {erro && (
+        <p className="w-full text-xs" style={{ color: "var(--adm-alert)" }}>
+          {erro}
+        </p>
+      )}
     </div>
   );
 }

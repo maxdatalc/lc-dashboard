@@ -6,22 +6,29 @@ import type { ReactNode } from "react";
 export interface AdminTabItem {
   value: string;
   label: string;
-  icon?: React.ElementType;
+  /** Ícone já renderizado (ex.: `<Zap className="h-4 w-4" />`) — nunca o tipo do
+   * componente, que não pode atravessar a fronteira Server→Client como prop. */
+  icon?: ReactNode;
   count?: number;
 }
 
 /**
  * Tabs por navegação (Link), estilo Supabase: sublinhado fino, item ativo com
  * texto forte + traço na cor de destaque, sem "pill" pesada.
+ *
+ * `hrefFor` recebe uma função não é permitido (Server→Client boundary), por
+ * isso o href é montado aqui a partir de `basePath` + `queryParam`.
  */
 export function AdminTabs({
   tabs,
   active,
-  hrefFor,
+  basePath,
+  queryParam = "aba",
 }: {
   tabs: AdminTabItem[];
   active: string;
-  hrefFor: (value: string) => string;
+  basePath: string;
+  queryParam?: string;
 }) {
   return (
     <div
@@ -34,7 +41,7 @@ export function AdminTabs({
         return (
           <Link
             key={tab.value}
-            href={hrefFor(tab.value)}
+            href={`${basePath}?${queryParam}=${tab.value}`}
             role="tab"
             aria-selected={isActive}
             className="adm-focusable relative flex shrink-0 items-center gap-2 pb-3 pt-1 text-sm transition-colors"
@@ -43,7 +50,7 @@ export function AdminTabs({
               fontWeight: isActive ? 600 : 500,
             }}
           >
-            {tab.icon && <tab.icon className="h-4 w-4 shrink-0" />}
+            {tab.icon}
             {tab.label}
             {tab.count !== undefined && (
               <span
@@ -102,7 +109,7 @@ export function AdminTabsButton({
               fontWeight: isActive ? 600 : 500,
             }}
           >
-            {tab.icon && <tab.icon className="h-4 w-4 shrink-0" />}
+            {tab.icon}
             {tab.label}
             {tab.count !== undefined && (
               <span

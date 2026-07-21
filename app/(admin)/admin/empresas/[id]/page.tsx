@@ -19,6 +19,19 @@ import { UsuariosSectionClient } from "@/components/admin/UsuariosSectionClient"
 import { GruposSectionClient } from "@/components/admin/GruposSectionClient";
 import { EditNomeTenantClient } from "@/components/admin/EditNomeTenantClient";
 import { selecionarEmpresaAdmin } from "@/app/actions/auth";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge, AdminStatusDot } from "@/components/admin/AdminBadge";
+import { AdminTabs, AdminTabPanel } from "@/components/admin/AdminTabs";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
+import {
+  AdminTable,
+  AdminTableHead,
+  AdminTh,
+  AdminTBody,
+  AdminTr,
+  AdminTd,
+} from "@/components/admin/AdminTable";
 
 type Aba = "lojas" | "features" | "usuarios" | "clientes" | "permissoes";
 
@@ -81,66 +94,54 @@ export default async function GerenciarEmpresaPage({
   ];
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6 p-6">
 
       {/* Cabeçalho */}
-      <div
-        className="space-y-3"
-        style={{ animation: "fadeInUp 0.3s ease-out both" }}
-      >
+      <div className="adm-rise space-y-4">
         {/* Breadcrumb */}
         <Link
           href="/admin/empresas"
-          className="inline-flex items-center gap-1.5 text-slate-400 hover:text-slate-700 text-xs font-medium transition-colors"
+          className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+          style={{ color: "var(--adm-text-faint)" }}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Todas as empresas
         </Link>
 
         {/* Título + badges */}
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <EditNomeTenantClient tenantId={id} currentName={tenant.name} />
-            <div className="flex items-center gap-3 mt-1.5">
-              <span className="text-xs text-slate-400 font-mono">{tenant.slug}</span>
-              <span className="text-slate-300">·</span>
-              <span className="flex items-center gap-1 text-xs text-slate-400">
-                <Building2 className="h-3.5 w-3.5" />
-                {tenant.lojas.length}{" "}
-                {tenant.lojas.length === 1 ? "loja" : "lojas"}
+            <div className="mt-2 flex flex-wrap items-center gap-2.5">
+              <span className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                {tenant.slug}
               </span>
-              <span className="text-slate-300">·</span>
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${
-                  tenant.isActive ? "bg-emerald-400" : "bg-slate-300"
-                }`}
-              />
-              <span className="text-xs text-slate-400">
-                {tenant.isActive ? "Ativa" : "Inativa"}
+              <span style={{ color: "var(--adm-line-strong)" }}>·</span>
+              <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                <Building2 className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
+                {tenant.lojas.length} {tenant.lojas.length === 1 ? "loja" : "lojas"}
               </span>
+              <span style={{ color: "var(--adm-line-strong)" }}>·</span>
+              <AdminStatusDot active={tenant.isActive} />
             </div>
-
           </div>
 
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex shrink-0 items-center gap-2.5">
             {/* Toggle de plano */}
             <form action={alterarPlano.bind(null, id)}>
-              <input
-                type="hidden"
-                name="plano"
-                value={tenant.plan === "premium" ? "free" : "premium"}
-              />
+              <input type="hidden" name="plano" value={tenant.plan === "premium" ? "free" : "premium"} />
               <button
                 type="submit"
                 title={tenant.plan === "premium" ? "Clique para mudar para Free" : "Clique para mudar para Premium"}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-semibold transition-all hover:shadow-sm hover:-translate-y-px ${
-                  tenant.plan === "premium"
-                    ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
-                    : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
-                }`}
+                className="adm-focusable inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-semibold transition-all"
+                style={{
+                  background: tenant.plan === "premium" ? "var(--adm-warn-soft)" : "var(--adm-surface-2)",
+                  color: tenant.plan === "premium" ? "var(--adm-warn)" : "var(--adm-text-dim)",
+                  border: "1px solid var(--adm-line-strong)",
+                }}
               >
                 {tenant.plan === "premium" ? "★ Premium" : "Free"}
-                <span className="text-[10px] opacity-60 font-normal">
+                <span className="text-[10px] font-normal opacity-70">
                   {tenant.plan === "premium" ? "→ free" : "→ premium"}
                 </span>
               </button>
@@ -149,55 +150,29 @@ export default async function GerenciarEmpresaPage({
             {/* Acessar dashboard desta empresa */}
             <form action={selecionarEmpresaAdmin}>
               <input type="hidden" name="tenantId" value={id} />
-              <button
-                type="submit"
-                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 border border-slate-700 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 transition-colors"
-              >
+              <AdminButton type="submit" variant="secondary">
                 <ExternalLink className="h-3.5 w-3.5" />
                 Ver dashboard
-              </button>
+              </AdminButton>
             </form>
           </div>
         </div>
       </div>
 
       {/* Tabs */}
-      <div
-        className="flex gap-0.5 border-b border-slate-200"
-        style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "50ms" }}
-      >
-        {ABAS.map((a) => {
-          const isActive = abaAtiva === a.valor;
-          return (
-            <Link
-              key={a.valor}
-              href={`/admin/empresas/${id}?aba=${a.valor}`}
-              className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-all duration-150 ${
-                isActive
-                  ? "border-slate-900 text-slate-900"
-                  : "border-transparent text-slate-400 hover:text-slate-600 hover:border-slate-300"
-              }`}
-            >
-              <a.icon className="h-4 w-4" />
-              {a.label}
-              {a.count !== undefined && (
-                <span
-                  className={`text-xs px-1.5 py-0.5 rounded-full font-semibold transition-colors ${
-                    isActive
-                      ? "bg-slate-900 text-white"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                >
-                  {a.count}
-                </span>
-              )}
-            </Link>
-          );
-        })}
-      </div>
+      <AdminTabs
+        tabs={ABAS.map((a) => ({
+          value: a.valor,
+          label: a.label,
+          icon: <a.icon className="h-4 w-4 shrink-0" />,
+          count: a.count,
+        }))}
+        active={abaAtiva}
+        basePath={`/admin/empresas/${id}`}
+      />
 
       {/* Conteúdo das abas */}
-      <div style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "80ms" }}>
+      <AdminTabPanel>
 
         {/* ── Aba Lojas ────────────────────────────────────────────────────── */}
         {abaAtiva === "lojas" && (
@@ -210,22 +185,35 @@ export default async function GerenciarEmpresaPage({
 
             {/* Módulos disponíveis — todos editáveis por empresa */}
             <form action={salvarFeatures.bind(null, id)} className="space-y-3">
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-900 mb-1">Módulos</h3>
-                <p className="text-xs text-slate-400 mb-4">Ative ou desative módulos para esta empresa. Todos podem ser configurados livremente.</p>
+              <AdminCard className="p-5">
+                <h3 className="mb-1 text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Módulos</h3>
+                <p className="mb-4 text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                  Ative ou desative módulos para esta empresa. Todos podem ser configurados livremente.
+                </p>
 
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {addonFeatures.map((f) => {
                     const ativo = tenant.features.includes(f.key);
                     const killedGlobally = killedFeatureKeys.includes(f.key);
                     return (
                       <div key={f.key}>
                         <label
-                          className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
-                            killedGlobally
-                              ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
-                              : `cursor-pointer hover:-translate-y-px hover:shadow-sm ${ativo ? "bg-blue-50 border-blue-200" : "bg-white border-slate-200"}`
-                          }`}
+                          className="flex items-start gap-3 rounded-xl p-4 transition-all"
+                          style={{
+                            border: "1px solid",
+                            borderColor: killedGlobally
+                              ? "var(--adm-line)"
+                              : ativo
+                              ? "var(--adm-accent)"
+                              : "var(--adm-line-strong)",
+                            background: killedGlobally
+                              ? "var(--adm-surface-2)"
+                              : ativo
+                              ? "var(--adm-accent-soft)"
+                              : "transparent",
+                            opacity: killedGlobally ? 0.6 : 1,
+                            cursor: killedGlobally ? "not-allowed" : "pointer",
+                          }}
                         >
                           {killedGlobally && ativo && (
                             <input type="hidden" name="feature" value={f.key} />
@@ -236,22 +224,20 @@ export default async function GerenciarEmpresaPage({
                             value={f.key}
                             defaultChecked={ativo}
                             disabled={killedGlobally}
-                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 mt-0.5 shrink-0"
+                            className="adm-focusable mt-0.5 shrink-0 rounded"
+                            style={{ accentColor: "var(--adm-accent)" }}
                           />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold text-slate-800">{f.label}</p>
-                              {killedGlobally && (
-                                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
-                                  Desativado globalmente
-                                </span>
-                              )}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>{f.label}</p>
+                              {killedGlobally && <AdminBadge variant="danger">Desativado globalmente</AdminBadge>}
                             </div>
-                            <p className="text-xs text-slate-500 mt-0.5">{f.descricao}</p>
+                            <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>{f.descricao}</p>
                             {killedGlobally && (
                               <Link
                                 href={`/admin/modulos/${f.key}`}
-                                className="inline-flex items-center gap-1 text-xs font-medium text-red-600 hover:text-red-700 mt-1"
+                                className="adm-focusable mt-1 inline-flex items-center gap-1 rounded text-xs font-medium"
+                                style={{ color: "var(--adm-alert)" }}
                               >
                                 Reative em Módulos → {f.label}
                               </Link>
@@ -261,10 +247,11 @@ export default async function GerenciarEmpresaPage({
 
                         {/* Configuração do módulo O.S. */}
                         {f.key === "modulo_os" && ativo && (
-                          <div className="mt-2 pl-4 border-l-2 border-blue-200">
+                          <div className="ml-4 mt-2 border-l-2 pl-4" style={{ borderColor: "var(--adm-accent-soft)" }}>
                             <Link
                               href={`/admin/empresas/${id}/modulo-os`}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                              className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+                              style={{ color: "var(--adm-accent)" }}
                             >
                               <Settings className="h-3 w-3" />
                               Configurar inventários e tipos fiscais
@@ -274,10 +261,12 @@ export default async function GerenciarEmpresaPage({
 
                         {/* Configuração do módulo Fiscal (SIEG) — um link por loja com Bridge */}
                         {f.key === "modulo_fiscal" && ativo && (
-                          <div className="mt-2 pl-4 border-l-2 border-blue-200 space-y-1.5">
-                            <p className="text-xs text-slate-500 font-medium">Configurar credenciais SIEG por loja:</p>
+                          <div className="ml-4 mt-2 space-y-1.5 border-l-2 pl-4" style={{ borderColor: "var(--adm-accent-soft)" }}>
+                            <p className="text-xs font-medium" style={{ color: "var(--adm-text-faint)" }}>
+                              Configurar credenciais SIEG por loja:
+                            </p>
                             {tenant.lojas.filter((l) => l.sqlEnabled).length === 0 ? (
-                              <p className="text-xs text-amber-600">
+                              <p className="text-xs" style={{ color: "var(--adm-warn)" }}>
                                 Nenhuma loja com Bridge SQL ativa. Configure a Bridge antes de habilitar o SIEG.
                               </p>
                             ) : (
@@ -287,7 +276,8 @@ export default async function GerenciarEmpresaPage({
                                   <div key={l.id}>
                                     <Link
                                       href={`/admin/empresas/${id}/lojas/${l.id}/sieg`}
-                                      className="inline-flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                                      className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+                                      style={{ color: "var(--adm-accent)" }}
                                     >
                                       <Scale className="h-3 w-3" />
                                       {l.name} — OAuth Token SIEG
@@ -301,24 +291,23 @@ export default async function GerenciarEmpresaPage({
                     );
                   })}
                 </div>
-              </div>
+              </AdminCard>
 
-              <button
-                type="submit"
-                className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
-              >
-                Salvar
-              </button>
+              <AdminButton type="submit">Salvar</AdminButton>
             </form>
 
             {/* Em breve */}
-            <details className="group rounded-xl border border-slate-200 overflow-hidden">
-              <summary className="flex items-center justify-between px-5 py-3.5 bg-slate-50 cursor-pointer select-none list-none hover:bg-slate-100 transition-colors">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <details className="group overflow-hidden rounded-xl" style={{ border: "1px solid var(--adm-line)" }}>
+              <summary
+                className="flex cursor-pointer select-none list-none items-center justify-between px-5 py-3.5 transition-colors"
+                style={{ background: "var(--adm-surface-2)" }}
+              >
+                <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
                   Em breve — {emBreveFeatures.length} módulos
                 </span>
                 <svg
-                  className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180"
+                  className="h-4 w-4 transition-transform group-open:rotate-180"
+                  style={{ color: "var(--adm-text-faint)" }}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -327,20 +316,19 @@ export default async function GerenciarEmpresaPage({
                   <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </summary>
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-2 bg-white">
+              <div className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2" style={{ background: "var(--adm-surface)" }}>
                 {emBreveFeatures.map((f) => (
                   <div
                     key={f.key}
-                    className="flex items-start gap-3 p-3 rounded-lg border border-slate-100 bg-slate-50"
+                    className="flex items-start gap-3 rounded-lg p-3"
+                    style={{ border: "1px solid var(--adm-line)", background: "var(--adm-surface-2)" }}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-slate-400">{f.label}</p>
-                        <span className="text-[10px] bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded font-medium">
-                          Em breve
-                        </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-medium" style={{ color: "var(--adm-text-faint)" }}>{f.label}</p>
+                        <AdminBadge variant="neutral">Em breve</AdminBadge>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5">{f.descricao}</p>
+                      <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>{f.descricao}</p>
                     </div>
                   </div>
                 ))}
@@ -381,12 +369,15 @@ export default async function GerenciarEmpresaPage({
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold text-slate-700">
+                <p className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
                   {clientesVinculados.length}{" "}
                   {clientesVinculados.length === 1 ? "empresa vinculada" : "empresas vinculadas"} na base de clientes
                 </p>
                 {vinculadosParam !== undefined && (
-                  <p className={`text-xs mt-0.5 ${Number(vinculadosParam) > 0 ? "text-emerald-600" : "text-slate-400"}`}>
+                  <p
+                    className="mt-0.5 text-xs"
+                    style={{ color: Number(vinculadosParam) > 0 ? "var(--adm-signal)" : "var(--adm-text-faint)" }}
+                  >
                     {Number(vinculadosParam) > 0
                       ? `${vinculadosParam} novo(s) vínculo(s) criado(s) agora`
                       : "Nenhum novo vínculo encontrado — todos já estavam vinculados ou não há correspondência de CNPJ"}
@@ -399,76 +390,65 @@ export default async function GerenciarEmpresaPage({
                   .map((l) => (
                     <input key={l.id} type="hidden" name="cnpj" value={l.cnpj!} />
                   ))}
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                >
+                <AdminButton type="submit" variant="secondary" size="sm">
                   <RefreshCw className="h-3.5 w-3.5" />
                   Atualizar Vínculos
-                </button>
+                </AdminButton>
               </form>
             </div>
 
             {clientesVinculados.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-slate-200 py-14 text-center">
-                <Users2 className="h-9 w-9 text-slate-200 mx-auto mb-3" />
-                <p className="text-sm font-medium text-slate-600">Nenhuma empresa vinculada ainda</p>
-                <p className="text-xs text-slate-400 mt-1.5 max-w-sm mx-auto">
-                  Clique em &ldquo;Atualizar Vínculos&rdquo; para buscar automaticamente pelas lojas com CNPJ cadastrado.
-                </p>
-              </div>
+              <AdminCard>
+                <AdminEmptyState
+                  icon={Users2}
+                  title="Nenhuma empresa vinculada ainda"
+                  description='Clique em "Atualizar Vínculos" para buscar automaticamente pelas lojas com CNPJ cadastrado.'
+                />
+              </AdminCard>
             ) : (
-              <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      {["Código", "Empresa", "CNPJ", "Cidade", ""].map((col) => (
-                        <th
-                          key={col}
-                          className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
+              <AdminTable>
+                <AdminTableHead>
+                  <AdminTh>Código</AdminTh>
+                  <AdminTh>Empresa</AdminTh>
+                  <AdminTh>CNPJ</AdminTh>
+                  <AdminTh>Cidade</AdminTh>
+                  <AdminTh />
+                </AdminTableHead>
+                <AdminTBody>
+                  {clientesVinculados.map((c, i) => (
+                    <AdminTr key={c.id} noBorder={i === 0}>
+                      <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                        {c.codigo_externo ?? "—"}
+                      </AdminTd>
+                      <AdminTd>
+                        <p className="text-sm font-semibold">{c.nome_fantasia || c.razao_social}</p>
+                        {c.nome_fantasia && (
+                          <p className="truncate text-xs" style={{ color: "var(--adm-text-faint)" }}>{c.razao_social}</p>
+                        )}
+                      </AdminTd>
+                      <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                        {c.cnpj_cpf ?? "—"}
+                      </AdminTd>
+                      <AdminTd className="text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                        {c.cidade ?? "—"}
+                      </AdminTd>
+                      <AdminTd align="right">
+                        <Link
+                          href={`/admin/clientes/${c.id}`}
+                          className="adm-focusable rounded text-xs font-medium transition-colors"
+                          style={{ color: "var(--adm-text-dim)" }}
                         >
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {clientesVinculados.map((c) => (
-                      <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
-                        <td className="px-5 py-3.5 text-xs font-mono text-slate-400">
-                          {c.codigo_externo ?? "—"}
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <p className="font-semibold text-slate-800 text-sm">
-                            {c.nome_fantasia || c.razao_social}
-                          </p>
-                          {c.nome_fantasia && (
-                            <p className="text-xs text-slate-400 truncate">{c.razao_social}</p>
-                          )}
-                        </td>
-                        <td className="px-5 py-3.5 text-xs font-mono text-slate-500">
-                          {c.cnpj_cpf ?? "—"}
-                        </td>
-                        <td className="px-5 py-3.5 text-xs text-slate-500">
-                          {c.cidade ?? "—"}
-                        </td>
-                        <td className="px-5 py-3.5 text-right">
-                          <Link
-                            href={`/admin/clientes/${c.id}`}
-                            className="text-xs font-medium text-slate-500 hover:text-slate-900 transition-colors"
-                          >
-                            Ver →
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          Ver →
+                        </Link>
+                      </AdminTd>
+                    </AdminTr>
+                  ))}
+                </AdminTBody>
+              </AdminTable>
             )}
           </div>
         )}
-      </div>
+      </AdminTabPanel>
     </div>
   );
 }
