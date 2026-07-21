@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Pencil, Check, X, Loader2 } from "lucide-react";
 import type { ClienteBase } from "@/lib/db/clientes-base";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
 
 const CAMPOS: { key: keyof ClienteBase; label: string; mono?: boolean }[] = [
   { key: "codigo_externo", label: "Código externo", mono: true },
@@ -75,50 +77,39 @@ export function ClienteDetalheClient({ cliente, isAdmin }: Props) {
   };
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+    <AdminCard className="overflow-hidden p-0">
 
       {/* Cabeçalho */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--adm-line)" }}>
         <div>
-          <h1 className="text-lg font-bold text-slate-900">
+          <h1 className="text-lg font-bold" style={{ color: "var(--adm-text)" }}>
             {values.nome_fantasia || values.razao_social}
           </h1>
           {values.nome_fantasia && (
-            <p className="text-xs text-slate-400 mt-0.5">{values.razao_social}</p>
+            <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>{values.razao_social}</p>
           )}
         </div>
         {isAdmin && (
           <div className="flex items-center gap-2">
             {saved && (
-              <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
+              <span className="flex items-center gap-1 text-xs font-medium" style={{ color: "var(--adm-signal)" }}>
                 <Check className="h-3.5 w-3.5" /> Salvo
               </span>
             )}
             {!editing ? (
-              <button
-                onClick={startEdit}
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-              >
+              <AdminButton variant="secondary" size="sm" onClick={startEdit}>
                 <Pencil className="h-3.5 w-3.5" />
                 Editar
-              </button>
+              </AdminButton>
             ) : (
               <div className="flex gap-2">
-                <button
-                  onClick={cancelEdit}
-                  disabled={loading}
-                  className="inline-flex items-center gap-1 text-xs text-slate-500 border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-                >
+                <AdminButton variant="ghost" size="sm" onClick={cancelEdit} disabled={loading}>
                   <X className="h-3.5 w-3.5" /> Cancelar
-                </button>
-                <button
-                  onClick={saveEdit}
-                  disabled={loading}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50"
-                >
+                </AdminButton>
+                <AdminButton size="sm" onClick={saveEdit} disabled={loading}>
                   {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                   Salvar
-                </button>
+                </AdminButton>
               </div>
             )}
           </div>
@@ -126,19 +117,26 @@ export function ClienteDetalheClient({ cliente, isAdmin }: Props) {
       </div>
 
       {/* Campos */}
-      <div className="divide-y divide-slate-50">
-        {CAMPOS.map(({ key, label, mono }) => (
-          <div key={key} className="flex items-center gap-4 px-5 py-3">
-            <span className="text-xs font-medium text-slate-400 w-32 shrink-0">{label}</span>
+      <div>
+        {CAMPOS.map(({ key, label, mono }, i) => (
+          <div
+            key={key}
+            className="flex items-center gap-4 px-5 py-3"
+            style={{ borderTop: i === 0 ? "none" : "1px solid var(--adm-line)" }}
+          >
+            <span className="w-32 shrink-0 text-xs font-medium" style={{ color: "var(--adm-text-faint)" }}>{label}</span>
             {isAdmin && editing ? (
               <input
                 type="text"
                 value={draft[key] ?? ""}
                 onChange={(e) => setDraft((p) => ({ ...p, [key]: e.target.value }))}
-                className={`flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white ${mono ? "font-mono" : ""}`}
+                className={`adm-field adm-focusable flex-1 px-3 py-1.5 text-sm ${mono ? "adm-mono" : ""}`}
               />
             ) : (
-              <span className={`text-sm flex-1 ${mono ? "font-mono text-slate-600" : "text-slate-800"} ${!values[key] ? "text-slate-300 italic" : ""}`}>
+              <span
+                className={`flex-1 text-sm ${mono ? "adm-mono" : ""}`}
+                style={{ color: values[key] ? "var(--adm-text)" : "var(--adm-text-faint)", fontStyle: values[key] ? "normal" : "italic" }}
+              >
                 {values[key] || "—"}
               </span>
             )}
@@ -148,16 +146,19 @@ export function ClienteDetalheClient({ cliente, isAdmin }: Props) {
 
       {/* Erro */}
       {erro && (
-        <div className="mx-5 mb-4 mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
+        <div
+          className="mx-5 mb-4 mt-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+        >
           {erro}
         </div>
       )}
 
       {/* Metadata */}
-      <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-6">
+      <div className="flex gap-6 px-5 py-3" style={{ background: "var(--adm-surface-2)", borderTop: "1px solid var(--adm-line)" }}>
         <div>
-          <p className="text-xs text-slate-400">Importado em</p>
-          <p className="text-xs text-slate-600 mt-0.5 font-medium">
+          <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Importado em</p>
+          <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
             {new Date(cliente.created_at).toLocaleDateString("pt-BR", {
               day: "2-digit", month: "long", year: "numeric"
             })}
@@ -165,8 +166,8 @@ export function ClienteDetalheClient({ cliente, isAdmin }: Props) {
         </div>
         {cliente.updated_at !== cliente.created_at && (
           <div>
-            <p className="text-xs text-slate-400">Atualizado em</p>
-            <p className="text-xs text-slate-600 mt-0.5 font-medium">
+            <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Atualizado em</p>
+            <p className="mt-0.5 text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
               {new Date(cliente.updated_at).toLocaleDateString("pt-BR", {
                 day: "2-digit", month: "long", year: "numeric"
               })}
@@ -174,6 +175,6 @@ export function ClienteDetalheClient({ cliente, isAdmin }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </AdminCard>
   );
 }
