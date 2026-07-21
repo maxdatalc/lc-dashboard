@@ -498,6 +498,21 @@ main, [data-page] {
   }
 }
 
+/* ResponsiveRowList — tracks por breakpoint definidos via CSS vars no componente */
+.rrl-grid {
+  display: grid;
+  grid-template-columns: var(--rrl-cols-base);
+}
+@media (min-width: 640px) {
+  .rrl-grid { grid-template-columns: var(--rrl-cols-sm); }
+}
+@media (min-width: 768px) {
+  .rrl-grid { grid-template-columns: var(--rrl-cols-md); }
+}
+@media (min-width: 1024px) {
+  .rrl-grid { grid-template-columns: var(--rrl-cols-lg); }
+}
+
 /* Grid responsivo da tabela de vendas */
 .tabela-vendas-grid {
   grid-template-columns: 1fr 100px 24px;
