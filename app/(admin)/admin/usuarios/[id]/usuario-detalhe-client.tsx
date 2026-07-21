@@ -28,6 +28,10 @@ import {
   excluirUsuario,
 } from "@/app/actions/admin-usuarios";
 import { salvarAcessoUsuario } from "@/lib/actions/admin-lojas";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge } from "@/components/admin/AdminBadge";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 
 type UserRole = "owner" | "admin" | "viewer";
 
@@ -85,10 +89,10 @@ function formatarData(iso: string | null): string {
   }).format(new Date(iso));
 }
 
-const ROLE_CONFIG: Record<UserRole, { label: string; className: string; icon: React.ElementType }> = {
-  owner: { label: "Proprietário", className: "bg-amber-100 text-amber-700 hover:bg-amber-200", icon: Crown },
-  admin: { label: "Admin",        className: "bg-violet-100 text-violet-700 hover:bg-violet-200", icon: Shield },
-  viewer:{ label: "Viewer",       className: "bg-slate-100 text-slate-500 hover:bg-slate-200",   icon: Eye   },
+const ROLE_CONFIG: Record<UserRole, { label: string; variant: "warning" | "accent" | "neutral"; icon: React.ElementType }> = {
+  owner: { label: "Proprietário", variant: "warning", icon: Crown },
+  admin: { label: "Admin",        variant: "accent",  icon: Shield },
+  viewer:{ label: "Viewer",       variant: "neutral", icon: Eye   },
 };
 
 function RoleBadge({ role, onClick }: { role: UserRole; onClick?: () => void }) {
@@ -97,12 +101,28 @@ function RoleBadge({ role, onClick }: { role: UserRole; onClick?: () => void }) 
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick?.(); }}
-      className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md transition-colors ${cfg.className} ${onClick ? "cursor-pointer" : "cursor-default"}`}
+      className="adm-focusable rounded-full"
+      style={{ cursor: onClick ? "pointer" : "default" }}
       title={onClick ? "Clique para alternar permissão" : undefined}
     >
-      <Icon className="w-3 h-3" />
-      {cfg.label}
+      <AdminBadge variant={cfg.variant}>
+        <Icon className="h-3 w-3" />
+        {cfg.label}
+      </AdminBadge>
     </button>
+  );
+}
+
+function ModalShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+      <div
+        className="w-full max-w-sm rounded-2xl p-6 shadow-2xl"
+        style={{ background: "var(--adm-surface)", border: "1px solid var(--adm-line)" }}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -245,17 +265,18 @@ export function UsuarioDetalheClient({
     .toUpperCase();
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="space-y-5 p-6">
       {/* Toast de feedback */}
       {feedback && (
         <div
-          className={`fixed top-6 right-6 z-50 flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${
-            feedback.tipo === "ok"
-              ? "bg-emerald-50 border border-emerald-200 text-emerald-700"
-              : "bg-red-50 border border-red-200 text-red-700"
-          }`}
+          className="fixed right-6 top-6 z-50 flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-medium shadow-lg"
+          style={{
+            background: feedback.tipo === "ok" ? "var(--adm-signal-soft)" : "var(--adm-alert-soft)",
+            border: `1px solid ${feedback.tipo === "ok" ? "var(--adm-signal)" : "var(--adm-alert)"}`,
+            color: feedback.tipo === "ok" ? "var(--adm-signal)" : "var(--adm-alert)",
+          }}
         >
-          {feedback.tipo === "ok" ? <Check className="w-4 h-4" /> : "✕"}{" "}
+          {feedback.tipo === "ok" ? <Check className="h-4 w-4" /> : "✕"}{" "}
           {feedback.msg}
         </div>
       )}
@@ -263,180 +284,154 @@ export function UsuarioDetalheClient({
       {/* Breadcrumb */}
       <Link
         href="/admin/usuarios"
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors"
+        className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+        style={{ color: "var(--adm-text-faint)" }}
       >
         <ArrowLeft className="h-3.5 w-3.5" />
         Todos os usuários
       </Link>
 
       {/* Header */}
-      <div
-        className="flex items-start justify-between gap-4 flex-wrap"
-        style={{ animation: "fadeInUp 0.3s ease-out both" }}
-      >
+      <div className="adm-rise flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-100 to-violet-200 flex items-center justify-center shrink-0">
-            <span className="text-lg font-bold text-violet-700">{iniciais}</span>
+          <div
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+            style={{ background: "var(--adm-accent-soft)" }}
+          >
+            <span className="text-lg font-bold" style={{ color: "var(--adm-accent)" }}>{iniciais}</span>
           </div>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-2xl font-bold" style={{ color: "var(--adm-text)" }}>
                 {usuario.full_name || "Sem nome"}
               </h1>
               {usuario.is_system_admin && (
-                <span className="inline-flex items-center gap-1 text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-md">
-                  <Crown className="w-3 h-3" />
+                <AdminBadge variant="warning">
+                  <Crown className="h-3 w-3" />
                   System Admin
-                </span>
+                </AdminBadge>
               )}
             </div>
-            <p className="text-sm text-slate-500 flex items-center gap-1.5 mt-0.5">
-              <Mail className="w-3.5 h-3.5" />
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm" style={{ color: "var(--adm-text-dim)" }}>
+              <Mail className="h-3.5 w-3.5" />
               {usuario.email}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setModalSenha(true)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 hover:border-slate-300 transition-all"
-          >
-            <KeyRound className="w-4 h-4" />
+          <AdminButton variant="secondary" onClick={() => setModalSenha(true)}>
+            <KeyRound className="h-4 w-4" />
             Resetar senha
-          </button>
+          </AdminButton>
           {!usuario.is_system_admin && (
-            <button
-              onClick={() => setModalExcluir(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all"
-            >
-              <Trash2 className="w-4 h-4" />
+            <AdminButton variant="danger" onClick={() => setModalExcluir(true)}>
+              <Trash2 className="h-4 w-4" />
               Excluir usuário
-            </button>
+            </AdminButton>
           )}
         </div>
       </div>
 
       {/* Cards de info */}
-      <div
-        className="grid grid-cols-2 gap-4"
-        style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "50ms" }}
-      >
-        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
-            <Clock className="w-4 h-4 text-slate-400" />
+      <div className="adm-rise grid grid-cols-2 gap-4" style={{ animationDelay: "50ms" }}>
+        <AdminCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--adm-surface-2)" }}>
+            <Clock className="h-4 w-4" style={{ color: "var(--adm-text-faint)" }} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+            <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
               Último acesso
             </p>
-            <p className="text-sm font-semibold text-slate-700 mt-0.5">
+            <p className="mt-0.5 text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
               {formatarData(usuario.last_sign_in)}
             </p>
           </div>
-        </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center shrink-0">
-            <Calendar className="w-4 h-4 text-slate-400" />
+        </AdminCard>
+        <AdminCard className="flex items-center gap-3 p-4">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: "var(--adm-surface-2)" }}>
+            <Calendar className="h-4 w-4" style={{ color: "var(--adm-text-faint)" }} />
           </div>
           <div>
-            <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">
+            <p className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
               Cadastrado em
             </p>
-            <p className="text-sm font-semibold text-slate-700 mt-0.5">
+            <p className="mt-0.5 text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
               {formatarData(usuario.created_at)}
             </p>
           </div>
-        </div>
+        </AdminCard>
       </div>
 
       {/* Seção empresas */}
-      <div
-        className="bg-white border border-slate-200 rounded-xl overflow-hidden"
-        style={{ animation: "fadeInUp 0.4s ease-out both", animationDelay: "80ms" }}
-      >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+      <AdminCard className="adm-rise overflow-hidden p-0" style={{ animationDelay: "80ms" }}>
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: "1px solid var(--adm-line)" }}>
           <div>
-            <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
-              <Building2 className="w-4 h-4 text-slate-400" />
+            <h2 className="flex items-center gap-2 text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
+              <Building2 className="h-4 w-4" style={{ color: "var(--adm-text-faint)" }} />
               Empresas vinculadas
             </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
               {empresas.length === 0
                 ? "Nenhuma empresa vinculada"
                 : `${empresas.length} ${empresas.length === 1 ? "empresa" : "empresas"}`}
             </p>
           </div>
           {empresasDisponiveis.length > 0 && (
-            <button
-              onClick={() => setModalVincular(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold bg-slate-900 text-white rounded-lg hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
-            >
-              <UserPlus className="w-3.5 h-3.5" />
+            <AdminButton size="sm" onClick={() => setModalVincular(true)}>
+              <UserPlus className="h-3.5 w-3.5" />
               Vincular empresa
-            </button>
+            </AdminButton>
           )}
         </div>
 
         {empresas.length === 0 ? (
-          <div className="px-5 py-12 text-center">
-            <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center mx-auto mb-3">
-              <Building2 className="w-5 h-5 text-slate-300" />
-            </div>
-            <p className="text-sm text-slate-400">
-              Este usuário não tem acesso a nenhuma empresa
-            </p>
-            {empresasDisponiveis.length > 0 && (
-              <button
-                onClick={() => setModalVincular(true)}
-                className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                Vincular empresa
-              </button>
-            )}
-          </div>
+          <AdminEmptyState
+            icon={Building2}
+            title="Este usuário não tem acesso a nenhuma empresa"
+            action={
+              empresasDisponiveis.length > 0 ? (
+                <AdminButton variant="secondary" size="sm" onClick={() => setModalVincular(true)}>
+                  <UserPlus className="h-3.5 w-3.5" />
+                  Vincular empresa
+                </AdminButton>
+              ) : undefined
+            }
+          />
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div>
             {empresas.map((empresa, i) => (
-              <div key={empresa.tenant_id}>
+              <div key={empresa.tenant_id} style={{ borderTop: i === 0 ? "none" : "1px solid var(--adm-line)" }}>
                 <div
-                  className="flex items-center gap-4 px-5 py-4 hover:bg-slate-50/50 transition-colors group cursor-pointer"
-                  style={{
-                    animation: "fadeInUp 0.3s ease-out both",
-                    animationDelay: `${i * 40}ms`,
-                  }}
+                  className="adm-row group flex cursor-pointer items-center gap-4 px-5 py-4 transition-colors"
                   onClick={() =>
                     setExpandedTenantId(
                       expandedTenantId === empresa.tenant_id ? null : empresa.tenant_id
                     )
                   }
                 >
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shrink-0">
-                    <span className="text-sm font-bold text-white uppercase">
+                  <div
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                    style={{ background: "var(--adm-accent)" }}
+                  >
+                    <span className="text-sm font-bold uppercase" style={{ color: "#04121a" }}>
                       {empresa.tenant_name.charAt(0)}
                     </span>
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-900 truncate">
+                      <p className="truncate text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
                         {empresa.tenant_name}
                       </p>
-                      <span
-                        className={`text-xs px-1.5 py-0.5 rounded font-medium ${
-                          empresa.tenant_ativo
-                            ? "bg-emerald-50 text-emerald-600"
-                            : "bg-slate-100 text-slate-400"
-                        }`}
-                      >
+                      <AdminBadge variant={empresa.tenant_ativo ? "success" : "neutral"}>
                         {empresa.tenant_ativo ? "Ativa" : "Inativa"}
-                      </span>
-                      <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium capitalize">
-                        {empresa.tenant_plan}
+                      </AdminBadge>
+                      <span className="capitalize">
+                        <AdminBadge variant="neutral">{empresa.tenant_plan}</AdminBadge>
                       </span>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
                       {empresa.tenant_slug}
                     </p>
                   </div>
@@ -452,16 +447,19 @@ export function UsuarioDetalheClient({
                       handleDesvincular(empresa.tenant_id, empresa.tenant_name);
                     }}
                     disabled={isPending}
-                    className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    className="adm-focusable rounded-lg p-1.5 opacity-0 transition-all group-hover:opacity-100"
+                    style={{ color: "var(--adm-text-faint)" }}
                     title="Remover acesso"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
 
                   <ChevronDown
-                    className={`w-4 h-4 text-slate-400 shrink-0 transition-transform duration-200 ${
-                      expandedTenantId === empresa.tenant_id ? "rotate-180" : ""
-                    }`}
+                    className="h-4 w-4 shrink-0 transition-transform duration-200"
+                    style={{
+                      color: "var(--adm-text-faint)",
+                      transform: expandedTenantId === empresa.tenant_id ? "rotate(180deg)" : "rotate(0deg)",
+                    }}
                   />
                 </div>
 
@@ -483,231 +481,218 @@ export function UsuarioDetalheClient({
             ))}
           </div>
         )}
-      </div>
+      </AdminCard>
 
       {/* Modal — Resetar senha */}
       {modalSenha && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <KeyRound className="w-5 h-5 text-violet-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">Resetar senha</h3>
-                <p className="text-xs text-slate-400">{usuario.email}</p>
-              </div>
+        <ModalShell>
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--adm-accent-soft)" }}>
+              <KeyRound className="h-5 w-5" style={{ color: "var(--adm-accent)" }} />
             </div>
-
-            <div className="space-y-1.5 mb-5">
-              <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                Nova senha
-              </label>
-              <div className="relative">
-                <input
-                  type={senhaVisivel ? "text" : "password"}
-                  placeholder="Mínimo 6 caracteres"
-                  value={novaSenha}
-                  onChange={(e) => setNovaSenha(e.target.value)}
-                  autoFocus
-                  className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm pr-10 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => setSenhaVisivel((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  <Eye className="w-4 h-4" />
-                </button>
-              </div>
-              {novaSenha.length > 0 && novaSenha.length < 6 && (
-                <p className="text-xs text-red-500">
-                  Mínimo 6 caracteres ({novaSenha.length}/6)
-                </p>
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setModalSenha(false);
-                  setNovaSenha("");
-                }}
-                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleResetarSenha}
-                disabled={isPending || novaSenha.length < 6}
-                className="flex-1 py-2.5 text-sm bg-violet-600 text-white rounded-lg hover:bg-violet-500 disabled:opacity-50 transition-colors"
-              >
-                {isPending ? "Salvando..." : "Confirmar"}
-              </button>
+            <div>
+              <h3 className="font-semibold" style={{ color: "var(--adm-text)" }}>Resetar senha</h3>
+              <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>{usuario.email}</p>
             </div>
           </div>
-        </div>
+
+          <div className="mb-5 space-y-1.5">
+            <label className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
+              Nova senha
+            </label>
+            <div className="relative">
+              <input
+                type={senhaVisivel ? "text" : "password"}
+                placeholder="Mínimo 6 caracteres"
+                value={novaSenha}
+                onChange={(e) => setNovaSenha(e.target.value)}
+                autoFocus
+                className="adm-field adm-focusable w-full py-2.5 pl-3.5 pr-10 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setSenhaVisivel((v) => !v)}
+                className="adm-focusable absolute right-3 top-1/2 -translate-y-1/2 rounded"
+                style={{ color: "var(--adm-text-faint)" }}
+              >
+                <Eye className="h-4 w-4" />
+              </button>
+            </div>
+            {novaSenha.length > 0 && novaSenha.length < 6 && (
+              <p className="text-xs" style={{ color: "var(--adm-alert)" }}>
+                Mínimo 6 caracteres ({novaSenha.length}/6)
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2">
+            <AdminButton
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={() => { setModalSenha(false); setNovaSenha(""); }}
+            >
+              Cancelar
+            </AdminButton>
+            <AdminButton
+              className="flex-1 justify-center"
+              onClick={handleResetarSenha}
+              disabled={isPending || novaSenha.length < 6}
+            >
+              {isPending ? "Salvando..." : "Confirmar"}
+            </AdminButton>
+          </div>
+        </ModalShell>
       )}
 
       {/* Modal — Vincular empresa */}
       {modalVincular && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-violet-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">
-                  Vincular empresa
-                </h3>
-                <p className="text-xs text-slate-400">{usuario.email}</p>
-              </div>
+        <ModalShell>
+          <div className="mb-5 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl" style={{ background: "var(--adm-accent-soft)" }}>
+              <Building2 className="h-5 w-5" style={{ color: "var(--adm-accent)" }} />
             </div>
-
-            <div className="space-y-4 mb-5">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Empresa
-                </label>
-                <div className="relative">
-                  <select
-                    value={empresaVincular}
-                    onChange={(e) => setEmpresaVincular(e.target.value)}
-                    className="w-full appearance-none border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-400 bg-white pr-8"
-                  >
-                    <option value="">Selecione uma empresa...</option>
-                    {empresasDisponiveis.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                  Permissão
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["owner", "admin", "viewer"] as const).map((r) => {
-                    const cfg = ROLE_CONFIG[r];
-                    const Icon = cfg.icon;
-                    return (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => setRoleVincular(r)}
-                        className={`flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-medium border transition-all ${
-                          roleVincular === r
-                            ? "border-violet-500 bg-violet-50 text-violet-700"
-                            : "border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50"
-                        }`}
-                      >
-                        <Icon className="w-3 h-3" />
-                        {cfg.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-xs text-slate-400">
-                  {roleVincular === "owner"
-                    ? "Proprietário: acesso total, pode gerenciar usuários"
-                    : roleVincular === "admin"
-                    ? "Admin: pode editar configurações e ver dados"
-                    : "Viewer: somente leitura do dashboard"}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setModalVincular(false);
-                  setEmpresaVincular("");
-                  setRoleVincular("viewer");
-                }}
-                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleVincular}
-                disabled={isPending || !empresaVincular}
-                className="flex-1 py-2.5 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
-              >
-                {isPending ? "Vinculando..." : "Vincular"}
-              </button>
+            <div>
+              <h3 className="font-semibold" style={{ color: "var(--adm-text)" }}>Vincular empresa</h3>
+              <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>{usuario.email}</p>
             </div>
           </div>
-        </div>
+
+          <div className="mb-5 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
+                Empresa
+              </label>
+              <select
+                value={empresaVincular}
+                onChange={(e) => setEmpresaVincular(e.target.value)}
+                className="adm-field adm-focusable w-full px-3.5 py-2.5 text-sm"
+              >
+                <option value="">Selecione uma empresa...</option>
+                {empresasDisponiveis.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
+                Permissão
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {(["owner", "admin", "viewer"] as const).map((r) => {
+                  const cfg = ROLE_CONFIG[r];
+                  const Icon = cfg.icon;
+                  const active = roleVincular === r;
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRoleVincular(r)}
+                      className="adm-focusable flex items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-medium transition-all"
+                      style={{
+                        border: "1px solid",
+                        borderColor: active ? "var(--adm-accent)" : "var(--adm-line-strong)",
+                        background: active ? "var(--adm-accent-soft)" : "transparent",
+                        color: active ? "var(--adm-accent)" : "var(--adm-text-dim)",
+                      }}
+                    >
+                      <Icon className="h-3 w-3" />
+                      {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                {roleVincular === "owner"
+                  ? "Proprietário: acesso total, pode gerenciar usuários"
+                  : roleVincular === "admin"
+                  ? "Admin: pode editar configurações e ver dados"
+                  : "Viewer: somente leitura do dashboard"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <AdminButton
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={() => { setModalVincular(false); setEmpresaVincular(""); setRoleVincular("viewer"); }}
+            >
+              Cancelar
+            </AdminButton>
+            <AdminButton
+              className="flex-1 justify-center"
+              onClick={handleVincular}
+              disabled={isPending || !empresaVincular}
+            >
+              {isPending ? "Vinculando..." : "Vincular"}
+            </AdminButton>
+          </div>
+        </ModalShell>
       )}
 
       {/* Modal — Excluir usuário */}
       {modalExcluir && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-slate-900">Excluir usuário</h3>
-                <p className="text-xs text-slate-400">Esta ação não pode ser desfeita</p>
-              </div>
+        <ModalShell>
+          <div className="mb-2 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl" style={{ background: "var(--adm-alert-soft)" }}>
+              <Trash2 className="h-5 w-5" style={{ color: "var(--adm-alert)" }} />
             </div>
-
-            <div className="bg-red-50 border border-red-100 rounded-lg px-3.5 py-3 mb-5 mt-4">
-              <p className="text-sm text-red-700">
-                O usuário{" "}
-                <span className="font-semibold">
-                  {usuario.full_name || usuario.email}
-                </span>{" "}
-                será removido permanentemente do sistema, incluindo todos os
-                acessos às empresas vinculadas.
-              </p>
-            </div>
-
-            <div className="space-y-1.5 mb-5">
-              <label className="text-xs font-medium text-slate-500">
-                Digite{" "}
-                <span className="font-semibold text-slate-700">
-                  {usuario.email}
-                </span>{" "}
-                para confirmar
-              </label>
-              <input
-                type="text"
-                placeholder={usuario.email}
-                value={confirmacaoNome}
-                onChange={(e) => setConfirmacaoNome(e.target.value)}
-                autoFocus
-                className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setModalExcluir(false);
-                  setConfirmacaoNome("");
-                }}
-                className="flex-1 py-2.5 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleExcluir}
-                disabled={isPending || confirmacaoNome !== usuario.email}
-                className="flex-1 py-2.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {isPending ? "Excluindo..." : "Excluir permanentemente"}
-              </button>
+            <div>
+              <h3 className="font-semibold" style={{ color: "var(--adm-text)" }}>Excluir usuário</h3>
+              <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Esta ação não pode ser desfeita</p>
             </div>
           </div>
-        </div>
+
+          <div className="mb-5 mt-4 rounded-lg px-3.5 py-3" style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)" }}>
+            <p className="text-sm" style={{ color: "var(--adm-alert)" }}>
+              O usuário{" "}
+              <span className="font-semibold">
+                {usuario.full_name || usuario.email}
+              </span>{" "}
+              será removido permanentemente do sistema, incluindo todos os
+              acessos às empresas vinculadas.
+            </p>
+          </div>
+
+          <div className="mb-5 space-y-1.5">
+            <label className="text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
+              Digite{" "}
+              <span className="font-semibold" style={{ color: "var(--adm-text)" }}>
+                {usuario.email}
+              </span>{" "}
+              para confirmar
+            </label>
+            <input
+              type="text"
+              placeholder={usuario.email}
+              value={confirmacaoNome}
+              onChange={(e) => setConfirmacaoNome(e.target.value)}
+              autoFocus
+              className="adm-field adm-focusable w-full px-3.5 py-2.5 text-sm"
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <AdminButton
+              variant="secondary"
+              className="flex-1 justify-center"
+              onClick={() => { setModalExcluir(false); setConfirmacaoNome(""); }}
+            >
+              Cancelar
+            </AdminButton>
+            <AdminButton
+              variant="danger"
+              className="flex-1 justify-center"
+              onClick={handleExcluir}
+              disabled={isPending || confirmacaoNome !== usuario.email}
+            >
+              {isPending ? "Excluindo..." : "Excluir permanentemente"}
+            </AdminButton>
+          </div>
+        </ModalShell>
       )}
     </div>
   );
@@ -767,10 +752,13 @@ function EmpresaAcessoPanel({
   };
 
   return (
-    <div className="border-t border-slate-100 bg-slate-50 px-5 py-4 space-y-4">
+    <div className="space-y-4 px-5 py-4" style={{ borderTop: "1px solid var(--adm-line)", background: "var(--adm-surface-2)" }}>
       {erro && (
-        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+        >
+          <AlertCircle className="h-4 w-4 shrink-0" />
           {erro}
         </div>
       )}
@@ -778,7 +766,7 @@ function EmpresaAcessoPanel({
       {/* Módulos agrupados */}
       {configurableModules.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 flex items-center gap-1.5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--adm-text-faint)" }}>
             <Shield className="h-3.5 w-3.5" /> Módulos
           </p>
           {MODULE_GROUPS.map((group) => {
@@ -786,19 +774,20 @@ function EmpresaAcessoPanel({
             if (groupMods.length === 0) return null;
             return (
               <div key={group.label}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
                   {group.label}
                 </p>
                 <div className="flex flex-wrap gap-3">
                   {groupMods.map((k) => (
-                    <label key={k} className="flex items-center gap-1.5 cursor-pointer">
+                    <label key={k} className="flex cursor-pointer items-center gap-1.5">
                       <input
                         type="checkbox"
                         checked={modulos[k] ?? false}
                         onChange={() => setModulos((prev) => ({ ...prev, [k]: !prev[k] }))}
-                        className="rounded border-slate-300 text-slate-800"
+                        className="adm-focusable rounded"
+                        style={{ accentColor: "var(--adm-accent)" }}
                       />
-                      <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
+                      <span className="text-sm" style={{ color: "var(--adm-text)" }}>{MODULES_LABEL[k] ?? k}</span>
                     </label>
                   ))}
                 </div>
@@ -811,15 +800,15 @@ function EmpresaAcessoPanel({
       {/* Lojas */}
       {lojas.length > 1 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2 flex items-center gap-1.5">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--adm-text-faint)" }}>
             <Building2 className="h-3.5 w-3.5" /> Lojas visíveis{" "}
-            <span className="font-normal normal-case tracking-normal text-slate-400">
+            <span className="font-normal normal-case tracking-normal" style={{ color: "var(--adm-text-faint)" }}>
               (vazio = todas)
             </span>
           </p>
           <div className="flex flex-wrap gap-3">
             {lojas.map((l) => (
-              <label key={l.id} className="flex items-center gap-1.5 cursor-pointer">
+              <label key={l.id} className="flex cursor-pointer items-center gap-1.5">
                 <input
                   type="checkbox"
                   checked={lojaIds.includes(l.id)}
@@ -830,9 +819,10 @@ function EmpresaAcessoPanel({
                         : [...prev, l.id]
                     )
                   }
-                  className="rounded border-slate-300 text-slate-800"
+                  className="adm-focusable rounded"
+                  style={{ accentColor: "var(--adm-accent)" }}
                 />
-                <span className="text-sm text-slate-700">{l.name}</span>
+                <span className="text-sm" style={{ color: "var(--adm-text)" }}>{l.name}</span>
               </label>
             ))}
           </div>
@@ -840,20 +830,16 @@ function EmpresaAcessoPanel({
       )}
 
       {configurableModules.length === 0 && lojas.length <= 1 && (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
           Sem módulos ou múltiplas lojas para configurar nesta empresa.
         </p>
       )}
 
-      <div className="flex justify-end pt-2 border-t border-slate-200">
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 disabled:opacity-60 transition-colors"
-        >
-          {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+      <div className="flex justify-end pt-2" style={{ borderTop: "1px solid var(--adm-line)" }}>
+        <AdminButton size="sm" onClick={handleSave} disabled={loading}>
+          {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {loading ? "Salvando..." : "Salvar acesso para essa empresa"}
-        </button>
+        </AdminButton>
       </div>
     </div>
   );
