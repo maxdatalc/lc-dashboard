@@ -5,6 +5,16 @@ import { useRouter } from "next/navigation";
 import { Upload, FileSpreadsheet, X, Check, Loader2, AlertCircle, ArrowLeft } from "lucide-react";
 import * as XLSX from "xlsx";
 import Link from "next/link";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import {
+  AdminTable,
+  AdminTableHead,
+  AdminTh,
+  AdminTBody,
+  AdminTr,
+  AdminTd,
+} from "@/components/admin/AdminTable";
 
 type ClienteRow = {
   codigo_externo: string;
@@ -45,6 +55,18 @@ function parseSheet(workbook: XLSX.WorkBook): ClienteRow[] {
 
 function contarUnicos(rows: ClienteRow[], key: keyof ClienteRow): number {
   return new Set(rows.map((r) => r[key]).filter(Boolean)).size;
+}
+
+function ErrorBanner({ text }: { text: string }) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-lg px-4 py-3 text-sm"
+      style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+    >
+      <AlertCircle className="h-4 w-4 shrink-0" />
+      {text}
+    </div>
+  );
 }
 
 export function ClientesImportarClient() {
@@ -131,35 +153,32 @@ export function ClientesImportarClient() {
   // ── Tela de sucesso ──────────────────────────────────────────────────────────
   if (status === "done" && resultado) {
     return (
-      <div className="p-6 max-w-xl mx-auto text-center space-y-6" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
-        <div className="mx-auto flex items-center justify-center w-16 h-16 rounded-full bg-emerald-50 border border-emerald-200">
-          <Check className="h-7 w-7 text-emerald-500" />
+      <div className="adm-rise mx-auto max-w-xl space-y-6 p-6 text-center">
+        <div
+          className="mx-auto flex h-16 w-16 items-center justify-center rounded-full"
+          style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)" }}
+        >
+          <Check className="h-7 w-7" style={{ color: "var(--adm-signal)" }} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Importação concluída</h2>
-          <p className="text-slate-500 mt-1.5 text-sm">
+          <h2 className="text-xl font-bold" style={{ color: "var(--adm-text)" }}>Importação concluída</h2>
+          <p className="mt-1.5 text-sm" style={{ color: "var(--adm-text-dim)" }}>
             {resultado.inseridos > 0 && (
-              <span><strong className="text-slate-800">{resultado.inseridos}</strong> novo{resultado.inseridos !== 1 ? "s" : ""} inserido{resultado.inseridos !== 1 ? "s" : ""}</span>
+              <span><strong style={{ color: "var(--adm-text)" }}>{resultado.inseridos}</strong> novo{resultado.inseridos !== 1 ? "s" : ""} inserido{resultado.inseridos !== 1 ? "s" : ""}</span>
             )}
             {resultado.inseridos > 0 && resultado.atualizados > 0 && " · "}
             {resultado.atualizados > 0 && (
-              <span><strong className="text-slate-800">{resultado.atualizados}</strong> atualizado{resultado.atualizados !== 1 ? "s" : ""}</span>
+              <span><strong style={{ color: "var(--adm-text)" }}>{resultado.atualizados}</strong> atualizado{resultado.atualizados !== 1 ? "s" : ""}</span>
             )}
           </p>
         </div>
-        <div className="flex gap-3 justify-center">
-          <button
-            onClick={resetar}
-            className="px-4 py-2 text-sm border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
-          >
+        <div className="flex justify-center gap-3">
+          <AdminButton variant="secondary" onClick={resetar}>
             Nova importação
-          </button>
-          <button
-            onClick={() => router.push("/admin/clientes")}
-            className="px-4 py-2 text-sm bg-slate-900 text-white rounded-lg hover:bg-slate-700 transition-colors font-medium"
-          >
+          </AdminButton>
+          <AdminButton onClick={() => router.push("/admin/clientes")}>
             Ver clientes
-          </button>
+          </AdminButton>
         </div>
       </div>
     );
@@ -171,30 +190,26 @@ export function ClientesImportarClient() {
     const cidades   = contarUnicos(rows, "cidade");
 
     return (
-      <div className="p-6 space-y-5" style={{ animation: "fadeInUp 0.25s ease-out both" }}>
+      <div className="adm-rise space-y-5 p-6">
 
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <button onClick={resetar} className="text-slate-400 hover:text-slate-700 transition-colors">
+            <button onClick={resetar} className="adm-focusable rounded transition-colors" style={{ color: "var(--adm-text-faint)" }}>
               <X className="h-5 w-5" />
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
-                <h2 className="text-base font-semibold text-slate-900">{fileName}</h2>
+                <FileSpreadsheet className="h-5 w-5" style={{ color: "var(--adm-signal)" }} />
+                <h2 className="text-base font-semibold" style={{ color: "var(--adm-text)" }}>{fileName}</h2>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
                 {rows.length} registros · {segmentos} segmentos · {cidades} cidades
               </p>
             </div>
           </div>
 
-          <button
-            onClick={handleImport}
-            disabled={status === "importing"}
-            className="inline-flex items-center gap-2 px-5 py-2 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          <AdminButton onClick={handleImport} disabled={status === "importing"}>
             {status === "importing" ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -206,12 +221,12 @@ export function ClientesImportarClient() {
                 Importar {rows.length} clientes
               </>
             )}
-          </button>
+          </AdminButton>
         </div>
 
         {/* Mapeamento de colunas */}
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Mapeamento de colunas</p>
+        <div className="rounded-xl px-4 py-3" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>Mapeamento de colunas</p>
           <div className="flex flex-wrap gap-x-6 gap-y-1.5">
             {[
               ["Col. A", "Código externo"],
@@ -223,60 +238,54 @@ export function ClientesImportarClient() {
               ["Col. G", "Telefone"],
             ].map(([col, campo]) => (
               <div key={col} className="flex items-center gap-1.5">
-                <span className="font-mono text-xs bg-white border border-slate-200 px-1.5 py-0.5 rounded text-slate-500">{col}</span>
-                <span className="text-xs text-slate-600">→</span>
-                <span className="text-xs font-medium text-slate-700">{campo}</span>
+                <span
+                  className="adm-mono rounded px-1.5 py-0.5 text-xs"
+                  style={{ background: "var(--adm-surface)", border: "1px solid var(--adm-line-strong)", color: "var(--adm-text-dim)" }}
+                >
+                  {col}
+                </span>
+                <span className="text-xs" style={{ color: "var(--adm-text-dim)" }}>→</span>
+                <span className="text-xs font-medium" style={{ color: "var(--adm-text)" }}>{campo}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {erro && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            {erro}
-          </div>
-        )}
+        {erro && <ErrorBanner text={erro} />}
 
         {/* Prévia da tabela */}
-        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-          <div className="px-4 py-2.5 border-b border-slate-100 flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Prévia — primeiros 10 registros
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-slate-50">
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">Código</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">Razão Social</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">Nome Fantasia</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">CNPJ/CPF</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">Segmento</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">Cidade</th>
-                  <th className="text-left px-3 py-2 font-semibold text-slate-500 whitespace-nowrap">Telefone</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {rows.slice(0, 10).map((row, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-3 py-2 font-mono text-slate-400">{row.codigo_externo || "—"}</td>
-                    <td className="px-3 py-2 text-slate-700 max-w-[180px] truncate">{row.razao_social}</td>
-                    <td className="px-3 py-2 text-slate-700 max-w-[160px] truncate">{row.nome_fantasia || "—"}</td>
-                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{row.cnpj_cpf || "—"}</td>
-                    <td className="px-3 py-2 text-slate-500 max-w-[140px] truncate">{row.segmento || "—"}</td>
-                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{row.cidade || "—"}</td>
-                    <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{row.telefone || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div>
+          <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
+            Prévia — primeiros 10 registros
+          </p>
+          <AdminTable>
+            <AdminTableHead>
+              <AdminTh>Código</AdminTh>
+              <AdminTh>Razão Social</AdminTh>
+              <AdminTh hideBelow="sm">Nome Fantasia</AdminTh>
+              <AdminTh hideBelow="sm">CNPJ/CPF</AdminTh>
+              <AdminTh hideBelow="md">Segmento</AdminTh>
+              <AdminTh hideBelow="md">Cidade</AdminTh>
+              <AdminTh hideBelow="md">Telefone</AdminTh>
+            </AdminTableHead>
+            <AdminTBody>
+              {rows.slice(0, 10).map((row, i) => (
+                <AdminTr key={i} noBorder={i === 0}>
+                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>{row.codigo_externo || "—"}</AdminTd>
+                  <AdminTd className="max-w-[180px] truncate text-xs">{row.razao_social}</AdminTd>
+                  <AdminTd hideBelow="sm" className="max-w-[160px] truncate text-xs" style={{ color: "var(--adm-text-dim)" }}>{row.nome_fantasia || "—"}</AdminTd>
+                  <AdminTd hideBelow="sm" className="adm-mono whitespace-nowrap text-xs" style={{ color: "var(--adm-text-dim)" }}>{row.cnpj_cpf || "—"}</AdminTd>
+                  <AdminTd hideBelow="md" className="max-w-[140px] truncate text-xs" style={{ color: "var(--adm-text-dim)" }}>{row.segmento || "—"}</AdminTd>
+                  <AdminTd hideBelow="md" className="whitespace-nowrap text-xs" style={{ color: "var(--adm-text-dim)" }}>{row.cidade || "—"}</AdminTd>
+                  <AdminTd hideBelow="md" className="whitespace-nowrap text-xs" style={{ color: "var(--adm-text-dim)" }}>{row.telefone || "—"}</AdminTd>
+                </AdminTr>
+              ))}
+            </AdminTBody>
+          </AdminTable>
           {rows.length > 10 && (
-            <div className="px-4 py-2 border-t border-slate-50 text-xs text-slate-400 text-center">
+            <p className="mt-2 text-center text-xs" style={{ color: "var(--adm-text-faint)" }}>
               + {rows.length - 10} registros não exibidos
-            </div>
+            </p>
           )}
         </div>
       </div>
@@ -285,16 +294,16 @@ export function ClientesImportarClient() {
 
   // ── Tela inicial — drag & drop ───────────────────────────────────────────────
   return (
-    <div className="p-6 max-w-2xl mx-auto space-y-5" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+    <div className="adm-rise mx-auto max-w-2xl space-y-5 p-6">
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link href="/admin/clientes" className="text-slate-400 hover:text-slate-700 transition-colors">
+        <Link href="/admin/clientes" className="adm-focusable rounded transition-colors" style={{ color: "var(--adm-text-faint)" }}>
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Importar clientes</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Formatos aceitos: XLSX, XLS, CSV</p>
+          <h1 className="text-xl font-bold" style={{ color: "var(--adm-text)" }}>Importar clientes</h1>
+          <p className="mt-0.5 text-sm" style={{ color: "var(--adm-text-faint)" }}>Formatos aceitos: XLSX, XLS, CSV</p>
         </div>
       </div>
 
@@ -305,10 +314,11 @@ export function ClientesImportarClient() {
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
-        className="cursor-pointer rounded-2xl border-2 border-dashed flex flex-col items-center justify-center py-16 px-8 text-center transition-all duration-200 select-none"
+        className="flex select-none flex-col items-center justify-center rounded-2xl border-2 border-dashed px-8 py-16 text-center transition-all duration-200"
         style={{
-          borderColor: dragging ? "#0f172a" : "#cbd5e1",
-          backgroundColor: dragging ? "#f8fafc" : "white",
+          cursor: "pointer",
+          borderColor: dragging ? "var(--adm-accent)" : "var(--adm-line-strong)",
+          backgroundColor: dragging ? "var(--adm-accent-soft)" : "var(--adm-surface)",
           transform: dragging ? "scale(1.01)" : "scale(1)",
         }}
       >
@@ -321,73 +331,67 @@ export function ClientesImportarClient() {
         />
 
         <div
-          className="flex items-center justify-center w-16 h-16 rounded-2xl mb-5 transition-colors"
-          style={{ background: dragging ? "#0f172a" : "#f1f5f9" }}
+          className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl transition-colors"
+          style={{ background: dragging ? "var(--adm-accent)" : "var(--adm-surface-2)" }}
         >
           <FileSpreadsheet
             className="h-8 w-8 transition-colors"
-            style={{ color: dragging ? "white" : "#64748b" }}
+            style={{ color: dragging ? "#04121a" : "var(--adm-text-faint)" }}
           />
         </div>
 
-        <p className="text-lg font-semibold text-slate-900 mb-1">
+        <p className="mb-1 text-lg font-semibold" style={{ color: "var(--adm-text)" }}>
           {dragging ? "Solte o arquivo aqui" : "Arraste o arquivo aqui"}
         </p>
-        <p className="text-sm text-slate-400 mb-5">
+        <p className="mb-5 text-sm" style={{ color: "var(--adm-text-faint)" }}>
           ou clique para selecionar do computador
         </p>
 
         <div
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors"
-          style={{ background: dragging ? "transparent" : "#0f172a", color: dragging ? "#0f172a" : "white" }}
+          className="inline-flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors"
+          style={{
+            background: dragging ? "transparent" : "var(--adm-accent)",
+            color: dragging ? "var(--adm-accent)" : "#04121a",
+          }}
         >
           <Upload className="h-4 w-4" />
           Selecionar arquivo
         </div>
       </div>
 
-      {erro && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {erro}
-        </div>
-      )}
+      {erro && <ErrorBanner text={erro} />}
 
       {/* Guia de formato */}
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Formato esperado da planilha</p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr>
-                <th className="text-left py-1.5 px-2 font-semibold text-slate-400 bg-white rounded-tl">Coluna</th>
-                <th className="text-left py-1.5 px-2 font-semibold text-slate-400 bg-white">Campo</th>
-                <th className="text-left py-1.5 px-2 font-semibold text-slate-400 bg-white rounded-tr">Exemplo</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {[
-                ["A", "Código externo", "891"],
-                ["B", "Razão Social",   "J. DE R. L. PARRIAO - EPP"],
-                ["C", "Nome Fantasia",  "DENTAL AMAZONIA"],
-                ["D", "CNPJ / CPF",     "04.340.683/0001-87"],
-                ["E", "Segmento",       "HOSPITALAR / DENTAL"],
-                ["F", "Cidade",         "MARABÁ"],
-                ["G", "Telefone",       "(94) 9973-2262"],
-              ].map(([col, campo, ex]) => (
-                <tr key={col}>
-                  <td className="py-1.5 px-2 font-mono text-slate-500 font-semibold">{col}</td>
-                  <td className="py-1.5 px-2 text-slate-700">{campo}</td>
-                  <td className="py-1.5 px-2 text-slate-400 italic">{ex}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="text-xs text-slate-400">
+      <AdminCard className="space-y-3 p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>Formato esperado da planilha</p>
+        <AdminTable>
+          <AdminTableHead>
+            <AdminTh>Coluna</AdminTh>
+            <AdminTh>Campo</AdminTh>
+            <AdminTh hideBelow="sm">Exemplo</AdminTh>
+          </AdminTableHead>
+          <AdminTBody>
+            {[
+              ["A", "Código externo", "891"],
+              ["B", "Razão Social",   "J. DE R. L. PARRIAO - EPP"],
+              ["C", "Nome Fantasia",  "DENTAL AMAZONIA"],
+              ["D", "CNPJ / CPF",     "04.340.683/0001-87"],
+              ["E", "Segmento",       "HOSPITALAR / DENTAL"],
+              ["F", "Cidade",         "MARABÁ"],
+              ["G", "Telefone",       "(94) 9973-2262"],
+            ].map(([col, campo, ex], i) => (
+              <AdminTr key={col} noBorder={i === 0}>
+                <AdminTd className="adm-mono text-xs font-semibold" style={{ color: "var(--adm-text-dim)" }}>{col}</AdminTd>
+                <AdminTd className="text-xs">{campo}</AdminTd>
+                <AdminTd hideBelow="sm" className="text-xs italic" style={{ color: "var(--adm-text-faint)" }}>{ex}</AdminTd>
+              </AdminTr>
+            ))}
+          </AdminTBody>
+        </AdminTable>
+        <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
           Cabeçalho é opcional — se a planilha não tiver cabeçalho, os dados começam na primeira linha.
         </p>
-      </div>
+      </AdminCard>
     </div>
   );
 }
