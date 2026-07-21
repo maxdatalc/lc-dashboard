@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Building2, Users, LayoutDashboard, Search } from "lucide-react";
 import { BotaoExcluirCliente } from "@/components/admin/botao-excluir-cliente";
 import { AdminBadge, AdminStatusDot } from "@/components/admin/AdminBadge";
