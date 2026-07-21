@@ -466,24 +466,11 @@ main, [data-page] {
   }
 }
 
-/* Tabelas roláveis horizontalmente no mobile */
+/* Tabelas no mobile: min-width pelo conteúdo, para rolarem dentro dos
+   wrappers overflow-x-auto em vez de espremer as colunas */
 @media (max-width: 767px) {
-  .table-scroll-x {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-  /* Garante que tabelas não quebrem o layout no mobile */
   table {
     min-width: max-content;
-  }
-  /* Containers de filtros empilham no mobile */
-  .filters-mobile-stack {
-    flex-direction: column !important;
-    gap: 8px !important;
-  }
-  .filters-mobile-stack > * {
-    width: 100% !important;
-    max-width: 100% !important;
   }
 }
 
@@ -551,7 +538,6 @@ main, [data-page] {
 .abc-item { transition: box-shadow 0.18s ease, border-color 0.18s ease, background 0.18s ease, opacity 0.18s ease; }
 .abc-item:hover { box-shadow: 0 3px 12px rgba(16, 24, 40, 0.08); }
 
-.seg-btn { transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; }
 
 .btn-ghost { transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease; }
 .btn-ghost:hover:not(:disabled) { background: var(--bg-card-hover); color: var(--text-primary); }
