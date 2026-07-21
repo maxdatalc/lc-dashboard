@@ -4,6 +4,10 @@ import { useState } from "react";
 import { Plus, Trash2, ChevronDown, ChevronUp, Shield, Users, Loader2, AlertCircle } from "lucide-react";
 import type { TenantGroup, UsuarioTenantCompleto } from "@/lib/db/admin";
 import { salvarGrupoPermissao, deletarGrupoPermissao } from "@/lib/actions/admin-lojas";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge } from "@/components/admin/AdminBadge";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 
 const MODULES_LABEL: Record<string, string> = {
   dashboard_visao_geral: "Visão Geral",
@@ -80,14 +84,17 @@ function GrupoPanel({
   return (
     <div className="space-y-4">
       {erro && (
-        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <div
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+          style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+        >
           <AlertCircle className="h-4 w-4 shrink-0" /> {erro}
         </div>
       )}
 
       {/* Nome */}
       <div>
-        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1.5">
+        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
           Nome do grupo
         </label>
         <input
@@ -95,35 +102,36 @@ function GrupoPanel({
           value={nome}
           onChange={(e) => setNome(e.target.value)}
           placeholder="Ex: Vendedores, Gerentes, Suporte..."
-          className="w-full sm:w-72 text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all"
+          className="adm-field adm-focusable w-full px-3 py-2 text-sm sm:w-72"
         />
       </div>
 
       {/* Módulos */}
       {configurableModules.length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
             <Shield className="h-3.5 w-3.5" /> Acesso aos módulos
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {MODULE_GROUPS_DEF.map((grp) => {
               const mods = grp.keys.filter((k) => configurableModules.includes(k));
               if (!mods.length) return null;
               return (
-                <div key={grp.label} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                <div key={grp.label} className="rounded-lg p-3" style={{ border: "1px solid var(--adm-line)", background: "var(--adm-surface-2)" }}>
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
                     {grp.label}
                   </p>
                   <div className="space-y-1.5">
                     {mods.map((k) => (
-                      <label key={k} className="flex items-center gap-2 cursor-pointer group">
+                      <label key={k} className="flex cursor-pointer items-center gap-2">
                         <input
                           type="checkbox"
                           checked={modulos[k] ?? false}
                           onChange={() => toggle(k)}
-                          className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                          className="adm-focusable rounded"
+                          style={{ accentColor: "var(--adm-accent)" }}
                         />
-                        <span className="text-sm text-slate-700 group-hover:text-slate-900 transition-colors">
+                        <span className="text-sm transition-colors" style={{ color: "var(--adm-text)" }}>
                           {MODULES_LABEL[k]}
                         </span>
                       </label>
@@ -139,38 +147,28 @@ function GrupoPanel({
       {/* Membros (só exibe em grupos existentes) */}
       {!isNew && membros.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5 mb-1.5">
+          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
             <Users className="h-3.5 w-3.5" /> Usuários neste grupo
           </p>
           <div className="flex flex-wrap gap-1.5">
             {membros.map((m, i) => (
-              <span key={i} className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded-full px-2.5 py-1 font-medium">
-                {m || "Usuário"}
-              </span>
+              <AdminBadge key={i} variant="accent">{m || "Usuário"}</AdminBadge>
             ))}
           </div>
         </div>
       )}
 
       {/* Ações */}
-      <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-100">
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-slate-700 transition-all disabled:opacity-50"
-        >
+      <div className="flex flex-wrap items-center gap-2 pt-1" style={{ borderTop: "1px solid var(--adm-line)" }}>
+        <AdminButton onClick={handleSave} disabled={saving} size="sm">
           {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
           {isNew ? "Criar grupo" : "Salvar alterações"}
-        </button>
+        </AdminButton>
         {!isNew && onDeleted && (
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-all disabled:opacity-50"
-          >
+          <AdminButton variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
             {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
             Excluir grupo
-          </button>
+          </AdminButton>
         )}
       </div>
     </div>
@@ -212,29 +210,26 @@ export function GruposSectionClient({ tenantId, grupos: initialGrupos, tenantFea
     <div className="space-y-4">
 
       {/* Cabeçalho */}
-      <div className="rounded-xl border border-slate-200 bg-white p-5">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
+      <AdminCard className="p-5">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Grupos de Permissão</h3>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Grupos de Permissão</h3>
+            <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
               Defina grupos com conjuntos de módulos. Atribua usuários a um grupo para herdar suas permissões.
               Dentro de cada usuário você pode restringir individualmente.
             </p>
           </div>
-          <button
-            onClick={() => setExpandedId(expandedId === "new" ? null : "new")}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all shrink-0"
-          >
+          <AdminButton size="sm" className="shrink-0" onClick={() => setExpandedId(expandedId === "new" ? null : "new")}>
             <Plus className="h-3.5 w-3.5" />
             Criar grupo
-          </button>
+          </AdminButton>
         </div>
-      </div>
+      </AdminCard>
 
       {/* Formulário novo grupo */}
       {expandedId === "new" && (
-        <div className="rounded-xl border border-blue-200 bg-blue-50/30 p-5">
-          <p className="text-sm font-semibold text-slate-800 mb-4">Novo grupo</p>
+        <AdminCard className="p-5" style={{ borderColor: "var(--adm-accent)", background: "var(--adm-accent-soft)" }}>
+          <p className="mb-4 text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Novo grupo</p>
           <GrupoPanel
             tenantId={tenantId}
             grupo={null}
@@ -242,18 +237,18 @@ export function GruposSectionClient({ tenantId, grupos: initialGrupos, tenantFea
             membros={[]}
             onSaved={handleSaved}
           />
-        </div>
+        </AdminCard>
       )}
 
       {/* Lista de grupos existentes */}
       {grupos.length === 0 && expandedId !== "new" ? (
-        <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center">
-          <Shield className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-          <p className="text-sm font-medium text-slate-500">Nenhum grupo criado ainda</p>
-          <p className="text-xs text-slate-400 mt-1">
-            Crie grupos para controlar o acesso por departamento ou função.
-          </p>
-        </div>
+        <AdminCard>
+          <AdminEmptyState
+            icon={Shield}
+            title="Nenhum grupo criado ainda"
+            description="Crie grupos para controlar o acesso por departamento ou função."
+          />
+        </AdminCard>
       ) : (
         <div className="space-y-2">
           {grupos.map((grupo) => {
@@ -264,37 +259,36 @@ export function GruposSectionClient({ tenantId, grupos: initialGrupos, tenantFea
               .map(([k]) => MODULES_LABEL[k] ?? k);
 
             return (
-              <div
-                key={grupo.id}
-                className="rounded-xl border border-slate-200 bg-white overflow-hidden"
-              >
+              <AdminCard key={grupo.id} className="overflow-hidden p-0">
                 {/* Cabeçalho do grupo */}
                 <button
                   onClick={() => setExpandedId(isExpanded ? null : grupo.id)}
-                  className="w-full flex items-center justify-between gap-3 px-5 py-3.5 text-left hover:bg-slate-50/60 transition-colors"
+                  className="adm-row flex w-full items-center justify-between gap-3 px-5 py-3.5 text-left transition-colors"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Shield className="h-4 w-4 text-blue-500 shrink-0" />
+                  <div className="flex min-w-0 items-center gap-3">
+                    <Shield className="h-4 w-4 shrink-0" style={{ color: "var(--adm-accent)" }} />
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800 truncate">{grupo.name}</p>
-                      <p className="text-xs text-slate-400 truncate">
+                      <p className="truncate text-sm font-semibold" style={{ color: "var(--adm-text)" }}>{grupo.name}</p>
+                      <p className="truncate text-xs" style={{ color: "var(--adm-text-faint)" }}>
                         {modulosAtivos.length > 0
                           ? modulosAtivos.join(" · ")
                           : "Nenhum módulo habilitado"}
                         {membros.length > 0 && (
-                          <span className="ml-2 text-blue-500">· {membros.length} usuário{membros.length !== 1 ? "s" : ""}</span>
+                          <span className="ml-2" style={{ color: "var(--adm-accent)" }}>
+                            · {membros.length} usuário{membros.length !== 1 ? "s" : ""}
+                          </span>
                         )}
                       </p>
                     </div>
                   </div>
                   {isExpanded
-                    ? <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" />
-                    : <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />}
+                    ? <ChevronUp className="h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
+                    : <ChevronDown className="h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />}
                 </button>
 
                 {/* Painel expandido */}
                 {isExpanded && (
-                  <div className="border-t border-slate-100 bg-slate-50/40 px-5 py-4">
+                  <div className="px-5 py-4" style={{ borderTop: "1px solid var(--adm-line)", background: "var(--adm-surface-2)" }}>
                     <GrupoPanel
                       tenantId={tenantId}
                       grupo={grupo}
@@ -305,7 +299,7 @@ export function GruposSectionClient({ tenantId, grupos: initialGrupos, tenantFea
                     />
                   </div>
                 )}
-              </div>
+              </AdminCard>
             );
           })}
         </div>

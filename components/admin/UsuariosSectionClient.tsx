@@ -9,6 +9,10 @@ import {
 import { salvarUsuarioERP, salvarAcessoUsuario, removerUsuarioTenant } from "@/lib/actions/admin-lojas";
 import type { UsuarioTenantCompleto, ErpMapping, TenantGroup } from "@/lib/db/admin";
 import type { ErpUserItem } from "@/app/api/admin/erp-users/route";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge } from "@/components/admin/AdminBadge";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 
 type UserRole = "owner" | "admin" | "viewer";
 
@@ -50,10 +54,10 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: "Usuário",
 };
 
-const ROLE_CLS: Record<string, string> = {
-  owner:  "bg-amber-100 text-amber-700",
-  admin:  "bg-purple-100 text-purple-700",
-  viewer: "bg-slate-100 text-slate-600",
+const ROLE_VARIANT: Record<string, "warning" | "accent" | "neutral"> = {
+  owner:  "warning",
+  admin:  "accent",
+  viewer: "neutral",
 };
 
 // ── Componente principal ─────────────────────────────────────────────────────
@@ -91,38 +95,29 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
   return (
     <div className="space-y-4">
       {/* Cabeçalho */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-slate-600">
+      <div className="flex items-center justify-between">
+        <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
           {usuarios.length} {usuarios.length === 1 ? "usuário vinculado" : "usuários vinculados"}
         </p>
         <div className="flex items-center gap-2">
           {painel === "none" && (
             <>
               {bridgeLojas.length > 0 && (
-                <button
-                  onClick={() => setPainel("add-erp")}
-                  className="inline-flex items-center gap-1.5 text-sm border border-slate-300 text-slate-600 px-3 py-1.5 rounded-md hover:bg-slate-50 transition-colors"
-                >
+                <AdminButton variant="secondary" size="sm" onClick={() => setPainel("add-erp")}>
                   <Download className="h-3.5 w-3.5" />
                   Importar do ERP
-                </button>
+                </AdminButton>
               )}
-              <button
-                onClick={() => setPainel("add-manual")}
-                className="inline-flex items-center gap-1.5 text-sm bg-slate-900 text-white px-3 py-1.5 rounded-md hover:bg-slate-700 transition-colors"
-              >
+              <AdminButton size="sm" onClick={() => setPainel("add-manual")}>
                 <UserPlus className="h-3.5 w-3.5" />
                 Adicionar Usuário
-              </button>
+              </AdminButton>
             </>
           )}
           {painel !== "none" && (
-            <button
-              onClick={fecharPainel}
-              className="text-sm text-slate-500 hover:text-slate-700 px-3 py-1.5 transition-colors"
-            >
+            <AdminButton variant="ghost" size="sm" onClick={fecharPainel}>
               Cancelar
-            </button>
+            </AdminButton>
           )}
         </div>
       </div>
@@ -151,14 +146,12 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
       )}
 
       {/* Tabela de usuários */}
-      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+      <AdminCard className="overflow-hidden p-0">
         {usuarios.length === 0 ? (
-          <div className="py-10 text-center text-sm text-slate-400">
-            Nenhum usuário vinculado a este tenant.
-          </div>
+          <AdminEmptyState icon={User} title="Nenhum usuário vinculado a este tenant." />
         ) : (
-          <div className="divide-y divide-slate-100">
-            {usuarios.map((u) => (
+          <div>
+            {usuarios.map((u, i) => (
               <UsuarioRow
                 key={u.id}
                 usuario={u}
@@ -172,11 +165,12 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
                 onSaved={refresh}
                 onDelete={() => handleDelete(u.userId)}
                 deleting={deletingUserId === u.userId}
+                noBorder={i === 0}
               />
             ))}
           </div>
         )}
-      </div>
+      </AdminCard>
     </div>
   );
 }
@@ -184,7 +178,7 @@ export function UsuariosSectionClient({ tenantId, usuarios, lojas, tenantFeature
 // ── Linha de usuário com painel expansível ────────────────────────────────────
 
 function UsuarioRow({
-  usuario, tenantId, lojas, configurableModules, grupos, killedFeatureKeys, expanded, onToggle, onSaved, onDelete, deleting,
+  usuario, tenantId, lojas, configurableModules, grupos, killedFeatureKeys, expanded, onToggle, onSaved, onDelete, deleting, noBorder,
 }: {
   usuario: UsuarioTenantCompleto;
   tenantId: string;
@@ -197,6 +191,7 @@ function UsuarioRow({
   onSaved: () => void;
   onDelete: () => void;
   deleting: boolean;
+  noBorder: boolean;
 }) {
   const activeModules = Object.entries(usuario.settings?.modulos ?? {})
     .filter(([, v]) => v)
@@ -204,44 +199,47 @@ function UsuarioRow({
     .filter((k) => k in MODULES_LABEL);
 
   return (
-    <div>
+    <div style={{ borderTop: noBorder ? "none" : "1px solid var(--adm-line)" }}>
       <div
-        className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 cursor-pointer"
+        className="adm-row flex cursor-pointer items-center gap-3 px-4 py-3"
         onClick={onToggle}
       >
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-slate-900 truncate">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium" style={{ color: "var(--adm-text)" }}>
             {usuario.fullName || "—"}
           </p>
-          <p className="text-xs text-slate-500 truncate">{usuario.email || "—"}</p>
+          <p className="truncate text-xs" style={{ color: "var(--adm-text-faint)" }}>{usuario.email || "—"}</p>
         </div>
 
-        <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ROLE_CLS[usuario.role] ?? ROLE_CLS.viewer}`}>
-          {ROLE_LABEL[usuario.role] ?? usuario.role}
+        <span className="shrink-0">
+          <AdminBadge variant={ROLE_VARIANT[usuario.role] ?? "neutral"}>
+            {ROLE_LABEL[usuario.role] ?? usuario.role}
+          </AdminBadge>
         </span>
 
         {activeModules.length > 0 ? (
-          <div className="hidden sm:flex gap-1 shrink-0">
+          <div className="hidden shrink-0 gap-1 sm:flex">
             {activeModules.map((k) => (
-              <span key={k} className="inline-flex items-center rounded px-1.5 py-0.5 text-xs bg-blue-50 text-blue-700 border border-blue-100">
-                {MODULES_LABEL[k]}
+              <span key={k}>
+                <AdminBadge variant="accent">{MODULES_LABEL[k]}</AdminBadge>
               </span>
             ))}
           </div>
         ) : (
-          <span className="hidden sm:inline text-xs text-slate-400">Sem módulos</span>
+          <span className="hidden text-xs sm:inline" style={{ color: "var(--adm-text-faint)" }}>Sem módulos</span>
         )}
 
         {usuario.erpMappings.length > 0 && (
-          <span className="hidden sm:inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded px-1.5 py-0.5">
-            <CheckCircle2 className="h-3 w-3" /> ERP
+          <span className="hidden sm:inline-flex">
+            <AdminBadge variant="success" dot>ERP</AdminBadge>
           </span>
         )}
 
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           disabled={deleting}
-          className="shrink-0 p-1 text-slate-400 hover:text-red-500 transition-colors disabled:opacity-40 rounded"
+          className="adm-focusable shrink-0 rounded p-1 transition-colors disabled:opacity-40"
+          style={{ color: "var(--adm-text-faint)" }}
           title="Remover usuário"
         >
           {deleting
@@ -250,9 +248,9 @@ function UsuarioRow({
         </button>
 
         {expanded ? (
-          <ChevronUp className="h-4 w-4 text-slate-400 shrink-0" />
+          <ChevronUp className="h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
         ) : (
-          <ChevronDown className="h-4 w-4 text-slate-400 shrink-0" />
+          <ChevronDown className="h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
         )}
       </div>
 
@@ -314,23 +312,19 @@ function UsuarioEditPanel({
   };
 
   return (
-    <div className="border-t border-slate-100 bg-slate-50 px-4 py-4 space-y-4">
-      {erro && (
-        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {erro}
-        </div>
-      )}
+    <div className="space-y-4 px-4 py-4" style={{ borderTop: "1px solid var(--adm-line)", background: "var(--adm-surface-2)" }}>
+      {erro && <ErrorBanner text={erro} />}
 
       {/* Grupo */}
       {grupos.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5 flex items-center gap-1.5">
+          <p className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--adm-text-faint)" }}>
             <Shield className="h-3.5 w-3.5" /> Grupo de permissão
           </p>
           <select
             value={groupId ?? ""}
             onChange={(e) => setGroupId(e.target.value || null)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-400 transition-all w-full sm:w-auto"
+            className="adm-field adm-focusable w-full px-3 py-2 text-sm sm:w-auto"
           >
             <option value="">Nenhum (configuração individual)</option>
             {grupos.map((g) => (
@@ -338,7 +332,7 @@ function UsuarioEditPanel({
             ))}
           </select>
           {groupId && (
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="mt-1 text-xs" style={{ color: "var(--adm-text-faint)" }}>
               O usuário herda os módulos do grupo. Os checkboxes abaixo restringem individualmente.
             </p>
           )}
@@ -347,10 +341,10 @@ function UsuarioEditPanel({
 
       {/* Módulos agrupados */}
       {configurableModules.length === 0 ? (
-        <p className="text-xs text-slate-400">Nenhum módulo habilitado no tenant.</p>
+        <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Nenhum módulo habilitado no tenant.</p>
       ) : (
         <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 flex items-center gap-1.5">
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--adm-text-faint)" }}>
             <Shield className="h-3.5 w-3.5" /> {groupId ? "Restrições individuais (sobre o grupo)" : "Módulos"}
           </p>
           {MODULE_GROUPS.map((group) => {
@@ -358,7 +352,7 @@ function UsuarioEditPanel({
             if (groupMods.length === 0) return null;
             return (
               <div key={group.label}>
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
                   {group.label}
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -367,7 +361,8 @@ function UsuarioEditPanel({
                     return (
                       <label
                         key={k}
-                        className={`flex items-center gap-1.5 ${killedGlobally ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
+                        className="flex items-center gap-1.5"
+                        style={{ cursor: killedGlobally ? "not-allowed" : "pointer", opacity: killedGlobally ? 0.6 : 1 }}
                         title={killedGlobally ? "Desativado globalmente — reative em Módulos" : undefined}
                       >
                         <input
@@ -375,14 +370,11 @@ function UsuarioEditPanel({
                           checked={modulos[k] ?? false}
                           onChange={() => toggleModulo(k)}
                           disabled={killedGlobally}
-                          className="rounded border-slate-300 text-slate-800"
+                          className="adm-focusable rounded"
+                          style={{ accentColor: "var(--adm-accent)" }}
                         />
-                        <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
-                        {killedGlobally && (
-                          <span className="text-[9px] font-semibold uppercase tracking-wider px-1 py-0.5 rounded bg-red-50 text-red-600 border border-red-200">
-                            Global
-                          </span>
-                        )}
+                        <span className="text-sm" style={{ color: "var(--adm-text)" }}>{MODULES_LABEL[k] ?? k}</span>
+                        {killedGlobally && <AdminBadge variant="danger">Global</AdminBadge>}
                       </label>
                     );
                   })}
@@ -395,22 +387,23 @@ function UsuarioEditPanel({
 
       {/* Lojas com acesso */}
       <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--adm-text-faint)" }}>
           <Building2 className="h-3.5 w-3.5" /> Lojas visíveis{" "}
-          <span className="font-normal normal-case tracking-normal text-slate-400">
+          <span className="font-normal normal-case tracking-normal" style={{ color: "var(--adm-text-faint)" }}>
             (vazio = todas)
           </span>
         </p>
         <div className="flex flex-wrap gap-2">
           {lojas.map((l) => (
-            <label key={l.id} className="flex items-center gap-1.5 cursor-pointer">
+            <label key={l.id} className="flex cursor-pointer items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={lojaIds.includes(l.id)}
                 onChange={() => toggleLoja(l.id)}
-                className="rounded border-slate-300 text-slate-800"
+                className="adm-focusable rounded"
+                style={{ accentColor: "var(--adm-accent)" }}
               />
-              <span className="text-sm text-slate-700">{l.name}</span>
+              <span className="text-sm" style={{ color: "var(--adm-text)" }}>{l.name}</span>
             </label>
           ))}
         </div>
@@ -419,7 +412,7 @@ function UsuarioEditPanel({
       {/* ERP mappings (leitura) */}
       {usuario.erpMappings.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2 flex items-center gap-1.5">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--adm-text-faint)" }}>
             <CheckCircle2 className="h-3.5 w-3.5" /> Vínculo ERP
           </p>
           <div className="space-y-1">
@@ -430,15 +423,11 @@ function UsuarioEditPanel({
         </div>
       )}
 
-      <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
-        <button
-          onClick={handleSave}
-          disabled={loading}
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-1.5 rounded-md text-sm hover:bg-slate-700 disabled:opacity-60 transition-colors"
-        >
+      <div className="flex justify-end gap-2 pt-2" style={{ borderTop: "1px solid var(--adm-line)" }}>
+        <AdminButton size="sm" onClick={handleSave} disabled={loading}>
           {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {loading ? "Salvando..." : "Salvar acesso"}
-        </button>
+        </AdminButton>
       </div>
     </div>
   );
@@ -446,16 +435,19 @@ function UsuarioEditPanel({
 
 function ERPMappingBadge({ mapping }: { mapping: ErpMapping }) {
   return (
-    <div className="flex items-center gap-2 text-xs bg-white border border-slate-200 rounded px-2.5 py-1.5">
-      <span className="font-medium text-slate-700">{mapping.lojaNome}</span>
-      <span className="text-slate-400">·</span>
-      <span className="text-slate-600">{mapping.cliNome}</span>
-      <span className="text-slate-400">·</span>
-      <span className="font-mono text-slate-400">#{mapping.cliId}</span>
+    <div
+      className="flex items-center gap-2 rounded px-2.5 py-1.5 text-xs"
+      style={{ background: "var(--adm-surface)", border: "1px solid var(--adm-line)" }}
+    >
+      <span className="font-medium" style={{ color: "var(--adm-text)" }}>{mapping.lojaNome}</span>
+      <span style={{ color: "var(--adm-text-faint)" }}>·</span>
+      <span style={{ color: "var(--adm-text-dim)" }}>{mapping.cliNome}</span>
+      <span style={{ color: "var(--adm-text-faint)" }}>·</span>
+      <span className="adm-mono" style={{ color: "var(--adm-text-faint)" }}>#{mapping.cliId}</span>
       {mapping.tiposBloqueados.length > 0 && (
         <>
-          <span className="text-slate-400">·</span>
-          <span className="text-amber-600">
+          <span style={{ color: "var(--adm-text-faint)" }}>·</span>
+          <span style={{ color: "var(--adm-warn)" }}>
             {mapping.tiposBloqueados.length} tipo(s) bloqueado(s)
           </span>
         </>
@@ -500,16 +492,13 @@ function AddManualForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-slate-800">Novo Usuário</h3>
+    <form onSubmit={handleSubmit}>
+    <AdminCard className="space-y-4 p-5">
+      <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Novo Usuário</h3>
 
-      {erro && (
-        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {erro}
-        </div>
-      )}
+      {erro && <ErrorBanner text={erro} />}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Email *">
           <input type="email" required value={form.email}
             onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
@@ -539,6 +528,7 @@ function AddManualForm({
       <LojasField lojas={lojas} value={lojaIds} onChange={setLojaIds} />
 
       <FormActions loading={loading} onCancel={onCancel} labelSave="Criar Usuário" />
+    </AdminCard>
     </form>
   );
 }
@@ -582,39 +572,36 @@ function ERPImportFlow({
 
   if (step === "select-user") {
     return (
-      <div className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-        <h3 className="text-sm font-semibold text-slate-800">Selecionar Usuário ERP</h3>
+      <AdminCard className="space-y-4 p-5">
+        <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Selecionar Usuário ERP</h3>
 
         {loadingUsers && (
-          <div className="flex items-center gap-2 text-sm text-slate-500">
+          <div className="flex items-center gap-2 text-sm" style={{ color: "var(--adm-text-dim)" }}>
             <Loader2 className="h-4 w-4 animate-spin" /> Buscando usuários...
           </div>
         )}
 
-        {erroUsers && (
-          <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-            <AlertCircle className="h-4 w-4 shrink-0" /> {erroUsers}
-          </div>
-        )}
+        {erroUsers && <ErrorBanner text={erroUsers} />}
 
         {!loadingUsers && erpUsers.length === 0 && !erroUsers && (
-          <p className="text-sm text-slate-400">
+          <p className="text-sm" style={{ color: "var(--adm-text-faint)" }}>
             Nenhum usuário com <code className="text-xs">cliUsuarioUsaSistema = 1</code> encontrado.
           </p>
         )}
 
         {erpUsers.length > 0 && (
-          <div className="divide-y divide-slate-100 rounded-lg border border-slate-200 overflow-hidden max-h-72 overflow-y-auto">
-            {erpUsers.map((u) => (
+          <div className="max-h-72 overflow-y-auto rounded-lg" style={{ border: "1px solid var(--adm-line)" }}>
+            {erpUsers.map((u, i) => (
               <button
                 key={u.cliId}
                 onClick={() => { setSelected(u); setStep("confirm"); }}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-center gap-3"
+                className="adm-row flex w-full items-center gap-3 px-4 py-3 text-left transition-colors"
+                style={{ borderTop: i === 0 ? "none" : "1px solid var(--adm-line)" }}
               >
-                <User className="h-4 w-4 text-slate-400 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">{u.cliNome}</p>
-                  <p className="text-xs text-slate-500">
+                <User className="h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium" style={{ color: "var(--adm-text)" }}>{u.cliNome}</p>
+                  <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     {u.cliEmail || "Sem email"}
                   </p>
                 </div>
@@ -624,9 +611,9 @@ function ERPImportFlow({
         )}
 
         <div className="flex gap-2">
-          <button onClick={onCancel} className="text-sm text-slate-500 hover:text-slate-700">Cancelar</button>
+          <AdminButton variant="ghost" size="sm" onClick={onCancel}>Cancelar</AdminButton>
         </div>
-      </div>
+      </AdminCard>
     );
   }
 
@@ -688,26 +675,19 @@ function ERPConfirmForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-slate-200 p-5 space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h3 className="text-sm font-semibold text-slate-800">Confirmar usuário ERP</h3>
-        <span className="text-xs bg-emerald-50 text-emerald-700 border border-emerald-100 rounded px-2 py-0.5 font-mono">
-          cliId {erpUser.cliId}
-        </span>
+    <form onSubmit={handleSubmit}>
+    <AdminCard className="space-y-4 p-5">
+      <div className="flex flex-wrap items-center gap-3">
+        <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Confirmar usuário ERP</h3>
+        <AdminBadge variant="success">cliId {erpUser.cliId}</AdminBadge>
         {erpUser.cliUsuEmpIdPadrao != null && (
-          <span className="text-xs bg-blue-50 text-blue-700 border border-blue-100 rounded px-2 py-0.5 font-mono">
-            empId {erpUser.cliUsuEmpIdPadrao}
-          </span>
+          <AdminBadge variant="accent">empId {erpUser.cliUsuEmpIdPadrao}</AdminBadge>
         )}
       </div>
 
-      {erro && (
-        <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {erro}
-        </div>
-      )}
+      {erro && <ErrorBanner text={erro} />}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Field label="Email *">
           <input type="email" required value={email}
             onChange={(e) => setEmail(e.target.value)} className={inputCls} />
@@ -733,25 +713,36 @@ function ERPConfirmForm({
       <ModulosField modules={configurableModules} value={modulos} onChange={setModulos} />
       <LojasField lojas={allLojas} value={lojaIds} onChange={setLojaIds} />
 
-      <div className="flex justify-between items-center pt-2 border-t border-slate-100">
-        <button type="button" onClick={onBack} className="text-sm text-slate-500 hover:text-slate-700">
+      <div className="flex items-center justify-between pt-2" style={{ borderTop: "1px solid var(--adm-line)" }}>
+        <AdminButton type="button" variant="ghost" size="sm" onClick={onBack}>
           ← Voltar
-        </button>
+        </AdminButton>
         <FormActions loading={loading} onCancel={onCancel} labelSave="Salvar usuário" />
       </div>
+    </AdminCard>
     </form>
   );
 }
 
 // ── Helpers de UI ─────────────────────────────────────────────────────────────
 
-const inputCls =
-  "w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-300";
+const inputCls = "adm-field adm-focusable w-full px-3 py-2 text-sm";
+
+function ErrorBanner({ text }: { text: string }) {
+  return (
+    <div
+      className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+      style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+    >
+      <AlertCircle className="h-4 w-4 shrink-0" /> {text}
+    </div>
+  );
+}
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-600 mb-1">{label}</label>
+      <label className="mb-1 block text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>{label}</label>
       {children}
     </div>
   );
@@ -768,7 +759,7 @@ function ModulosField({
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-slate-600 flex items-center gap-1.5">
+      <p className="flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
         <Shield className="h-3.5 w-3.5" /> Módulos com acesso
       </p>
       {MODULE_GROUPS.map((group) => {
@@ -776,19 +767,20 @@ function ModulosField({
         if (groupModules.length === 0) return null;
         return (
           <div key={group.label}>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>
               {group.label}
             </p>
             <div className="flex flex-wrap gap-3">
               {groupModules.map((k) => (
-                <label key={k} className="flex items-center gap-1.5 cursor-pointer">
+                <label key={k} className="flex cursor-pointer items-center gap-1.5">
                   <input
                     type="checkbox"
                     checked={value[k] ?? false}
                     onChange={() => onChange({ ...value, [k]: !value[k] })}
-                    className="rounded border-slate-300 text-slate-800"
+                    className="adm-focusable rounded"
+                    style={{ accentColor: "var(--adm-accent)" }}
                   />
-                  <span className="text-sm text-slate-700">{MODULES_LABEL[k] ?? k}</span>
+                  <span className="text-sm" style={{ color: "var(--adm-text)" }}>{MODULES_LABEL[k] ?? k}</span>
                 </label>
               ))}
             </div>
@@ -811,20 +803,21 @@ function LojasField({
     onChange(value.includes(id) ? value.filter((x) => x !== id) : [...value, id]);
   return (
     <div>
-      <p className="text-xs font-medium text-slate-600 mb-1 flex items-center gap-1.5">
+      <p className="mb-1 flex items-center gap-1.5 text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
         <Building2 className="h-3.5 w-3.5" /> Lojas visíveis{" "}
-        <span className="font-normal text-slate-400">(vazio = todas)</span>
+        <span className="font-normal" style={{ color: "var(--adm-text-faint)" }}>(vazio = todas)</span>
       </p>
       <div className="flex flex-wrap gap-3">
         {lojas.map((l) => (
-          <label key={l.id} className="flex items-center gap-1.5 cursor-pointer">
+          <label key={l.id} className="flex cursor-pointer items-center gap-1.5">
             <input
               type="checkbox"
               checked={value.includes(l.id)}
               onChange={() => toggle(l.id)}
-              className="rounded border-slate-300 text-slate-800"
+              className="adm-focusable rounded"
+              style={{ accentColor: "var(--adm-accent)" }}
             />
-            <span className="text-sm text-slate-700">{l.name}</span>
+            <span className="text-sm" style={{ color: "var(--adm-text)" }}>{l.name}</span>
           </label>
         ))}
       </div>
@@ -841,21 +834,13 @@ function FormActions({
 }) {
   return (
     <div className="flex justify-end gap-3">
-      <button
-        type="button"
-        onClick={onCancel}
-        className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 transition-colors"
-      >
+      <AdminButton type="button" variant="ghost" size="sm" onClick={onCancel}>
         Cancelar
-      </button>
-      <button
-        type="submit"
-        disabled={loading}
-        className="inline-flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-slate-700 disabled:opacity-60 transition-colors"
-      >
+      </AdminButton>
+      <AdminButton type="submit" size="sm" disabled={loading}>
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         {loading ? "Salvando..." : labelSave}
-      </button>
+      </AdminButton>
     </div>
   );
 }
