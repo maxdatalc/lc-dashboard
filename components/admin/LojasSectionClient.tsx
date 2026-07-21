@@ -2,9 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { Building2, Check, Loader2, Settings, Zap, Pencil, X, RefreshCw, Scale } from "lucide-react";
+import { Building2, Loader2, Settings, Zap, Pencil, X, RefreshCw, Scale } from "lucide-react";
 import { toggleLojaAtiva } from "@/lib/actions/admin-lojas";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge, AdminStatusDot } from "@/components/admin/AdminBadge";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
+import {
+  AdminTable,
+  AdminTableHead,
+  AdminTh,
+  AdminTBody,
+  AdminTr,
+  AdminTd,
+} from "@/components/admin/AdminTable";
 
 type Loja = {
   id: string;
@@ -46,11 +57,12 @@ function ToggleLojaButton({
       onClick={handleToggle}
       disabled={loading}
       title={ativo ? "Desativar loja" : "Ativar loja"}
-      className={`shrink-0 text-xs px-2.5 py-1 rounded-md border font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-        ativo
-          ? "border-red-100 text-red-500 hover:bg-red-50 hover:border-red-200"
-          : "border-emerald-100 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200"
-      }`}
+      className="adm-focusable shrink-0 rounded-md px-2.5 py-1 text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-50"
+      style={{
+        border: "1px solid",
+        borderColor: ativo ? "var(--adm-alert-soft)" : "var(--adm-signal-soft)",
+        color: ativo ? "var(--adm-alert)" : "var(--adm-signal)",
+      }}
     >
       {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : ativo ? "Desativar" : "Ativar"}
     </button>
@@ -124,78 +136,54 @@ function EditLojaRow({
   }
 
   return (
-    <td colSpan={5} className="px-5 py-3 bg-slate-50">
+    <td colSpan={5} className="px-5 py-3" style={{ background: "var(--adm-surface-2)" }}>
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-36">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Nome</label>
+        <div className="min-w-36 flex-1">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>Nome</label>
           <div className="flex gap-1.5">
             <input
               type="text"
               value={nome}
               onChange={(e) => setNome(e.target.value)}
               autoFocus
-              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
+              className="adm-field adm-focusable flex-1 px-3 py-1.5 text-sm"
             />
             {loja.sqlEnabled && (
-              <button
-                type="button"
-                onClick={handleBuscarNome}
-                disabled={loadingNomeBridge}
-                title="Buscar nome via Bridge SQL (MaxManager)"
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 transition-all shrink-0"
-              >
-                {loadingNomeBridge
-                  ? <Loader2 className="h-3 w-3 animate-spin" />
-                  : <RefreshCw className="h-3 w-3" />}
+              <AdminButton type="button" variant="secondary" size="sm" onClick={handleBuscarNome} disabled={loadingNomeBridge} title="Buscar nome via Bridge SQL (MaxManager)">
+                {loadingNomeBridge ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 {loadingNomeBridge ? "Buscando..." : "Bridge"}
-              </button>
+              </AdminButton>
             )}
           </div>
         </div>
-        <div className="flex-1 min-w-36">
-          <label className="block text-xs font-medium text-slate-600 mb-1">CNPJ</label>
+        <div className="min-w-36 flex-1">
+          <label className="mb-1 block text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>CNPJ</label>
           <div className="flex gap-1.5">
             <input
               type="text"
               value={cnpj}
               onChange={(e) => setCnpj(e.target.value)}
               placeholder="00.000.000/0000-00"
-              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 bg-white"
+              className="adm-field adm-focusable flex-1 px-3 py-1.5 text-sm"
             />
             {loja.sqlEnabled && (
-              <button
-                type="button"
-                onClick={handleBuscarCnpj}
-                disabled={loadingBridge}
-                title="Buscar CNPJ via Bridge SQL"
-                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300 disabled:opacity-50 transition-all shrink-0"
-              >
-                {loadingBridge
-                  ? <Loader2 className="h-3 w-3 animate-spin" />
-                  : <RefreshCw className="h-3 w-3" />}
+              <AdminButton type="button" variant="secondary" size="sm" onClick={handleBuscarCnpj} disabled={loadingBridge} title="Buscar CNPJ via Bridge SQL">
+                {loadingBridge ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                 {loadingBridge ? "Buscando..." : "Bridge"}
-              </button>
+              </AdminButton>
             )}
           </div>
         </div>
         <div className="flex gap-2 pb-0.5">
-          {erro && <p className="text-xs text-red-500 self-center">{erro}</p>}
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className="flex items-center gap-1.5 bg-slate-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
-          >
+          {erro && <p className="self-center text-xs" style={{ color: "var(--adm-alert)" }}>{erro}</p>}
+          <AdminButton onClick={handleSave} disabled={loading} size="sm">
             {loading && <Loader2 className="h-3 w-3 animate-spin" />}
             Salvar
-          </button>
-          <button
-            onClick={onClose}
-            disabled={loading}
-            className="flex items-center gap-1 text-xs font-medium text-slate-500 px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 transition-colors"
-          >
+          </AdminButton>
+          <AdminButton variant="subtle" size="sm" onClick={onClose} disabled={loading}>
             <X className="h-3 w-3" />
             Cancelar
-          </button>
+          </AdminButton>
         </div>
       </div>
     </td>
@@ -218,146 +206,114 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-slate-500">
+      <div className="flex items-center justify-between">
+        <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
           {lojas.length} {lojas.length === 1 ? "loja cadastrada" : "lojas cadastradas"}
         </p>
-        <Link
-          href={`/admin/empresas/${tenantId}/lojas/nova`}
-          className="text-sm bg-slate-900 text-white px-3.5 py-1.5 rounded-lg font-medium hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
-        >
+        <AdminButton href={`/admin/empresas/${tenantId}/lojas/nova`} size="sm">
           + Adicionar loja
-        </Link>
+        </AdminButton>
       </div>
 
       {lojas.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-slate-200 py-14 text-center">
-          <Building2 className="h-9 w-9 text-slate-200 mx-auto mb-3" />
-          <p className="font-medium text-slate-600 text-sm">Nenhuma loja cadastrada</p>
-          <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto">
-            Adicione a primeira loja para liberar o dashboard do cliente.
-          </p>
-          <Link
-            href={`/admin/empresas/${tenantId}/lojas/nova`}
-            className="inline-block mt-4 text-xs font-medium text-slate-700 border border-slate-200 px-3.5 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-          >
-            + Adicionar loja
-          </Link>
-        </div>
+        <AdminCard>
+          <AdminEmptyState
+            icon={Building2}
+            title="Nenhuma loja cadastrada"
+            description="Adicione a primeira loja para liberar o dashboard do cliente."
+            action={
+              <AdminButton href={`/admin/empresas/${tenantId}/lojas/nova`} variant="secondary" size="sm">
+                + Adicionar loja
+              </AdminButton>
+            }
+          />
+        </AdminCard>
       ) : (
-        <div className="rounded-xl border border-slate-200 bg-white overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                {["Loja", "CNPJ", "EmpId", "Bridge", ""].map((col) => (
-                  <th
-                    key={col}
-                    className="px-5 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400"
-                  >
-                    {col}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {lojas.map((loja, i) =>
-                editingId === loja.id ? (
-                  <tr key={loja.id} style={{ animation: "fadeInUp 0.2s ease-out both" }}>
-                    <EditLojaRow
-                      loja={loja}
-                      onClose={() => setEditingId(null)}
-                      onSaved={(nome, cnpj) => {
-                        setLojas((prev) =>
-                          prev.map((l) => l.id === loja.id ? { ...l, name: nome, cnpj } : l)
-                        );
-                        setEditingId(null);
-                        router.refresh();
-                      }}
-                    />
-                  </tr>
-                ) : (
-                  <tr
-                    key={loja.id}
-                    className="group hover:bg-slate-50/60 transition-colors"
-                    style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: `${i * 50}ms` }}
-                  >
-                    {/* Loja */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full shrink-0 ${loja.isActive ? "bg-emerald-400" : "bg-slate-300"}`}
-                          title={loja.isActive ? "Ativa" : "Inativa"}
-                        />
-                        <span className="font-semibold text-slate-800">{loja.name}</span>
-                      </div>
-                    </td>
+        <AdminTable>
+          <AdminTableHead>
+            <AdminTh>Loja</AdminTh>
+            <AdminTh>CNPJ</AdminTh>
+            <AdminTh>EmpId</AdminTh>
+            <AdminTh>Bridge</AdminTh>
+            <AdminTh />
+          </AdminTableHead>
+          <AdminTBody>
+            {lojas.map((loja, i) =>
+              editingId === loja.id ? (
+                <tr key={loja.id} style={{ animation: "fadeInUp 0.2s ease-out both" }}>
+                  <EditLojaRow
+                    loja={loja}
+                    onClose={() => setEditingId(null)}
+                    onSaved={(nome, cnpj) => {
+                      setLojas((prev) =>
+                        prev.map((l) => l.id === loja.id ? { ...l, name: nome, cnpj } : l)
+                      );
+                      setEditingId(null);
+                      router.refresh();
+                    }}
+                  />
+                </tr>
+              ) : (
+                <AdminTr key={loja.id} noBorder={i === 0}>
+                  {/* Loja */}
+                  <AdminTd>
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-semibold">{loja.name}</span>
+                    </div>
+                    <div className="mt-0.5">
+                      <AdminStatusDot active={loja.isActive} />
+                    </div>
+                  </AdminTd>
 
-                    {/* CNPJ */}
-                    <td className="px-5 py-3.5 text-xs font-mono text-slate-500">
-                      {loja.cnpj || <span className="text-slate-300">—</span>}
-                    </td>
+                  {/* CNPJ */}
+                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                    {loja.cnpj || <span style={{ color: "var(--adm-text-faint)" }}>—</span>}
+                  </AdminTd>
 
-                    {/* EmpId */}
-                    <td className="px-5 py-3.5 text-xs text-slate-400">
-                      {loja.empId}
-                    </td>
+                  {/* EmpId */}
+                  <AdminTd className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                    {loja.empId}
+                  </AdminTd>
 
-                    {/* Bridge */}
-                    <td className="px-5 py-3.5">
-                      {loja.sqlEnabled ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                          <Check className="h-3 w-3" />
-                          Conectada
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-400">Não config.</span>
-                      )}
-                    </td>
+                  {/* Bridge */}
+                  <AdminTd>
+                    {loja.sqlEnabled ? (
+                      <AdminBadge variant="success" dot>Conectada</AdminBadge>
+                    ) : (
+                      <span className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Não config.</span>
+                    )}
+                  </AdminTd>
 
-                    {/* Ações */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Link
-                          href={`/admin/empresas/${tenantId}/lojas/${loja.id}/bridge`}
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                        >
-                          <Settings className="h-3 w-3" />
-                          Bridge
-                        </Link>
-                        <Link
-                          href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`}
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                        >
-                          <Zap className="h-3 w-3" />
-                          MaxAPI
-                        </Link>
-                        <Link
-                          href={`/admin/empresas/${tenantId}/lojas/${loja.id}/sieg`}
-                          className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                        >
-                          <Scale className="h-3 w-3" />
-                          SIEG
-                        </Link>
-                        <button
-                          onClick={() => setEditingId(loja.id)}
-                          className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 hover:border-slate-300 transition-all"
-                          title="Editar nome e CNPJ"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <ToggleLojaButton
-                          lojaId={loja.id}
-                          isActive={loja.isActive}
-                          onToggled={() => router.refresh()}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                )
-              )}
-            </tbody>
-          </table>
-        </div>
+                  {/* Ações */}
+                  <AdminTd align="right">
+                    <div className="flex items-center justify-end gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/bridge`} variant="subtle" size="sm">
+                        <Settings className="h-3 w-3" />
+                        Bridge
+                      </AdminButton>
+                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`} variant="subtle" size="sm">
+                        <Zap className="h-3 w-3" />
+                        MaxAPI
+                      </AdminButton>
+                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/sieg`} variant="subtle" size="sm">
+                        <Scale className="h-3 w-3" />
+                        SIEG
+                      </AdminButton>
+                      <AdminButton variant="subtle" size="sm" onClick={() => setEditingId(loja.id)} title="Editar nome e CNPJ">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </AdminButton>
+                      <ToggleLojaButton
+                        lojaId={loja.id}
+                        isActive={loja.isActive}
+                        onToggled={() => router.refresh()}
+                      />
+                    </div>
+                  </AdminTd>
+                </AdminTr>
+              )
+            )}
+          </AdminTBody>
+        </AdminTable>
       )}
     </div>
   );
