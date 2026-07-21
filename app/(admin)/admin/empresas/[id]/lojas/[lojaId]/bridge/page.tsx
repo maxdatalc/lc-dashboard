@@ -41,20 +41,21 @@ export default async function BridgePage({
   const action = salvarBridge.bind(null, lojaId, tenantId, loja.bridgeToken);
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="space-y-2" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+    <div className="adm-rise mx-auto max-w-2xl space-y-6 p-6">
+      <div className="space-y-2">
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors"
+          className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+          style={{ color: "var(--adm-text-faint)" }}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Voltar para lojas
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Bridge SQL</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            <span className="font-mono">{loja.name}</span>{" "}
-            <span className="text-slate-300">·</span>{" "}
+          <h1 className="text-2xl font-bold" style={{ color: "var(--adm-text)" }}>Bridge SQL</h1>
+          <p className="mt-0.5 text-sm" style={{ color: "var(--adm-text-dim)" }}>
+            <span className="adm-mono">{loja.name}</span>{" "}
+            <span style={{ color: "var(--adm-line-strong)" }}>·</span>{" "}
             EmpId {loja.empId}
           </p>
         </div>

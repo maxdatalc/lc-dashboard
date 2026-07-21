@@ -5,6 +5,8 @@ import Link from "next/link";
 import {
   Eye, EyeOff, Copy, Check, Plug, Loader2, CheckCircle2, XCircle,
 } from "lucide-react";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
 
 type TestStatus = "idle" | "testing" | "ok" | "erro";
 
@@ -91,47 +93,45 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
   }
 
   return (
-    <form
-      action={action}
-      className="bg-white rounded-xl border border-slate-200 p-6 space-y-5"
-      style={{ animation: "fadeInUp 0.35s ease-out both", animationDelay: "50ms" }}
-    >
+    <form action={action}>
+    <AdminCard className="space-y-5 p-6">
 
       {/* ── Habilitar ─────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 border border-slate-200">
+      <div className="flex items-center gap-3 rounded-lg p-3" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
         <input
           type="checkbox"
           id="enabled"
           name="enabled"
           checked={enabled}
           onChange={(e) => setEnabled(e.target.checked)}
-          className="rounded border-slate-300 text-slate-700 focus:ring-slate-400"
+          className="adm-focusable rounded"
+          style={{ accentColor: "var(--adm-accent)" }}
         />
         <label htmlFor="enabled" className="cursor-pointer">
-          <p className="text-sm font-medium text-slate-700">Bridge SQL habilitada</p>
-          <p className="text-xs text-slate-400">Desmarque para pausar sem apagar as credenciais.</p>
+          <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>Bridge SQL habilitada</p>
+          <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Desmarque para pausar sem apagar as credenciais.</p>
         </label>
       </div>
 
       {/* ── URL ───────────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">URL da Bridge</label>
+        <label className="mb-1 block text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>URL da Bridge</label>
         <input
           type="url"
           name="bridgeUrl"
           value={bridgeUrl}
           onChange={(e) => setBridgeUrl(e.target.value)}
           placeholder="https://sql-cliente.lctecnologias.com.br"
-          className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
+          className="adm-field adm-focusable w-full px-3.5 py-2.5 text-sm"
         />
-        <p className="text-xs text-slate-400 mt-1">
+        <p className="mt-1 text-xs" style={{ color: "var(--adm-text-faint)" }}>
           Cloudflare Tunnel apontando para porta 3055 da bridge.
         </p>
       </div>
 
       {/* ── Token ─────────────────────────────────────────────────────── */}
       <div>
-        <label className="block text-xs font-medium text-slate-600 mb-1">
+        <label className="mb-1 block text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>
           Token de segurança
         </label>
         <div className="flex gap-2">
@@ -143,48 +143,42 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder={loja.hasToken ? "•••••• (token salvo — digite para substituir)" : "Token gerado pelo instalar-bridge.ps1"}
-              className="w-full border border-slate-200 rounded-lg px-3.5 py-2.5 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400 transition-all bg-white"
+              className="adm-field adm-focusable adm-mono w-full px-3.5 py-2.5 pr-10 text-sm"
             />
             <button
               type="button"
               onClick={() => setVerToken((v) => !v)}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+              className="adm-focusable absolute right-2.5 top-1/2 -translate-y-1/2 rounded"
+              style={{ color: "var(--adm-text-faint)" }}
             >
               {verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </div>
           {token && (
-            <button
-              type="button"
-              onClick={copiarToken}
-              className="flex items-center gap-1.5 px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
-            >
-              {copiado ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            <AdminButton type="button" variant="secondary" size="sm" onClick={copiarToken} className="shrink-0">
+              {copiado ? <Check className="h-3.5 w-3.5" style={{ color: "var(--adm-signal)" }} /> : <Copy className="h-3.5 w-3.5" />}
               {copiado ? "Copiado" : "Copiar"}
-            </button>
+            </AdminButton>
           )}
         </div>
-        <p className="text-xs text-slate-400 mt-0.5">
+        <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
           Armazenado criptografado (AES-256-GCM). Deixe em branco para manter o token atual.
         </p>
         {loja.hasToken && !token && (
-          <button
-            type="button"
-            onClick={revelarToken}
-            disabled={revealing}
-            className="mt-2 inline-flex items-center gap-1.5 border border-slate-200 rounded-lg px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
-            {revealing ? "Revelando..." : "Revelar token atual"}
-          </button>
+          <div className="mt-2">
+            <AdminButton type="button" variant="secondary" size="sm" onClick={revelarToken} disabled={revealing}>
+              {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+              {revealing ? "Revelando..." : "Revelar token atual"}
+            </AdminButton>
+          </div>
         )}
         {revelado && (
-          <p className="text-xs text-amber-600 mt-1.5">
+          <p className="mt-1.5 text-xs" style={{ color: "var(--adm-warn)" }}>
             Token revelado — este acesso foi registrado.
           </p>
         )}
         {revealErro && (
-          <p className="text-xs text-red-600 mt-1.5">{revealErro}</p>
+          <p className="mt-1.5 text-xs" style={{ color: "var(--adm-alert)" }}>{revealErro}</p>
         )}
       </div>
 
@@ -194,16 +188,14 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
           type="button"
           onClick={testarConexao}
           disabled={testStatus === "testing" || !bridgeUrl || (!token && !loja.hasToken)}
-          className="inline-flex items-center gap-2 border border-slate-200 rounded-lg px-3.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50 hover:border-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="adm-focusable inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-50"
+          style={{ border: "1px solid var(--adm-line-strong)", color: "var(--adm-text-dim)" }}
         >
           {testStatus === "idle"    && <Plug         className="h-3.5 w-3.5" />}
           {testStatus === "testing" && <Loader2      className="h-3.5 w-3.5 animate-spin" />}
-          {testStatus === "ok"      && <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />}
-          {testStatus === "erro"    && <XCircle      className="h-3.5 w-3.5 text-red-500" />}
-          <span className={
-            testStatus === "ok"   ? "text-green-600" :
-            testStatus === "erro" ? "text-red-600"   : ""
-          }>
+          {testStatus === "ok"      && <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "var(--adm-signal)" }} />}
+          {testStatus === "erro"    && <XCircle      className="h-3.5 w-3.5" style={{ color: "var(--adm-alert)" }} />}
+          <span style={{ color: testStatus === "ok" ? "var(--adm-signal)" : testStatus === "erro" ? "var(--adm-alert)" : undefined }}>
             {testStatus === "idle"    && "Testar conexão"}
             {testStatus === "testing" && "Testando..."}
             {testStatus === "ok"      && "Conexão OK"}
@@ -212,40 +204,42 @@ export default function BridgeForm({ action, loja, lojaId, tenantId }: Props) {
         </button>
 
         {testStatus === "erro" && testErro && (
-          <p className="text-xs text-red-600 font-mono bg-red-50 border border-red-100 rounded px-3 py-2">
+          <p
+            className="adm-mono rounded px-3 py-2 text-xs"
+            style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+          >
             {testErro}
           </p>
         )}
 
         {testStatus === "ok" && testRow && (
-          <div className="rounded-lg border border-green-200 bg-green-50 p-3">
-            <p className="text-xs font-medium text-green-700 mb-2">Primeira linha retornada:</p>
-            <pre className="text-xs font-mono text-green-800 overflow-x-auto whitespace-pre-wrap break-all">
+          <div className="rounded-lg p-3" style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)" }}>
+            <p className="mb-2 text-xs font-medium" style={{ color: "var(--adm-signal)" }}>Primeira linha retornada:</p>
+            <pre className="adm-mono overflow-x-auto whitespace-pre-wrap break-all text-xs" style={{ color: "var(--adm-signal)" }}>
               {JSON.stringify(testRow, null, 2)}
             </pre>
           </div>
         )}
 
         {testStatus === "ok" && !testRow && (
-          <p className="text-xs text-green-600">Bridge respondeu mas não há registros na tabela de teste.</p>
+          <p className="text-xs" style={{ color: "var(--adm-signal)" }}>Bridge respondeu mas não há registros na tabela de teste.</p>
         )}
       </div>
 
       {/* ── Ações ─────────────────────────────────────────────────────── */}
-      <div className="flex justify-end gap-3 pt-2 border-t border-slate-100">
+      <div className="flex justify-end gap-3 pt-2" style={{ borderTop: "1px solid var(--adm-line)" }}>
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
-          className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+          className="adm-focusable rounded px-4 py-2 text-sm transition-colors"
+          style={{ color: "var(--adm-text-dim)" }}
         >
           Cancelar
         </Link>
-        <button
-          type="submit"
-          className="bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-semibold hover:bg-slate-700 hover:shadow-md transition-all hover:-translate-y-px"
-        >
+        <AdminButton type="submit">
           Salvar configuração
-        </button>
+        </AdminButton>
       </div>
+    </AdminCard>
     </form>
   );
 }

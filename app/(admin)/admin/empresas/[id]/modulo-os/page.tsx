@@ -8,6 +8,10 @@ import { getTenantByIdAdmin } from "@/lib/db/admin";
 import { decrypt } from "@/lib/crypto";
 import { queryBridge } from "@/lib/bridge/bridge-client";
 import { resolveNamedQuery } from "@/lib/bridge/named-queries";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge } from "@/components/admin/AdminBadge";
+import { AdminEmptyState } from "@/components/admin/AdminEmptyState";
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
 
@@ -180,105 +184,107 @@ export default async function OsModuloPage({
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl">
+    <div className="adm-rise max-w-3xl space-y-6 p-6">
       {/* Cabeçalho */}
       <div className="flex items-center gap-3">
         <Link
           href={`/admin/empresas/${tenantId}?aba=features`}
-          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-800 text-sm transition-colors"
+          className="adm-focusable flex items-center gap-1.5 rounded text-sm transition-colors"
+          style={{ color: "var(--adm-text-dim)" }}
         >
           <ArrowLeft className="h-4 w-4" />
           Módulos
         </Link>
-        <span className="text-slate-300">/</span>
+        <span style={{ color: "var(--adm-line-strong)" }}>/</span>
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Configurações — Ordens de Serviço</h1>
-          <p className="text-xs text-slate-400 mt-0.5">{tenant.name}</p>
+          <h1 className="text-xl font-bold" style={{ color: "var(--adm-text)" }}>Configurações — Ordens de Serviço</h1>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>{tenant.name}</p>
         </div>
       </div>
 
       {/* Feedback */}
       {erro && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}>
           <strong>Erro:</strong> {erro}
         </div>
       )}
       {ok_inv && !erro && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)", color: "var(--adm-signal)" }}>
           Inventário base fiscal salvo com sucesso.
         </div>
       )}
       {ok_tipos && !erro && (
-        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+        <div className="rounded-lg px-4 py-3 text-sm" style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)", color: "var(--adm-signal)" }}>
           Tipos de atendimento fiscais salvos com sucesso.
         </div>
       )}
 
       {lojasData.length === 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
-          Nenhuma loja ativa encontrada para esta empresa.
-        </div>
+        <AdminCard className="p-6">
+          <AdminEmptyState icon={BookOpen} title="Nenhuma loja ativa encontrada para esta empresa." />
+        </AdminCard>
       )}
 
       {lojasData.map((loja) => (
-        <details key={loja.id} open className="group rounded-xl border border-slate-200 bg-white">
-          <summary className="flex cursor-pointer items-center justify-between px-6 py-4 select-none list-none">
+        <AdminCard key={loja.id} className="overflow-hidden p-0">
+        <details open className="group">
+          <summary
+            className="flex cursor-pointer list-none items-center justify-between px-6 py-4 select-none"
+          >
             <div>
-              <p className="font-semibold text-slate-800">{loja.name}</p>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">empId: {loja.empId}</p>
+              <p className="font-semibold" style={{ color: "var(--adm-text)" }}>{loja.name}</p>
+              <p className="adm-mono mt-0.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>empId: {loja.empId}</p>
             </div>
             <div className="flex items-center gap-3">
               {loja.os_tipos_fiscais.length > 0 && (
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                <AdminBadge variant="neutral">
                   {loja.os_tipos_fiscais.length} tipo{loja.os_tipos_fiscais.length !== 1 ? "s" : ""} fiscal{loja.os_tipos_fiscais.length !== 1 ? "is" : ""}
-                </span>
+                </AdminBadge>
               )}
               {loja.inventario_id_base != null && (
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  inv #{loja.inventario_id_base}
-                </span>
+                <AdminBadge variant="neutral">inv #{loja.inventario_id_base}</AdminBadge>
               )}
-              <svg className="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-4 w-4 transition-transform group-open:rotate-180" style={{ color: "var(--adm-text-faint)" }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
               </svg>
             </div>
           </summary>
 
-          <div className="border-t border-slate-100 px-6 pb-6 pt-5 space-y-8">
+          <div className="space-y-8 px-6 pb-6 pt-5" style={{ borderTop: "1px solid var(--adm-line)" }}>
 
             {/* Inventário Base Fiscal */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-slate-400" />
-                <p className="text-sm font-medium text-slate-700">Inventário Base Fiscal</p>
+                <BookOpen className="h-4 w-4" style={{ color: "var(--adm-text-faint)" }} />
+                <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>Inventário Base Fiscal</p>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-xs leading-relaxed" style={{ color: "var(--adm-text-dim)" }}>
                 Ponto de partida para o cálculo de estoque fiscal. As movimentações de NF são
                 acumuladas a partir da data deste inventário.
               </p>
 
               {!loja.bridgeConfigurada ? (
-                <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-400">
+                <div className="rounded-lg px-4 py-3" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
+                  <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     Bridge SQL não configurada.{" "}
-                    <Link href={`/admin/empresas/${tenantId}?aba=lojas`} className="underline hover:text-slate-600">
+                    <Link href={`/admin/empresas/${tenantId}?aba=lojas`} className="adm-focusable rounded underline" style={{ color: "var(--adm-accent)" }}>
                       Configurar bridge
                     </Link>
                   </p>
                 </div>
               ) : loja.inventarios.length === 0 ? (
-                <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-400">Nenhum inventário encontrado.</p>
+                <div className="rounded-lg px-4 py-3" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
+                  <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Nenhum inventário encontrado.</p>
                 </div>
               ) : (
                 <form action={salvarInventario} className="flex items-end gap-3">
                   <input type="hidden" name="loja_id" value={loja.id} />
                   <div className="flex-1 space-y-1">
-                    <label className="text-xs font-medium text-slate-600">Inventário selecionado</label>
+                    <label className="text-xs font-medium" style={{ color: "var(--adm-text-dim)" }}>Inventário selecionado</label>
                     <select
                       name="inventario_id_base"
                       defaultValue={loja.inventario_id_base != null ? String(loja.inventario_id_base) : "0"}
-                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-slate-300"
+                      className="adm-field adm-focusable w-full px-3 py-2 text-sm"
                     >
                       <option value="0">— Nenhum —</option>
                       {loja.inventarios.map((inv) => (
@@ -289,9 +295,9 @@ export default async function OsModuloPage({
                       ))}
                     </select>
                   </div>
-                  <button type="submit" className="shrink-0 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+                  <AdminButton type="submit" size="sm" className="shrink-0">
                     Salvar
-                  </button>
+                  </AdminButton>
                 </form>
               )}
             </div>
@@ -299,55 +305,63 @@ export default async function OsModuloPage({
             {/* Tipos de Atendimento — Movimentação Fiscal */}
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <Tag className="h-4 w-4 text-slate-400" />
-                <p className="text-sm font-medium text-slate-700">Tipos de Atendimento — Movimentação Fiscal</p>
+                <Tag className="h-4 w-4" style={{ color: "var(--adm-text-faint)" }} />
+                <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>Tipos de Atendimento — Movimentação Fiscal</p>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-xs leading-relaxed" style={{ color: "var(--adm-text-dim)" }}>
                 Quando um produto é incluído em uma O.S com um dos tipos marcados abaixo, ele
                 entra imediatamente no cálculo de estoque fiscal.
               </p>
 
               {!loja.bridgeConfigurada ? (
-                <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-400">Bridge SQL não configurada.</p>
+                <div className="rounded-lg px-4 py-3" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
+                  <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Bridge SQL não configurada.</p>
                 </div>
               ) : loja.tipos.length === 0 ? (
-                <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="text-xs text-slate-400">Nenhum tipo de atendimento encontrado.</p>
+                <div className="rounded-lg px-4 py-3" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
+                  <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>Nenhum tipo de atendimento encontrado.</p>
                 </div>
               ) : (
                 <form action={salvarTiposFiscais} className="space-y-4">
                   <input type="hidden" name="loja_id" value={loja.id} />
-                  <div className="divide-y divide-slate-100 rounded-lg border border-slate-200">
-                    {loja.tipos.map((tipo) => {
+                  <div className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--adm-line)" }}>
+                    {loja.tipos.map((tipo, i) => {
                       const corHex = tipo.tatCorDestaqueTexto ? `#${tipo.tatCorDestaqueTexto}` : "#64748b";
                       const isChecked = loja.os_tipos_fiscais.includes(tipo.tatId);
                       return (
-                        <label key={tipo.tatId} className="flex cursor-pointer items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                        <label
+                          key={tipo.tatId}
+                          className="adm-row flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors"
+                          style={{ borderTop: i === 0 ? "none" : "1px solid var(--adm-line)" }}
+                        >
                           <input
                             type="checkbox" name="tatIds" value={String(tipo.tatId)}
                             defaultChecked={isChecked}
-                            className="h-4 w-4 rounded border-slate-300 text-slate-800 accent-slate-800"
+                            className="adm-focusable h-4 w-4 rounded"
+                            style={{ accentColor: "var(--adm-accent)" }}
                           />
                           <span className="h-3 w-3 shrink-0 rounded-full border" style={{ backgroundColor: corHex + "33", borderColor: corHex }} />
-                          <span className="flex-1 text-sm text-slate-700">{tipo.tatDesc}</span>
+                          <span className="flex-1 text-sm" style={{ color: "var(--adm-text)" }}>{tipo.tatDesc}</span>
                           {tipo.tatProGeraFinanceiro === 1 && (
-                            <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">gera financeiro</span>
+                            <span className="shrink-0">
+                              <AdminBadge variant="neutral">gera financeiro</AdminBadge>
+                            </span>
                           )}
                         </label>
                       );
                     })}
                   </div>
                   <div className="flex justify-end">
-                    <button type="submit" className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 transition-colors">
+                    <AdminButton type="submit" size="sm">
                       Salvar tipos
-                    </button>
+                    </AdminButton>
                   </div>
                 </form>
               )}
             </div>
           </div>
         </details>
+        </AdminCard>
       ))}
     </div>
   );

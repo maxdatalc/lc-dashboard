@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { encrypt, decrypt } from "@/lib/crypto";
 import { queryBridge } from "@/lib/bridge/bridge-client";
 import SiegForm from "./sieg-form";
+import { AdminCard } from "@/components/admin/AdminCard";
 
 // ─── Helpers de dados ─────────────────────────────────────────────────────────
 
@@ -148,39 +149,40 @@ export default async function SiegConfigPage({
   const action = salvarSiegConfig.bind(null, lojaId);
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="space-y-2" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+    <div className="adm-rise mx-auto max-w-2xl space-y-6 p-6">
+      <div className="space-y-2">
         <Link
           href={`/admin/empresas/${tenantId}?aba=lojas`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors"
+          className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+          style={{ color: "var(--adm-text-faint)" }}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Voltar para lojas
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">SIEG — Transmissão de XMLs</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            <span className="font-mono">{loja.name}</span>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--adm-text)" }}>SIEG — Transmissão de XMLs</h1>
+          <p className="mt-0.5 text-sm" style={{ color: "var(--adm-text-dim)" }}>
+            <span className="adm-mono">{loja.name}</span>
           </p>
         </div>
-        <p className="text-sm text-slate-500">
+        <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
           Configure o OAuth Token por empresa (CNPJ) para envio automático de NF-e ao SIEG.
         </p>
       </div>
 
       {!loja.sql_bridge_url && (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-          <p className="text-sm text-amber-800 font-medium">Bridge SQL não configurada</p>
-          <p className="text-xs text-amber-600 mt-0.5">
+        <div className="rounded-lg px-4 py-3" style={{ background: "var(--adm-warn-soft)", border: "1px solid var(--adm-warn)" }}>
+          <p className="text-sm font-medium" style={{ color: "var(--adm-warn)" }}>Bridge SQL não configurada</p>
+          <p className="mt-0.5 text-xs" style={{ color: "var(--adm-warn)" }}>
             Configure a Bridge SQL desta loja para que as empresas (empIds) sejam detectadas automaticamente.
           </p>
         </div>
       )}
 
       {empresas.length === 0 && loja.sql_bridge_url && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-          <p className="text-sm text-slate-600">Bridge offline ou sem empresas cadastradas.</p>
-        </div>
+        <AdminCard className="px-4 py-3">
+          <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>Bridge offline ou sem empresas cadastradas.</p>
+        </AdminCard>
       )}
 
       <div className="space-y-6">
