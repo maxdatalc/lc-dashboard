@@ -408,16 +408,16 @@ export default async function GerenciarEmpresaPage({
             ) : (
               <AdminTable>
                 <AdminTableHead>
-                  <AdminTh>Código</AdminTh>
+                  <AdminTh hideBelow="md">Código</AdminTh>
                   <AdminTh>Empresa</AdminTh>
-                  <AdminTh>CNPJ</AdminTh>
-                  <AdminTh>Cidade</AdminTh>
+                  <AdminTh hideBelow="sm">CNPJ</AdminTh>
+                  <AdminTh hideBelow="md">Cidade</AdminTh>
                   <AdminTh />
                 </AdminTableHead>
                 <AdminTBody>
                   {clientesVinculados.map((c, i) => (
                     <AdminTr key={c.id} noBorder={i === 0}>
-                      <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                      <AdminTd hideBelow="md" className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
                         {c.codigo_externo ?? "—"}
                       </AdminTd>
                       <AdminTd>
@@ -426,10 +426,10 @@ export default async function GerenciarEmpresaPage({
                           <p className="truncate text-xs" style={{ color: "var(--adm-text-faint)" }}>{c.razao_social}</p>
                         )}
                       </AdminTd>
-                      <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                      <AdminTd hideBelow="sm" className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
                         {c.cnpj_cpf ?? "—"}
                       </AdminTd>
-                      <AdminTd className="text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                      <AdminTd hideBelow="md" className="text-xs" style={{ color: "var(--adm-text-dim)" }}>
                         {c.cidade ?? "—"}
                       </AdminTd>
                       <AdminTd align="right">

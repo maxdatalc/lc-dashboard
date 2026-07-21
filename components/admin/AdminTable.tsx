@@ -18,17 +18,25 @@ export function AdminTableHead({ children }: { children: ReactNode }) {
   );
 }
 
+const HIDE_BELOW_CLASS = {
+  sm: "hidden sm:table-cell",
+  md: "hidden md:table-cell",
+} as const;
+
+type HideBelow = keyof typeof HIDE_BELOW_CLASS;
+
 export function AdminTh({
   children,
   align = "left",
+  hideBelow,
   className = "",
   ...rest
-}: ThHTMLAttributes<HTMLTableCellElement> & { align?: "left" | "right" | "center" }) {
+}: ThHTMLAttributes<HTMLTableCellElement> & { align?: "left" | "right" | "center"; hideBelow?: HideBelow }) {
   return (
     <th
       className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-wider ${
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
-      } ${className}`}
+      } ${hideBelow ? HIDE_BELOW_CLASS[hideBelow] : ""} ${className}`}
       style={{ color: "var(--adm-text-faint)" }}
       {...rest}
     >
@@ -66,15 +74,17 @@ export function AdminTr({
 export function AdminTd({
   children,
   align = "left",
+  hideBelow,
   className = "",
+  style,
   ...rest
-}: TdHTMLAttributes<HTMLTableCellElement> & { align?: "left" | "right" | "center" }) {
+}: TdHTMLAttributes<HTMLTableCellElement> & { align?: "left" | "right" | "center"; hideBelow?: HideBelow }) {
   return (
     <td
       className={`px-5 text-sm ${
         align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left"
-      } ${className}`}
-      style={{ paddingTop: "var(--adm-row-py)", paddingBottom: "var(--adm-row-py)", color: "var(--adm-text)" }}
+      } ${hideBelow ? HIDE_BELOW_CLASS[hideBelow] : ""} ${className}`}
+      style={{ paddingTop: "var(--adm-row-py)", paddingBottom: "var(--adm-row-py)", color: "var(--adm-text)", ...style }}
       {...rest}
     >
       {children}

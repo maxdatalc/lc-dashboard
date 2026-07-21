@@ -332,7 +332,7 @@ export function UsuariosClient({ usuarios: initialUsuarios, todasEmpresas }: Pro
                               handleDesvincular(usuario.id, emp.tenant_id);
                             }}
                             disabled={isPending}
-                            className="ml-0.5 opacity-0 transition-colors group-hover:opacity-100"
+                            className="ml-0.5 opacity-100 transition-colors md:opacity-0 md:group-hover:opacity-100"
                             style={{ color: "var(--adm-text-faint)" }}
                             title="Remover acesso"
                           >

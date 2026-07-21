@@ -94,9 +94,9 @@ export function EmpresasListClient({
           <AdminTable>
             <AdminTableHead>
               <AdminTh>Empresa</AdminTh>
-              <AdminTh>Lojas / Usuários</AdminTh>
-              <AdminTh>Plano</AdminTh>
-              <AdminTh>Cadastrado em</AdminTh>
+              <AdminTh hideBelow="md">Lojas / Usuários</AdminTh>
+              <AdminTh hideBelow="sm">Plano</AdminTh>
+              <AdminTh hideBelow="md">Cadastrado em</AdminTh>
               <AdminTh />
             </AdminTableHead>
             <AdminTBody>
@@ -105,17 +105,25 @@ export function EmpresasListClient({
                   {/* Empresa — nome em destaque, slug discreto, status como dot+label */}
                   <AdminTd>
                     <div className="text-[15px] font-semibold leading-tight">{t.name}</div>
-                    <div className="mt-1 flex items-center gap-2">
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
                       <span className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
                         {t.slug}
                       </span>
                       <span style={{ color: "var(--adm-line-strong)" }}>·</span>
                       <AdminStatusDot active={t.isActive} />
+                      {/* Resumo só no mobile — a coluna Plano fica oculta abaixo de sm */}
+                      <span className="sm:hidden">
+                        {t.plan === "premium" ? (
+                          <AdminBadge variant="premium">★ Premium</AdminBadge>
+                        ) : (
+                          <AdminBadge variant="neutral">Free</AdminBadge>
+                        )}
+                      </span>
                     </div>
                   </AdminTd>
 
                   {/* Lojas / Usuários */}
-                  <AdminTd>
+                  <AdminTd hideBelow="md">
                     <div className="flex items-center gap-4">
                       <span className="flex items-center gap-1.5 text-xs" style={{ color: "var(--adm-text-dim)" }}>
                         <Building2 className="h-3.5 w-3.5" style={{ color: "var(--adm-text-faint)" }} />
@@ -133,7 +141,7 @@ export function EmpresasListClient({
                   </AdminTd>
 
                   {/* Plano */}
-                  <AdminTd>
+                  <AdminTd hideBelow="sm">
                     {t.plan === "premium" ? (
                       <AdminBadge variant="premium">★ Premium</AdminBadge>
                     ) : (
@@ -142,15 +150,15 @@ export function EmpresasListClient({
                   </AdminTd>
 
                   {/* Criado em */}
-                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                  <AdminTd hideBelow="md" className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     {formatarData(t.createdAt)}
                   </AdminTd>
 
-                  {/* Ações — discretas, aparecem no hover da linha */}
+                  {/* Ações — no mobile só "Gerenciar"; Dashboard/Excluir exigem tela maior (evita cell largo demais) */}
                   <AdminTd align="right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+                    <div className="flex items-center justify-end gap-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                       {isAdmin && acessarDashboard && (
-                        <form action={acessarDashboard}>
+                        <form action={acessarDashboard} className="hidden sm:block">
                           <input type="hidden" name="tenantId" value={t.id} />
                           <AdminButton type="submit" variant="subtle" size="sm" title={`Acessar dashboard de ${t.name}`}>
                             <LayoutDashboard className="h-3.5 w-3.5" />
@@ -159,7 +167,11 @@ export function EmpresasListClient({
                         </form>
                       )}
 
-                      {isAdmin && <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />}
+                      {isAdmin && (
+                        <span className="hidden sm:inline-flex">
+                          <BotaoExcluirCliente tenantId={t.id} tenantName={t.name} />
+                        </span>
+                      )}
 
                       <AdminButton href={`/admin/empresas/${t.id}`} size="sm">
                         {isAdmin ? "Gerenciar →" : "Ver detalhes →"}

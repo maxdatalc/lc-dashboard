@@ -232,9 +232,9 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
         <AdminTable>
           <AdminTableHead>
             <AdminTh>Loja</AdminTh>
-            <AdminTh>CNPJ</AdminTh>
-            <AdminTh>EmpId</AdminTh>
-            <AdminTh>Bridge</AdminTh>
+            <AdminTh hideBelow="sm">CNPJ</AdminTh>
+            <AdminTh hideBelow="md">EmpId</AdminTh>
+            <AdminTh hideBelow="sm">Bridge</AdminTh>
             <AdminTh />
           </AdminTableHead>
           <AdminTBody>
@@ -260,23 +260,29 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                     <div className="flex items-center gap-2.5">
                       <span className="font-semibold">{loja.name}</span>
                     </div>
-                    <div className="mt-0.5">
+                    <div className="mt-0.5 flex flex-wrap items-center gap-2">
                       <AdminStatusDot active={loja.isActive} />
+                      {/* Bridge só no mobile — a coluna dedicada fica oculta abaixo de sm */}
+                      <span className="sm:hidden">
+                        {loja.sqlEnabled ? (
+                          <AdminBadge variant="success" dot>Bridge</AdminBadge>
+                        ) : null}
+                      </span>
                     </div>
                   </AdminTd>
 
                   {/* CNPJ */}
-                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                  <AdminTd hideBelow="sm" className="adm-mono text-xs" style={{ color: "var(--adm-text-dim)" }}>
                     {loja.cnpj || <span style={{ color: "var(--adm-text-faint)" }}>—</span>}
                   </AdminTd>
 
                   {/* EmpId */}
-                  <AdminTd className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                  <AdminTd hideBelow="md" className="text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     {loja.empId}
                   </AdminTd>
 
                   {/* Bridge */}
-                  <AdminTd>
+                  <AdminTd hideBelow="sm">
                     {loja.sqlEnabled ? (
                       <AdminBadge variant="success" dot>Conectada</AdminBadge>
                     ) : (
@@ -284,18 +290,18 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                     )}
                   </AdminTd>
 
-                  {/* Ações */}
+                  {/* Ações — no mobile só editar + ativar/desativar; configs (Bridge/MaxAPI/SIEG) exigem tela maior */}
                   <AdminTd align="right">
-                    <div className="flex items-center justify-end gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/bridge`} variant="subtle" size="sm">
+                    <div className="flex items-center justify-end gap-1.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/bridge`} variant="subtle" size="sm" className="hidden md:inline-flex">
                         <Settings className="h-3 w-3" />
                         Bridge
                       </AdminButton>
-                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`} variant="subtle" size="sm">
+                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/maxapi`} variant="subtle" size="sm" className="hidden md:inline-flex">
                         <Zap className="h-3 w-3" />
                         MaxAPI
                       </AdminButton>
-                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/sieg`} variant="subtle" size="sm">
+                      <AdminButton href={`/admin/empresas/${tenantId}/lojas/${loja.id}/sieg`} variant="subtle" size="sm" className="hidden md:inline-flex">
                         <Scale className="h-3 w-3" />
                         SIEG
                       </AdminButton>

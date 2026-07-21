@@ -158,9 +158,9 @@ export default async function AdminPage() {
           <AdminTable>
             <AdminTableHead>
               <AdminTh>Cliente</AdminTh>
-              <AdminTh>Lojas</AdminTh>
-              <AdminTh>Plano</AdminTh>
-              <AdminTh>Cadastrado em</AdminTh>
+              <AdminTh hideBelow="md">Lojas</AdminTh>
+              <AdminTh hideBelow="sm">Plano</AdminTh>
+              <AdminTh hideBelow="md">Cadastrado em</AdminTh>
               <AdminTh />
             </AdminTableHead>
             <AdminTBody>
@@ -172,23 +172,23 @@ export default async function AdminPage() {
                       {t.slug}
                     </div>
                   </AdminTd>
-                  <AdminTd className="adm-mono" style={{ color: "var(--adm-text-dim)" }}>
+                  <AdminTd hideBelow="md" className="adm-mono" style={{ color: "var(--adm-text-dim)" }}>
                     {t.lojas.length}
                   </AdminTd>
-                  <AdminTd>
+                  <AdminTd hideBelow="sm">
                     {t.plan === "premium" ? (
                       <AdminBadge variant="premium">★ Premium</AdminBadge>
                     ) : (
                       <AdminBadge variant="neutral">Free</AdminBadge>
                     )}
                   </AdminTd>
-                  <AdminTd className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                  <AdminTd hideBelow="md" className="adm-mono text-xs" style={{ color: "var(--adm-text-faint)" }}>
                     {formatarData(t.createdAt)}
                   </AdminTd>
                   <AdminTd align="right">
                     <Link
                       href={`/admin/empresas/${t.id}`}
-                      className="adm-focusable rounded text-xs font-medium opacity-0 transition-all group-hover:opacity-100"
+                      className="adm-focusable rounded text-xs font-medium opacity-100 transition-all md:opacity-0 md:group-hover:opacity-100"
                       style={{ color: "var(--adm-accent)" }}
                     >
                       Gerenciar →

@@ -447,7 +447,7 @@ export function UsuarioDetalheClient({
                       handleDesvincular(empresa.tenant_id, empresa.tenant_name);
                     }}
                     disabled={isPending}
-                    className="adm-focusable rounded-lg p-1.5 opacity-0 transition-all group-hover:opacity-100"
+                    className="adm-focusable rounded-lg p-1.5 opacity-100 transition-all md:opacity-0 md:group-hover:opacity-100"
                     style={{ color: "var(--adm-text-faint)" }}
                     title="Remover acesso"
                   >

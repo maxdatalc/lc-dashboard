@@ -57,7 +57,7 @@ export function EditNomeTenantClient({ tenantId, currentName }: Props) {
         </h1>
         <button
           onClick={() => setEditing(true)}
-          className="adm-focusable rounded p-1 opacity-0 transition-all group-hover:opacity-100"
+          className="adm-focusable rounded p-1 opacity-100 transition-all md:opacity-0 md:group-hover:opacity-100"
           style={{ color: "var(--adm-text-faint)" }}
           title="Editar nome"
         >
