@@ -5,6 +5,8 @@ import {
   Tooltip, ResponsiveContainer, ReferenceLine,
   CartesianGrid, LabelList, Cell,
 } from "recharts";
+import { ChartFrame } from "@/components/charts/ChartFrame";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export interface VendasMensalData {
   mes: string;
@@ -47,6 +49,7 @@ function fmtYRight(v: number): string {
 }
 
 export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
   if (!data.length) {
     return (
       <div className="flex items-center justify-center text-xs" style={{ height: 220, color: "var(--text-muted)" }}>
@@ -95,10 +98,11 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={210}>
+      <ChartFrame role="default">
+      <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={enriched}
-          margin={{ top: 20, right: 44, bottom: 0, left: 4 }}
+          margin={{ top: 20, right: isMobile ? 8 : 44, bottom: 0, left: 4 }}
           barCategoryGap="32%"
           style={{ cursor: onMesClick ? "pointer" : "default" }}
         >
@@ -129,7 +133,7 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
             tick={{ fontSize: 10, fill: "var(--text-secondary)" }}
             axisLine={false}
             tickLine={false}
-            width={52}
+            width={isMobile ? 44 : 52}
           />
 
           <YAxis
@@ -141,6 +145,7 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
             tickLine={false}
             width={40}
             domain={[0, "auto"]}
+            hide={isMobile}
           />
 
           <ReferenceLine
@@ -323,6 +328,7 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </ChartFrame>
     </div>
   );
 }

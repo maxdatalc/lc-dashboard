@@ -12,6 +12,8 @@ import {
   Cell,
   Legend,
 } from "recharts";
+import { ChartFrame } from "@/components/charts/ChartFrame";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export interface FinFaturamentoData {
   mes: string;
@@ -104,14 +106,16 @@ function CustomTooltip({ active, payload, label }: {
 }
 
 export function FinFaturamentoChart({ data, selectedMes, onMesClick }: Props) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
   const handleClick = (entry: { mes: string }) => {
     if (!onMesClick) return;
     onMesClick(selectedMes === entry.mes ? null : entry.mes);
   };
 
   return (
-    <ResponsiveContainer width="100%" height={230}>
-      <ComposedChart data={data} margin={{ top: 4, right: 48, left: 0, bottom: 0 }}>
+    <ChartFrame role="default">
+    <ResponsiveContainer width="100%" height="100%">
+      <ComposedChart data={data} margin={{ top: 4, right: isMobile ? 8 : 48, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="gradFat" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="var(--accent-cyan)" stopOpacity={0.9} />
@@ -136,7 +140,7 @@ export function FinFaturamentoChart({ data, selectedMes, onMesClick }: Props) {
           tick={{ fill: "var(--text-muted)", fontSize: 11 }}
           axisLine={false}
           tickLine={false}
-          width={60}
+          width={isMobile ? 44 : 60}
         />
         <YAxis
           yAxisId="pct"
@@ -147,6 +151,7 @@ export function FinFaturamentoChart({ data, selectedMes, onMesClick }: Props) {
           tickLine={false}
           domain={[0, 120]}
           width={38}
+          hide={isMobile}
         />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
         <Legend
@@ -202,5 +207,6 @@ export function FinFaturamentoChart({ data, selectedMes, onMesClick }: Props) {
         />
       </ComposedChart>
     </ResponsiveContainer>
+    </ChartFrame>
   );
 }

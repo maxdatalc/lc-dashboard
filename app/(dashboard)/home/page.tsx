@@ -15,7 +15,7 @@ import { formatCurrency, formatNumber } from "@/lib/utils/format";
 import { ChartCard } from "@/components/ui/ChartCard";
 import { TopProgressBar } from "@/components/ui/TopProgressBar";
 import { UpgradeModal } from "@/components/home/UpgradeModal";
-import { KpiCard } from "@/components/home/KpiCard";
+import { KpiTile } from "@/components/ui/KpiTile";
 import { AnalyticalCard, type AnalyticalRow } from "@/components/home/AnalyticalCard";
 import { RankingVendedores } from "@/components/home/RankingVendedores";
 import { EvolucaoFaturamentoChart, type EvolucaoPoint } from "@/components/home/EvolucaoFaturamentoChart";
@@ -389,46 +389,60 @@ export default function HomePage() {
         className="flex flex-col gap-5"
       >
         {/* ── KPIs executivos ───────────────────────────────────── */}
-        <div className="flex gap-3 flex-wrap">
-          <KpiCard
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <KpiTile
             label="Faturamento do período"
             value={formatCurrency(kpis.faturamento)}
+            tint="ink"
             changePercent={kpis.faturamentoVar}
             context={`${formatNumber(kpis.totalVendas)} vendas e ordens de serviço`}
             hint="Soma das vendas e ordens de serviço finalizadas no período. Não desconta devoluções."
-            emphasis
+            progress={
+              meta.valor > 0 && meta.percentAtingido !== null
+                ? { value: meta.percentAtingido, label: `${meta.percentAtingido.toFixed(0)}% da meta do mês atual atingida` }
+                : undefined
+            }
           />
-          <KpiCard
+          <KpiTile
             label="Resultado bruto estimado"
             value={formatCurrency(kpis.lucroLiquido)}
+            tint="cyan"
             changePercent={kpis.lucroVar}
             context={`${kpis.margemLucro.toFixed(1)}% de margem`}
             hint="Faturamento do período menos o custo dos produtos vendidos. Não inclui despesas operacionais, impostos ou outras deduções."
           />
-          <KpiCard
+          <KpiTile
             label="Ticket médio"
             value={formatCurrency(kpis.ticketMedio)}
+            tint="mist"
             changePercent={kpis.ticketMedioVar}
             hint="Faturamento do período dividido pelo número de vendas e ordens de serviço finalizadas."
           />
-          <KpiCard
+          <KpiTile
             label="Vendas e ordens de serviço"
             value={formatNumber(kpis.totalVendas)}
+            tint="cyan"
             changePercent={kpis.vendasVar}
             context={`${formatNumber(kpis.totalVendasAnt)} no período anterior`}
             hint="Conta documentos de venda de balcão e de ordens de serviço finalizadas, somados."
           />
-          <KpiCard
+          <KpiTile
             label="Clientes atendidos"
             value={formatNumber(kpis.totalClientes)}
+            tint="mist"
             context={`${kpis.clientesNovos} novos · ${kpis.clientesRecorrentes} recorrentes`}
             hint="Inclui clientes com cadastro identificado e o cadastro genérico de consumidor final (vendas de balcão)."
           />
-          <KpiCard
+          <KpiTile
             label="Projeção do mês"
             value={formatCurrency(meta.projecao)}
+            tint="rose"
             context={projecaoContext}
             hint="Estimativa de fechamento do mês atual, com base no ritmo diário e nos dias úteis restantes. Sempre se refere ao mês corrente, independentemente do período selecionado no filtro acima."
+            progress={{
+              value: diasUteis.total > 0 ? (diasUteis.trabalhados / diasUteis.total) * 100 : 0,
+              label: `${diasUteis.trabalhados} de ${diasUteis.total} dias úteis do mês decorridos`,
+            }}
           />
         </div>
 

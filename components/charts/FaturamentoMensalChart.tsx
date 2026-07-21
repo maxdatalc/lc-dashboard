@@ -8,6 +8,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import { ChartFrame } from "@/components/charts/ChartFrame";
 import { formatCurrency } from "@/lib/utils/format";
 
 export interface FaturamentoMensalData {
@@ -96,7 +97,8 @@ export function FaturamentoMensalChart({ data }: Props) {
   return (
     <div className="flex flex-col gap-1">
       <CustomLegend />
-      <ResponsiveContainer width="100%" height={220}>
+      <ChartFrame role="default">
+      <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -10 }} barGap={3}>
           <defs>
             <linearGradient id="faturGrad" x1="0" y1="0" x2="0" y2="1">
@@ -138,6 +140,7 @@ export function FaturamentoMensalChart({ data }: Props) {
           )}
         </BarChart>
       </ResponsiveContainer>
+      </ChartFrame>
     </div>
   );
 }

@@ -13,6 +13,7 @@ import {
   ReferenceLine,
   Legend,
 } from "recharts";
+import { ChartFrame } from "@/components/charts/ChartFrame";
 
 export interface FinFluxoCaixaData {
   mes: string;
@@ -71,7 +72,8 @@ export function FinFluxoCaixaChart({ data, selectedMes, onMesClick }: Props) {
   };
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
+    <ChartFrame role="default">
+    <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
         <defs>
           <linearGradient id="gradEntradas" x1="0" y1="0" x2="0" y2="1">
@@ -149,5 +151,6 @@ export function FinFluxoCaixaChart({ data, selectedMes, onMesClick }: Props) {
         />
       </ComposedChart>
     </ResponsiveContainer>
+    </ChartFrame>
   );
 }

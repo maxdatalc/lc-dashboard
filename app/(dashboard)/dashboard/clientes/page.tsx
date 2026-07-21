@@ -117,7 +117,7 @@ function KpiCard({ label, icon, color, value, footer, footerColor, delay = 0 }: 
         <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)" }}>{label}</span>
         <IconBadge color={color}>{icon}</IconBadge>
       </div>
-      <div style={{ fontSize: 27, fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.03em", lineHeight: 1, whiteSpace: "nowrap", marginBottom: 8 }}>{value}</div>
+      <div style={{ fontSize: "clamp(20px, 6vw, 27px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.03em", lineHeight: 1.1, overflowWrap: "anywhere", marginBottom: 8 }}>{value}</div>
       <div style={{ fontSize: 11.5, color: footerColor ?? "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{footer}</div>
     </div>
   );

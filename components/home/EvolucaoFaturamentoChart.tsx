@@ -12,13 +12,14 @@ import {
   CartesianGrid,
 } from "recharts";
 import { formatCurrency } from "@/lib/utils/format";
+import { ChartFrame } from "@/components/charts/ChartFrame";
 
 // Recharts define stroke/fill como atributo SVG e não resolve var() de forma
 // confiável em todos os elementos (ex.: <stop>) — por isso a cor vem em hex fixo,
 // mesma convenção dos demais gráficos do projeto. Para respeitar o tema, o hex é
-// escolhido a partir de --accent-green de cada tema (globals.css) em vez de fixar
-// um único tom.
-const GREEN_BY_THEME = { dark: "#10b981", light: "#059669" } as const;
+// escolhido a partir de --text-primary (série 1 = tinta) de cada tema
+// (globals.css) em vez de fixar um único tom.
+const INK_BY_THEME = { dark: "#f1f5f9", light: "#0f172a" } as const;
 const CARD_BG_BY_THEME = { dark: "#111827", light: "#ffffff" } as const;
 
 export interface EvolucaoPoint {
@@ -65,7 +66,7 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
   useEffect(() => setMounted(true), []);
 
   const theme = mounted && resolvedTheme === "light" ? "light" : "dark";
-  const GREEN = GREEN_BY_THEME[theme];
+  const INK = INK_BY_THEME[theme];
   const CARD_BG = CARD_BG_BY_THEME[theme];
 
   const temDados = data.some((d) => d.vendas > 0);
@@ -82,12 +83,13 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
   }
 
   return (
-    <ResponsiveContainer width="100%" height={200}>
+    <ChartFrame role="default">
+    <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -8 }}>
         <defs>
           <linearGradient id="homeFaturGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={GREEN} stopOpacity={0.28} />
-            <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
+            <stop offset="0%" stopColor={INK} stopOpacity={0.22} />
+            <stop offset="100%" stopColor={INK} stopOpacity={0} />
           </linearGradient>
         </defs>
         <CartesianGrid vertical={false} stroke="rgba(148,163,184,0.14)" />
@@ -106,17 +108,18 @@ export function EvolucaoFaturamentoChart({ data }: { data: EvolucaoPoint[] }) {
           tickLine={false}
           width={40}
         />
-        <Tooltip content={<ChartTooltip />} cursor={{ stroke: GREEN, strokeWidth: 1, strokeOpacity: 0.4 }} />
+        <Tooltip content={<ChartTooltip />} cursor={{ stroke: INK, strokeWidth: 1, strokeOpacity: 0.4 }} />
         <Area
           type="monotone"
           dataKey="vendas"
-          stroke={GREEN}
+          stroke={INK}
           strokeWidth={2}
           fill="url(#homeFaturGrad)"
           dot={false}
-          activeDot={{ r: 4, fill: GREEN, stroke: CARD_BG, strokeWidth: 2 }}
+          activeDot={{ r: 4, fill: INK, stroke: CARD_BG, strokeWidth: 2 }}
         />
       </AreaChart>
     </ResponsiveContainer>
+    </ChartFrame>
   );
 }

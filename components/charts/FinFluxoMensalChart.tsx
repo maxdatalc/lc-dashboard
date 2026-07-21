@@ -4,6 +4,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, ReferenceLine, Legend, LabelList,
 } from "recharts";
+import { ChartFrame } from "@/components/charts/ChartFrame";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 
 export interface FinFluxoMensalData {
@@ -69,7 +70,8 @@ export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
   const showLabels = data.length <= 8;
 
   return (
-    <ResponsiveContainer width="100%" height={330}>
+    <ChartFrame role="featured">
+    <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 24, right: 10, left: 6, bottom: 0 }} barGap={2} barCategoryGap="22%">
         <defs>
           <linearGradient id="fluxoReceb" x1="0" y1="0" x2="0" y2="1">
@@ -102,5 +104,6 @@ export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
         </Line>
       </ComposedChart>
     </ResponsiveContainer>
+    </ChartFrame>
   );
 }

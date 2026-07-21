@@ -4,6 +4,7 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Cell, Legend, LabelList,
 } from "recharts";
+import { ChartFrame } from "@/components/charts/ChartFrame";
 
 export interface CliReceitaTipoData {
   mes: string;
@@ -73,7 +74,8 @@ export function CliReceitaTipoChart({ data, selectedMes, onMesClick }: Props) {
   const showLabels = data.length <= 8;
 
   return (
-    <ResponsiveContainer width="100%" height={330}>
+    <ChartFrame role="featured">
+    <ResponsiveContainer width="100%" height="100%">
       <ComposedChart data={data} margin={{ top: 24, right: 10, left: 6, bottom: 0 }} barCategoryGap="26%">
         <defs>
           <linearGradient id="cliRec" x1="0" y1="0" x2="0" y2="1">
@@ -103,5 +105,6 @@ export function CliReceitaTipoChart({ data, selectedMes, onMesClick }: Props) {
         </Line>
       </ComposedChart>
     </ResponsiveContainer>
+    </ChartFrame>
   );
 }

@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { usePeriod, computeRange } from "@/lib/contexts/period-context";
 import { useLoja } from "@/lib/contexts/loja-context";
-import { KpiBar } from "@/components/ui/KpiBar";
+import { KpiTile } from "@/components/ui/KpiTile";
+import { formatCurrency, formatNumber } from "@/lib/utils/format";
 import { ChartCard } from "@/components/ui/ChartCard";
 import { VendasMensalChart } from "@/components/charts/VendasMensalChart";
 import { FormasPagamentoChart } from "@/components/charts/FormasPagamentoChart";
@@ -230,29 +231,82 @@ export default function DashboardPage() {
         }}
       >
 
-      {/* ── KPIs — barra horizontal unificada ──────────────────────────────── */}
-      <KpiBar
-        faturamento={kpis?.faturamento?.value ?? 0}
-        totalVendas={kpis?.faturamento?.totalVendas ?? 0}
-        totalVendasAnt={kpis?.faturamento?.totalVendasAnt ?? 0}
-        faturamentoChange={kpis?.faturamento?.change ?? null}
-        devolucaoTotal={kpis?.valorDevolvido ?? 0}
-        totalDevolucoes={kpis?.totalDevolucoes ?? 0}
-        custo={kpis?.custo?.value ?? 0}
-        custoPercentReceita={kpis?.custo?.percentReceita ?? 0}
-        custoPercentReceitaAnt={kpis?.custo?.percentReceitaAnt ?? 0}
-        ticketMedio={kpis?.ticketMedio?.value ?? 0}
-        ticketMedioChange={kpis?.ticketMedio?.change ?? null}
-        lucro={kpis?.lucro?.value ?? 0}
-        margem={kpis?.lucro?.margem ?? 0}
-        margemAnt={kpis?.lucro?.margemAnt ?? 0}
-        totalClientes={kpis?.clientes?.value ?? 0}
-        novosClientes={clientesRetencao?.novos ?? 0}
-        recorrentesClientes={clientesRetencao?.recorrentes ?? 0}
-        emAbertoQtd={emAberto?.qtd ?? 0}
-        emAbertoValor={emAberto?.valorTotal ?? 0}
-        isLoading={kpiLoading}
-      />
+      {/* ── KPIs — grid responsivo (2 col mobile → 6 col desktop) ──────────── */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <KpiTile
+          label="Venda Total"
+          value={formatCurrency(kpis?.faturamento?.value ?? 0)}
+          tint="ink"
+          changePercent={kpis?.faturamento?.change ?? null}
+          context={
+            (kpis?.valorDevolvido ?? 0) > 0
+              ? `${formatNumber(kpis?.faturamento?.totalVendas ?? 0)} vendas · −${formatCurrency(kpis?.valorDevolvido ?? 0)} em ${formatNumber(kpis?.totalDevolucoes ?? 0)} devoluções`
+              : `${formatNumber(kpis?.faturamento?.totalVendas ?? 0)} vendas · ${formatNumber(kpis?.faturamento?.totalVendasAnt ?? 0)} no período anterior`
+          }
+          isLoading={kpiLoading}
+        />
+        <KpiTile
+          label="Lucro Bruto"
+          value={formatCurrency(kpis?.lucro?.value ?? 0)}
+          tint="cyan"
+          context={
+            isFinite(kpis?.lucro?.margem ?? NaN)
+              ? `${(kpis?.lucro?.margem ?? 0).toFixed(1).replace(".", ",")}% de margem`
+              : undefined
+          }
+          isLoading={kpiLoading}
+        />
+        <KpiTile
+          label="Custo Total"
+          value={(kpis?.custo?.value ?? 0) > 0 ? formatCurrency(kpis?.custo?.value ?? 0) : "—"}
+          tint="rose"
+          context={
+            isFinite(kpis?.custo?.percentReceita ?? NaN) && (kpis?.custo?.percentReceita ?? 0) > 0
+              ? `${(kpis?.custo?.percentReceita ?? 0).toFixed(1).replace(".", ",")}% da receita`
+              : undefined
+          }
+          progress={
+            isFinite(kpis?.custo?.percentReceita ?? NaN) && (kpis?.custo?.percentReceita ?? 0) > 0
+              ? {
+                  value: Math.min(kpis?.custo?.percentReceita ?? 0, 100),
+                  label: `Custo consome ${(kpis?.custo?.percentReceita ?? 0).toFixed(1)}% da receita do período`,
+                }
+              : undefined
+          }
+          isLoading={kpiLoading}
+        />
+        <KpiTile
+          label="Ticket Médio"
+          value={formatCurrency(kpis?.ticketMedio?.value ?? 0)}
+          tint="mist"
+          changePercent={kpis?.ticketMedio?.change ?? null}
+          context={`${formatNumber(kpis?.faturamento?.totalVendas ?? 0)} pedidos`}
+          isLoading={kpiLoading}
+        />
+        <KpiTile
+          label="Clientes no Período"
+          value={formatNumber(kpis?.clientes?.value ?? 0)}
+          tint="mist"
+          context={
+            (clientesRetencao?.novos ?? 0) > 0 || (clientesRetencao?.recorrentes ?? 0) > 0
+              ? `${formatNumber(clientesRetencao?.novos ?? 0)} novos · ${formatNumber(clientesRetencao?.recorrentes ?? 0)} recorrentes`
+              : undefined
+          }
+          isLoading={kpiLoading}
+        />
+        <KpiTile
+          label="Em Aberto"
+          value={formatNumber(emAberto?.qtd ?? 0)}
+          tint="rose"
+          context={
+            (emAberto?.valorTotal ?? 0) > 0
+              ? `${formatCurrency(emAberto?.valorTotal ?? 0)} em valor total`
+              : "sem pendências"
+          }
+          hint="Reflete a situação atual dos pedidos em aberto, não o período selecionado no filtro."
+          isLoading={kpiLoading}
+        />
+      </div>
 
       {/* ── Linha 1: Top Clientes | Top Produtos ──────────────────────────────── */}
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-2">

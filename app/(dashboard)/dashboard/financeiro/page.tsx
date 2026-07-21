@@ -99,7 +99,7 @@ function KpiSimple({ label, icon, color, value, footer, footerColor, delay = 0 }
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: "clamp(15px, 1.32vw, 21px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap", marginBottom: 8 }}>{value}</div>
+      <div style={{ fontSize: "clamp(15px, 1.32vw, 21px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.15, overflowWrap: "anywhere", marginBottom: 8 }}>{value}</div>
       <div style={{ fontSize: 11.5, color: footerColor ?? "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{footer}</div>
     </div>
   );
@@ -111,16 +111,16 @@ function KpiSplit({ label, icon, color, value, vencido, aVencer, note, delay = 0
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: "clamp(15px, 1.3vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap", marginBottom: note ? 4 : 12 }}>{value}</div>
+      <div style={{ fontSize: "clamp(15px, 1.3vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.15, overflowWrap: "anywhere", marginBottom: note ? 4 : 12 }}>{value}</div>
       {note && <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 10 }}>{note}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>Vencido</span>
-          <span style={{ fontSize: "clamp(11px, 0.85vw, 13px)", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#ef4444", whiteSpace: "nowrap" }}>{vencido}</span>
+          <span style={{ fontSize: "clamp(11px, 0.85vw, 13px)", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "#ef4444", overflowWrap: "anywhere", textAlign: "right" }}>{vencido}</span>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
           <span style={{ fontSize: 9.5, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--text-muted)" }}>A vencer</span>
-          <span style={{ fontSize: "clamp(11px, 0.85vw, 13px)", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{aVencer}</span>
+          <span style={{ fontSize: "clamp(11px, 0.85vw, 13px)", fontWeight: 700, fontFamily: "var(--font-mono, monospace)", color: "var(--text-secondary)", overflowWrap: "anywhere", textAlign: "right" }}>{aVencer}</span>
         </div>
       </div>
     </div>
