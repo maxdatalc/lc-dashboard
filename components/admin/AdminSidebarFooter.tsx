@@ -20,13 +20,13 @@ export function AdminSidebarFooter({ userName, userEmail }: Props) {
 
   return (
     <div
-      className="px-3 py-3 space-y-1"
+      className="px-2.5 py-2.5 space-y-0.5"
       style={{ borderTop: "1px solid var(--adm-line)" }}
     >
       {/* Identidade */}
-      <div className="flex items-center gap-2.5 px-2 py-2 rounded-lg">
+      <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-md">
         <div
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold"
           style={{
             background: "var(--adm-accent-soft)",
             color: "var(--adm-accent)",
@@ -55,7 +55,7 @@ export function AdminSidebarFooter({ userName, userEmail }: Props) {
       <button
         type="button"
         onClick={() => setTheme(isDark ? "light" : "dark")}
-        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors"
+        className="adm-focusable flex w-full items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-colors"
         style={{ color: "var(--adm-text-dim)" }}
         onMouseEnter={(e) => (e.currentTarget.style.background = "var(--adm-surface-2)")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
@@ -72,7 +72,7 @@ export function AdminSidebarFooter({ userName, userEmail }: Props) {
       {/* Voltar */}
       <Link
         href="/dashboard"
-        className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors"
+        className="adm-focusable flex items-center gap-2.5 rounded-md px-2.5 py-[7px] text-[13px] transition-colors"
         style={{ color: "var(--adm-text-dim)" }}
         onMouseEnter={(e) => (e.currentTarget.style.background = "var(--adm-surface-2)")}
         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}

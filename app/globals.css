@@ -334,7 +334,7 @@ main, [data-page] {
   --adm-line-strong: rgba(255, 255, 255, 0.12);
   --adm-text: #e8edf6;
   --adm-text-dim: #8a97ad;
-  --adm-text-faint: #55647d;
+  --adm-text-faint: #66748c;
   --adm-accent: #00e5ff;
   --adm-accent-soft: rgba(0, 229, 255, 0.12);
   --adm-signal: #10b981;
@@ -346,30 +346,37 @@ main, [data-page] {
   --adm-shadow: 0 10px 34px rgba(0, 0, 0, 0.42);
   --adm-shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.3);
 
+  /* Escala de espaçamento/radius — evita valores soltos por componente */
+  --adm-radius-sm: 0.5rem;
+  --adm-radius: 0.75rem;
+  --adm-radius-lg: 1rem;
+  --adm-row-py: 0.875rem;
+  --adm-hover: var(--adm-surface-2);
+
   background: var(--adm-bg);
   color: var(--adm-text);
 }
 
 .light .admin-shell {
-  --adm-bg: #eef2f7;
+  --adm-bg: #f7f9fc;
   --adm-surface: #ffffff;
-  --adm-surface-2: #f5f8fc;
-  --adm-surface-3: #eef3f9;
-  --adm-line: #e5ebf2;
-  --adm-line-strong: #d3dce7;
+  --adm-surface-2: #f3f6fa;
+  --adm-surface-3: #eaf0f6;
+  --adm-line: #e7ecf2;
+  --adm-line-strong: #d7dfe9;
   --adm-text: #0f1b2d;
-  --adm-text-dim: #5a6b82;
-  --adm-text-faint: #97a4b6;
+  --adm-text-dim: #4b5c72;
+  --adm-text-faint: #6b7a91;
   --adm-accent: #0e7490;
   --adm-accent-soft: rgba(14, 116, 144, 0.10);
   --adm-signal: #059669;
   --adm-signal-soft: rgba(5, 150, 105, 0.10);
   --adm-alert: #e11d48;
   --adm-alert-soft: rgba(225, 29, 72, 0.08);
-  --adm-warn: #d97706;
-  --adm-warn-soft: rgba(217, 119, 6, 0.10);
-  --adm-shadow: 0 8px 28px rgba(15, 27, 45, 0.09);
-  --adm-shadow-sm: 0 3px 12px rgba(15, 27, 45, 0.06);
+  --adm-warn: #b45309;
+  --adm-warn-soft: rgba(180, 83, 9, 0.10);
+  --adm-shadow: 0 8px 28px rgba(15, 27, 45, 0.07);
+  --adm-shadow-sm: 0 1px 2px rgba(15, 27, 45, 0.05);
 }
 
 /* Numérico/dado em mono — personalidade de painel de instrumentos */
@@ -395,13 +402,11 @@ main, [data-page] {
 }
 .admin-shell option { background: var(--adm-surface); color: var(--adm-text); }
 
-/* Pulso de status — assinatura do painel */
-@keyframes adm-pulse-ring {
-  0%   { transform: scale(1);   opacity: 0.55; }
-  70%  { transform: scale(2.6); opacity: 0; }
-  100% { transform: scale(2.6); opacity: 0; }
+/* Foco visível consistente para elementos interativos do admin (teclado) */
+.adm-focusable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--adm-surface), 0 0 0 4px var(--adm-accent);
 }
-.adm-pulse-ring { animation: adm-pulse-ring 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
 
 @keyframes adm-rise {
   from { opacity: 0; transform: translateY(12px); }
@@ -410,7 +415,7 @@ main, [data-page] {
 .adm-rise { animation: adm-rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 @media (prefers-reduced-motion: reduce) {
-  .adm-pulse-ring, .adm-rise { animation: none !important; }
+  .adm-rise { animation: none !important; }
 }
 
 /* ── Scrollbar customizada ──────────────────────────────────────────────── */

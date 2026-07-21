@@ -17,12 +17,12 @@ function NavGroup({ label, children }: { label: string; children: React.ReactNod
   return (
     <div>
       <p
-        className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.14em]"
+        className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
         style={{ color: "var(--adm-text-faint)" }}
       >
         {label}
       </p>
-      <div className="space-y-0.5">{children}</div>
+      <div className="space-y-px">{children}</div>
     </div>
   );
 }
@@ -61,44 +61,29 @@ export default async function AdminLayout({
   const sidebarContent = (
     <>
       {/* Marca */}
-      <div className="px-4 py-5" style={{ borderBottom: "1px solid var(--adm-line)" }}>
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2.5 w-2.5 shrink-0 items-center justify-center">
-            <span
-              className="adm-pulse-ring absolute h-2.5 w-2.5 rounded-full"
-              style={{ background: "var(--adm-accent)" }}
-            />
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: "var(--adm-accent)" }}
-            />
-          </span>
-          <span
-            className="text-lg font-bold tracking-tight"
-            style={{ color: "var(--adm-text)" }}
-          >
-            LC
-          </span>
-          <span
-            className="rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wider"
-            style={{
-              background: "var(--adm-accent-soft)",
-              color: "var(--adm-accent)",
-            }}
-          >
-            {roleLabel}
-          </span>
-        </div>
-        <p
-          className="mt-1 text-[11px] uppercase tracking-[0.18em]"
-          style={{ color: "var(--adm-text-faint)" }}
+      <div className="flex items-center gap-2 px-4 py-4" style={{ borderBottom: "1px solid var(--adm-line)" }}>
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold"
+          style={{ background: "var(--adm-accent-soft)", color: "var(--adm-accent)" }}
+        >
+          LC
+        </span>
+        <span
+          className="min-w-0 truncate text-[13px] font-semibold"
+          style={{ color: "var(--adm-text)" }}
         >
           Centro de Comando
-        </p>
+        </span>
+        <span
+          className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold tracking-wider"
+          style={{ background: "var(--adm-surface-3)", color: "var(--adm-text-faint)" }}
+        >
+          {roleLabel}
+        </span>
       </div>
 
       {/* Navegação */}
-      <nav className="flex-1 space-y-6 px-3 py-5">
+      <nav className="flex-1 space-y-5 px-2.5 py-4">
         <NavGroup label="Operação">
           <AdminNavLink href="/admin" exact>
             <LayoutDashboard className="h-4 w-4 shrink-0" />
@@ -159,7 +144,7 @@ export default async function AdminLayout({
     <div className="admin-shell flex min-h-screen">
       {/* Sidebar — apenas desktop */}
       <aside
-        className="hidden w-60 shrink-0 flex-col md:flex"
+        className="hidden w-52 shrink-0 flex-col md:flex"
         style={{
           background: "var(--adm-surface)",
           borderRight: "1px solid var(--adm-line)",
