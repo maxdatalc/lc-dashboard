@@ -11,6 +11,9 @@ import {
   TrendingUp, Zap, BarChart3, Copy, Check, Wifi,
 } from "lucide-react";
 import { FEATURES_CATALOG } from "@/lib/features";
+import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminButton } from "@/components/admin/AdminButton";
+import { AdminBadge } from "@/components/admin/AdminBadge";
 
 const ICONE_MAP: Record<string, React.ElementType> = {
   LayoutDashboard, Landmark, Package, ShoppingCart, Users,
@@ -18,15 +21,35 @@ const ICONE_MAP: Record<string, React.ElementType> = {
   TrendingUp, Zap, BarChart3,
 };
 
-const INPUT =
-  "w-full border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-500 transition-all bg-white";
-const LABEL = "block text-xs font-semibold text-slate-700 mb-1.5";
-const SELECT =
-  "border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-500 transition-all bg-white";
-const SECTION_NUM =
-  "w-5 h-5 rounded-full bg-slate-900 text-white text-[10px] font-bold flex items-center justify-center shrink-0";
-const SECTION_NUM_DONE =
-  "w-5 h-5 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0";
+const INPUT = "adm-field adm-focusable w-full px-3.5 py-2.5 text-sm";
+const LABEL = "mb-1.5 block text-xs font-semibold";
+const SELECT = "adm-field adm-focusable px-3.5 py-2.5 text-sm";
+
+function SectionNumber({ done, num }: { done: boolean; num: number }) {
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+      style={{
+        background: done ? "var(--adm-signal)" : "var(--adm-text)",
+        color: done ? "#04120a" : "var(--adm-bg)",
+      }}
+    >
+      {done ? <Check className="h-3 w-3" /> : num}
+    </span>
+  );
+}
+
+function ErrorBanner({ text, small }: { text: string; small?: boolean }) {
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg ${small ? "px-3 py-2 text-xs" : "px-4 py-3 text-sm"}`}
+      style={{ background: "var(--adm-alert-soft)", border: "1px solid var(--adm-alert)", color: "var(--adm-alert)" }}
+    >
+      <AlertCircle className={small ? "h-3.5 w-3.5 shrink-0" : "h-4 w-4 shrink-0"} />
+      {text}
+    </div>
+  );
+}
 
 type TunnelStatus = "idle" | "loading" | "created" | "error";
 type BridgeStatus = "idle" | "loading" | "connected" | "error";
@@ -311,23 +334,27 @@ export default function NovaEmpresaPage() {
 
   if (sucesso) {
     return (
-      <div className="p-6 flex flex-col items-center justify-center min-h-96 gap-4 max-w-xl mx-auto">
-        <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-          <CheckCircle2 className="h-9 w-9 text-emerald-500" />
+      <div className="adm-rise mx-auto flex min-h-96 max-w-xl flex-col items-center justify-center gap-4 p-6">
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-2xl"
+          style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)" }}
+        >
+          <CheckCircle2 className="h-9 w-9" style={{ color: "var(--adm-signal)" }} />
         </div>
         <div className="text-center">
-          <p className="text-xl font-bold text-slate-900">Empresa cadastrada!</p>
+          <p className="text-xl font-bold" style={{ color: "var(--adm-text)" }}>Empresa cadastrada!</p>
           {clientesVinculados > 0 ? (
-            <p className="text-sm text-emerald-600 mt-1 font-medium">
+            <p className="mt-1 text-sm font-medium" style={{ color: "var(--adm-signal)" }}>
               {clientesVinculados} {clientesVinculados === 1 ? "empresa vinculada" : "empresas vinculadas"} automaticamente na base de clientes.
             </p>
           ) : (
-            <p className="text-sm text-slate-400 mt-1">Nenhum cliente encontrado na base para vincular.</p>
+            <p className="mt-1 text-sm" style={{ color: "var(--adm-text-faint)" }}>Nenhum cliente encontrado na base para vincular.</p>
           )}
         </div>
         <Link
           href="/admin/empresas"
-          className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+          className="adm-focusable rounded text-sm font-medium transition-colors"
+          style={{ color: "var(--adm-text-dim)" }}
         >
           Voltar para a lista de empresas →
         </Link>
@@ -338,91 +365,77 @@ export default function NovaEmpresaPage() {
   // ── Formulário ───────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-6">
+    <div className="adm-rise mx-auto max-w-3xl space-y-6 p-6">
 
-      <div className="space-y-2" style={{ animation: "fadeInUp 0.3s ease-out both" }}>
+      <div className="space-y-2">
         <Link
           href="/admin/empresas"
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-slate-700 transition-colors"
+          className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+          style={{ color: "var(--adm-text-faint)" }}
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           Todas as empresas
         </Link>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Nova Empresa</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold" style={{ color: "var(--adm-text)" }}>Nova Empresa</h1>
+          <p className="mt-0.5 text-sm" style={{ color: "var(--adm-text-dim)" }}>
             Crie o tunnel Cloudflare, conecte ao banco e configure a empresa.
           </p>
         </div>
       </div>
 
-      {erroGeral && (
-        <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {erroGeral}
-        </div>
-      )}
+      {erroGeral && <ErrorBanner text={erroGeral} />}
 
       <form onSubmit={handleSubmit} className="space-y-4">
 
         {/* ── Seção 1 — Tunnel Cloudflare ──────────────────────────────────── */}
-        <section
-          className="bg-white rounded-xl border border-slate-200 p-5 space-y-4"
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "50ms" }}
-        >
+        <AdminCard className="space-y-4 p-5">
           <div>
             <div className="flex items-center gap-2">
-              {tunnelCriado
-                ? <span className={SECTION_NUM_DONE}><Check className="h-3 w-3" /></span>
-                : <span className={SECTION_NUM}>1</span>}
-              <h2 className="text-sm font-semibold text-slate-900">Tunnel Cloudflare</h2>
+              <SectionNumber done={tunnelCriado} num={1} />
+              <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Tunnel Cloudflare</h2>
               {tunnelCriado && (
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                <AdminBadge variant="success">
                   <Wifi className="h-3 w-3" />
                   Tunnel criado
-                </span>
+                </AdminBadge>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 pl-7">
+            <p className="mt-0.5 pl-7 text-xs" style={{ color: "var(--adm-text-faint)" }}>
               Gera o tunnel e o DNS automaticamente. O técnico roda um comando no PC do cliente.
             </p>
           </div>
 
           {!tunnelCriado ? (
             <div className="space-y-3">
-              {tunnelError && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  {tunnelError}
-                </div>
-              )}
+              {tunnelError && <ErrorBanner text={tunnelError} small />}
               <div>
-                <label className={LABEL}>Nome do Tunnel</label>
+                <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Nome do Tunnel</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={tunnelNome}
                     onChange={(e) => setTunnelNome(e.target.value.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""))}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleCriarTunnel())}
-                    className={INPUT + " font-mono"}
+                    className={INPUT + " adm-mono"}
                     placeholder="supermercado-modelo"
                     disabled={tunnelStatus === "loading"}
                   />
-                  <button
+                  <AdminButton
                     type="button"
                     onClick={handleCriarTunnel}
                     disabled={tunnelStatus === "loading" || !tunnelNome}
-                    className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    className="whitespace-nowrap"
                   >
                     {tunnelStatus === "loading"
                       ? <Loader2 className="h-4 w-4 animate-spin" />
                       : <Wifi className="h-4 w-4" />}
                     {tunnelStatus === "loading" ? "Criando..." : "Criar Tunnel"}
-                  </button>
+                  </AdminButton>
                 </div>
                 {tunnelNome && (
-                  <p className="text-xs text-slate-400 mt-1.5">
-                    URL da bridge: <span className="font-mono text-slate-600">{tunnelNome}sql.lcgestor.com.br</span>
+                  <p className="mt-1.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>
+                    URL da bridge: <span className="adm-mono" style={{ color: "var(--adm-text-dim)" }}>{tunnelNome}sql.lcgestor.com.br</span>
                   </p>
                 )}
               </div>
@@ -430,27 +443,30 @@ export default function NovaEmpresaPage() {
           ) : (
             <div className="space-y-3">
               {/* Info do tunnel criado */}
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-                <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-emerald-700">Tunnel: {tunnelNome}</p>
-                  <p className="text-xs text-emerald-600 font-mono">{tunnelBridgeUrl}</p>
+              <div
+                className="flex items-center gap-3 rounded-xl p-3"
+                style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)" }}
+              >
+                <CheckCircle className="h-4 w-4 shrink-0" style={{ color: "var(--adm-signal)" }} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold" style={{ color: "var(--adm-signal)" }}>Tunnel: {tunnelNome}</p>
+                  <p className="adm-mono text-xs" style={{ color: "var(--adm-signal)" }}>{tunnelBridgeUrl}</p>
                 </div>
               </div>
 
-              {/* Comando de instalação */}
-              <div className="rounded-xl border border-slate-200 bg-slate-950 p-4 space-y-3">
+              {/* Comando de instalação — terminal, propositalmente escuro em ambos os temas */}
+              <div className="space-y-3 rounded-xl border border-white/10 bg-[#0a0e17] p-4">
                 <p className="text-xs font-semibold text-slate-300">Comando para o técnico</p>
                 <p className="text-xs text-slate-400">
                   Rode como <strong className="text-slate-300">Administrador</strong> no CMD do PC do cliente:
                 </p>
-                <div className="bg-slate-900 rounded-lg p-3 font-mono text-xs text-emerald-400 break-all leading-relaxed">
+                <div className="break-all rounded-lg bg-black/40 p-3 font-mono text-xs leading-relaxed text-emerald-400">
                   {installCommand}
                 </div>
                 <button
                   type="button"
                   onClick={handleCopiarComando}
-                  className="flex items-center gap-2 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-2 rounded-lg transition-colors"
+                  className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs font-medium text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
                 >
                   {copiado ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                   {copiado ? "Copiado!" : "Copiar comando"}
@@ -458,95 +474,88 @@ export default function NovaEmpresaPage() {
               </div>
             </div>
           )}
-        </section>
+        </AdminCard>
 
         {/* ── Seção 2 — Bridge SQL ─────────────────────────────────────────── */}
-        <section
-          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-4 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "100ms" }}
-        >
+        <AdminCard className="space-y-4 p-5" style={{ opacity: tunnelCriado ? 1 : 0.4, pointerEvents: tunnelCriado ? "auto" : "none" }}>
           <div>
             <div className="flex items-center gap-2">
-              {bridgeConectada
-                ? <span className={SECTION_NUM_DONE}><Check className="h-3 w-3" /></span>
-                : <span className={SECTION_NUM}>2</span>}
-              <h2 className="text-sm font-semibold text-slate-900">Lojas do Cliente</h2>
+              <SectionNumber done={bridgeConectada} num={2} />
+              <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Lojas do Cliente</h2>
               {bridgeConectada && (
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+                <AdminBadge variant="success">
                   <CheckCircle className="h-3 w-3" />
                   Bridge conectada
-                </span>
+                </AdminBadge>
               )}
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 pl-7">
+            <p className="mt-0.5 pl-7 text-xs" style={{ color: "var(--adm-text-faint)" }}>
               Informe o token da bridge instalada no cliente para importar as lojas.
             </p>
           </div>
 
           {!bridgeConectada ? (
-            <div className="space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
+            <div className="space-y-3 rounded-xl p-4" style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}>
               <div className="flex items-center gap-2">
-                <Database className="h-4 w-4 text-slate-500" />
-                <p className="text-sm font-medium text-slate-700">Conectar via Bridge SQL</p>
+                <Database className="h-4 w-4" style={{ color: "var(--adm-text-dim)" }} />
+                <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>Conectar via Bridge SQL</p>
               </div>
 
-              {bridgeError && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-xs text-red-600">
-                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                  {bridgeError}
-                </div>
-              )}
+              {bridgeError && <ErrorBanner text={bridgeError} small />}
 
               <div>
-                <label className={LABEL}>URL da Bridge</label>
+                <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>URL da Bridge</label>
                 <input
                   type="url"
                   value={bridgeUrl}
                   onChange={(e) => setBridgeUrl(e.target.value)}
-                  className={INPUT + " font-mono"}
+                  className={INPUT + " adm-mono"}
                   placeholder="https://...sql.lcgestor.com.br"
                 />
               </div>
 
               <div>
-                <label className={LABEL}>Token da Bridge</label>
+                <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Token da Bridge</label>
                 <div className="relative">
                   <input
                     type={verToken ? "text" : "password"}
                     value={bridgeToken}
                     onChange={(e) => setBridgeToken(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleConectarBridge())}
-                    className={INPUT + " pr-10 font-mono"}
+                    className={INPUT + " adm-mono pr-10"}
                     placeholder="Token configurado no Bridge SQL"
                   />
                   <button
                     type="button"
                     onClick={() => setVerToken((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                    className="adm-focusable absolute right-3 top-1/2 -translate-y-1/2 rounded"
+                    style={{ color: "var(--adm-text-faint)" }}
                   >
                     {verToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
-              <button
+              <AdminButton
                 type="button"
                 onClick={handleConectarBridge}
                 disabled={bridgeStatus === "loading" || !bridgeUrl || !bridgeToken}
-                className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {bridgeStatus === "loading"
                   ? <Loader2 className="h-4 w-4 animate-spin" />
                   : <Database className="h-4 w-4" />}
                 {bridgeStatus === "loading" ? "Conectando..." : "Conectar e Buscar Lojas"}
-              </button>
+              </AdminButton>
             </div>
           ) : (
-            <div className="flex items-center gap-3 p-3 bg-emerald-50 border border-emerald-200 rounded-xl">
-              <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-emerald-700 truncate">{bridgeUrl}</p>
-                <p className="text-xs text-emerald-600">
+            <div
+              className="flex items-center gap-3 rounded-xl p-3"
+              style={{ background: "var(--adm-signal-soft)", border: "1px solid var(--adm-signal)" }}
+            >
+              <CheckCircle className="h-4 w-4 shrink-0" style={{ color: "var(--adm-signal)" }} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-medium" style={{ color: "var(--adm-signal)" }}>{bridgeUrl}</p>
+                <p className="text-xs" style={{ color: "var(--adm-signal)" }}>
                   {lojasCount} {lojasCount === 1 ? "loja selecionada" : "lojas selecionadas"} de{" "}
                   {lojas.filter((l) => l.fromBridge).length} encontradas
                 </p>
@@ -554,7 +563,8 @@ export default function NovaEmpresaPage() {
               <button
                 type="button"
                 onClick={handleReconectar}
-                className="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 shrink-0 transition-colors"
+                className="adm-focusable flex shrink-0 items-center gap-1 rounded text-xs font-medium transition-colors"
+                style={{ color: "var(--adm-signal)" }}
               >
                 <RefreshCw className="h-3 w-3" />
                 Reconectar
@@ -564,13 +574,18 @@ export default function NovaEmpresaPage() {
 
           {lojas.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-medium text-slate-500">
+              <p className="text-xs font-medium" style={{ color: "var(--adm-text-faint)" }}>
                 {bridgeConectada ? "Lojas encontradas — selecione as que deseja cadastrar:" : "Lojas adicionadas:"}
               </p>
               {lojas.map((loja, idx) => (
                 <div
                   key={loja.id}
-                  className={`rounded-xl border p-3.5 space-y-3 transition-colors ${loja.selecionada ? "border-slate-200 bg-white" : "border-slate-100 bg-slate-50 opacity-60"}`}
+                  className="space-y-3 rounded-xl p-3.5 transition-colors"
+                  style={{
+                    border: "1px solid var(--adm-line-strong)",
+                    background: loja.selecionada ? "var(--adm-surface)" : "var(--adm-surface-2)",
+                    opacity: loja.selecionada ? 1 : 0.6,
+                  }}
                 >
                   <div className="flex items-center gap-2.5">
                     {loja.fromBridge ? (
@@ -578,23 +593,29 @@ export default function NovaEmpresaPage() {
                         type="checkbox"
                         checked={loja.selecionada}
                         onChange={(e) => atualizarLoja(loja.id, "selecionada", e.target.checked)}
-                        className="rounded border-slate-300 text-slate-700 focus:ring-slate-400 shrink-0"
+                        className="adm-focusable shrink-0 rounded"
+                        style={{ accentColor: "var(--adm-accent)" }}
                       />
                     ) : (
                       <span className="w-4 shrink-0" />
                     )}
-                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600 shrink-0">
-                      {loja.fromBridge ? `EmpId ${loja.empId}` : `Loja manual ${idx + 1}`}
+                    <span className="shrink-0">
+                      <AdminBadge variant="neutral">
+                        {loja.fromBridge ? `EmpId ${loja.empId}` : `Loja manual ${idx + 1}`}
+                      </AdminBadge>
                     </span>
                     {loja.fromBridge && (
-                      <span className="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">bridge</span>
+                      <span className="shrink-0">
+                        <AdminBadge variant="success">bridge</AdminBadge>
+                      </span>
                     )}
                     <span className="flex-1" />
                     {!loja.fromBridge && (
                       <button
                         type="button"
                         onClick={() => setLojas((prev) => prev.filter((l) => l.id !== loja.id))}
-                        className="flex items-center gap-1 text-xs text-red-400 hover:text-red-600 transition-colors shrink-0"
+                        className="adm-focusable flex shrink-0 items-center gap-1 rounded text-xs transition-colors"
+                        style={{ color: "var(--adm-alert)" }}
                       >
                         <X className="h-3.5 w-3.5" />
                         Remover
@@ -603,9 +624,11 @@ export default function NovaEmpresaPage() {
                   </div>
 
                   {loja.selecionada && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pl-6">
+                    <div className="grid grid-cols-1 gap-3 pl-6 sm:grid-cols-2">
                       <div>
-                        <label className={LABEL}>Nome <span className="text-red-500">*</span></label>
+                        <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>
+                          Nome <span style={{ color: "var(--adm-alert)" }}>*</span>
+                        </label>
                         <input
                           type="text"
                           value={loja.nome}
@@ -615,7 +638,7 @@ export default function NovaEmpresaPage() {
                         />
                       </div>
                       <div>
-                        <label className={LABEL}>CNPJ</label>
+                        <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>CNPJ</label>
                         <input
                           type="text"
                           value={loja.cnpj}
@@ -626,7 +649,9 @@ export default function NovaEmpresaPage() {
                       </div>
                       {!loja.fromBridge && (
                         <div>
-                          <label className={LABEL}>EmpId <span className="text-red-500">*</span></label>
+                          <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>
+                            EmpId <span style={{ color: "var(--adm-alert)" }}>*</span>
+                          </label>
                           <input
                             type="number"
                             min={1}
@@ -635,7 +660,7 @@ export default function NovaEmpresaPage() {
                             className={INPUT}
                             placeholder="ID no MaxManager"
                           />
-                          <p className="text-xs text-slate-400 mt-1">cofId da tabela config</p>
+                          <p className="mt-1 text-xs" style={{ color: "var(--adm-text-faint)" }}>cofId da tabela config</p>
                         </div>
                       )}
                     </div>
@@ -648,29 +673,29 @@ export default function NovaEmpresaPage() {
           <button
             type="button"
             onClick={() => setLojas((prev) => [...prev, { id: `manual-${Date.now()}`, empId: "", nome: "", cnpj: "", fromBridge: false, selecionada: true }])}
-            className="w-full flex items-center justify-center gap-2 border border-dashed border-slate-200 rounded-xl py-2.5 text-sm text-slate-500 hover:border-slate-400 hover:text-slate-700 hover:bg-slate-50 transition-all"
+            className="adm-focusable flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-2.5 text-sm transition-all"
+            style={{ borderColor: "var(--adm-line-strong)", color: "var(--adm-text-faint)" }}
           >
             <Plus className="h-4 w-4" />
             Adicionar loja manualmente
           </button>
-        </section>
+        </AdminCard>
 
         {/* ── Seção 3 — Dados da Empresa ──────────────────────────────────── */}
-        <section
-          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-4 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "150ms" }}
-        >
+        <AdminCard className="space-y-4 p-5" style={{ opacity: tunnelCriado ? 1 : 0.4, pointerEvents: tunnelCriado ? "auto" : "none" }}>
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>3</span>
-              <h2 className="text-sm font-semibold text-slate-900">Dados da Empresa</h2>
+              <SectionNumber done={false} num={3} />
+              <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Dados da Empresa</h2>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 pl-7">Nome de exibição e identificador único</p>
+            <p className="mt-0.5 pl-7 text-xs" style={{ color: "var(--adm-text-faint)" }}>Nome de exibição e identificador único</p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={LABEL}>Nome da Empresa <span className="text-red-500">*</span></label>
+              <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>
+                Nome da Empresa <span style={{ color: "var(--adm-alert)" }}>*</span>
+              </label>
               <input
                 type="text"
                 value={form.empresaNome}
@@ -681,20 +706,20 @@ export default function NovaEmpresaPage() {
               />
             </div>
             <div>
-              <label className={LABEL}>Slug</label>
+              <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Slug</label>
               <input
                 type="text"
                 value={form.empresaSlug}
                 onChange={(e) => setForm((prev) => ({ ...prev, empresaSlug: e.target.value }))}
                 required
-                className={INPUT + " font-mono"}
+                className={INPUT + " adm-mono"}
                 placeholder="supermercado-modelo"
               />
             </div>
           </div>
 
           <div>
-            <label className={LABEL}>Plano inicial</label>
+            <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Plano inicial</label>
             <select
               value={form.empresaPlano}
               onChange={(e) => setForm((prev) => ({ ...prev, empresaPlano: e.target.value as "free" | "premium" }))}
@@ -703,36 +728,37 @@ export default function NovaEmpresaPage() {
               <option value="free">Free</option>
               <option value="premium">Premium</option>
             </select>
-            <p className="text-xs text-slate-400 mt-1.5">Ajustado automaticamente ao ativar módulos premium.</p>
+            <p className="mt-1.5 text-xs" style={{ color: "var(--adm-text-faint)" }}>Ajustado automaticamente ao ativar módulos premium.</p>
           </div>
-        </section>
+        </AdminCard>
 
         {/* ── Seção 4 — Módulos ───────────────────────────────────────────── */}
-        <section
-          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-5 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "200ms" }}
-        >
+        <AdminCard className="space-y-5 p-5" style={{ opacity: tunnelCriado ? 1 : 0.4, pointerEvents: tunnelCriado ? "auto" : "none" }}>
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>4</span>
-              <h2 className="text-sm font-semibold text-slate-900">Módulos Contratados</h2>
+              <SectionNumber done={false} num={4} />
+              <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Módulos Contratados</h2>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 pl-7">Ative os módulos premium incluídos no contrato</p>
+            <p className="mt-0.5 pl-7 text-xs" style={{ color: "var(--adm-text-faint)" }}>Ative os módulos premium incluídos no contrato</p>
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Core — sempre incluídos</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>Core — sempre incluídos</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {coreFeatures.map((f) => {
                 const Icone = ICONE_MAP[f.icone] ?? Package;
                 return (
-                  <div key={f.key} className="flex items-start gap-3 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                    <Icone className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-slate-700">{f.label}</p>
-                      <p className="text-xs text-slate-400">{f.descricao}</p>
+                  <div
+                    key={f.key}
+                    className="flex items-start gap-3 rounded-lg p-3"
+                    style={{ background: "var(--adm-surface-2)", border: "1px solid var(--adm-line)" }}
+                  >
+                    <Icone className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--adm-text-faint)" }} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>{f.label}</p>
+                      <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>{f.descricao}</p>
                     </div>
-                    <div className="w-8 h-4 bg-slate-300 rounded-full shrink-0 mt-0.5 cursor-not-allowed" />
+                    <div className="mt-0.5 h-4 w-8 shrink-0 rounded-full" style={{ background: "var(--adm-line-strong)", cursor: "not-allowed" }} />
                   </div>
                 );
               })}
@@ -740,33 +766,43 @@ export default function NovaEmpresaPage() {
           </div>
 
           <div>
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Premium — módulos pagos</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider" style={{ color: "var(--adm-text-faint)" }}>Premium — módulos pagos</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {premiumFeatures.map((f) => {
                 const Icone = ICONE_MAP[f.icone] ?? Zap;
                 const ativo = form.featuresAtivas.includes(f.key);
                 return (
                   <div
                     key={f.key}
-                    className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${ativo ? "bg-purple-50 border-purple-200" : "bg-white border-slate-200"} ${!f.disponivel ? "opacity-60" : ""}`}
+                    className="flex items-start gap-3 rounded-lg p-3 transition-colors"
+                    style={{
+                      background: ativo ? "var(--adm-accent-soft)" : "var(--adm-surface)",
+                      border: `1px solid ${ativo ? "var(--adm-accent)" : "var(--adm-line-strong)"}`,
+                      opacity: f.disponivel ? 1 : 0.6,
+                    }}
                   >
-                    <Icone className={`h-4 w-4 mt-0.5 shrink-0 ${ativo ? "text-purple-500" : "text-slate-400"}`} />
-                    <div className="flex-1 min-w-0">
+                    <Icone className="mt-0.5 h-4 w-4 shrink-0" style={{ color: ativo ? "var(--adm-accent)" : "var(--adm-text-faint)" }} />
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-slate-700">{f.label}</p>
-                        {!f.disponivel && (
-                          <span className="text-xs bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">Em breve</span>
-                        )}
+                        <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>{f.label}</p>
+                        {!f.disponivel && <AdminBadge variant="neutral">Em breve</AdminBadge>}
                       </div>
-                      <p className="text-xs text-slate-400">{f.descricao}</p>
+                      <p className="text-xs" style={{ color: "var(--adm-text-faint)" }}>{f.descricao}</p>
                     </div>
                     <button
                       type="button"
                       disabled={!f.disponivel}
                       onClick={() => toggleFeature(f.key)}
-                      className={`relative w-8 h-4 rounded-full transition-colors shrink-0 mt-0.5 ${!f.disponivel ? "bg-slate-200 cursor-not-allowed" : ativo ? "bg-purple-500" : "bg-slate-300"}`}
+                      className="adm-focusable relative mt-0.5 h-4 w-8 shrink-0 rounded-full transition-colors"
+                      style={{
+                        background: !f.disponivel ? "var(--adm-line-strong)" : ativo ? "var(--adm-accent)" : "var(--adm-line-strong)",
+                        cursor: f.disponivel ? "pointer" : "not-allowed",
+                      }}
                     >
-                      <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform ${ativo ? "translate-x-4" : "translate-x-0.5"}`} />
+                      <span
+                        className="absolute top-0.5 h-3 w-3 rounded-full bg-white shadow transition-transform"
+                        style={{ transform: ativo ? "translateX(1rem)" : "translateX(0.125rem)" }}
+                      />
                     </button>
                   </div>
                 );
@@ -774,33 +810,30 @@ export default function NovaEmpresaPage() {
             </div>
           </div>
 
-          <p className="text-xs text-slate-500 border-t border-slate-50 pt-3">
+          <p className="pt-3 text-xs" style={{ color: "var(--adm-text-dim)", borderTop: "1px solid var(--adm-line)" }}>
             Plano atual:{" "}
-            <strong className={form.empresaPlano === "premium" ? "text-amber-600" : "text-slate-700"}>
+            <strong style={{ color: form.empresaPlano === "premium" ? "var(--adm-warn)" : "var(--adm-text)" }}>
               {form.empresaPlano === "premium" ? "★ Premium" : "Free"}
             </strong>
           </p>
-        </section>
+        </AdminCard>
 
         {/* ── Seção 5 — Acesso do Gestor ──────────────────────────────────── */}
-        <section
-          className={`bg-white rounded-xl border border-slate-200 p-5 space-y-4 transition-opacity ${!tunnelCriado ? "opacity-40 pointer-events-none" : ""}`}
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "250ms" }}
-        >
+        <AdminCard className="space-y-4 p-5" style={{ opacity: tunnelCriado ? 1 : 0.4, pointerEvents: tunnelCriado ? "auto" : "none" }}>
           <div>
             <div className="flex items-center gap-2">
-              <span className={SECTION_NUM}>5</span>
-              <h2 className="text-sm font-semibold text-slate-900">Acesso do Gestor</h2>
-              <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Opcional</span>
+              <SectionNumber done={false} num={5} />
+              <h2 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>Acesso do Gestor</h2>
+              <AdminBadge variant="neutral">Opcional</AdminBadge>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5 pl-7">
+            <p className="mt-0.5 pl-7 text-xs" style={{ color: "var(--adm-text-faint)" }}>
               Deixe em branco para cadastrar usuários depois pela aba Usuários.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={LABEL}>Nome Completo</label>
+              <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Nome Completo</label>
               <input
                 type="text"
                 value={form.usuarioNome}
@@ -809,7 +842,7 @@ export default function NovaEmpresaPage() {
               />
             </div>
             <div>
-              <label className={LABEL}>E-mail</label>
+              <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>E-mail</label>
               <input
                 type="email"
                 value={form.usuarioEmail}
@@ -819,9 +852,9 @@ export default function NovaEmpresaPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className={LABEL}>Senha provisória</label>
+              <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Senha provisória</label>
               <div className="relative">
                 <input
                   type={verSenha ? "text" : "password"}
@@ -833,17 +866,18 @@ export default function NovaEmpresaPage() {
                 <button
                   type="button"
                   onClick={() => setVerSenha((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700"
+                  className="adm-focusable absolute right-3 top-1/2 -translate-y-1/2 rounded"
+                  style={{ color: "var(--adm-text-faint)" }}
                 >
                   {verSenha ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               {form.usuarioSenha.length > 0 && form.usuarioSenha.length < 8 && (
-                <p className="text-xs text-red-500 mt-1">Mínimo de 8 caracteres</p>
+                <p className="mt-1 text-xs" style={{ color: "var(--adm-alert)" }}>Mínimo de 8 caracteres</p>
               )}
             </div>
             <div>
-              <label className={LABEL}>Papel</label>
+              <label className={LABEL} style={{ color: "var(--adm-text-dim)" }}>Papel</label>
               <select
                 value={form.usuarioPapel}
                 onChange={(e) => setForm((prev) => ({ ...prev, usuarioPapel: e.target.value as "owner" | "admin" | "viewer" }))}
@@ -855,14 +889,13 @@ export default function NovaEmpresaPage() {
               </select>
             </div>
           </div>
-        </section>
+        </AdminCard>
 
         {/* Botão submit */}
-        <button
+        <AdminButton
           type="submit"
           disabled={loading || !tunnelCriado}
-          className="w-full flex items-center justify-center gap-2 bg-slate-900 text-white rounded-xl py-3 font-semibold hover:bg-slate-700 hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed transition-all hover:-translate-y-px"
-          style={{ animation: "fadeInUp 0.3s ease-out both", animationDelay: "300ms" }}
+          className="w-full justify-center py-3"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
           {!tunnelCriado
@@ -870,7 +903,7 @@ export default function NovaEmpresaPage() {
             : loading
               ? "Cadastrando..."
               : `Cadastrar empresa (${lojasCount} ${lojasCount === 1 ? "loja" : "lojas"})`}
-        </button>
+        </AdminButton>
       </form>
     </div>
   );
