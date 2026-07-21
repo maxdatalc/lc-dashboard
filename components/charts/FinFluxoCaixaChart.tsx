@@ -103,7 +103,9 @@ export function FinFluxoCaixaChart({ data, selectedMes, onMesClick }: Props) {
         />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
         <Legend
-          wrapperStyle={{ fontSize: 11, paddingTop: 6 }}
+          wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
+          iconType="circle"
+          iconSize={9}
           formatter={(v) => <span style={{ color: "var(--text-secondary)" }}>{v}</span>}
         />
         <Bar

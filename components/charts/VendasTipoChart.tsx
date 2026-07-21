@@ -73,8 +73,8 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
   return (
     <div className="flex flex-col gap-3">
 
-      {/* ── Linha principal: pizza + stats ─────────────────────────── */}
-      <div className="flex gap-4 items-center">
+      {/* ── Linha principal: pizza + stats (empilha centralizado no mobile) ── */}
+      <div className="flex flex-col items-center gap-4 sm:flex-row">
 
         {/* Pizza — grande, ocupa ~45% do card */}
         <div className="flex-shrink-0" style={{ width: 175, height: 175 }}>
@@ -109,7 +109,7 @@ export function VendasTipoChart({ data, selectedTipo, onSelect }: Props) {
         </div>
 
         {/* Stats por tipo */}
-        <div className="flex flex-col flex-1 min-w-0">
+        <div className="flex w-full flex-col min-w-0 sm:w-auto sm:flex-1">
           {items.map((item, i) => {
             const pct = totalVendas > 0 ? Math.round((item.d.clientes / totalVendas) * 100) : 0;
             const isDimmed = hasSelected && selectedTipo !== item.key;

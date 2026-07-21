@@ -125,7 +125,7 @@ export function TopClientesChart({
   return (
     <div>
       {/* Toggle PF / PJ — mesma altura que o Valor/Qtd do TopProdutos */}
-      <div style={{ display: "flex", gap: "6px", marginBottom: "12px" }}>
+      <div className="flex justify-center md:justify-start" style={{ gap: "6px", marginBottom: "12px" }}>
         {(["PF", "PJ"] as const).map((tipo) => (
           <button
             key={tipo}

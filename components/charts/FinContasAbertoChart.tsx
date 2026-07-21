@@ -186,7 +186,7 @@ export function FinContasAbertoChart({ data, selectedMes, onMesClick }: Props) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+      <div className="flex flex-wrap items-center justify-center gap-2 md:justify-between">
         <div style={{ display: "flex", gap: 14 }}>
           <LegendDot color={CYAN} label="A Receber" />
           <LegendDot color={AMBER} label="A Pagar" />

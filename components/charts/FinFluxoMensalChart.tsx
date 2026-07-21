@@ -88,7 +88,7 @@ export function FinFluxoMensalChart({ data, selectedMes, onMesClick }: Props) {
         <XAxis dataKey="mes" tickFormatter={mesLabel} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
         <YAxis tickFormatter={axisAbbr} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} width={62} />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(127,127,127,0.06)" }} />
-        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => <span style={{ color: "var(--text-secondary)" }}>{v}</span>} iconType="circle" />
+        <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconSize={9} formatter={(v) => <span style={{ color: "var(--text-secondary)" }}>{v}</span>} iconType="circle" />
 
         <Bar dataKey="recebimentos" name="Recebimentos" fill="var(--accent-cyan)" radius={[4, 4, 0, 0]} maxBarSize={34} cursor="pointer" onClick={(d: unknown) => handleClick(d as FinFluxoMensalData)}>
           {data.map((e) => <Cell key={e.mes} fill="url(#fluxoReceb)" opacity={dim(e.mes)} />)}

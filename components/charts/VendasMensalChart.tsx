@@ -76,8 +76,8 @@ export function VendasMensalChart({ data, onMesClick, selectedMes }: Props) {
     <div>
       {/* Legend */}
       <div
-        className="flex items-center gap-5 justify-end px-1 mb-2"
-        style={{ fontSize: "11px", color: "var(--text-muted)" }}
+        className="flex items-center gap-5 justify-center md:justify-end px-1 mb-2"
+        style={{ fontSize: "12px", color: "var(--text-muted)" }}
       >
         <div className="flex items-center gap-1.5">
           <span

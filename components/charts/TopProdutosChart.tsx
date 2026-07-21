@@ -101,7 +101,7 @@ export function TopProdutosChart({
   return (
     <div>
       {/* Toggles — Valor/Qtd e Produto/Serviço */}
-      <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" }}>
+      <div className="flex flex-wrap justify-center md:justify-start" style={{ gap: "6px", marginBottom: "12px" }}>
         {(["valor", "qtd"] as const).map((m) => (
           <button
             key={m}

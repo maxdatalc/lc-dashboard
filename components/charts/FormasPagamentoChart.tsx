@@ -168,7 +168,7 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
   }
 
   return (
-    <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+    <div className="flex flex-col items-center gap-5 md:flex-row md:items-start">
 
       {/* ── Left: Donut grande + badges À VISTA / A PRAZO ─────── */}
       <div style={{ flexShrink: 0, width: 215 }}>
@@ -272,7 +272,7 @@ export function FormasPagamentoChart({ data, selectedNome, onSelect }: Props) {
       </div>
 
       {/* ── Right: sections À VISTA e A PRAZO em cards ──────── */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-1">
         {vista.length > 0 && (
           <div style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
             {renderSectionHeader("À VISTA", totalVista, Zap, "#f59e0b")}

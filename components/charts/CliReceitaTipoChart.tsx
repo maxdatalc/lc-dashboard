@@ -91,7 +91,7 @@ export function CliReceitaTipoChart({ data, selectedMes, onMesClick }: Props) {
         <XAxis dataKey="mes" tickFormatter={mesLabel} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} interval={0} />
         <YAxis tickFormatter={axisAbbr} tick={{ fill: "var(--text-muted)", fontSize: 11 }} axisLine={false} tickLine={false} width={62} />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(127,127,127,0.06)" }} />
-        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} formatter={(v) => <span style={{ color: "var(--text-secondary)" }}>{v}</span>} iconType="circle" />
+        <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} iconSize={9} formatter={(v) => <span style={{ color: "var(--text-secondary)" }}>{v}</span>} iconType="circle" />
 
         <Bar dataKey="recorrentes" name="Recorrentes" stackId="rev" maxBarSize={38} cursor="pointer" onClick={(d: unknown) => handleClick(d as CliReceitaTipoData)}>
           {data.map((e) => <Cell key={e.mes} fill="url(#cliRec)" opacity={dim(e.mes)} />)}
