@@ -94,7 +94,7 @@ export function ProdutosDashboard() {
   const multi = (data?.filiais.length ?? 0) > 1;
 
   return (
-    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
+    <div className="px-4 py-4 md:px-5 md:py-3 flex flex-col gap-4 md:gap-3">
       <TopProgressBar loading={refreshing} />
 
       {/* Indicador de consolidação multiloja — só aparece quando relevante */}
@@ -224,7 +224,7 @@ function SemLoja() {
 function Skeleton() {
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+      <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
         {Array.from({ length: 8 }).map((_, i) => <div key={i} className="skeleton-bar rounded-2xl" style={{ height: 104 }} />)}
       </div>
       <div className="grid gap-3 grid-cols-1 lg:grid-cols-12">

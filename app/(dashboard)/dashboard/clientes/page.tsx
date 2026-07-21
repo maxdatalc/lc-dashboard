@@ -325,10 +325,10 @@ export default function ClientesPage() {
   const cidadeChipLabel = fCidade === SEM_CIDADE ? "Sem cidade" : fCidade;
 
   return (
-    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
+    <div className="px-4 py-4 md:px-5 md:py-3 flex flex-col gap-4 md:gap-3">
       <TopProgressBar loading={isRefreshing} />
 
-      <div className="flex flex-col gap-3" style={{ opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1, transition: "opacity 0.2s ease", pointerEvents: isRefreshing && hasLoadedOnce.current ? "none" : "auto" }}>
+      <div className="flex flex-col gap-4 md:gap-3" style={{ opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1, transition: "opacity 0.2s ease", pointerEvents: isRefreshing && hasLoadedOnce.current ? "none" : "auto" }}>
 
         {/* Chips de filtro ativo */}
         {temFiltro && (
@@ -343,7 +343,7 @@ export default function ClientesPage() {
         )}
 
         {/* ── Linha 1: KPIs ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {loading || !derived ? (
             Array.from({ length: 6 }).map((_, i) => <div key={i} className="shimmer rounded-2xl" style={{ height: 138 }} />)
           ) : (

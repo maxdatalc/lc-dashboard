@@ -62,7 +62,7 @@ export function KpiTile({
 
   return (
     <div
-      className="flex min-w-0 flex-col gap-1.5 rounded-xl p-3.5 xs:p-4"
+      className="flex min-w-0 flex-col gap-2 rounded-xl p-4"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
@@ -111,7 +111,7 @@ export function KpiTile({
           style={{
             color: "var(--text-primary)",
             fontFamily: "var(--font-numeric)",
-            fontSize: "clamp(20px, 6vw, 26px)",
+            fontSize: "clamp(22px, 6.5vw, 27px)",
             letterSpacing: "-0.01em",
             // formatCurrency insere espaço não separável entre "R$" e o número;
             // sem isso valores longos não têm ponto de quebra e vazam do card.
@@ -127,7 +127,7 @@ export function KpiTile({
           role="img"
           aria-label={progress.label}
           title={progress.label}
-          className="h-1 w-full overflow-hidden rounded-full"
+          className="h-1.5 w-full overflow-hidden rounded-full"
           style={{ background: "var(--chart-track-bg)" }}
         >
           <div

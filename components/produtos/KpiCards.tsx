@@ -118,7 +118,7 @@ export function KpiCards({
   const IS = { size: 15, strokeWidth: 2 } as const;
 
   return (
-    <div className="grid gap-3 grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
+    <div className="grid gap-3 grid-cols-1 xs:grid-cols-2 md:grid-cols-4 xl:grid-cols-8">
       <ValorCard delay={0}  icon={<Coins {...IS} />}      label="Valor em Estoque"   valor={kpis.valorCusto}      sub="capital investido a custo" color="var(--accent-yellow)" />
       <ValorCard delay={40} icon={<Tag {...IS} />}        label="Potencial de Venda" valor={kpis.valorVenda}      sub="estoque a preço de venda"  color="var(--accent-cyan)" />
       <ValorCard delay={80} icon={<TrendingUp {...IS} />} label="Margem Potencial"   valor={kpis.margemPotencial} sub="venda − custo"             color="var(--accent-green)" />

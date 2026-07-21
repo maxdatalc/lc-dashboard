@@ -218,12 +218,12 @@ export default function DashboardPage() {
   if (lojaIds.length === 0) return <SemLoja />;
 
   return (
-    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
+    <div className="px-4 py-4 md:px-5 md:py-3 flex flex-col gap-4 md:gap-3">
       <TopProgressBar loading={isRefreshing} />
 
       {/* ── Conteúdo — dimming suave durante refresh ───────────────────────── */}
       <div
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-4 md:gap-3"
         style={{
           opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1,
           transition: 'opacity 0.2s ease',
@@ -232,7 +232,7 @@ export default function DashboardPage() {
       >
 
       {/* ── KPIs — grid responsivo (2 col mobile → 6 col desktop) ──────────── */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         <KpiTile
           label="Venda Total"
           value={formatCurrency(kpis?.faturamento?.value ?? 0)}

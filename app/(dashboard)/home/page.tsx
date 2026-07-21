@@ -389,7 +389,7 @@ export default function HomePage() {
         className="flex flex-col gap-5"
       >
         {/* ── KPIs executivos ───────────────────────────────────── */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
           <KpiTile
             label="Faturamento do período"
             value={formatCurrency(kpis.faturamento)}

@@ -99,7 +99,7 @@ function KpiSimple({ label, icon, color, value, footer, footerColor, delay = 0 }
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: "clamp(15px, 1.32vw, 21px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.15, overflowWrap: "anywhere", marginBottom: 8 }}>{value}</div>
+      <div style={{ fontSize: "clamp(18px, 4.5vw, 21px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.15, overflowWrap: "anywhere", marginBottom: 8 }}>{value}</div>
       <div style={{ fontSize: 11.5, color: footerColor ?? "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{footer}</div>
     </div>
   );
@@ -111,7 +111,7 @@ function KpiSplit({ label, icon, color, value, vencido, aVencer, note, delay = 0
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
-      <div style={{ fontSize: "clamp(15px, 1.3vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.15, overflowWrap: "anywhere", marginBottom: note ? 4 : 12 }}>{value}</div>
+      <div style={{ fontSize: "clamp(18px, 4.5vw, 20px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.02em", lineHeight: 1.15, overflowWrap: "anywhere", marginBottom: note ? 4 : 12 }}>{value}</div>
       {note && <div style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 10 }}>{note}</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, borderTop: "1px solid var(--border-subtle)", paddingTop: 10 }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
@@ -270,10 +270,10 @@ export default function FinanceiroPage() {
   const temFiltro = fMes != null || fFilial != null;
 
   return (
-    <div className="px-3 py-3 sm:px-4 md:px-5 md:py-3 flex flex-col gap-3">
+    <div className="px-4 py-4 md:px-5 md:py-3 flex flex-col gap-4 md:gap-3">
       <TopProgressBar loading={isRefreshing} />
 
-      <div className="flex flex-col gap-3" style={{ opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1, transition: "opacity 0.2s ease", pointerEvents: isRefreshing && hasLoadedOnce.current ? "none" : "auto" }}>
+      <div className="flex flex-col gap-4 md:gap-3" style={{ opacity: isRefreshing && hasLoadedOnce.current ? 0.55 : 1, transition: "opacity 0.2s ease", pointerEvents: isRefreshing && hasLoadedOnce.current ? "none" : "auto" }}>
 
         {/* Chips de filtro ativo */}
         {temFiltro && (
@@ -288,7 +288,7 @@ export default function FinanceiroPage() {
         )}
 
         {/* ── Linha 1: KPIs ──────────────────────────────────────────────── */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
           {loading || !derived ? (
             Array.from({ length: 5 }).map((_, i) => <div key={i} className="shimmer rounded-2xl" style={{ height: 138 }} />)
           ) : (

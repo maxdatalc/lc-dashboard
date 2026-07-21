@@ -153,7 +153,7 @@ export function MonitoramentoClient() {
         />
 
         {/* ── Telemetria ──────────────────────────────────────── */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3">
           <Tile
             label="Bridges online"
             value={bs?.online ?? 0}
