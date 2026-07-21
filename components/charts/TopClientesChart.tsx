@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { MapPin, Phone, Mail, CreditCard, ShoppingCart, Wallet, ChevronDown, X, TrendingUp, RotateCcw, CalendarDays, Hash } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export interface ClienteItem {
   nome: string;
@@ -27,6 +28,13 @@ function formatMoeda(valor: number): string {
     style: "currency",
     currency: "BRL",
   }).format(valor);
+}
+
+/** Versão compacta para o mobile — libera largura da linha para o nome do cliente. */
+function formatMoedaCompacta(valor: number): string {
+  if (valor >= 1_000_000) return `R$ ${(valor / 1_000_000).toFixed(2).replace(".", ",")} mi`;
+  if (valor >= 10_000) return `R$ ${Math.round(valor / 1_000)} mil`;
+  return formatMoeda(valor);
 }
 
 function formatData(data: string): string {
@@ -104,6 +112,7 @@ export function TopClientesChart({
 }) {
   const [expandido, setExpandido] = useState<number | null>(null);
   const [tipoFilter, setTipoFilter] = useState<"PF" | "PJ" | null>(null);
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   if (!data.length) {
     return (
@@ -246,13 +255,17 @@ export function TopClientesChart({
                     <span
                       title={cliente.nome}
                       style={{
-                        fontSize: "11px",
+                        fontSize: "12px",
                         fontWeight: 500,
                         color: "var(--text-primary)",
+                        // Nome completo em até 2 linhas — reticências só como último recurso
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        maxWidth: "clamp(100px, 35vw, 200px)",
+                        lineHeight: 1.35,
+                        overflowWrap: "anywhere",
+                        minWidth: 0,
                       }}
                     >
                       {cliente.nome}
@@ -308,7 +321,7 @@ export function TopClientesChart({
                     marginRight: isSelected ? "20px" : "0",
                   }}
                 >
-                  {formatMoeda(cliente.total)}
+                  {isMobile ? formatMoedaCompacta(cliente.total) : formatMoeda(cliente.total)}
                 </span>
 
                 {/* Chevron para expandir detalhes (escondido quando selecionado) */}

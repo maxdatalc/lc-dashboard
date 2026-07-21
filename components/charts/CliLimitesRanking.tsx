@@ -81,7 +81,7 @@ export function CliLimitesRanking({ data, selectedCliId, onSelect, onVerTodos }:
                 <span style={{ fontSize: 11, fontWeight: 700, minWidth: 16, color: getRankColor(i), fontFamily: "var(--font-numeric, monospace)" }}>{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 5 }}>
-                    <span title={c.nome} style={{ fontSize: 11.5, fontWeight: 500, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "clamp(90px, 30vw, 200px)" }}>
+                    <span title={c.nome} style={{ fontSize: 12, fontWeight: 500, color: "var(--text-primary)", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", lineHeight: 1.35, overflowWrap: "anywhere", minWidth: 0 }}>
                       {c.nome}
                     </span>
                     <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-primary)", flexShrink: 0, fontFamily: "var(--font-numeric, monospace)" }}>

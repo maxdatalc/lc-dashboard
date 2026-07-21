@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   Package, Tag, Factory, Banknote, Wallet, TrendingUp, Hash, ChevronDown, X,
 } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export interface ProdutoItem {
   nome: string;
@@ -62,9 +63,17 @@ export function TopProdutosChart({
   const [modo, setModo] = useState<"valor" | "qtd">("valor");
   const [tipoFilter, setTipoFilter] = useState<"P" | "S" | null>(null);
   const [expandido, setExpandido] = useState<number | null>(null);
+  const isMobile = useMediaQuery("(max-width: 767px)");
 
   const formatMoeda = (v: number) =>
     new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+
+  // Versão compacta para o mobile — libera largura da linha para o nome do produto
+  const formatMoedaCompacta = (v: number) => {
+    if (v >= 1_000_000) return `R$ ${(v / 1_000_000).toFixed(2).replace(".", ",")} mi`;
+    if (v >= 10_000) return `R$ ${Math.round(v / 1_000)} mil`;
+    return formatMoeda(v);
+  };
 
   if (!data.length) {
     return (
@@ -220,14 +229,16 @@ export function TopProdutosChart({
                     <span
                       title={produto.nome}
                       style={{
-                        fontSize: "11px",
+                        fontSize: "12px",
                         fontWeight: 500,
                         color: "var(--text-primary)",
+                        // Nome completo em até 2 linhas — reticências só como último recurso
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
                         overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                        display: "block",
-                        maxWidth: "clamp(100px, 35vw, 200px)",
+                        lineHeight: 1.35,
+                        overflowWrap: "anywhere",
                       }}
                     >
                       {produto.nome}
@@ -264,7 +275,7 @@ export function TopProdutosChart({
                   }}
                 >
                   {modo === "valor"
-                    ? formatMoeda(produto.valor)
+                    ? (isMobile ? formatMoedaCompacta(produto.valor) : formatMoeda(produto.valor))
                     : `${produto.quantidade.toFixed(0)} un`}
                 </span>
 
