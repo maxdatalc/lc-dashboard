@@ -18,6 +18,10 @@ export interface EcommerceProductRow {
   grupoNome: string | null;
   subGrupoNome: string | null;
   marcaNome: string | null;
+  proPeso: number | null;
+  proAltura: number | null;
+  proLargura: number | null;
+  proComprimento: number | null;
 }
 
 export type Disponibilidade = "em_estoque" | "ultimas_unidades" | "indisponivel";
@@ -38,6 +42,10 @@ export interface EcomProdutoInsert {
   disponibilidade: Disponibilidade;
   publicado: boolean;
   sincronizado_em: string;
+  peso_kg: number | null;
+  altura_cm: number | null;
+  largura_cm: number | null;
+  comprimento_cm: number | null;
 }
 
 /** Abaixo disto, a vitrine avisa que está acabando em vez de prometer estoque. */
@@ -72,6 +80,11 @@ export function slugDoProduto(nome: string, proId: number): string {
 function ouNulo(valor: string | null): string | null {
   const limpo = valor?.trim();
   return limpo ? limpo : null;
+}
+
+/** Peso/dimensão ausente ou <= 0 vira null — nunca 0, que faria o frete parecer grátis/impossível. */
+function numeroOuNulo(valor: number | null): number | null {
+  return valor && valor > 0 ? valor : null;
 }
 
 /**
@@ -109,5 +122,9 @@ export function mapearProduto(
     // ERP some do resultado e é despublicado à parte, não deletado.
     publicado: true,
     sincronizado_em: sincronizadoEm,
+    peso_kg: numeroOuNulo(row.proPeso),
+    altura_cm: numeroOuNulo(row.proAltura),
+    largura_cm: numeroOuNulo(row.proLargura),
+    comprimento_cm: numeroOuNulo(row.proComprimento),
   };
 }

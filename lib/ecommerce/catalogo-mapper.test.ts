@@ -23,6 +23,10 @@ function linha(over: Partial<EcommerceProductRow> = {}): EcommerceProductRow {
     grupoNome: "SISTEMA ELETRICO",
     subGrupoNome: "DIVERSOS",
     marcaNome: "ORGUS",
+    proPeso: 2,
+    proAltura: 15,
+    proLargura: 20,
+    proComprimento: 25,
     ...over,
   };
 }
@@ -94,6 +98,10 @@ describe("mapearProduto", () => {
       disponibilidade: "ultimas_unidades",
       publicado: true,
       sincronizado_em: AGORA,
+      peso_kg: 2,
+      altura_cm: 15,
+      largura_cm: 20,
+      comprimento_cm: 25,
     });
   });
 
@@ -115,5 +123,29 @@ describe("mapearProduto", () => {
     expect(mapearProduto(linha({ proVenda: 0 }), LOJA, AGORA)).toBeNull();
     expect(mapearProduto(linha({ proVenda: null }), LOJA, AGORA)).toBeNull();
     expect(mapearProduto(linha({ proVenda: -10 }), LOJA, AGORA)).toBeNull();
+  });
+
+  it("mapeia peso e dimensões quando presentes", () => {
+    const p = mapearProduto(
+      linha({ proPeso: 11, proAltura: 10, proLargura: 10, proComprimento: 10 }),
+      LOJA,
+      AGORA,
+    );
+    expect(p?.peso_kg).toBe(11);
+    expect(p?.altura_cm).toBe(10);
+    expect(p?.largura_cm).toBe(10);
+    expect(p?.comprimento_cm).toBe(10);
+  });
+
+  it("trata peso/dimensão ausente ou zerado como null (não quebra o frete depois)", () => {
+    const semDado = mapearProduto(
+      linha({ proPeso: null, proAltura: 0, proLargura: null, proComprimento: 0 }),
+      LOJA,
+      AGORA,
+    );
+    expect(semDado?.peso_kg).toBeNull();
+    expect(semDado?.altura_cm).toBeNull();
+    expect(semDado?.largura_cm).toBeNull();
+    expect(semDado?.comprimento_cm).toBeNull();
   });
 });
