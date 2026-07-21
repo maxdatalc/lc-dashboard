@@ -4,123 +4,29 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard,
-  Home,
-  Settings2,
-  Landmark,
-  Users,
   LogOut,
-  Package,
-  ShoppingCart,
-  ClipboardList,
   ChevronRight,
-  ArrowLeftRight,
   Building2,
-  FileText,
-  BadgeDollarSign,
-  Receipt,
-  Scale,
-  SendHorizonal,
+  Settings2,
 } from "lucide-react";
 import { logout, trocarEmpresa } from "@/app/actions/auth";
 import { useEmpresa } from "@/lib/contexts/empresa-context";
 import { PLAN_LABELS } from "@/lib/plans";
 import { BridgeHealthBadge } from "@/components/layout/BridgeHealthBadge";
+import { MobileMoreDrawer } from "@/components/layout/MobileMoreDrawer";
+import {
+  GRUPOS,
+  mobilePrimaryLeaves,
+  type NavLeaf,
+  type NavSection,
+  type NavCategory,
+  type NavGroup,
+} from "@/lib/nav/grupos";
 
 interface Props {
   isAdmin: boolean;
   multiEmpresa?: boolean;
 }
-
-// ─── Tipos ────────────────────────────────────────────────────────────────────
-
-type NavLeaf = {
-  href: string;
-  label: string;
-  icon: React.ElementType;
-  exact?: boolean;
-  featureKey?: string;
-};
-
-type NavSection = {
-  key: string;
-  label: string;
-  icon: React.ElementType;
-  items: NavLeaf[];
-};
-
-type NavCategory = {
-  key: string;
-  label: string;
-  icon: React.ElementType;
-  sections: NavSection[];
-};
-
-type NavGroup = {
-  key: string;
-  label: string;
-  icon: React.ElementType;
-  featureKey?: string;
-  items?: NavLeaf[];
-  categories?: NavCategory[];
-};
-
-// ─── Estrutura de navegação ───────────────────────────────────────────────────
-
-const GRUPOS: NavGroup[] = [
-  {
-    key: "dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    items: [
-      { href: "/home",                 label: "Visão Geral", icon: Home,         exact: true, featureKey: "dashboard_visao_geral" },
-      { href: "/dashboard",            label: "Vendas",     icon: ShoppingCart, exact: true, featureKey: "modulo_vendas" },
-      { href: "/dashboard/financeiro", label: "Financeiro", icon: Landmark,     featureKey: "modulo_financeiro" },
-      { href: "/dashboard/produtos",   label: "Produtos",   icon: Package,      featureKey: "modulo_produtos"   },
-      { href: "/dashboard/clientes",   label: "Clientes",   icon: Users,        featureKey: "modulo_clientes"   },
-    ],
-  },
-  {
-    key: "movimentacao",
-    label: "Movimentação",
-    icon: ArrowLeftRight,
-    items: [
-      { href: "/os", label: "Ordens de Serviço", icon: ClipboardList, featureKey: "modulo_os" },
-    ],
-  },
-  {
-    key: "fiscal",
-    label: "Fiscal",
-    icon: Scale,
-    featureKey: "modulo_fiscal",
-    items: [
-      { href: "/fiscal/transmissao-xmls", label: "Transmissão de XMLs", icon: SendHorizonal, featureKey: "modulo_fiscal" },
-    ],
-  },
-  {
-    key: "relatorios",
-    label: "Relatórios",
-    icon: FileText,
-    featureKey: "modulo_relatorios",
-    categories: [
-      {
-        key: "vendas",
-        label: "Vendas",
-        icon: ShoppingCart,
-        sections: [
-          {
-            key: "comissoes",
-            label: "Comissões",
-            icon: BadgeDollarSign,
-            items: [
-              { href: "/relatorios/comissao-recebimento", label: "Comissão por Recebimento", icon: Receipt },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-];
 
 // ─── Estilos base ─────────────────────────────────────────────────────────────
 
@@ -750,7 +656,7 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
         </div>
       </aside>
 
-      {/* ── Mobile: bottom navigation ──────────────────────────────── */}
+      {/* ── Mobile: bottom navigation (derivada de GRUPOS + drawer "Mais") ── */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex items-center justify-around px-2"
         style={{
@@ -761,41 +667,34 @@ export function Sidebar({ isAdmin, multiEmpresa }: Props) {
           minHeight: "64px",
         }}
       >
-        {[
-          { href: "/dashboard",                          label: "Dashboard",  icon: LayoutDashboard, exact: true,  featureKey: undefined },
-          { href: "/dashboard/financeiro",               label: "Financeiro", icon: Landmark,        exact: false, featureKey: "modulo_financeiro" },
-          { href: "/dashboard/clientes",                 label: "Clientes",   icon: Users,           exact: false, featureKey: "modulo_clientes"   },
-          { href: "/os",                                 label: "OS",         icon: ClipboardList,   exact: false, featureKey: "modulo_os"         },
-          { href: "/relatorios/comissao-recebimento",    label: "Relatórios", icon: FileText,        exact: false, featureKey: "modulo_relatorios" },
-          ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Settings2, exact: false, featureKey: undefined }] : []),
-        ]
-          .filter(({ featureKey }) => isAdmin || !featureKey || hasFeature(featureKey))
-          .map(({ href, label, icon: Icon, exact }) => {
-            const active = exact ? pathname === href : pathname.startsWith(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className="flex flex-col items-center"
-                style={{
-                  gap: "4px",
-                  padding: "6px 12px",
-                  borderRadius: "10px",
-                  color: active ? "var(--accent-cyan)" : "var(--text-muted)",
-                  background: active ? "rgba(0,229,255,0.08)" : "transparent",
-                  boxShadow: active ? "0 0 18px rgba(0,229,255,0.12), inset 0 0 0 1px rgba(0,229,255,0.12)" : "none",
-                  transition: "background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease",
-                  minWidth: "52px",
-                  alignItems: "center",
-                }}
-              >
-                <Icon size={20} />
-                <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400, lineHeight: 1 }}>
-                  {label}
-                </span>
-              </Link>
-            );
-          })}
+        {mobilePrimaryLeaves(hasFeature, isAdmin).map((leaf) => {
+          const Icon = leaf.icon;
+          const active = leaf.exact ? pathname === leaf.href : pathname.startsWith(leaf.href);
+          return (
+            <Link
+              key={leaf.href}
+              href={leaf.href}
+              className="flex flex-col items-center"
+              style={{
+                gap: "4px",
+                padding: "6px 12px",
+                borderRadius: "10px",
+                color: active ? "var(--accent-cyan)" : "var(--text-muted)",
+                background: active ? "rgba(0,229,255,0.08)" : "transparent",
+                boxShadow: active ? "0 0 18px rgba(0,229,255,0.12), inset 0 0 0 1px rgba(0,229,255,0.12)" : "none",
+                transition: "background 0.2s ease, box-shadow 0.2s ease, color 0.2s ease",
+                minWidth: "52px",
+                alignItems: "center",
+              }}
+            >
+              <Icon size={20} />
+              <span style={{ fontSize: "10px", fontWeight: active ? 600 : 400, lineHeight: 1 }}>
+                {leaf.mobileLabel ?? leaf.label}
+              </span>
+            </Link>
+          );
+        })}
+        <MobileMoreDrawer isAdmin={isAdmin} multiEmpresa={multiEmpresa} hasFeature={hasFeature} />
       </nav>
     </>
   );
