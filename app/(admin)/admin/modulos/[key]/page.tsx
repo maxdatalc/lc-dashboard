@@ -1,7 +1,6 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { FEATURES_CATALOG } from "@/lib/features";
 import {
@@ -14,6 +13,7 @@ import {
 import { getAllTenants, isSystemAdmin } from "@/lib/db/admin";
 import { createClient } from "@/lib/supabase/server";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { AdminTabs, AdminTabPanel } from "@/components/admin/AdminTabs";
 import { ModuloKillSwitchButton } from "@/components/admin/ModuloKillSwitchButton";
 import { ModuloAcessoForm } from "@/components/admin/ModuloAcessoForm";
 import { ModuloAparenciaForm } from "@/components/admin/ModuloAparenciaForm";
@@ -80,58 +80,47 @@ export default async function ModuloDetalhePage({
         }
       />
 
-      <div className="flex gap-1 border-b" style={{ borderColor: "var(--adm-line)" }}>
-        {ABAS.map((a) => {
-          const isActive = abaAtiva === a.valor;
-          return (
-            <Link
-              key={a.valor}
-              href={`/admin/modulos/${key}?aba=${a.valor}`}
-              className="px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-all duration-150"
-              style={{
-                borderColor: isActive ? "var(--adm-accent)" : "transparent",
-                color: isActive ? "var(--adm-text)" : "var(--adm-text-dim)",
-              }}
-            >
-              {a.label}
-            </Link>
-          );
-        })}
-      </div>
+      <AdminTabs
+        tabs={ABAS.map((a) => ({ value: a.valor, label: a.label }))}
+        active={abaAtiva}
+        basePath={`/admin/modulos/${key}`}
+      />
 
-      {abaAtiva === "acesso" && (
-        <ModuloAcessoForm
-          featureKey={key}
-          tenants={tenants.map((t) => ({
-            id: t.id,
-            name: t.name,
-            plan: t.plan,
-            ativo: t.features.includes(key),
-          }))}
-          killSwitchEnabled={killed}
-        />
-      )}
+      <AdminTabPanel>
+        {abaAtiva === "acesso" && (
+          <ModuloAcessoForm
+            featureKey={key}
+            tenants={tenants.map((t) => ({
+              id: t.id,
+              name: t.name,
+              plan: t.plan,
+              ativo: t.features.includes(key),
+            }))}
+            killSwitchEnabled={killed}
+          />
+        )}
 
-      {abaAtiva === "aparencia" && (
-        <ModuloAparenciaForm
-          featureKey={key}
-          initialAccentColor={settings?.accentColor ?? "#3b82f6"}
-          initialPricingModel={settings?.pricingModel ?? "incluso_free"}
-          initialPrecoAvulso={settings?.precoAvulso ?? null}
-        />
-      )}
+        {abaAtiva === "aparencia" && (
+          <ModuloAparenciaForm
+            featureKey={key}
+            initialAccentColor={settings?.accentColor ?? "#3b82f6"}
+            initialPricingModel={settings?.pricingModel ?? "incluso_free"}
+            initialPrecoAvulso={settings?.precoAvulso ?? null}
+          />
+        )}
 
-      {abaAtiva === "metricas" && <ModuloMetricasTab ranking={ranking} />}
+        {abaAtiva === "metricas" && <ModuloMetricasTab ranking={ranking} />}
 
-      {abaAtiva === "solicitacoes" && (
-        <ModuloSolicitacoesForm
-          featureKey={key}
-          requests={changeRequests}
-          tenants={tenants.map((t) => ({ id: t.id, name: t.name }))}
-        />
-      )}
+        {abaAtiva === "solicitacoes" && (
+          <ModuloSolicitacoesForm
+            featureKey={key}
+            requests={changeRequests}
+            tenants={tenants.map((t) => ({ id: t.id, name: t.name }))}
+          />
+        )}
 
-      {abaAtiva === "historico" && <ModuloHistoricoTab entries={auditLog} />}
+        {abaAtiva === "historico" && <ModuloHistoricoTab entries={auditLog} />}
+      </AdminTabPanel>
     </div>
   );
 }

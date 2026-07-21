@@ -9,6 +9,7 @@ import { getAllTenants, isSystemAdmin } from "@/lib/db/admin";
 import { getFeatureIcon } from "@/lib/features-icons";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AdminCard } from "@/components/admin/AdminCard";
+import { AdminBadge } from "@/components/admin/AdminBadge";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ModulosPage() {
@@ -46,44 +47,43 @@ export default async function ModulosPage() {
 
           return (
             <Link key={f.key} href={`/admin/modulos/${f.key}`}>
-              <AdminCard hover className="p-5 h-full cursor-pointer">
+              <AdminCard hover className="h-full p-5 cursor-pointer">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <Icon className="h-5 w-5 shrink-0" style={{ color: "var(--adm-accent)" }} />
+                    <span
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+                      style={{ background: "var(--adm-accent-soft)" }}
+                    >
+                      <Icon className="h-4 w-4" style={{ color: "var(--adm-accent)" }} />
+                    </span>
                     <h3 className="text-sm font-semibold" style={{ color: "var(--adm-text)" }}>
                       {settings?.labelOverride || f.label}
                     </h3>
                   </div>
                   {settings?.accentColor && (
                     <span
-                      className="h-4 w-4 rounded-full shrink-0 border"
+                      className="h-4 w-4 shrink-0 rounded-full border"
                       style={{ background: settings.accentColor, borderColor: "var(--adm-line)" }}
                       title={settings.accentColor}
                     />
                   )}
                 </div>
 
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span
-                    className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                    style={{
-                      background: f.categoria === "core" ? "var(--adm-surface-2)" : "var(--adm-accent-soft)",
-                      color: f.categoria === "core" ? "var(--adm-text-dim)" : "var(--adm-accent)",
-                    }}
-                  >
+                <p className="mt-3 text-xs leading-relaxed" style={{ color: "var(--adm-text-faint)" }}>
+                  {f.descricao}
+                </p>
+
+                <div className="mt-3.5 flex flex-wrap items-center gap-1.5">
+                  <AdminBadge variant={f.categoria === "core" ? "neutral" : "accent"}>
                     {f.categoria === "core" ? "Core" : "Premium"}
-                  </span>
-                  {killed && (
-                    <span
-                      className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded"
-                      style={{ color: "#fca5a5", background: "#450a0a", border: "1px solid #7f1d1d" }}
-                    >
-                      Desativado globalmente
-                    </span>
-                  )}
+                  </AdminBadge>
+                  {killed && <AdminBadge variant="danger">Desativado globalmente</AdminBadge>}
                 </div>
 
-                <p className="mt-3 text-xs" style={{ color: "var(--adm-text-dim)" }}>
+                <p
+                  className="mt-3.5 pt-3 text-xs"
+                  style={{ color: "var(--adm-text-dim)", borderTop: "1px solid var(--adm-line)" }}
+                >
                   {total} de {tenants.length} empresas com acesso
                 </p>
               </AdminCard>
