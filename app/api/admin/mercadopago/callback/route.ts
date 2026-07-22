@@ -18,6 +18,19 @@ import { exchangeAuthorizationCode } from "@/lib/mercadopago/mercadopago-client"
 
 const JANELA_STATE_MS = 15 * 60 * 1000;
 
+/**
+ * Origem confiável para os redirects internos (não os do próprio OAuth, que
+ * são absolutos). NÃO usar req.url aqui: atrás de um túnel (ngrok/cloudflared)
+ * o Next.js local pode enxergar o Host como "localhost:PORT" em vez do
+ * domínio público, gerando um Location para localhost que o navegador não
+ * alcança (ERR_SSL_PROTOCOL_ERROR). MERCADOPAGO_REDIRECT_URI já precisa ser
+ * o domínio público correto para o próprio OAuth funcionar, então é a fonte
+ * mais segura de origem — funciona igual em produção (Vercel) e em túnel local.
+ */
+function origemConfiavel(): string {
+  return new URL(process.env.MERCADOPAGO_REDIRECT_URI!).origin;
+}
+
 function verificarState(state: string): { lojaId: string; tenantId: string } | null {
   const separador = state.lastIndexOf(".");
   if (separador === -1) return null;
@@ -56,7 +69,7 @@ export async function GET(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user || !(await isSystemAdmin(user.id))) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(new URL("/login", origemConfiavel()));
   }
 
   const state = req.nextUrl.searchParams.get("state");
@@ -71,7 +84,7 @@ export async function GET(req: NextRequest) {
   const { lojaId, tenantId } = dados;
   const destino = (query: string) =>
     NextResponse.redirect(
-      new URL(`/admin/empresas/${tenantId}/lojas/${lojaId}/mercadopago${query}`, req.url),
+      new URL(`/admin/empresas/${tenantId}/lojas/${lojaId}/mercadopago${query}`, origemConfiavel()),
     );
 
   const erroMp = req.nextUrl.searchParams.get("error");

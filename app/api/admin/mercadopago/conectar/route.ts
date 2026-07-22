@@ -18,13 +18,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { isSystemAdmin } from "@/lib/db/admin";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * Origem confiável para o redirect de "não autorizado". NÃO usar req.url:
+ * atrás de um túnel local (ngrok/cloudflared) o Next pode enxergar o Host
+ * como "localhost:PORT", gerando um Location inalcançável pelo navegador.
+ * MERCADOPAGO_REDIRECT_URI já precisa ser o domínio público correto para o
+ * próprio OAuth funcionar — funciona igual em produção e em túnel local.
+ */
+function origemConfiavel(): string {
+  return new URL(process.env.MERCADOPAGO_REDIRECT_URI!).origin;
+}
+
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user || !(await isSystemAdmin(user.id))) {
-    return NextResponse.redirect(new URL("/login", req.url));
+    return NextResponse.redirect(new URL("/login", origemConfiavel()));
   }
 
   const lojaId = req.nextUrl.searchParams.get("lojaId");
