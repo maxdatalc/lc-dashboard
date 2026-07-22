@@ -51,6 +51,12 @@ export default async function UsuariosPage() {
   const usuariosMap = new Map<string, UsuarioEntry>();
 
   for (const authUser of authData?.users ?? []) {
+    // Clientes do e-commerce (cadastro pelo storefront) trazem loja_id no
+    // metadata — não são usuários do painel administrativo. Defesa extra além
+    // do fix em handle_new_user(): mesmo que algum fluxo futuro crie um
+    // profile sem passar por lá, esta tela não deve listar cliente de loja.
+    if (authUser.user_metadata?.loja_id) continue;
+
     const profile = profiles?.find((p) => p.id === authUser.id);
     usuariosMap.set(authUser.id, {
       id: authUser.id,
