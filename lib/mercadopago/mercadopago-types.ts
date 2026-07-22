@@ -17,13 +17,18 @@ export interface MercadoPagoPixPointOfInteraction {
   };
 }
 
+export interface MercadoPagoCard {
+  last_four_digits: string;
+}
+
 export interface MercadoPagoPaymentResponse {
   id: number;
   status: string; // "pending" | "approved" | "rejected" | "cancelled" | ...
   status_detail: string;
   date_of_expiration: string | null;
   transaction_amount: number;
-  point_of_interaction?: MercadoPagoPixPointOfInteraction;
+  point_of_interaction?: MercadoPagoPixPointOfInteraction; // PIX-only
+  card?: MercadoPagoCard; // cartão-only
 }
 
 export interface MercadoPagoError {

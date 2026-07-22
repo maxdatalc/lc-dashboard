@@ -214,6 +214,49 @@ export async function criarPagamentoPix(
   });
 }
 
+export interface CriarCartaoParams {
+  accessToken: string;
+  valor: number;
+  descricao: string;
+  token: string;
+  paymentMethodId: string;
+  issuerId: string;
+  installments: number;
+  payerEmail: string;
+  payerFirstName: string;
+  payerLastName: string;
+  cpf: string;
+  idempotencyKey: string;
+}
+
+export async function criarPagamentoCartao(
+  params: CriarCartaoParams,
+): Promise<MercadoPagoPaymentResponse> {
+  return chamarMercadoPago<MercadoPagoPaymentResponse>("/v1/payments", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${params.accessToken}`,
+      "X-Idempotency-Key": params.idempotencyKey,
+    },
+    body: JSON.stringify({
+      transaction_amount: params.valor,
+      token: params.token,
+      description: params.descricao,
+      installments: params.installments,
+      payment_method_id: params.paymentMethodId,
+      issuer_id: params.issuerId,
+      payer: {
+        email: params.payerEmail,
+        first_name: params.payerFirstName,
+        last_name: params.payerLastName,
+        identification: { type: "CPF", number: params.cpf },
+      },
+      // capture padrão (cobrança imediata) — "autorizar e capturar depois" fica pra fase futura, se necessário.
+    }),
+  });
+}
+
 export async function buscarPagamento(
   mpPaymentId: string,
   accessToken: string,

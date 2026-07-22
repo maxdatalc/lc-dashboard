@@ -17,6 +17,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
   buscarPedidoParaPagamento,
+  localizarTentativaPagamento,
+  marcarCartaoComoRecusado,
+  marcarCartaoEPedidoComoPago,
   marcarPixComoErro,
   marcarPixEPedidoComoPago,
 } from "@/lib/ecommerce/pedidos-pagamento";
@@ -60,34 +63,39 @@ export async function POST(req: NextRequest) {
 
     const supabaseAdmin = createAdminClient();
 
-    const { data: pixRow } = await supabaseAdmin
-      .from("ecom_pedido_pix")
-      .select("pedido_id")
-      .eq("mp_payment_id", dataId)
-      .maybeSingle();
-
-    if (!pixRow) {
+    const tentativa = await localizarTentativaPagamento(supabaseAdmin, dataId);
+    if (!tentativa) {
       // Nunca erro/retry-storm para notificação de um pagamento que não é
       // nosso (ou já foi limpo) — só registra e confirma o recebimento.
       console.warn(`[webhook-mercadopago] mp_payment_id desconhecido: ${dataId}`);
       return NextResponse.json({ ok: true, desconhecido: true });
     }
 
-    const pedido = await buscarPedidoParaPagamento(supabaseAdmin, pixRow.pedido_id);
+    const pedido = await buscarPedidoParaPagamento(supabaseAdmin, tentativa.pedidoId);
     if (!pedido) {
-      console.error(`[webhook-mercadopago] pedido ${pixRow.pedido_id} não encontrado para o pagamento ${dataId}`);
+      console.error(`[webhook-mercadopago] pedido ${tentativa.pedidoId} não encontrado para o pagamento ${dataId}`);
       return NextResponse.json({ ok: true, desconhecido: true });
     }
 
     const accessToken = await getMercadoPagoAccessToken(supabaseAdmin, pedido.lojaId);
     const pagamento = await buscarPagamento(dataId, accessToken);
 
-    if (pagamento.status === "approved") {
-      await marcarPixEPedidoComoPago(supabaseAdmin, dataId, new Date().toISOString());
-    } else if (pagamento.status === "rejected" || pagamento.status === "cancelled") {
-      await marcarPixComoErro(supabaseAdmin, dataId);
+    if (tentativa.tipo === "pix") {
+      if (pagamento.status === "approved") {
+        await marcarPixEPedidoComoPago(supabaseAdmin, dataId, new Date().toISOString());
+      } else if (pagamento.status === "rejected" || pagamento.status === "cancelled") {
+        await marcarPixComoErro(supabaseAdmin, dataId);
+      } else {
+        console.log(`[webhook-mercadopago] pix ${dataId} em status "${pagamento.status}" — sem ação`);
+      }
     } else {
-      console.log(`[webhook-mercadopago] pagamento ${dataId} em status "${pagamento.status}" — sem ação`);
+      if (pagamento.status === "approved") {
+        await marcarCartaoEPedidoComoPago(supabaseAdmin, dataId, new Date().toISOString());
+      } else if (pagamento.status === "rejected") {
+        await marcarCartaoComoRecusado(supabaseAdmin, dataId, pagamento.status_detail);
+      } else {
+        console.log(`[webhook-mercadopago] cartão ${dataId} em status "${pagamento.status}" — sem ação`);
+      }
     }
 
     return NextResponse.json({ ok: true });
