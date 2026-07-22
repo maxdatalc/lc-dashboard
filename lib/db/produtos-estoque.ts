@@ -27,6 +27,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { queryBridge, queryDev, type BridgeConfig } from "@/lib/mssql/client";
+import { geraFinanceiroClause } from "@/lib/db/venda-filters";
 
 export const SEM_MARCA = "Sem marca";
 export const SEM_GRUPO = "Sem grupo";
@@ -169,6 +170,7 @@ function vendaJanelaCte(empList: string): string {
         AND vi.vdiCancel = 0 AND vi.vdiItemId <> ${PRO_ID_CURINGA}
         AND v.empId IN (${empList})
         AND v.vedFechamento >= DATEADD(day, -@dias, GETDATE())
+        ${geraFinanceiroClause("v")}
       GROUP BY vi.vdiItemId, v.empId
     )`;
 }
@@ -214,6 +216,7 @@ function paradoSql(): string {
       AND v2.vedStatus = 'F' AND v2.vedTipo IN ('OS','VE') AND v2.vedTotalNf > 0
       AND vi2.vdiCancel = 0 AND vi2.vdiItemId <> ${PRO_ID_CURINGA}
       AND v2.vedFechamento >= DATEADD(day, -@dias, GETDATE())
+      ${geraFinanceiroClause("v2")}
   )`;
 }
 

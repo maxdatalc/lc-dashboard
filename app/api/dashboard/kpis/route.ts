@@ -3,6 +3,7 @@ import { getDateRange } from "@/lib/utils/format";
 import { requireTenantAccess } from "@/lib/api/tenant-guard";
 import { getLojaDbConfig } from "@/lib/db/tenants";
 import { queryBridge, BridgeError } from "@/lib/mssql/client";
+import { geraFinanceiroClause } from "@/lib/db/venda-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -122,6 +123,7 @@ function buildSqlKpis(vClause: string, extra = "") {
     AND vedTotalNf > 0
     AND empId = @empId
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause()}
     ${vClause}${extra}`;
 }
 
@@ -138,6 +140,7 @@ function buildSqlClientes(vClause: string, extra = "") {
     AND vedTotalNf > 0
     AND empId = @empId
     AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause()}
     ${vClause}${extra}`;
 }
 
@@ -152,6 +155,7 @@ function buildSqlCusto(vClause: string, extra = "") {
     AND v.empId = @empId
     AND vi.vdiCancel = 0
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause("v")}
     ${vClause}${extra}`;
 }
 

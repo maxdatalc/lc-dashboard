@@ -12,6 +12,7 @@ import { cidadeKey, SEM_CIDADE } from "@/components/charts/CliGeoRanking";
 import { MapaClientesCard } from "@/components/charts/MapaClientesCard";
 import { normNome } from "@/lib/utils/ibge-malhas";
 import { CliLimitesRanking } from "@/components/charts/CliLimitesRanking";
+import { useFitText } from "@/hooks/use-fit-text";
 
 // ─── Tipos da resposta do endpoint /overview ───────────────────────────────────
 
@@ -111,13 +112,14 @@ function KpiCard({ label, icon, color, value, footer, footerColor, delay = 0 }: 
   label: string; icon: React.ReactNode; color: string; value: string;
   footer: React.ReactNode; footerColor?: string; delay?: number;
 }) {
+  const { ref, fontSize } = useFitText<HTMLDivElement>(value, { max: 27, min: 15 });
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
         <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-secondary)" }}>{label}</span>
         <IconBadge color={color}>{icon}</IconBadge>
       </div>
-      <div style={{ fontSize: "clamp(20px, 6vw, 27px)", fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.03em", lineHeight: 1.1, overflowWrap: "anywhere", marginBottom: 8 }}>{value}</div>
+      <div ref={ref} style={{ fontSize, fontWeight: 800, fontFamily: "var(--font-mono, monospace)", color, letterSpacing: "-0.03em", lineHeight: 1.1, whiteSpace: "nowrap", marginBottom: 8 }}>{value}</div>
       <div style={{ fontSize: 11.5, color: footerColor ?? "var(--text-muted)", display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{footer}</div>
     </div>
   );

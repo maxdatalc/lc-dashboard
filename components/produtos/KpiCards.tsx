@@ -7,6 +7,7 @@ import {
 import type { ProdutosKpis, StatusEstoque } from "@/lib/db/produtos-estoque";
 import { useCountUp } from "./useCountUp";
 import { fmtMoeda, fmtInt, fmtPct } from "./utils";
+import { useFitText } from "@/hooks/use-fit-text";
 
 // ── Padrão visual compartilhado com o dashboard Financeiro ─────────────────────
 // Hierarquia: label pequeno em caixa alta → valor grande tabular → subtítulo curto.
@@ -21,10 +22,14 @@ const cardBase: CSSProperties = {
   animation: "fadeInUp 0.4s ease-out both",
 };
 
-const valueStyle = (color: string): CSSProperties => ({
-  fontSize: "clamp(17px,1.6vw,23px)", fontWeight: 800, fontFamily: "var(--font-numeric)",
-  color, letterSpacing: "-0.02em", lineHeight: 1.05, overflowWrap: "anywhere",
-  fontVariantNumeric: "tabular-nums",
+// width:100%+minWidth:0 força o box a ocupar a largura real disponível — sem
+// isso, como valueStyle vive dentro de containers flex (cardBase e o wrapper
+// interno), o item flex por padrão não encolhe abaixo da largura do
+// conteúdo, e o hook de auto-encolher nunca detecta overflow.
+const valueStyle = (color: string, fontSize: number): CSSProperties => ({
+  fontSize, fontWeight: 800, fontFamily: "var(--font-numeric)",
+  color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap",
+  fontVariantNumeric: "tabular-nums", width: "100%", minWidth: 0,
 });
 
 function KpiHead({ label, icon, color }: { label: string; icon: ReactNode; color: string }) {
@@ -55,11 +60,13 @@ function ValorCard({
   icon: ReactNode; label: string; valor: number; sub: string; color: string; delay: number;
 }) {
   const animado = useCountUp(valor);
+  const texto = fmtMoeda(animado);
+  const { ref, fontSize } = useFitText<HTMLDivElement>(texto, { max: 23, min: 13 });
   return (
     <div style={{ ...cardBase, animationDelay: `${delay}ms` }}>
       <KpiHead label={label} icon={icon} color={color} />
       <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <div style={valueStyle(color)}>{fmtMoeda(animado)}</div>
+        <div ref={ref} style={valueStyle(color, fontSize)}>{texto}</div>
         <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.3 }}>{sub}</div>
       </div>
     </div>
@@ -76,6 +83,8 @@ function CountCard({
 }) {
   const animado = useCountUp(valor);
   const pct = base > 0 ? (valor / base) * 100 : 0;
+  const texto = fmtInt(animado);
+  const { ref, fontSize } = useFitText<HTMLDivElement>(texto, { max: 23, min: 13 });
 
   const style: CSSProperties = {
     ...cardBase,
@@ -90,7 +99,7 @@ function CountCard({
     <button type="button" className="kpi-card" onClick={onClick} style={style} aria-pressed={active} title={`Filtrar por ${label.toLowerCase()}`}>
       <KpiHead label={label} icon={icon} color={color} />
       <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
-        <div style={valueStyle(color)}>{fmtInt(animado)}</div>
+        <div ref={ref} style={valueStyle(color, fontSize)}>{texto}</div>
         <span style={{
           fontSize: 10.5, fontWeight: 600, padding: "2px 8px", borderRadius: 999,
           background: `color-mix(in srgb, ${color} 9%, transparent)`, color,

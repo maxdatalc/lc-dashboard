@@ -3,6 +3,7 @@ import { getDateRange } from "@/lib/utils/format";
 import { requireTenantAccess } from "@/lib/api/tenant-guard";
 import { getLojasBridge } from "@/lib/db/tenants";
 import { queryBridge, BridgeError } from "@/lib/mssql/client";
+import { geraFinanceiroClause } from "@/lib/db/venda-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -110,6 +111,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               AND empId IN (${empIn})
               AND vedFechamento >= DATEADD(month, -11, DATEFROMPARTS(YEAR(@start), MONTH(@start), 1))
               AND CONVERT(date, vedFechamento) <= @end
+              ${geraFinanceiroClause()}
               ${vClause}${cClause}${pClause}${tpClause}${fpClause}
             GROUP BY FORMAT(vedFechamento, 'yyyy-MM')
             ORDER BY mes`,
@@ -218,6 +220,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.empId IN (${empIn})
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${geraFinanceiroClause("v")}
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseJ}${fpClauseJ}
           GROUP BY vi.vdiProNome
           ORDER BY valor DESC`,
@@ -260,6 +263,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.empId IN (${empIn})
             AND vi.vdiCancel = 0
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${geraFinanceiroClause("v")}
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseJ}${fpClauseJ}
           GROUP BY f.fabNome
           ORDER BY valor DESC`,
@@ -315,6 +319,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
                 AND v2.empId IN (${empIn})
                 AND CONVERT(date, v2.vedFechamento) BETWEEN @start AND @end
                 AND vi2.vdiCancel = 0
+                ${geraFinanceiroClause("v2")}
             ) AS margemCliente
           FROM venda v
           JOIN cliente c ON v.vedClienteId = c.cliId
@@ -323,6 +328,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.vedTotalNf > 0
             AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${geraFinanceiroClause("v")}
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseC}${fpClauseJ}
           GROUP BY c.cliNome, c.cliTipoCad, c.cliId
           ORDER BY total DESC`,
@@ -376,6 +382,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.vedTotalNf > 0
             AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${geraFinanceiroClause("v")}
             ${cClauseJ}${pClauseJ}${tpClauseJ}${fpClauseJ}
           GROUP BY c.cliId, c.cliNome
           ORDER BY valor DESC`,
@@ -410,6 +417,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.vedTotalNf > 0
             AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${geraFinanceiroClause("v")}
             ${cClauseJ}${pClauseJ}${fpClauseJ}
           GROUP BY
             CASE
@@ -450,6 +458,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             AND v.vedTotalNf > 0
             AND v.empId IN (${empIn})
             AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+            ${geraFinanceiroClause("v")}
             ${vClauseJ}${cClauseJ}${pClauseJ}${tpClauseJ}${fpClauseJ}
           GROUP BY vp.pgtTipoDesc
           ORDER BY total DESC`,
@@ -484,6 +493,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               AND empId IN (${empIn})
               AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
               AND vedClienteId != 0
+              ${geraFinanceiroClause()}
             GROUP BY vedClienteId
           ),
           primeira_compra AS (
@@ -494,6 +504,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
               AND vedTotalNf > 0
               AND empId IN (${empIn})
               AND vedClienteId != 0
+              ${geraFinanceiroClause()}
             GROUP BY vedClienteId
           )
           SELECT

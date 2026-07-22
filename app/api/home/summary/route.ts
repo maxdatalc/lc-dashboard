@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireFeatureWithLojas } from "@/lib/api/plan-guard";
 import { getLojaDbConfig } from "@/lib/db/tenants";
 import { queryBridge, BridgeError } from "@/lib/mssql/client";
+import { geraFinanceiroClause } from "@/lib/db/venda-filters";
 
 export const dynamic = "force-dynamic";
 
@@ -279,7 +280,8 @@ const SQL_KPI = `
     AND vedStatus = 'F'
     AND vedTipo IN ('OS', 'VE')
     AND vedTotalNf > 0
-    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end`;
+    AND CONVERT(date, vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause()}`;
 
 // vedTotalNf > 0 no JOIN de venda alinha com /api/dashboard/kpis (buildSqlCusto).
 const SQL_CUSTO = `
@@ -291,7 +293,8 @@ const SQL_CUSTO = `
     AND v.vedTipo IN ('OS', 'VE')
     AND v.vedTotalNf > 0
     AND vi.vdiCancel = 0
-    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end`;
+    AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause("v")}`;
 
 // Regra de recorrência alinhada à do Dashboard de Clientes (/api/dashboard/clientes/overview,
 // query "Taxa de recorrência"): recorrente = cliente com MAIS DE 1 compra finalizada em toda
@@ -326,6 +329,7 @@ const SQL_CLIENTES_STATS = `
     WHERE empId = @empId AND vedStatus = 'F' AND vedTipo IN ('OS','VE')
       AND vedFechamento IS NOT NULL
       AND vedClienteId IS NOT NULL AND vedClienteId <> 0
+      ${geraFinanceiroClause()}
     GROUP BY vedClienteId
   )
   SELECT DISTINCT cp.vedClienteId AS clienteId, cp.n AS n
@@ -336,6 +340,7 @@ const SQL_CLIENTES_STATS = `
       AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
       AND v.vedFechamento IS NOT NULL
       AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+      ${geraFinanceiroClause("v")}
   )`;
 
 // Aguardando supervisão (tela 113 do MaxManager = vedStatus 'S'), não 'O' —
@@ -396,6 +401,7 @@ const SQL_VENDEDORES = `
   WHERE v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
     AND v.vedTotalNf > 0 AND v.empId = @empId
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause("v")}
   GROUP BY c.cliId, c.cliNome
   ORDER BY valor DESC`;
 
@@ -430,7 +436,8 @@ const SQL_PERFIL = `
   JOIN cliente c ON v.vedClienteId = c.cliId
   WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-    AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0`;
+    AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0
+    ${geraFinanceiroClause("v")}`;
 
 // Sem TOP, pelo mesmo motivo de SQL_VENDEDORES: qualquer corte por loja antes da
 // consolidação multi-loja pode esconder o produto líder real do conjunto combinado.
@@ -446,6 +453,7 @@ const SQL_TOP_PRODUTOS = `
     AND v.vedTipo IN ('OS','VE')
     AND v.empId = @empId
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
+    ${geraFinanceiroClause("v")}
   GROUP BY vi.vdiProNome
   ORDER BY valor DESC`;
 
@@ -466,6 +474,7 @@ const SQL_MAIOR_CLIENTE = `
   WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
     AND v.vedClienteId IS NOT NULL AND v.vedClienteId <> 0
+    ${geraFinanceiroClause("v")}
   GROUP BY v.vedClienteId, c.cliId, c.cliNome
   ORDER BY valor DESC`;
 
@@ -494,7 +503,8 @@ const SQL_CONSUMIDOR_FINAL = `
   WHERE v.empId = @empId AND v.vedStatus = 'F' AND v.vedTipo IN ('OS','VE')
     AND v.vedTotalNf > 0
     AND CONVERT(date, v.vedFechamento) BETWEEN @start AND @end
-    AND (c.cliId = 1 OR c.cliNome LIKE '%CONSUMIDOR%' OR c.cliNome LIKE '%BALC%')`;
+    AND (c.cliId = 1 OR c.cliNome LIKE '%CONSUMIDOR%' OR c.cliNome LIKE '%BALC%')
+    ${geraFinanceiroClause("v")}`;
 
 // Mesma heurística de SQL_CONSUMIDOR_FINAL, aplicada no JS sobre as linhas de
 // SQL_MAIOR_CLIENTE (que já trazem cliId) para decidir o "maior cliente identificado".

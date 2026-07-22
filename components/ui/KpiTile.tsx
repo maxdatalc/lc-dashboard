@@ -9,6 +9,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
+import { useFitText } from "@/hooks/use-fit-text";
 
 export type KpiTint = "ink" | "cyan" | "mist" | "rose";
 
@@ -59,6 +60,7 @@ export function KpiTile({
   const hasChange = changePercent !== null && changePercent !== undefined;
   const isUp = hasChange && changePercent! >= 0;
   const good = hasChange ? (invertChange ? !isUp : isUp) : false;
+  const { ref: valueRef, fontSize: valueFontSize } = useFitText<HTMLParagraphElement>(value, { max: 27, min: 14 });
 
   return (
     <div
@@ -107,15 +109,21 @@ export function KpiTile({
         <div className="shimmer rounded" style={{ height: 26, width: "70%" }} />
       ) : (
         <p
+          ref={valueRef}
           className="font-semibold leading-tight tabular-nums"
           style={{
             color: "var(--text-primary)",
             fontFamily: "var(--font-numeric)",
-            fontSize: "clamp(22px, 6.5vw, 27px)",
+            fontSize: valueFontSize,
             letterSpacing: "-0.01em",
-            // formatCurrency insere espaço não separável entre "R$" e o número;
-            // sem isso valores longos não têm ponto de quebra e vazam do card.
-            overflowWrap: "anywhere",
+            // Nunca quebra linha — useFitText encolhe a fonte até caber no
+            // card em vez de quebrar o número no meio. minWidth:0 é
+            // necessário porque este <p> é item de um flex-col: sem isso,
+            // o item flex por padrão não encolhe abaixo da largura do
+            // conteúdo (min-width:auto), e o hook nunca detecta overflow.
+            whiteSpace: "nowrap",
+            minWidth: 0,
+            width: "100%",
           }}
         >
           {value}
