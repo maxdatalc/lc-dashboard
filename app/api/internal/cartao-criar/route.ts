@@ -12,6 +12,9 @@
  * token/payment_method_id/issuer_id/installments vêm do CardForm (client-side;
  * número/CVV nunca saem do iframe do MP). valor/cpf NUNCA vêm do corpo: lidos
  * de ecom_pedidos.
+ *
+ * Limite de 5 tentativas por pedido (429 "muitas_tentativas") — mitigação
+ * contra "card testing" (tentar vários cartões roubados no mesmo pedido).
  */
 
 import { randomUUID } from "crypto";
@@ -22,6 +25,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import {
   buscarPedidoParaPagamento,
   inserirCartaoRow,
+  marcarCartaoComoRecusado,
   marcarCartaoEPedidoComoPago,
 } from "@/lib/ecommerce/pedidos-pagamento";
 import {
@@ -73,6 +77,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "pedido_ja_pago" }, { status: 409 });
   }
 
+  // Limite de tentativas por pedido — mitigação simples contra "card testing"
+  // (tentar muitos cartões roubados no mesmo pedido até um passar). Cada
+  // tentativa (aprovada, recusada ou em análise) conta; um cliente legítimo
+  // não erra o número do cartão 5 vezes seguidas no mesmo pedido.
+  const LIMITE_TENTATIVAS_POR_PEDIDO = 5;
+  const { count: tentativasAnteriores } = await supabaseAdmin
+    .from("ecom_pedido_pagamento_cartao")
+    .select("id", { count: "exact", head: true })
+    .eq("pedido_id", dados.pedido_id);
+  if ((tentativasAnteriores ?? 0) >= LIMITE_TENTATIVAS_POR_PEDIDO) {
+    return NextResponse.json({ error: "muitas_tentativas" }, { status: 429 });
+  }
+
   let accessToken: string;
   try {
     accessToken = await getMercadoPagoAccessToken(supabaseAdmin, dados.loja_id);
@@ -101,11 +118,18 @@ export async function POST(req: NextRequest) {
 
     const statusInterno = mapearStatus(pagamento.status);
 
+    // A linha SEMPRE nasce "em_analise", mesmo quando o MP já respondeu
+    // aprovado/recusado na mesma chamada — a transição de status é feita
+    // logo abaixo pelos MESMOS helpers idempotentes (WHERE status='em_analise')
+    // que o webhook usa. Se a linha nascesse já com o status final, o
+    // webhook (ou esta própria marcação síncrona) nunca encontraria uma
+    // linha "em_analise" pra transicionar, e ecom_pedidos.status jamais
+    // viraria "pago" no caso comum (aprovado na hora).
     const cartaoId = await inserirCartaoRow(supabaseAdmin, {
       pedidoId: dados.pedido_id,
       mpPaymentId: String(pagamento.id),
       valor: pedido.total,
-      status: statusInterno,
+      status: "em_analise",
       parcelas: dados.installments,
       paymentMethodId: dados.payment_method_id,
       ultimosQuatroDigitos: pagamento.card?.last_four_digits ?? null,
@@ -114,10 +138,12 @@ export async function POST(req: NextRequest) {
 
     // Marcação SÍNCRONA — não espera o webhook para o caso comum (aprovado
     // na hora). Idempotente: se o webhook chegar depois com o mesmo
-    // mp_payment_id, o WHERE status='em_analise' já não encontra linha e
-    // não duplica efeito.
+    // mp_payment_id, o WHERE status='em_analise' já não encontra linha (já
+    // transicionada aqui) e não duplica efeito.
     if (statusInterno === "aprovado") {
       await marcarCartaoEPedidoComoPago(supabaseAdmin, String(pagamento.id), new Date().toISOString());
+    } else if (statusInterno === "recusado") {
+      await marcarCartaoComoRecusado(supabaseAdmin, String(pagamento.id), pagamento.status_detail);
     }
 
     return NextResponse.json({
