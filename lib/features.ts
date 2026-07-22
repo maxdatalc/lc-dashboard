@@ -79,6 +79,14 @@ export const FEATURES_CATALOG: Feature[] = [
     disponivel: true,
   },
   {
+    key: "modulo_ecommerce",
+    label: "Ecommerce — Vitrine online",
+    descricao: "Loja virtual pública por loja, com catálogo sincronizado do MaxManager, carrinho, checkout e pagamento via PIX",
+    categoria: "premium",
+    icone: "Store",
+    disponivel: true,
+  },
+  {
     key: "consolidado_multilojas",
     label: "Consolidado Multi-lojas",
     descricao: "Visão unificada de todas as filiais em uma tela",

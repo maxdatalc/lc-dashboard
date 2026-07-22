@@ -3,7 +3,7 @@ export const revalidate = 0;
 
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ArrowLeft, Building2, ExternalLink, RefreshCw, Scale, Settings, Shield, Users, Users2, Zap } from "lucide-react";
+import { ArrowLeft, Building2, ExternalLink, RefreshCw, Scale, Settings, Shield, Store, Users, Users2, Zap } from "lucide-react";
 import {
   getTenantByIdAdmin,
   updateTenantFeatures,
@@ -281,6 +281,37 @@ export default async function GerenciarEmpresaPage({
                                     >
                                       <Scale className="h-3 w-3" />
                                       {l.name} — OAuth Token SIEG
+                                    </Link>
+                                  </div>
+                                ))
+                            )}
+                          </div>
+                        )}
+
+                        {/* Configuração do módulo Ecommerce — um link por loja com Bridge
+                            (o sync do catálogo depende da Bridge, então sem ela não há
+                            produto pra vitrine mostrar) */}
+                        {f.key === "modulo_ecommerce" && ativo && (
+                          <div className="ml-4 mt-2 space-y-1.5 border-l-2 pl-4" style={{ borderColor: "var(--adm-accent-soft)" }}>
+                            <p className="text-xs font-medium" style={{ color: "var(--adm-text-faint)" }}>
+                              Configurar vitrine por loja:
+                            </p>
+                            {tenant.lojas.filter((l) => l.sqlEnabled).length === 0 ? (
+                              <p className="text-xs" style={{ color: "var(--adm-warn)" }}>
+                                Nenhuma loja com Bridge SQL ativa. Configure a Bridge antes de habilitar o Ecommerce.
+                              </p>
+                            ) : (
+                              tenant.lojas
+                                .filter((l) => l.sqlEnabled)
+                                .map((l) => (
+                                  <div key={l.id}>
+                                    <Link
+                                      href={`/admin/empresas/${id}/lojas/${l.id}/ecommerce`}
+                                      className="adm-focusable inline-flex items-center gap-1.5 rounded text-xs font-medium transition-colors"
+                                      style={{ color: "var(--adm-accent)" }}
+                                    >
+                                      <Store className="h-3 w-3" />
+                                      {l.name} — Vitrine e pagamento
                                     </Link>
                                   </div>
                                 ))
