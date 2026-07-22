@@ -422,3 +422,32 @@ padrão), **768×1024** (tablet/breakpoint `md`).
   (`md:`/`lg:`), nunca removendo uma classe desktop que já funciona.
 - Não apagar as 4 implementações de KPI card / arquivos mortos antes de confirmar que todo
   caller foi migrado (Fase 5, não antes).
+
+---
+
+## 7. Invariantes de overflow em zoom (pós Fase 5 — bug real encontrado e corrigido)
+
+Zoom do navegador reduz o viewport CSS efetivo — para fins de CSS/media queries/`vw`/`vh`,
+zoom alto é equivalente a uma tela estreita. Os mesmos bugs de overflow do mobile aparecem em
+zoom alto em telas largas, e a correção é a mesma técnica de sempre. Todo card de
+KPI/métrica — novo ou existente — deve respeitar:
+
+1. Card raiz sempre com `overflow:hidden` (ou classe `overflow-hidden`).
+2. Valor numérico/monetário de dado real sempre em `fontSize: clamp(min, vw, max)` — nunca px
+   fixo nem classe Tailwind fixa (`text-2xl`, `text-3xl`) — sempre com `overflowWrap:"anywhere"`.
+3. Nunca `whiteSpace:"nowrap"` em valor formatado de dado variável (moeda, contagem, %).
+   Reservar `nowrap` só para labels curtos fixos ou pills com `textOverflow:"ellipsis"` +
+   `maxWidth` explícitos.
+4. Toda linha secundária com ícone+texto (badges, variação %, "vs período anterior") usa
+   `flexWrap:"wrap"`.
+5. Grids de KPI-tiles sempre com breakpoint responsivo (`grid-cols-1 xs:grid-cols-2 ...`),
+   nunca `grid-cols-N` fixo com N>1.
+6. Containers de gráfico usam `CHART_HEIGHT.*` de `components/charts/chart-heights.ts`, nunca
+   `height={N}` fixo num `ResponsiveContainer`.
+
+Bug real corrigido nesta auditoria: `components/ui/KpiTile.tsx` (usado por `home` e `dashboard`
+Vendas — as 2 páginas de maior tráfego) não tinha `overflow-hidden` no card raiz nem
+`flex-wrap` na linha de variação percentual, apesar de todas as outras 3 implementações de KPI
+card (financeiro, clientes, produtos) já terem esse cuidado. `produtos/KpiCards.tsx` e
+`fiscal/transmissao-xmls/sieg-portal-client.tsx` também tinham violações pontuais (regras 2/3/5
+acima) corrigidas na mesma auditoria.

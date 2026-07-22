@@ -123,8 +123,8 @@ export default async function AdminPage() {
               </span>
             </div>
             <p
-              className="adm-mono text-3xl font-bold"
-              style={{ color: "var(--adm-text)" }}
+              className="adm-mono font-bold"
+              style={{ color: "var(--adm-text)", fontSize: "clamp(22px, 4vw, 30px)", overflowWrap: "anywhere" }}
             >
               {m.value}
             </p>

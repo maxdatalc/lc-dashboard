@@ -62,7 +62,7 @@ export function KpiTile({
 
   return (
     <div
-      className="flex min-w-0 flex-col gap-2 rounded-xl p-4"
+      className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-xl p-4"
       style={{
         background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
@@ -144,7 +144,7 @@ export function KpiTile({
         <div className="flex flex-col gap-0.5">
           {hasChange && (
             <span
-              className="inline-flex items-center gap-1 text-[12px] font-semibold tabular-nums"
+              className="inline-flex flex-wrap items-center gap-1 text-[12px] font-semibold tabular-nums"
               style={{ color: good ? "var(--accent-green)" : "var(--accent-red)" }}
             >
               {isUp ? <TrendingUp size={12} /> : <TrendingDown size={12} />}

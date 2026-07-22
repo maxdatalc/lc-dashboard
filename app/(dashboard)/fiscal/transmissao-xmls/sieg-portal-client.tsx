@@ -109,7 +109,7 @@ export default function SiegPortalClient({ lojaId, empresas: empresasIniciais }:
       </div>
 
       {/* KPIs globais */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 xs:grid-cols-3">
         {[
           { label: "Enviados",  valor: totalEnviados,  cor: "var(--accent-green, #22c55e)", icon: CheckCircle2 },
           { label: "Pendentes", valor: totalPendentes, cor: "var(--accent-yellow, #f59e0b)", icon: Clock },
@@ -117,13 +117,13 @@ export default function SiegPortalClient({ lojaId, empresas: empresasIniciais }:
         ].map(({ label, valor, cor, icon: Icon }) => (
           <div
             key={label}
-            className="rounded-xl p-4 flex items-center gap-3"
+            className="flex min-w-0 items-center gap-3 overflow-hidden rounded-xl p-4"
             style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
           >
             <Icon style={{ width: 20, height: 20, color: cor, flexShrink: 0 }} />
-            <div>
-              <p className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>{valor}</p>
-              <p className="text-xs" style={{ color: "var(--text-secondary)" }}>{label}</p>
+            <div className="min-w-0">
+              <p className="font-bold tabular-nums" style={{ color: "var(--text-primary)", fontSize: "clamp(18px, 4vw, 24px)", overflowWrap: "anywhere" }}>{valor}</p>
+              <p className="truncate text-xs" style={{ color: "var(--text-secondary)" }}>{label}</p>
             </div>
           </div>
         ))}

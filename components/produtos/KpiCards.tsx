@@ -23,7 +23,7 @@ const cardBase: CSSProperties = {
 
 const valueStyle = (color: string): CSSProperties => ({
   fontSize: "clamp(17px,1.6vw,23px)", fontWeight: 800, fontFamily: "var(--font-numeric)",
-  color, letterSpacing: "-0.02em", lineHeight: 1.05, whiteSpace: "nowrap",
+  color, letterSpacing: "-0.02em", lineHeight: 1.05, overflowWrap: "anywhere",
   fontVariantNumeric: "tabular-nums",
 });
 
