@@ -23,8 +23,8 @@ interface Props {
 }
 
 const TABS: { key: TabKey; label: string; accent: string }[] = [
-  { key: "R", label: "A Receber", accent: "var(--accent-cyan)" },
-  { key: "P", label: "A Pagar", accent: "var(--accent-yellow)" },
+  { key: "R", label: "Recebimentos", accent: "var(--accent-cyan)" },
+  { key: "P", label: "Pagamentos", accent: "var(--accent-yellow)" },
 ];
 
 function fmt(v: number) {
