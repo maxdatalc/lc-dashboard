@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 import { encrypt } from "@/lib/crypto";
+import { resolveTerminal, getTerminaisByLojaIds } from "@/lib/maxapi/terminal";
 
 async function getAuthContext() {
   const supabase = await createClient();
@@ -79,13 +80,17 @@ export async function listLojasAdmin(input: unknown) {
   const { data: rows, error } = await q;
   if (error) throw error;
 
-  return ((rows ?? []) as Array<Record<string, unknown>>).map((l) => ({
+  const lojaRows = (rows ?? []) as Array<Record<string, unknown>>;
+  // Terminal canônico vem de integration_configs; lojas.terminal_maxdata é só fallback
+  const terminaisPorLoja = await getTerminaisByLojaIds(lojaRows.map((l) => l.id as string));
+
+  return lojaRows.map((l) => ({
     id: l.id,
     empresa_id: l.tenant_id,
     tenant_id: l.tenant_id,
     nome: l.name,
     emp_id_maxdata: String(l.emp_id),
-    terminal_maxdata: (l.terminal_maxdata as string) ?? "",
+    terminal_maxdata: terminaisPorLoja.get(l.id as string) ?? resolveTerminal(null, l) ?? "",
     ativo: l.is_active,
     created_at: l.created_at,
   }));
@@ -119,6 +124,13 @@ export async function createLoja(input: unknown) {
   if (error) throw error;
 
   const r = row as Record<string, unknown>;
+
+  // Grava o terminal também na tabela canônica (integration_configs)
+  await supabaseAdmin.from("integration_configs").upsert(
+    { loja_id: r.id as string, terminal_maxdata: data.terminal_maxdata },
+    { onConflict: "loja_id" },
+  );
+
   return {
     ...r,
     empresa_id: r.tenant_id,
@@ -206,6 +218,7 @@ export async function upsertIntegrationConfig(input: unknown) {
   if (data.bridge_url !== undefined) lojaUpdate.sql_bridge_url = data.bridge_url ?? null;
   if (data.bridge_token && data.bridge_token.trim().length > 0)
     lojaUpdate.sql_bridge_token = encrypt(data.bridge_token);
+  // shadow-write em lojas.terminal_maxdata (deprecated) — canônico é integration_configs
   if (data.terminal_maxdata !== undefined)
     lojaUpdate.terminal_maxdata = data.terminal_maxdata ?? null;
 
@@ -222,6 +235,8 @@ export async function upsertIntegrationConfig(input: unknown) {
   if (data.maxapi_client_id !== undefined)
     cfgPayload.maxapi_client_id = data.maxapi_client_id ?? null;
   if (data.maxapi_secret_key?.trim()) cfgPayload.maxapi_secret_key = data.maxapi_secret_key;
+  if (data.terminal_maxdata !== undefined)
+    cfgPayload.terminal_maxdata = data.terminal_maxdata ?? null;
   if (data.maxapi_url !== undefined || data.terminal_maxdata !== undefined) {
     cfgPayload.maxapi_token_cache = null;
     cfgPayload.maxapi_token_expires_at = null;

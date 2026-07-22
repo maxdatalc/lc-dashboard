@@ -327,10 +327,105 @@ export async function updateLojaMaxApiConfig(
   const { error } = await supabase
     .from("integration_configs")
     .upsert(
-      { loja_id: lojaId, maxapi_url: config.maxApiUrl, terminal_maxdata: config.terminalMaxdata },
+      {
+        loja_id: lojaId,
+        maxapi_url: config.maxApiUrl,
+        terminal_maxdata: config.terminalMaxdata,
+        // trocar URL/terminal invalida o token em cache
+        maxapi_token_cache: null,
+        maxapi_token_expires_at: null,
+      },
       { onConflict: "loja_id" },
     );
 
   if (error) throw new Error(`Falha ao salvar config MaxAPI: ${error.message}`);
+}
+
+export type LojaMaxApiStatus = {
+  id: string;
+  name: string;
+  empId: number;
+  maxApiUrl: string | null;
+  terminalMaxdata: string | null;
+};
+
+/** Demais lojas ativas do tenant, com a config MaxAPI atual — para a opção "aplicar também em". */
+export async function listLojasMaxApiStatus(
+  tenantId: string,
+  exceptLojaId: string,
+): Promise<LojaMaxApiStatus[]> {
+  const supabase = createAdminClient();
+
+  const { data: lojasData, error } = await supabase
+    .from("lojas")
+    .select("id, name, emp_id")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .neq("id", exceptLojaId)
+    .order("name", { ascending: true });
+
+  if (error) throw new Error(error.message);
+
+  const lojas = (lojasData ?? []) as Array<{ id: string; name: string; emp_id: number }>;
+  if (lojas.length === 0) return [];
+
+  const { data: cfgData } = await supabase
+    .from("integration_configs")
+    .select("loja_id, maxapi_url, terminal_maxdata")
+    .in("loja_id", lojas.map((l) => l.id));
+
+  const cfgByLoja = new Map(
+    ((cfgData ?? []) as Array<{ loja_id: string; maxapi_url: string | null; terminal_maxdata: string | null }>)
+      .map((c) => [c.loja_id, c]),
+  );
+
+  return lojas.map((l) => {
+    const cfg = cfgByLoja.get(l.id);
+    return {
+      id: l.id,
+      name: l.name,
+      empId: l.emp_id,
+      maxApiUrl: cfg?.maxapi_url ?? null,
+      terminalMaxdata: cfg?.terminal_maxdata ?? null,
+    };
+  });
+}
+
+/**
+ * Replica URL + terminal da MaxAPI para outras lojas do MESMO tenant.
+ * Revalida o vínculo com o tenant antes de escrever — os ids vêm do formulário.
+ * Retorna quantas lojas foram efetivamente atualizadas.
+ */
+export async function applyMaxApiConfigToLojas(
+  tenantId: string,
+  lojaIds: string[],
+  config: { maxApiUrl: string; terminalMaxdata: string },
+): Promise<number> {
+  if (lojaIds.length === 0) return 0;
+
+  const supabase = createAdminClient();
+
+  const { data: validas } = await supabase
+    .from("lojas")
+    .select("id")
+    .in("id", lojaIds)
+    .eq("tenant_id", tenantId);
+
+  const ids = ((validas ?? []) as Array<{ id: string }>).map((l) => l.id);
+  if (ids.length === 0) return 0;
+
+  const { error } = await supabase.from("integration_configs").upsert(
+    ids.map((id) => ({
+      loja_id: id,
+      maxapi_url: config.maxApiUrl,
+      terminal_maxdata: config.terminalMaxdata,
+      maxapi_token_cache: null,
+      maxapi_token_expires_at: null,
+    })),
+    { onConflict: "loja_id" },
+  );
+
+  if (error) throw new Error(`Falha ao aplicar config MaxAPI: ${error.message}`);
+  return ids.length;
 }
 

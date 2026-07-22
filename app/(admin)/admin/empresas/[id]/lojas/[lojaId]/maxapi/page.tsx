@@ -1,29 +1,50 @@
 export const dynamic = "force-dynamic";
 
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
-import { getLojaAdminWithMaxApi, updateLojaMaxApiConfig } from "@/lib/db/tenants";
-import MaxApiForm from "./maxapi-form";
+import {
+  getLojaAdminWithMaxApi,
+  updateLojaMaxApiConfig,
+  listLojasMaxApiStatus,
+  applyMaxApiConfigToLojas,
+} from "@/lib/db/tenants";
+import MaxApiForm, { type MaxApiFormState } from "./maxapi-form";
 
 async function salvarMaxApi(
   lojaId: string,
   tenantId: string,
-  _prevState: { erro: string | null },
+  _prevState: MaxApiFormState,
   formData: FormData,
-): Promise<{ erro: string | null }> {
+): Promise<MaxApiFormState> {
   "use server";
 
   const maxApiUrl = (formData.get("maxApiUrl") as string ?? "").trim();
-  const terminalMaxdata = ((formData.get("terminalMaxdata") as string ?? "").trim()) || "1";
+  const terminalMaxdata = (formData.get("terminalMaxdata") as string ?? "").trim();
+
+  if (!terminalMaxdata) {
+    return { erro: "Informe o terminal.", ok: false, aplicadas: 0 };
+  }
+
+  const aplicarEm = ((formData.get("aplicarEm") as string ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean));
 
   try {
     await updateLojaMaxApiConfig(lojaId, { maxApiUrl, terminalMaxdata });
+    const aplicadas = await applyMaxApiConfigToLojas(tenantId, aplicarEm, {
+      maxApiUrl,
+      terminalMaxdata,
+    });
+    return { erro: null, ok: true, aplicadas };
   } catch (e) {
-    return { erro: e instanceof Error ? e.message : "Falha ao salvar configuração." };
+    return {
+      erro: e instanceof Error ? e.message : "Falha ao salvar configuração.",
+      ok: false,
+      aplicadas: 0,
+    };
   }
-
-  redirect(`/admin/empresas/${tenantId}?aba=lojas`);
 }
 
 export default async function MaxApiPage({
@@ -36,6 +57,7 @@ export default async function MaxApiPage({
 
   if (!loja || loja.tenantId !== tenantId) notFound();
 
+  const outrasLojas = await listLojasMaxApiStatus(tenantId, lojaId);
   const action = salvarMaxApi.bind(null, lojaId, tenantId);
 
   return (
@@ -62,10 +84,13 @@ export default async function MaxApiPage({
       <MaxApiForm
         action={action}
         loja={{
+          id: loja.id,
           maxApiUrl: loja.maxApiUrl ?? "",
-          terminalMaxdata: loja.terminalMaxdata ?? "1",
+          terminalMaxdata: loja.terminalMaxdata ?? "",
           empId: loja.empId,
+          sqlEnabled: loja.sqlEnabled,
         }}
+        outrasLojas={outrasLojas}
         tenantId={tenantId}
       />
     </div>

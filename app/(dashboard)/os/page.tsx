@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ServiceOrderList } from "@/components/os/ServiceOrderList";
 import { RequireLoja } from "@/components/os/RequireLoja";
+import { OSHelpDialog } from "@/components/os/OSHelpDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,7 +21,7 @@ import type { OrdemServico, TipoAtendimento } from "@/lib/fiscal-types";
 const STATUS_TABS = [
   { value: "todas", label: "Todas" },
   { value: "aberta", label: "Em aberto" },
-  { value: "faturada", label: "Faturadas" },
+  { value: "faturada", label: "Concluídas" },
   { value: "cancelada", label: "Canceladas" },
 ] as const;
 
@@ -95,7 +96,10 @@ export default function OrdensPage() {
         {/* Header */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold">Ordens de Serviço</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-semibold">Ordens de Serviço</h1>
+              <OSHelpDialog />
+            </div>
             <p className="text-sm text-muted-foreground">
               Pesquise e gerencie as O.S com checagem fiscal.
             </p>

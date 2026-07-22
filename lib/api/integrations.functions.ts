@@ -6,6 +6,7 @@ import { encrypt, decrypt } from "@/lib/crypto";
 import { pingBridge, queryBridge, type BridgeConfig } from "@/lib/bridge/bridge-client";
 import { resolveNamedQuery } from "@/lib/bridge/named-queries";
 import { getOrRefreshToken, buildMaxApiConfig } from "@/lib/maxapi/maxapi-client";
+import { resolveTerminal } from "@/lib/maxapi/terminal";
 import { assertLojaAccess, assertManageLoja } from "@/lib/api/access";
 
 const LojaInput = z.object({ loja_id: z.string().uuid() });
@@ -66,7 +67,7 @@ export async function getIntegrationStatus(
     supabaseAdmin
       .from("integration_configs")
       .select(
-        "loja_id, status_bridge, status_maxapi, ultimo_teste_bridge, ultimo_teste_maxapi, maxapi_url",
+        "loja_id, status_bridge, status_maxapi, ultimo_teste_bridge, ultimo_teste_maxapi, maxapi_url, terminal_maxdata",
       )
       .eq("loja_id", data.loja_id)
       .limit(1),
@@ -76,7 +77,11 @@ export async function getIntegrationStatus(
 
   const lojaRow = loja as Record<string, unknown>;
   const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
-  const maxapiConfigurada = !!(cfgRow?.maxapi_url && lojaRow.emp_id && lojaRow.terminal_maxdata);
+  const maxapiConfigurada = !!(
+    cfgRow?.maxapi_url &&
+    lojaRow.emp_id &&
+    resolveTerminal(cfgRow, lojaRow)
+  );
 
   return {
     loja_id: data.loja_id,
@@ -162,25 +167,26 @@ export async function testMaxApiConnection(input: unknown) {
       .maybeSingle(),
     supabaseAdmin
       .from("integration_configs")
-      .select("maxapi_url, maxapi_token_cache, maxapi_token_expires_at")
+      .select("maxapi_url, terminal_maxdata, maxapi_token_cache, maxapi_token_expires_at")
       .eq("loja_id", data.loja_id)
       .limit(1),
   ]);
 
   const lojaRow = loja as Record<string, unknown> | null;
   const cfgRow = ((cfg as Record<string, unknown>[] | null)?.[0]) ?? null;
+  const terminal = resolveTerminal(cfgRow, lojaRow);
   let status: "online" | "offline" | "erro" | "nao_configurado" = "nao_configurado";
   let mensagem = "MaxAPI ainda nÃ£o configurada para esta loja.";
   let token_cached_until: string | null = null;
 
-  const isConfigured = !!(cfgRow?.maxapi_url && lojaRow?.emp_id && lojaRow?.terminal_maxdata);
+  const isConfigured = !!(cfgRow?.maxapi_url && lojaRow?.emp_id && terminal);
 
   if (isConfigured) {
     try {
       const maxApiConfig = buildMaxApiConfig(
         {
           emp_id_maxdata: String(lojaRow!.emp_id),
-          terminal_maxdata: (lojaRow!.terminal_maxdata as string | null) ?? "1",
+          terminal_maxdata: terminal!,
         },
         { maxapi_url: cfgRow!.maxapi_url as string },
       );
@@ -204,7 +210,9 @@ export async function testMaxApiConnection(input: unknown) {
     }
   } else if (cfgRow?.maxapi_url) {
     status = "nao_configurado";
-    mensagem = "MaxAPI URL configurada mas emp_id ou terminal_maxdata ausentes na loja.";
+    mensagem = !terminal
+      ? "MaxAPI URL configurada mas o terminal nÃ£o foi informado."
+      : "MaxAPI URL configurada mas emp_id ausente na loja.";
   }
 
   await supabaseAdmin.from("integration_configs").upsert(
@@ -297,7 +305,7 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
       .maybeSingle(),
     supabaseAdmin
       .from("integration_configs")
-      .select("maxapi_url, inventario_id_base")
+      .select("maxapi_url, terminal_maxdata, inventario_id_base")
       .eq("loja_id", data.loja_id)
       .limit(1),
   ]);
@@ -312,7 +320,7 @@ export async function getIntegrationConfig(input: unknown): Promise<IntegrationC
     bridge_token_configurado: !!lojaRow.sql_bridge_token,
     maxapi_url: (cfgRow?.maxapi_url as string) ?? null,
     emp_id_maxdata: lojaRow.emp_id ? String(lojaRow.emp_id) : null,
-    terminal_maxdata: (lojaRow.terminal_maxdata as string) ?? null,
+    terminal_maxdata: resolveTerminal(cfgRow, lojaRow),
     inventario_id_base: cfgRow?.inventario_id_base ? Number(cfgRow.inventario_id_base) : null,
   };
 }
@@ -346,6 +354,7 @@ export async function saveIntegrationConfig(input: unknown) {
   if (data.bridge_url !== undefined) lojaUpdate.sql_bridge_url = data.bridge_url || null;
   if (data.bridge_token !== undefined && data.bridge_token !== "")
     lojaUpdate.sql_bridge_token = encrypt(data.bridge_token);
+  // shadow-write em lojas.terminal_maxdata (deprecated) — canônico é integration_configs
   if (data.terminal_maxdata !== undefined)
     lojaUpdate.terminal_maxdata = data.terminal_maxdata || null;
 
@@ -355,6 +364,8 @@ export async function saveIntegrationConfig(input: unknown) {
 
   const cfgUpsert: Record<string, unknown> = { loja_id: data.loja_id };
   if (data.maxapi_url !== undefined) cfgUpsert.maxapi_url = data.maxapi_url || null;
+  if (data.terminal_maxdata !== undefined)
+    cfgUpsert.terminal_maxdata = data.terminal_maxdata || null;
   if (data.inventario_id_base !== undefined) cfgUpsert.inventario_id_base = data.inventario_id_base;
   if (invalidaTokenMaxApi) {
     cfgUpsert.maxapi_token_cache = null;

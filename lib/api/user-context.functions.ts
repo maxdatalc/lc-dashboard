@@ -1,6 +1,7 @@
 "use server";
 
 import { createAdminClient, createClient } from "@/lib/supabase/server";
+import { getTerminaisByLojaIds } from "@/lib/maxapi/terminal";
 
 export type LojaContext = {
   id: string;
@@ -114,6 +115,9 @@ export async function getCurrentUserContext(): Promise<UserContext> {
     is_active: boolean;
   }>;
 
+  // Terminal canônico vem de integration_configs; lojas.terminal_maxdata é só fallback
+  const terminaisPorLoja = await getTerminaisByLojaIds(lojaRows.map((l) => l.id));
+
   const empresas: EmpresaContext[] = rows.map((t) => ({
     id: t.id,
     nome_fantasia: t.name,
@@ -137,7 +141,8 @@ export async function getCurrentUserContext(): Promise<UserContext> {
         empresa_id: l.tenant_id,
         nome: l.name,
         emp_id_maxdata: String(l.emp_id),
-        terminal_maxdata: l.terminal_maxdata ?? "1",
+        // sem default "1": terminal ausente falha visivelmente em buildMaxApiConfig
+        terminal_maxdata: terminaisPorLoja.get(l.id) ?? l.terminal_maxdata ?? "",
         ativo: l.is_active,
       })),
   }));

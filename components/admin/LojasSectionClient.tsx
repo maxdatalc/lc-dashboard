@@ -71,10 +71,12 @@ function ToggleLojaButton({
 
 function EditLojaRow({
   loja,
+  tenantId,
   onClose,
   onSaved,
 }: {
   loja: Loja;
+  tenantId: string;
   onClose: () => void;
   onSaved: (nome: string, cnpj: string) => void;
 }) {
@@ -84,6 +86,11 @@ function EditLojaRow({
   const [loadingBridge, setLoadingBridge] = useState(false);
   const [loadingNomeBridge, setLoadingNomeBridge] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Nome veio do ERP → após salvar, oferece importar o das demais lojas
+  const [nomeVeioDoBridge, setNomeVeioDoBridge] = useState(false);
+  const [perguntarImportar, setPerguntarImportar] = useState(false);
+  const [importando, setImportando] = useState(false);
+  const [resultadoImport, setResultadoImport] = useState<string | null>(null);
 
   async function handleBuscarNome() {
     setLoadingNomeBridge(true);
@@ -92,11 +99,38 @@ function EditLojaRow({
       const res = await fetch(`/api/admin/lojas/${loja.id}/nome-bridge`);
       const data = (await res.json()) as { nome?: string; error?: string };
       if (!res.ok) { setErro(data.error ?? "Erro ao buscar nome"); return; }
-      if (data.nome) setNome(data.nome);
+      if (data.nome) { setNome(data.nome); setNomeVeioDoBridge(true); }
     } catch {
       setErro("Erro de rede ao buscar nome");
     } finally {
       setLoadingNomeBridge(false);
+    }
+  }
+
+  async function handleImportarTodas() {
+    setImportando(true);
+    setErro(null);
+    try {
+      const res = await fetch(`/api/admin/tenants/${tenantId}/nomes-bridge`, { method: "POST" });
+      const data = (await res.json()) as {
+        atualizadas?: { id: string }[];
+        semCorrespondencia?: number[];
+        error?: string;
+      };
+      if (!res.ok) { setErro(data.error ?? "Erro ao importar nomes"); return; }
+
+      const n = data.atualizadas?.length ?? 0;
+      const semMatch = data.semCorrespondencia?.length ?? 0;
+      setResultadoImport(
+        `${n} ${n === 1 ? "loja atualizada" : "lojas atualizadas"}` +
+        (semMatch > 0 ? ` · ${semMatch} sem correspondência no ERP` : "")
+      );
+      setPerguntarImportar(false);
+      onSaved(nome.trim(), cnpj.trim());
+    } catch {
+      setErro("Erro de rede ao importar nomes");
+    } finally {
+      setImportando(false);
     }
   }
 
@@ -127,6 +161,12 @@ function EditLojaRow({
       });
       const data = (await res.json()) as { error?: string };
       if (!res.ok) { setErro(data.error ?? "Erro ao salvar"); return; }
+
+      // Nome importado do ERP: oferece propagar para as demais lojas antes de fechar
+      if (nomeVeioDoBridge) {
+        setPerguntarImportar(true);
+        return;
+      }
       onSaved(nome.trim(), cnpj.trim());
     } catch {
       setErro("Erro de rede");
@@ -176,16 +216,47 @@ function EditLojaRow({
         </div>
         <div className="flex gap-2 pb-0.5">
           {erro && <p className="self-center text-xs" style={{ color: "var(--adm-alert)" }}>{erro}</p>}
-          <AdminButton onClick={handleSave} disabled={loading} size="sm">
+          <AdminButton onClick={handleSave} disabled={loading || importando} size="sm">
             {loading && <Loader2 className="h-3 w-3 animate-spin" />}
             Salvar
           </AdminButton>
-          <AdminButton variant="subtle" size="sm" onClick={onClose} disabled={loading}>
+          <AdminButton variant="subtle" size="sm" onClick={onClose} disabled={loading || importando}>
             <X className="h-3 w-3" />
             Cancelar
           </AdminButton>
         </div>
       </div>
+
+      {/* Nome importado do ERP — oferece propagar para as demais lojas do grupo */}
+      {perguntarImportar && (
+        <div
+          className="mt-3 flex flex-wrap items-center gap-3 rounded-lg px-3 py-2.5"
+          style={{ background: "var(--adm-surface-3)", border: "1px solid var(--adm-line-strong)" }}
+        >
+          <p className="flex-1 text-xs" style={{ color: "var(--adm-text-dim)" }}>
+            Nome importado do MaxManager. Deseja importar o nome das demais lojas deste grupo
+            também? Os nomes atuais serão substituídos pelos apelidos do ERP.
+          </p>
+          <div className="flex shrink-0 gap-2">
+            <AdminButton size="sm" onClick={handleImportarTodas} disabled={importando}>
+              {importando && <Loader2 className="h-3 w-3 animate-spin" />}
+              {importando ? "Importando..." : "Importar todas"}
+            </AdminButton>
+            <AdminButton
+              variant="subtle"
+              size="sm"
+              disabled={importando}
+              onClick={() => { setPerguntarImportar(false); onSaved(nome.trim(), cnpj.trim()); }}
+            >
+              Agora não
+            </AdminButton>
+          </div>
+        </div>
+      )}
+
+      {resultadoImport && (
+        <p className="mt-2 text-xs" style={{ color: "var(--adm-signal)" }}>{resultadoImport}</p>
+      )}
     </td>
   );
 }
@@ -243,6 +314,7 @@ export function LojasSectionClient({ lojas: lojasProp, tenantId }: Props) {
                 <tr key={loja.id} style={{ animation: "fadeInUp 0.2s ease-out both" }}>
                   <EditLojaRow
                     loja={loja}
+                    tenantId={tenantId}
                     onClose={() => setEditingId(null)}
                     onSaved={(nome, cnpj) => {
                       setLojas((prev) =>

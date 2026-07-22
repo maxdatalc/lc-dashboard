@@ -29,7 +29,7 @@ const statusLabel: Record<OrdemServico["status"], { label: string; cls: string }
     cls: "bg-[color:var(--warning)]/15 text-[color:oklch(0.5_0.15_70)] border-[color:var(--warning)]/30",
   },
   faturada: {
-    label: "Faturada",
+    label: "Concluída",
     cls: "bg-[color:var(--success)]/15 text-[color:var(--success)] border-[color:var(--success)]/30",
   },
   cancelada: { label: "Cancelada", cls: "bg-muted text-muted-foreground border-border" },

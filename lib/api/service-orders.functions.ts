@@ -12,6 +12,7 @@ import {
   buildMaxApiConfig,
   type MaxApiConfig,
 } from "@/lib/maxapi/maxapi-client";
+import { resolveTerminal } from "@/lib/maxapi/terminal";
 import { validateStockForOsItem } from "@/lib/fiscal/calculate-fiscal-stock";
 import { assertLojaAccess } from "@/lib/api/access";
 
@@ -153,7 +154,8 @@ async function getLojaConfig(lojaId: string) {
     maxApi = buildMaxApiConfig(
       {
         emp_id_maxdata: String(lojaRow.emp_id),
-        terminal_maxdata: (cfgRow?.terminal_maxdata as string | null) ?? (lojaRow.terminal_maxdata as string | null) ?? "1",
+        // sem default "1": terminal ausente falha visivelmente em buildMaxApiConfig
+        terminal_maxdata: resolveTerminal(cfgRow, lojaRow) ?? "",
       },
       { maxapi_url: cfgRow.maxapi_url as string },
     );
