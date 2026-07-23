@@ -172,10 +172,16 @@ export async function getMercadoPagoAccessToken(
   }
 }
 
+export interface ItemPreferencia {
+  titulo: string;
+  quantidade: number;
+  precoUnitario: number;
+}
+
 export interface CriarPreferenciaParams {
   accessToken: string;
   pedidoId: string;
-  valor: number;
+  itens: ItemPreferencia[];
   payerEmail: string;
   backUrls: { success: string; failure: string; pending: string };
   notificationUrl: string;
@@ -185,6 +191,10 @@ export interface CriarPreferenciaParams {
  * Checkout Pro: cria uma Preference (não um Payment). O Mercado Pago
  * hospeda a página inteira de pagamento (PIX/cartão/boleto) — não criamos o
  * payment nós mesmos, só redirecionamos o cliente pro init_point devolvido.
+ *
+ * Um `item` por produto do pedido (+ um de frete, se houver) — em vez de
+ * uma única linha genérica "Pedido <id>" — para o "Detalhes do pagamento"
+ * na tela do Mercado Pago mostrar o que o cliente está comprando de verdade.
  */
 export async function criarPreferenciaCheckoutPro(
   params: CriarPreferenciaParams,
@@ -196,14 +206,12 @@ export async function criarPreferenciaCheckoutPro(
       Authorization: `Bearer ${params.accessToken}`,
     },
     body: JSON.stringify({
-      items: [
-        {
-          title: `Pedido ${params.pedidoId}`,
-          quantity: 1,
-          unit_price: params.valor,
-          currency_id: "BRL",
-        },
-      ],
+      items: params.itens.map((item) => ({
+        title: item.titulo,
+        quantity: item.quantidade,
+        unit_price: item.precoUnitario,
+        currency_id: "BRL",
+      })),
       payer: { email: params.payerEmail },
       external_reference: params.pedidoId,
       back_urls: params.backUrls,

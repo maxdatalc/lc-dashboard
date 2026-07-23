@@ -21,6 +21,7 @@ export interface PedidoParaPagamento {
   id: string;
   status: "pendente" | "pago";
   total: number;
+  freteValor: number | null;
   cpf: string;
   lojaId: string; // resolvido via join ecom_clientes
 }
@@ -31,7 +32,7 @@ export async function buscarPedidoParaPagamento(
 ): Promise<PedidoParaPagamento | null> {
   const { data: pedido } = await supabaseAdmin
     .from("ecom_pedidos")
-    .select("id, status, total, cpf, cliente_id")
+    .select("id, status, total, frete_valor, cpf, cliente_id")
     .eq("id", pedidoId)
     .maybeSingle();
   if (!pedido) return null;
@@ -47,9 +48,33 @@ export async function buscarPedidoParaPagamento(
     id: pedido.id,
     status: pedido.status,
     total: Number(pedido.total),
+    freteValor: pedido.frete_valor == null ? null : Number(pedido.frete_valor),
     cpf: pedido.cpf,
     lojaId: cliente.loja_id,
   };
+}
+
+export interface ItemPedidoParaPagamento {
+  nome: string;
+  preco: number;
+  quantidade: number;
+}
+
+/** Usado só para montar os `items` da Preference do Checkout Pro com nome/preço/quantidade de verdade, em vez de uma linha genérica "Pedido <id>". */
+export async function buscarItensPedidoParaPagamento(
+  supabaseAdmin: AnySupabaseClient,
+  pedidoId: string,
+): Promise<ItemPedidoParaPagamento[]> {
+  const { data } = await supabaseAdmin
+    .from("ecom_pedido_itens")
+    .select("nome, preco, quantidade")
+    .eq("pedido_id", pedidoId);
+
+  return (data ?? []).map((item) => ({
+    nome: item.nome,
+    preco: Number(item.preco),
+    quantidade: item.quantidade,
+  }));
 }
 
 /** Privado — idempotente por pedido: única transição autoritativa de dinheiro confirmado. */

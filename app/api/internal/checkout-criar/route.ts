@@ -16,6 +16,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
   PagamentoPendenteJaExisteError,
+  buscarItensPedidoParaPagamento,
   buscarPedidoParaPagamento,
   buscarPreferenciaPendente,
   inserirPagamentoPendente,
@@ -104,11 +105,27 @@ export async function POST(req: NextRequest) {
     .eq("loja_id", dados.loja_id)
     .maybeSingle();
 
+  const itensPedido = await buscarItensPedidoParaPagamento(supabaseAdmin, dados.pedido_id);
+  const itensPreferencia = itensPedido.map((item) => ({
+    titulo: item.nome,
+    quantidade: item.quantidade,
+    precoUnitario: item.preco,
+  }));
+  if (pedido.freteValor && pedido.freteValor > 0) {
+    itensPreferencia.push({ titulo: "Frete", quantidade: 1, precoUnitario: pedido.freteValor });
+  }
+  // Sanidade: se por algum motivo não achou nenhum item (não deveria
+  // acontecer — garantirPedidoCriado sempre grava ecom_pedido_itens junto),
+  // cai pra uma linha só com o total, pra nunca travar o checkout.
+  if (itensPreferencia.length === 0) {
+    itensPreferencia.push({ titulo: `Pedido ${dados.pedido_id}`, quantidade: 1, precoUnitario: pedido.total });
+  }
+
   try {
     const preference = await criarPreferenciaCheckoutPro({
       accessToken,
       pedidoId: dados.pedido_id,
-      valor: pedido.total,
+      itens: itensPreferencia,
       payerEmail: dados.payer_email,
       backUrls: {
         success: `${dados.retorno_url_base}?pedido=${dados.pedido_id}&status=success`,
