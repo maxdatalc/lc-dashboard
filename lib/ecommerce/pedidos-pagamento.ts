@@ -69,6 +69,7 @@ export interface PreferenciaPendente {
   id: string;
   preferenceId: string;
   initPoint: string;
+  valor: number;
 }
 
 /** Reaproveitamento: se já existe uma tentativa em aberto, devolve a mesma preference (evita criar preferences duplicadas no MP a cada refresh da página). */
@@ -78,12 +79,28 @@ export async function buscarPreferenciaPendente(
 ): Promise<PreferenciaPendente | null> {
   const { data } = await supabaseAdmin
     .from("ecom_pedido_pagamento")
-    .select("id, preference_id, init_point")
+    .select("id, preference_id, init_point, valor")
     .eq("pedido_id", pedidoId)
     .eq("status", "pendente")
     .maybeSingle();
   if (!data) return null;
-  return { id: data.id, preferenceId: data.preference_id, initPoint: data.init_point };
+  return { id: data.id, preferenceId: data.preference_id, initPoint: data.init_point, valor: Number(data.valor) };
+}
+
+/**
+ * Invalida uma tentativa pendente cujo valor não bate mais com o pedido
+ * (o cliente cancelou o checkout, editou o carrinho e confirmou de novo —
+ * ver ressincronização em garantirPedidoCriado no lc-storefront). A
+ * preference já criada no Mercado Pago é imutável (não dá pra corrigir o
+ * valor nela), então a única saída é invalidar esta linha e criar uma
+ * preference nova com o total atual.
+ */
+export async function invalidarPagamentoPendente(supabaseAdmin: AnySupabaseClient, id: string) {
+  await supabaseAdmin
+    .from("ecom_pedido_pagamento")
+    .update({ status: "erro", atualizado_em: new Date().toISOString() })
+    .eq("id", id)
+    .eq("status", "pendente");
 }
 
 export class PagamentoPendenteJaExisteError extends Error {}

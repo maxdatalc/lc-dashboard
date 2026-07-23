@@ -19,6 +19,7 @@ import {
   buscarPedidoParaPagamento,
   buscarPreferenciaPendente,
   inserirPagamentoPendente,
+  invalidarPagamentoPendente,
 } from "@/lib/ecommerce/pedidos-pagamento";
 import {
   MercadoPagoDesconectadoError,
@@ -67,14 +68,20 @@ export async function POST(req: NextRequest) {
   }
 
   // Reaproveita a preference em aberto, se houver — evita criar preferences
-  // duplicadas no MP a cada refresh da página de pagamento.
+  // duplicadas no MP a cada refresh da página de pagamento. MAS: se o valor
+  // não bate mais com o pedido (cliente cancelou o checkout, editou o
+  // carrinho e confirmou de novo — a preference do MP é imutável, não dá
+  // pra corrigir o valor nela), invalida essa linha e cria uma nova abaixo.
   const existente = await buscarPreferenciaPendente(supabaseAdmin, dados.pedido_id);
   if (existente) {
-    return NextResponse.json({
-      pagamento_id: existente.id,
-      preference_id: existente.preferenceId,
-      init_point: existente.initPoint,
-    });
+    if (existente.valor === pedido.total) {
+      return NextResponse.json({
+        pagamento_id: existente.id,
+        preference_id: existente.preferenceId,
+        init_point: existente.initPoint,
+      });
+    }
+    await invalidarPagamentoPendente(supabaseAdmin, existente.id);
   }
 
   let accessToken: string;
