@@ -1,8 +1,7 @@
 import { createHmac } from "crypto";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import {
-  calcularDataExpiracaoPix,
   montarManifestWebhook,
   tokenPrecisaRenovar,
   verificarAssinaturaWebhook,
@@ -88,14 +87,5 @@ describe("tokenPrecisaRenovar", () => {
     expect(
       tokenPrecisaRenovar("2026-07-25T00:00:00Z", new Date("2026-07-21T00:00:00Z")),
     ).toBe(true);
-  });
-});
-
-describe("calcularDataExpiracaoPix", () => {
-  afterEach(() => vi.useRealTimers());
-
-  it("soma minutos e devolve ISO-8601 válido", () => {
-    const agora = new Date("2026-07-21T12:00:00.000Z");
-    expect(calcularDataExpiracaoPix(agora, 30)).toBe("2026-07-21T12:30:00.000Z");
   });
 });

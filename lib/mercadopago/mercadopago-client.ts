@@ -19,6 +19,7 @@ import { decrypt, encrypt } from "../crypto";
 import type {
   MercadoPagoOAuthTokenResponse,
   MercadoPagoPaymentResponse,
+  MercadoPagoPreferenceResponse,
 } from "./mercadopago-types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,10 +66,6 @@ const MARGEM_RENOVACAO_MS = 7 * 24 * 60 * 60 * 1000;
 export function tokenPrecisaRenovar(expiresAtIso: string | null, agora: Date): boolean {
   if (!expiresAtIso) return true;
   return new Date(expiresAtIso).getTime() - agora.getTime() < MARGEM_RENOVACAO_MS;
-}
-
-export function calcularDataExpiracaoPix(agora: Date, minutos: number): string {
-  return new Date(agora.getTime() + minutos * 60_000).toISOString();
 }
 
 // ── Chamadas de rede (não testadas por unidade — mesmo padrão de maxapi-client.ts) ──
@@ -175,84 +172,43 @@ export async function getMercadoPagoAccessToken(
   }
 }
 
-export interface CriarPixParams {
+export interface CriarPreferenciaParams {
   accessToken: string;
+  pedidoId: string;
   valor: number;
-  descricao: string;
   payerEmail: string;
-  payerFirstName: string;
-  payerLastName: string;
-  cpf: string;
-  dataExpiracao: string;
-  idempotencyKey: string;
+  backUrls: { success: string; failure: string; pending: string };
+  notificationUrl: string;
 }
 
-export async function criarPagamentoPix(
-  params: CriarPixParams,
-): Promise<MercadoPagoPaymentResponse> {
-  return chamarMercadoPago<MercadoPagoPaymentResponse>("/v1/payments", {
+/**
+ * Checkout Pro: cria uma Preference (não um Payment). O Mercado Pago
+ * hospeda a página inteira de pagamento (PIX/cartão/boleto) — não criamos o
+ * payment nós mesmos, só redirecionamos o cliente pro init_point devolvido.
+ */
+export async function criarPreferenciaCheckoutPro(
+  params: CriarPreferenciaParams,
+): Promise<MercadoPagoPreferenceResponse> {
+  return chamarMercadoPago<MercadoPagoPreferenceResponse>("/checkout/preferences", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${params.accessToken}`,
-      "X-Idempotency-Key": params.idempotencyKey,
     },
     body: JSON.stringify({
-      transaction_amount: params.valor,
-      description: params.descricao,
-      payment_method_id: "pix",
-      date_of_expiration: params.dataExpiracao,
-      payer: {
-        email: params.payerEmail,
-        first_name: params.payerFirstName,
-        last_name: params.payerLastName,
-        identification: { type: "CPF", number: params.cpf },
-      },
-      // application_fee deliberadamente OMITIDO no v1 — decisão de
-      // monetização da plataforma adiada para fase futura.
-    }),
-  });
-}
-
-export interface CriarCartaoParams {
-  accessToken: string;
-  valor: number;
-  descricao: string;
-  token: string;
-  paymentMethodId: string;
-  issuerId: string;
-  installments: number;
-  payerEmail: string;
-  payerFirstName: string;
-  payerLastName: string;
-  cpf: string;
-  idempotencyKey: string;
-}
-
-export async function criarPagamentoCartao(
-  params: CriarCartaoParams,
-): Promise<MercadoPagoPaymentResponse> {
-  return chamarMercadoPago<MercadoPagoPaymentResponse>("/v1/payments", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${params.accessToken}`,
-      "X-Idempotency-Key": params.idempotencyKey,
-    },
-    body: JSON.stringify({
-      transaction_amount: params.valor,
-      token: params.token,
-      description: params.descricao,
-      installments: params.installments,
-      payment_method_id: params.paymentMethodId,
-      issuer_id: params.issuerId,
-      payer: {
-        email: params.payerEmail,
-        first_name: params.payerFirstName,
-        last_name: params.payerLastName,
-        identification: { type: "CPF", number: params.cpf },
-      },
-      // capture padrão (cobrança imediata) — "autorizar e capturar depois" fica pra fase futura, se necessário.
+      items: [
+        {
+          title: `Pedido ${params.pedidoId}`,
+          quantity: 1,
+          unit_price: params.valor,
+          currency_id: "BRL",
+        },
+      ],
+      payer: { email: params.payerEmail },
+      external_reference: params.pedidoId,
+      back_urls: params.backUrls,
+      auto_return: "approved",
+      notification_url: params.notificationUrl,
     }),
   });
 }

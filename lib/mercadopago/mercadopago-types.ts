@@ -9,26 +9,20 @@ export interface MercadoPagoOAuthTokenResponse {
   live_mode: boolean;
 }
 
-export interface MercadoPagoPixPointOfInteraction {
-  transaction_data: {
-    qr_code: string;
-    qr_code_base64: string;
-    ticket_url: string;
-  };
-}
-
-export interface MercadoPagoCard {
-  last_four_digits: string;
-}
-
 export interface MercadoPagoPaymentResponse {
   id: number;
-  status: string; // "pending" | "approved" | "rejected" | "cancelled" | ...
+  status: string; // "pending" | "approved" | "rejected" | "cancelled" | "in_process" | ...
   status_detail: string;
-  date_of_expiration: string | null;
   transaction_amount: number;
-  point_of_interaction?: MercadoPagoPixPointOfInteraction; // PIX-only
-  card?: MercadoPagoCard; // cartão-only
+  external_reference: string | null; // pedido_id, setado por nós ao criar a preference
+  payment_type_id: string | null; // "credit_card" | "pix" | "ticket" | ... -> vira `metodo`
+  payment_method_id: string | null; // "visa", "pix", "bolbradesco", ...
+}
+
+export interface MercadoPagoPreferenceResponse {
+  id: string;
+  init_point: string;
+  sandbox_init_point: string;
 }
 
 export interface MercadoPagoError {

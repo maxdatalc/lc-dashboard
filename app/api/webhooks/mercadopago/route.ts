@@ -1,12 +1,20 @@
 /**
- * POST /api/webhooks/mercadopago
+ * POST /api/webhooks/mercadopago?loja_id=<uuid>
  *
- * Notificação de pagamento do Mercado Pago. Diferente do padrão do
- * webhook do Asaas (app/api/webhooks/asaas/route.ts, só Bearer estático) —
- * aqui a verificação é HMAC-SHA256 sobre a manifest oficial do MP
- * (id/request-id/ts), comparação timingSafeEqual, secret único de
+ * Notificação de pagamento do Mercado Pago (Checkout Pro). Diferente do
+ * padrão do webhook do Asaas (app/api/webhooks/asaas/route.ts, só Bearer
+ * estático) — aqui a verificação é HMAC-SHA256 sobre a manifest oficial do
+ * MP (id/request-id/ts), comparação timingSafeEqual, secret único de
  * plataforma (MERCADOPAGO_WEBHOOK_SECRET, registrado uma vez no painel MP,
  * não por loja).
+ *
+ * `loja_id` vem da própria query string da notification_url (setada por nós
+ * ao criar a preference, ver /api/internal/checkout-criar) — no Checkout
+ * Pro o primeiro contato com um mp_payment_id é este próprio webhook, então
+ * não dá para localizar a loja por lookup em mp_payment_id (nunca o vimos
+ * antes). O parâmetro é só roteamento, não autenticação: a segurança real
+ * continua sendo o HMAC (que não cobre a URL) mais o cross-check
+ * `pedido.lojaId === lojaId` abaixo.
  *
  * Idempotente por mp_payment_id (ver lib/ecommerce/pedidos-pagamento.ts) —
  * reentrega do Mercado Pago não duplica o efeito de "pago".
@@ -15,14 +23,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/server";
-import {
-  buscarPedidoParaPagamento,
-  localizarTentativaPagamento,
-  marcarCartaoComoRecusado,
-  marcarCartaoEPedidoComoPago,
-  marcarPixComoErro,
-  marcarPixEPedidoComoPago,
-} from "@/lib/ecommerce/pedidos-pagamento";
+import { buscarPedidoParaPagamento, processarNotificacaoPagamento } from "@/lib/ecommerce/pedidos-pagamento";
 import {
   buscarPagamento,
   getMercadoPagoAccessToken,
@@ -63,46 +64,47 @@ export async function POST(req: NextRequest) {
 
     const supabaseAdmin = createAdminClient();
 
-    const tentativa = await localizarTentativaPagamento(supabaseAdmin, dataId);
-    if (!tentativa) {
-      // Nunca erro/retry-storm para notificação de um pagamento que não é
-      // nosso (ou já foi limpo) — só registra e confirma o recebimento.
-      console.warn(`[webhook-mercadopago] mp_payment_id desconhecido: ${dataId}`);
+    const lojaId = req.nextUrl.searchParams.get("loja_id");
+    if (!lojaId) {
+      console.warn(`[webhook-mercadopago] notification sem loja_id na URL para o pagamento ${dataId}`);
       return NextResponse.json({ ok: true, desconhecido: true });
     }
 
-    const pedido = await buscarPedidoParaPagamento(supabaseAdmin, tentativa.pedidoId);
-    if (!pedido) {
-      console.error(`[webhook-mercadopago] pedido ${tentativa.pedidoId} não encontrado para o pagamento ${dataId}`);
+    let accessToken: string;
+    try {
+      accessToken = await getMercadoPagoAccessToken(supabaseAdmin, lojaId);
+    } catch (err) {
+      console.warn(`[webhook-mercadopago] loja ${lojaId} sem token utilizável: ${(err as Error).message}`);
       return NextResponse.json({ ok: true, desconhecido: true });
     }
 
-    const accessToken = await getMercadoPagoAccessToken(supabaseAdmin, pedido.lojaId);
     const pagamento = await buscarPagamento(dataId, accessToken);
-
-    if (tentativa.tipo === "pix") {
-      if (pagamento.status === "approved") {
-        await marcarPixEPedidoComoPago(supabaseAdmin, dataId, new Date().toISOString());
-      } else if (pagamento.status === "rejected" || pagamento.status === "cancelled") {
-        await marcarPixComoErro(supabaseAdmin, dataId);
-      } else {
-        console.log(`[webhook-mercadopago] pix ${dataId} em status "${pagamento.status}" — sem ação`);
-      }
-    } else {
-      if (pagamento.status === "approved") {
-        await marcarCartaoEPedidoComoPago(supabaseAdmin, dataId, new Date().toISOString());
-      } else if (pagamento.status === "rejected") {
-        await marcarCartaoComoRecusado(supabaseAdmin, dataId, pagamento.status_detail);
-      } else {
-        console.log(`[webhook-mercadopago] cartão ${dataId} em status "${pagamento.status}" — sem ação`);
-      }
+    const pedidoId = pagamento.external_reference;
+    if (!pedidoId) {
+      console.warn(`[webhook-mercadopago] pagamento ${dataId} sem external_reference`);
+      return NextResponse.json({ ok: true, desconhecido: true });
     }
+
+    // Reconciliação cross-tenant: o pedido tem de pertencer à MESMA loja que
+    // o loja_id da query string indicou — mesma classe de checagem que a
+    // Fase 3 já exigiu para carrinho/endereço.
+    const pedido = await buscarPedidoParaPagamento(supabaseAdmin, pedidoId);
+    if (!pedido || pedido.lojaId !== lojaId) {
+      console.error(`[webhook-mercadopago] pedido ${pedidoId} não bate com a loja ${lojaId} (payment ${dataId})`);
+      return NextResponse.json({ ok: true, desconhecido: true });
+    }
+
+    await processarNotificacaoPagamento(supabaseAdmin, pedidoId, {
+      mpPaymentId: dataId,
+      status: pagamento.status,
+      metodo: pagamento.payment_type_id,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {
     // Erro genuinamente inesperado — o Mercado Pago faz retry com backoff,
     // comportamento correto aqui (diferente dos casos tratados acima, que
-    // sempre respondem 200/401 e nunca disparam retry).
+    // sempre respondem 200 e nunca disparam retry).
     const mensagem = err instanceof Error ? err.message : String(err);
     console.error(`[webhook-mercadopago] falha inesperada: ${mensagem}`);
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });

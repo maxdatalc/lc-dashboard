@@ -38,8 +38,8 @@ export default function MercadoPagoCard({ lojaId, tenantId, conectado, comErro, 
         </div>
         <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
           {comErro
-            ? "A renovação automática do token falhou (provavelmente a conta foi desconectada ou o acesso foi revogado no painel do Mercado Pago). Conecte novamente para retomar os pagamentos PIX desta loja."
-            : "Conecte a conta Mercado Pago do vendedor desta loja para habilitar pagamentos via PIX no storefront."}
+            ? "A renovação automática do token falhou (provavelmente a conta foi desconectada ou o acesso foi revogado no painel do Mercado Pago). Conecte novamente para retomar os pagamentos desta loja."
+            : "Conecte a conta Mercado Pago do vendedor desta loja para habilitar pagamentos no storefront."}
         </p>
         <a
           href={`/api/admin/mercadopago/conectar?lojaId=${lojaId}&tenantId=${tenantId}`}
@@ -89,7 +89,7 @@ export default function MercadoPagoCard({ lojaId, tenantId, conectado, comErro, 
       <form
         action={action}
         onSubmit={(e) => {
-          if (!window.confirm("Desconectar a conta Mercado Pago desta loja? PIX ficará indisponível até reconectar.")) {
+          if (!window.confirm("Desconectar a conta Mercado Pago desta loja? Pagamentos ficarão indisponíveis até reconectar.")) {
             e.preventDefault();
           }
         }}

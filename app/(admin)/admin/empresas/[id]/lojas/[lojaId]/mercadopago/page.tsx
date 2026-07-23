@@ -100,7 +100,7 @@ export default async function MercadoPagoConfigPage({
         </Link>
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--adm-text)" }}>
-            Mercado Pago — Pagamento (PIX)
+            Mercado Pago — Pagamento (Checkout Pro)
           </h1>
           <p className="mt-0.5 text-sm" style={{ color: "var(--adm-text-dim)" }}>
             <span className="adm-mono">{loja.name}</span>
@@ -108,7 +108,8 @@ export default async function MercadoPagoConfigPage({
         </div>
         <p className="text-sm" style={{ color: "var(--adm-text-dim)" }}>
           Cada loja conecta sua própria conta Mercado Pago — não existe conta central da
-          plataforma. O pagamento PIX do storefront é gerado em nome da conta conectada aqui.
+          plataforma. Os pagamentos do storefront (PIX, cartão, boleto) são processados em nome
+          da conta conectada aqui.
         </p>
       </div>
 
