@@ -15,6 +15,11 @@ import type {
   MaxApiError,
   MaxApiPaginated,
   MaxApiProduct,
+  ClientBody,
+  SaleBody,
+  SaleItemBody,
+  SaleStatusBody,
+  Sale,
 } from "./maxapi-types";
 
 export interface MaxApiConfig {
@@ -225,6 +230,66 @@ export async function cancelServiceOrderItem(
 ): Promise<void> {
   await maxApiRequest<void>(
     config, supabaseAdmin, lojaId, "DELETE", `/v2/serviceorder/items/${itemId}`,
+  );
+}
+
+// ── Fase 5 (lc-storefront, pedido -> ERP) ──────────────────────────────────
+// Formatos confirmados ao vivo contra o MaxAPI de teste em 24/07/2026 —
+// ver memória fase-5-maxapi-client-sale-validado / CLAUDE.md do lc-storefront.
+
+export async function createClienteMaxApi(
+  config: MaxApiConfig,
+  supabaseAdmin: AnySupabaseClient,
+  lojaId: string,
+  body: ClientBody,
+): Promise<{ id: number }> {
+  return maxApiRequest<{ id: number }>(
+    config, supabaseAdmin, lojaId, "POST", "/v2/client", body,
+  );
+}
+
+export async function createSaleMaxApi(
+  config: MaxApiConfig,
+  supabaseAdmin: AnySupabaseClient,
+  lojaId: string,
+  body: SaleBody,
+): Promise<{ id: number }> {
+  return maxApiRequest<{ id: number }>(
+    config, supabaseAdmin, lojaId, "POST", "/v2/sale", body,
+  );
+}
+
+export async function addSaleItemMaxApi(
+  config: MaxApiConfig,
+  supabaseAdmin: AnySupabaseClient,
+  lojaId: string,
+  item: SaleItemBody,
+): Promise<{ id: number }> {
+  return maxApiRequest<{ id: number }>(
+    config, supabaseAdmin, lojaId, "POST", "/v2/sale/items", item,
+  );
+}
+
+export async function updateSaleStatusMaxApi(
+  config: MaxApiConfig,
+  supabaseAdmin: AnySupabaseClient,
+  lojaId: string,
+  vendaId: number,
+  body: SaleStatusBody,
+): Promise<void> {
+  await maxApiRequest<void>(
+    config, supabaseAdmin, lojaId, "PUT", `/v2/sale/${vendaId}`, body,
+  );
+}
+
+export async function getSaleMaxApi(
+  config: MaxApiConfig,
+  supabaseAdmin: AnySupabaseClient,
+  lojaId: string,
+  vendaId: number,
+): Promise<Sale> {
+  return maxApiRequest<Sale>(
+    config, supabaseAdmin, lojaId, "GET", `/v2/sale/${vendaId}`,
   );
 }
 

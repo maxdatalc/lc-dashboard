@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Plug } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Plug } from "lucide-react";
 import { createClient } from "@supabase/supabase-js";
 
 import { AdminCard } from "@/components/admin/AdminCard";
@@ -36,6 +36,13 @@ interface MercadoPagoStatus {
   status: "conectado" | "desconectado" | "erro";
 }
 
+interface PedidoComErro {
+  id: string;
+  total: number;
+  erp_ultimo_erro: string | null;
+  criado_em: string;
+}
+
 async function carregarDados(lojaId: string, tenantId: string) {
   const supabase = supabaseAdmin();
 
@@ -62,7 +69,33 @@ async function carregarDados(lojaId: string, tenantId: string) {
       .maybeSingle<MercadoPagoStatus>(),
   ]);
 
-  return { loja, ecomLoja, mpConectado: mpConfig?.status === "conectado" };
+  // Fase 5 — alerta mínimo, só leitura: pedidos que ficaram presos após
+  // esgotar as tentativas automáticas de push ao ERP (ver
+  // lib/ecommerce/pedidos-erp.ts). Lançamento manual no MaxManager é o
+  // último recurso — sem ação nenhuma aqui, gestão completa fica pra Fase 6.
+  const { data: clientesDaLoja } = await supabase
+    .from("ecom_clientes")
+    .select("id")
+    .eq("loja_id", lojaId);
+  const clienteIds = (clientesDaLoja ?? []).map((c) => c.id as string);
+
+  const { data: pedidosComErro } =
+    clienteIds.length > 0
+      ? await supabase
+          .from("ecom_pedidos")
+          .select("id, total, erp_ultimo_erro, criado_em")
+          .in("cliente_id", clienteIds)
+          .eq("status", "pago_pendente_erp")
+          .order("criado_em", { ascending: false })
+          .returns<PedidoComErro[]>()
+      : { data: [] as PedidoComErro[] };
+
+  return {
+    loja,
+    ecomLoja,
+    mpConectado: mpConfig?.status === "conectado",
+    pedidosComErro: pedidosComErro ?? [],
+  };
 }
 
 // ─── Server Action ────────────────────────────────────────────────────────────
@@ -125,7 +158,7 @@ export default async function EcommerceConfigPage({
 
   if (!dados) notFound();
 
-  const { loja, ecomLoja, mpConectado } = dados;
+  const { loja, ecomLoja, mpConectado, pedidosComErro } = dados;
   const action = salvarEcommerceConfig.bind(null, lojaId);
 
   return (
@@ -166,6 +199,34 @@ export default async function EcommerceConfigPage({
           Configurar →
         </Link>
       </AdminCard>
+
+      {pedidosComErro.length > 0 && (
+        <AdminCard className="space-y-3 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4" style={{ color: "var(--adm-danger, #dc2626)" }} />
+            <p className="text-sm font-medium" style={{ color: "var(--adm-text)" }}>
+              {pedidosComErro.length} pedido(s) pago(s) travado(s) no envio ao ERP
+            </p>
+          </div>
+          <p className="text-xs" style={{ color: "var(--adm-text-dim)" }}>
+            O push automático esgotou as tentativas. Lançar manualmente no MaxManager —
+            nunca existe cancelamento/estorno automático pra venda em Supervisão.
+          </p>
+          <ul className="space-y-2 text-xs">
+            {pedidosComErro.map((pedido) => (
+              <li key={pedido.id} className="rounded-md border px-3 py-2" style={{ borderColor: "var(--adm-line)" }}>
+                <div className="flex items-center justify-between">
+                  <span className="adm-mono">{pedido.id}</span>
+                  <span>{pedido.total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>
+                </div>
+                <p className="mt-1" style={{ color: "var(--adm-text-dim)" }}>
+                  {pedido.erp_ultimo_erro ?? "Erro desconhecido"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </AdminCard>
+      )}
 
       <EcommerceForm
         action={action}

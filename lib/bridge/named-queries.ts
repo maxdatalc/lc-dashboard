@@ -281,6 +281,18 @@ WHERE v.vedId = @osId
   AND v.vedTipo = 'OS'
 `;
 
+/**
+ * Fase 5 (lc-storefront): busca cliente existente por CPF antes de criar um
+ * novo via POST /v2/client — evita duplicar cadastro de quem já compra na
+ * loja física. Só leitura, mesmo padrão das demais named queries; a escrita
+ * (quando não achar) é feita pela MaxAPI, nunca pela Bridge.
+ */
+const FIND_CLIENTE_BY_CPF = `
+SELECT TOP 1 cliId
+FROM cliente
+WHERE cliCpfCgc = @cpf
+`;
+
 const LIST_ERP_USERS = `
 SELECT TOP 200
   c.cliId                     AS cliId,
@@ -322,7 +334,20 @@ ORDER BY vdi.vdiId
  * banco está zerada em 100% dos 12.903 produtos — ou seja, a vitrine só passa a
  * exibir algo depois que o lojista marcar os produtos dentro do MaxManager.
  *
- * Preço e estoque vêm de `produto_empresa` (por empId), NUNCA de `produto`.
+ * Preço vem da TABELA DE PREÇO marcada como e-commerce
+ * (`produtoTabelaPreco.ptpEcommerce = 1`, item em `produtoTabelaPrecoItem`),
+ * NUNCA de `produto_empresa.proVenda` (esse é o preço de balcão, não o do
+ * e-commerce — descoberto em 24/07/2026, os dois divergem por produto:
+ * proId 6937 balcão 109,22 vs e-commerce 115, proId 29 balcão 305 vs
+ * e-commerce 310, proId 4323 balcão 29,68 vs e-commerce 26,35). INNER JOIN
+ * deliberado: produto sem preço cadastrado nessa tabela não é publicável —
+ * mesma disciplina de não deixar a vitrine mostrar dado que o lojista não
+ * configurou de propósito pro e-commerce.
+ *
+ * Estoque exibido já desconta o que está reservado em vendas de e-commerce
+ * ainda não finalizadas (`vedTipo = 'VE'`, `vedStatus IN ('A','S')` — aberta
+ * ou em Supervisão) — sem isso a vitrine prometeria mais unidades do que
+ * `stock-check` realmente libera no checkout (mesma subtração usada lá).
  * `proDesativaProd`: 0/NULL = ativo, -1 = inativo (não é 0/1).
  */
 const LIST_ECOMMERCE_PRODUCTS = `
@@ -332,8 +357,17 @@ SELECT
   ISNULL(p.proAplicacao, '')    AS proAplicacao,
   ISNULL(p.proUn, '')           AS proUn,
   ISNULL(pe.proCodigo, '')      AS proCodigo,
-  pe.proVenda                   AS proVenda,
-  ISNULL(pe.proEstoqueAtual, 0) AS proEstoqueAtual,
+  tpi.tpiValorUn                AS proVenda,
+  ISNULL(pe.proEstoqueAtual, 0) - ISNULL((
+    SELECT SUM(vdi.vdiQtde)
+    FROM vendaItem vdi
+    INNER JOIN venda v ON v.vedId = vdi.vdiVedId
+    WHERE vdi.vdiItemId = p.proId
+      AND v.empId       = @empId
+      AND v.vedTipo     = 'VE'
+      AND v.vedStatus   IN ('A', 'S')
+      AND vdi.vdiCancel = 0
+  ), 0)                         AS proEstoqueAtual,
   ISNULL(g.gdpNome, '')         AS grupoNome,
   ISNULL(sg.sgpNome, '')        AS subGrupoNome,
   ISNULL(f.fabNome, '')         AS marcaNome,
@@ -343,13 +377,15 @@ SELECT
   p.proComprimento               AS proComprimento
 FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
+INNER JOIN produtoTabelaPrecoItem tpi ON tpi.tpiProId = p.proId
+INNER JOIN produtoTabelaPreco ptp ON ptp.ptpId = tpi.tpiPtpId AND ptp.ptpEcommerce = 1
 LEFT JOIN grupoProd    g  ON g.gdpId  = p.proGrupo
 LEFT JOIN subGrupoProd sg ON sg.sgpId = p.proSubGrupo
 LEFT JOIN fabricante   f  ON f.fabId  = p.proFab
 WHERE p.proUsaEcommerce = 1
   AND (pe.proDesativaProd IS NULL OR pe.proDesativaProd = 0)
   AND ISNULL(p.proTipo, 'P') = 'P'
-  AND pe.proVenda > 0
+  AND tpi.tpiValorUn > 0
 ORDER BY p.proId
 `;
 
@@ -357,6 +393,24 @@ ORDER BY p.proId
  * Estoque ao vivo de vários produtos, para revalidar o carrinho ANTES de cobrar
  * (lc-storefront, fase 3). O selo mostrado na navegação vem do snapshot do sync;
  * a quantidade que autoriza a cobrança vem daqui, do ERP, na hora.
+ *
+ * `proEstoqueAtual` devolvido aqui já é o DISPONÍVEL, não o físico: desconta o
+ * que está reservado em vendas de e-commerce ainda não finalizadas
+ * (`vedTipo = 'VE'`, `vedStatus IN ('A','S')` — aberta ou em Supervisão,
+ * `vdiCancel = 0`). Descoberto em 24/07/2026: sem isso, dois clientes podiam
+ * fechar carrinho pro mesmo item simultaneamente enquanto o primeiro já
+ * estava com a venda em Supervisão — o físico ainda não tinha sido baixado
+ * de vez (só na aprovação final), mas já não estava mais livre pra vender.
+ * Mesma subtração usada em LIST_ECOMMERCE_PRODUCTS pro selo do catálogo.
+ *
+ * `proVenda` vem da tabela de preço marcada como e-commerce
+ * (`produtoTabelaPreco.ptpEcommerce = 1`), não de `produto_empresa.proVenda`
+ * — mesmo motivo/descoberta do LIST_ECOMMERCE_PRODUCTS acima. LEFT JOIN aqui
+ * (diferente do INNER JOIN do catálogo): item sem preço de e-commerce ainda
+ * assim precisa aparecer no resultado com `proVenda = 0`, pra
+ * `stock-check` conseguir marcar esse item como indisponível em vez de
+ * simplesmente sumir da resposta (o carrinho já teria passado pelo catálogo
+ * antes, então isso só aconteceria se o preço fosse desconfigurado depois).
  *
  * `@proIds` é uma lista separada por vírgula ("1,3,7"). A bridge só aceita
  * parâmetros escalares nomeados, então não há como passar array — e STRING_SPLIT
@@ -368,11 +422,22 @@ ORDER BY p.proId
 const GET_ECOMMERCE_STOCK = `
 SELECT
   p.proId                       AS proId,
-  ISNULL(pe.proEstoqueAtual, 0) AS proEstoqueAtual,
-  ISNULL(pe.proVenda, 0)        AS proVenda,
+  ISNULL(pe.proEstoqueAtual, 0) - ISNULL((
+    SELECT SUM(vdi.vdiQtde)
+    FROM vendaItem vdi
+    INNER JOIN venda v ON v.vedId = vdi.vdiVedId
+    WHERE vdi.vdiItemId = p.proId
+      AND v.empId       = @empId
+      AND v.vedTipo     = 'VE'
+      AND v.vedStatus   IN ('A', 'S')
+      AND vdi.vdiCancel = 0
+  ), 0)                         AS proEstoqueAtual,
+  ISNULL(tpi.tpiValorUn, 0)     AS proVenda,
   ISNULL(pe.proDesativaProd, 0) AS proDesativaProd
 FROM produto p
 INNER JOIN produto_empresa pe ON pe.proId = p.proId AND pe.empId = @empId
+LEFT JOIN produtoTabelaPreco ptp ON ptp.ptpEcommerce = 1
+LEFT JOIN produtoTabelaPrecoItem tpi ON tpi.tpiPtpId = ptp.ptpId AND tpi.tpiProId = p.proId
 WHERE ',' + @proIds + ',' LIKE '%,' + CAST(p.proId AS VARCHAR(20)) + ',%'
 `;
 
@@ -436,6 +501,10 @@ const REGISTRY: Record<string, QueryDef> = {
   LIST_ERP_USERS: {
     sql: LIST_ERP_USERS,
     allowedParams: [],
+  },
+  FIND_CLIENTE_BY_CPF: {
+    sql: FIND_CLIENTE_BY_CPF,
+    allowedParams: ["cpf"],
   },
 };
 
