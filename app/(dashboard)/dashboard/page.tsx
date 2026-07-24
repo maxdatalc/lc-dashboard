@@ -303,7 +303,7 @@ export default function DashboardPage() {
               ? `${formatCurrency(emAberto?.valorTotal ?? 0)} em valor total`
               : "sem pendências"
           }
-          hint="Reflete a situação atual dos pedidos em aberto, não o período selecionado no filtro."
+          hint="Vendas e ordens de serviço já autorizadas pelo cliente, ainda não finalizamos no sistema. Não inclui orçamentos ou propostas em aberto."
           isLoading={kpiLoading}
         />
       </div>
@@ -374,12 +374,14 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Linha 3: Top Fabricantes | Formas de Pagamento ──────────────── */}
+      {/* No mobile (1 coluna), Formas de Pagamento vem antes do Top Fabricantes
+          via `order` — no desktop (lg, 2 colunas) volta à ordem do DOM. */}
       <div className="grid gap-2 grid-cols-1 lg:grid-cols-2 items-start">
         <ChartCard title="Top Fabricantes" subtitle="por faturamento — período selecionado" animationDelay={180}>
           {chartsLoading ? <ChartSkeleton height={480} /> : <TopGruposChart data={topGrupos} />}
         </ChartCard>
 
-        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={185}>
+        <ChartCard title="Formas de Pagamento" subtitle="período selecionado" animationDelay={185} className="order-first lg:order-none">
           {chartsLoading ? <ChartSkeleton height={280} /> : (
             <FormasPagamentoChart
               data={formasPagamento}

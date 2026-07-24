@@ -3,11 +3,10 @@
 import { TrendingDown, TrendingUp } from "lucide-react";
 import type { ReactNode } from "react";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Info } from "lucide-react";
 import { useFitText } from "@/hooks/use-fit-text";
 
@@ -89,19 +88,34 @@ export function KpiTile({
           {label}
         </p>
         {hint && (
-          <TooltipProvider delayDuration={200}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info
-                  className="shrink-0 cursor-help"
-                  style={{ width: 12, height: 12, color: "var(--text-muted)" }}
-                />
-              </TooltipTrigger>
-              <TooltipContent side="top" style={{ maxWidth: 240, lineHeight: 1.4 }}>
-                {hint}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          // Popover (clique) em vez de tooltip (hover): funciona no toque do
+          // mobile e é um popup fechável (clicar no ícone de novo, fora, ou Esc).
+          // Renderiza em portal, então o overflow-hidden do card não o corta.
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                aria-label={`Sobre: ${label}`}
+                onClick={(e) => e.stopPropagation()}
+                className="shrink-0 rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+                style={{ color: "var(--text-muted)", lineHeight: 0 }}
+              >
+                <Info style={{ width: 13, height: 13 }} />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="start"
+              className="w-64 p-3 text-[12px] leading-relaxed"
+              style={{
+                background: "var(--bg-card)",
+                border: "1px solid var(--border-subtle)",
+                color: "var(--text-secondary)",
+              }}
+            >
+              {hint}
+            </PopoverContent>
+          </Popover>
         )}
       </div>
 

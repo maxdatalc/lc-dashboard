@@ -252,7 +252,10 @@ export function Header() {
       className="fixed top-0 right-0 z-30 flex items-center px-4 gap-4"
       style={{
         left: "var(--sidebar-width)",
-        height: "var(--header-height)",
+        height: "var(--header-offset)",
+        // Empurra os controles para baixo do notch no iOS (safe-area). Em telas
+        // sem notch, env() = 0 e o header fica idêntico ao desktop atual.
+        paddingTop: "env(safe-area-inset-top)",
         backgroundColor: "var(--bg-card)",
         borderBottom: "1px solid var(--border-subtle)",
       }}

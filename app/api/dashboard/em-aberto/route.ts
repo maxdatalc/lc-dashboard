@@ -36,29 +36,48 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (!config) continue;
 
     try {
-      // Vendas VE aguardando supervisão (tela 113 do MaxManager = vedStatus 'S').
-      // vedStatus 'O' NÃO é essa fila: são vendas abandonadas (vedTotalNf sempre 0,
-      // nenhuma recente) — confirmado no bridge de testes (SALES) em 2026-07-11.
-      // vdiValor é o preço UNITÁRIO do item, não o total da linha — multiplicar por
-      // vdiQtde. Não há desconto a subtrair aqui porque a venda ainda não fechou
-      // (vedTotalNf = 0 para status 'S'), então qtde × preço é a melhor estimativa.
+      // "Em aberto" = venda/OS já autorizada pelo cliente mas ainda não finalizada
+      // no sistema. Confirmado no bridge de testes (SALES) em 2026-07-24 com os
+      // exemplos reais 42197 (OS, cli 629, R$1033) e 42186 (OS, R$789,25), ambos
+      // vedStatus='X'. Status considerados:
+      //   'S' = aguardando Supervisão de Vendas (tela 113),
+      //   'X' = no caixa, sem fechar,
+      //   'A' = em andamento antes do caixa — só para OS (ver SQL_OS abaixo).
+      // NÃO inclui 'O' (abandonada, vedTotalNf sempre 0), 'Q'/'Z' (raros) nem
+      // 'F'/'C' (finalizada/cancelada).
+      // Valor: vedTotalNf já reflete o desconto de fechamento onde existe (42197 tem
+      // vedTotalNf=1033, mas SUM(qtde×valor)=1150 — usar item sem desconto inflava o
+      // KPI). Só caímos no SUM(vdiQtde × vdiValor) quando vedTotalNf=0 (ex.: VE em
+      // supervisão que ainda não recebeu total). vdiValor é preço UNITÁRIO → × vdiQtde.
+      const VALOR_EXPR = `
+        ISNULL(SUM(CASE WHEN v.vedTotalNf > 0 THEN v.vedTotalNf
+                        ELSE ISNULL(it.itemTotal, 0) END), 0)`;
+      const ITEM_APPLY = `
+        OUTER APPLY (
+          SELECT SUM(vi.vdiQtde * vi.vdiValor) AS itemTotal
+          FROM vendaItem vi
+          WHERE vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
+        ) it`;
+
       const SQL_VE = `
-        SELECT COUNT(DISTINCT v.vedId) AS qtd,
-               ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valorTotal
-        FROM venda v
-        LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
-        WHERE v.vedStatus = 'S'
+        SELECT COUNT(*) AS qtd, ${VALOR_EXPR} AS valorTotal
+        FROM venda v${ITEM_APPLY}
+        WHERE v.vedStatus IN ('S', 'X')
           AND v.vedTipo = 'VE'
           AND v.empId = @empId`;
 
-      // OS aguardando supervisão, com tipo de atendimento que gera financeiro
+      // OS em aberto: inclui 'A' (em andamento, antes do caixa) além de supervisão e
+      // caixa — uma OS aberta já foi autorizada pelo cliente. É o filtro
+      // tatServGeraFinanceiro que exclui orçamento/proposta: no bridge de testes, das
+      // 971 OS em 'A', 783 são tipo ORÇAMENTO (geraFinanceiro=false) e só 172 são
+      // NORMAL (true) — ou seja, o flag é o que implementa o "não inclui orçamentos"
+      // do texto exibido ao usuário. GARANTIA/RETORNO também caem fora por não gerar
+      // financeiro. tatServGeraFinanceiro e tatProGeraFinanceiro nunca divergem aqui.
       const SQL_OS = `
-        SELECT COUNT(DISTINCT v.vedId) AS qtd,
-               ISNULL(SUM(vi.vdiQtde * vi.vdiValor), 0) AS valorTotal
+        SELECT COUNT(*) AS qtd, ${VALOR_EXPR} AS valorTotal
         FROM venda v
-        INNER JOIN tipoAtend ta ON ta.tatId = CAST(v.vedTipoAtend AS INT)
-        LEFT JOIN vendaItem vi ON vi.vdiVedId = v.vedId AND vi.vdiCancel = 0
-        WHERE v.vedStatus = 'S'
+        INNER JOIN tipoAtend ta ON ta.tatId = CAST(v.vedTipoAtend AS INT)${ITEM_APPLY}
+        WHERE v.vedStatus IN ('A', 'S', 'X')
           AND v.vedTipo = 'OS'
           AND ta.tatServGeraFinanceiro = 1
           AND v.empId = @empId`;

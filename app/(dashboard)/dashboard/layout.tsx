@@ -10,7 +10,7 @@ export default function DashboardSubLayout({
       <Header />
       <main
         className="flex-1 overflow-y-auto pb-20 md:pb-0"
-        style={{ paddingTop: "var(--header-height)" }}
+        style={{ paddingTop: "var(--header-offset)" }}
       >
         {children}
       </main>

@@ -3,6 +3,7 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Trophy, BarChart2, List } from "lucide-react";
 import { formatCurrency } from "@/lib/utils/format";
+import { useMediaQuery } from "@/hooks/use-media-query";
 
 export interface GrupoItem {
   nome: string;
@@ -48,6 +49,8 @@ interface Props {
 }
 
 export function TopGruposChart({ data }: Props) {
+  const isMobile = useMediaQuery("(max-width: 767px)");
+
   if (!data.length) {
     return (
       <div className="flex items-center justify-center" style={{ height: 200 }}>
@@ -72,8 +75,8 @@ export function TopGruposChart({ data }: Props) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
-      {/* ── 4 KPI chips — horizontal row ────────────────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+      {/* ── 4 KPI chips — 2×2 no mobile, linha única no desktop ──── */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 10 }}>
         {/* Total faturado */}
         <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--card-header-bg)", border: "1px solid var(--card-header-border)" }}>
           <p style={{ fontSize: 10, color: "var(--text-muted)", marginBottom: 5 }}>Total faturado</p>
@@ -113,12 +116,14 @@ export function TopGruposChart({ data }: Props) {
         </div>
       </div>
 
-      {/* ── 2 colunas: Pódio | Gráfico de barras ─────────────── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, height: 300 }}>
+      {/* ── Pódio | Gráfico: lado a lado no desktop, empilhado no mobile ── */}
+      {/* No mobile, empilhar dá largura total ao pódio — sem isso o nome da
+          marca era espremido a ~90px e truncava para "F…" (bug reportado). */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, height: isMobile ? "auto" : 300 }}>
 
         {/* Pódio TOP 3 */}
         <div style={{
-          height: "100%", boxSizing: "border-box",
+          height: isMobile ? "auto" : "100%", boxSizing: "border-box",
           padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)",
           display: "flex", flexDirection: "column", overflow: "hidden",
         }}>
@@ -163,7 +168,7 @@ export function TopGruposChart({ data }: Props) {
 
         {/* Faturamento por fabricante — scroll real */}
         <div style={{
-          height: "100%", boxSizing: "border-box",
+          height: isMobile ? 300 : "100%", boxSizing: "border-box",
           padding: "14px 16px", borderRadius: 8, border: "1px solid var(--border-subtle)",
           display: "flex", flexDirection: "column", overflow: "hidden",
         }}>

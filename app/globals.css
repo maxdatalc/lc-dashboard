@@ -73,6 +73,9 @@
     --sidebar-badge-bg: rgba(255, 255, 255, 0.04);
     --sidebar-width: 56px;
     --header-height: 48px;
+    /* Altura total do header incluindo a área do notch (safe-area) no iOS.
+       Em desktop/Android sem notch, env() = 0, então é igual a --header-height. */
+    --header-offset: calc(var(--header-height) + env(safe-area-inset-top));
 
     /* Chart / Card tokens — padrão escuro (fallback) */
     --card-header-bg: rgba(255, 255, 255, 0.025);
